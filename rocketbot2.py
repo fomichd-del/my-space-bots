@@ -1,7 +1,9 @@
 import requests
+import os # Добавляем модуль
 from datetime import datetime
 
-TELEGRAM_TOKEN = '8745137839:AAFtVLdh4csqLcxC0YnH7nXdckN64vkZhBM'
+# Берем данные из нашего защищенного хранилища
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME = '@vladislav_space'
 
 def check_launches():
