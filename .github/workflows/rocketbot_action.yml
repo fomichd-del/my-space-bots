@@ -1,0 +1,22 @@
+name: Rocket Launches Daily
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # Каждый день в 06:30 по Гринвичу (это утро)
+  workflow_dispatch:      # Чтобы можно было запустить вручную
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install requests
+      run: pip install requests
+    - name: Run asteroid bot
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+      run: python rocketbot2.py
