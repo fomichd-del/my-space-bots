@@ -1,0 +1,47 @@
+name: Cosmos Photo Bot Daily
+
+# 1. Когда запускать?
+on:
+  schedule:
+    - cron: '0 12 * * *' # Каждый день в 12:00 по Гринвичу (UTC)
+  workflow_dispatch:      # Позволяет запускать бота вручную кнопкой
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # Используем сервер Linux
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3 # Копируем файлы в облако
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install requests deep-translator # Устанавливаем библиотеки
+
+    - name: Run bot
+      env:
+        # Передаем наши секреты в программу
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+      run: python cosmos_photo.py # Запускаем файл
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
