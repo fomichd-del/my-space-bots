@@ -1,22 +1,23 @@
 import requests
-import os # 1. Подключаем работу с секретами
+import os
 from deep_translator import GoogleTranslator
 
-# 2. Достаем оба ключа из "сейфа" GitHub
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY = os.getenv('NASA_API_KEY') 
 CHANNEL_NAME = '@vladislav_space'
 
 def get_cosmos_photo():
-    # Используем переменную NASA_API_KEY в ссылке
-    url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
+    # 1. Добавляем параметр &count=1 для случайного фото
+    url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}&count=1"
     response = requests.get(url).json()
     
-    photo_url = response.get('url')
-    title_en = response.get('title')
-    explanation_en = response.get('explanation')
+    # 2. Так как пришел список, берем самый первый объект [0]
+    data = response[0]
     
-    # Переводчик работает как обычно
+    photo_url = data.get('url')
+    title_en = data.get('title')
+    explanation_en = data.get('explanation')
+    
     translator = GoogleTranslator(source='auto', target='ru')
     title_ru = translator.translate(title_en)
     explanation_ru = translator.translate(explanation_en)
