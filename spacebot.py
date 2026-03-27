@@ -1,10 +1,13 @@
 import requests
+import os # 1. Добавляем модуль для связи с системой
 
-TOKEN = '8745137839:AAFtVLdh4csqLcxC0YnH7nXdckN64vkZhBM'
+# 2. Вместо текста в кавычках просим систему выдать секрет
+TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL = '@vladislav_space'
-API_KEY = 'DEMO_KEY'
+API_KEY = os.getenv('NASA_API_KEY')
 
 def get_asteroids():
+    # Если API_KEY не найден, программа выдаст ошибку, поэтому используем f-строку как обычно
     url = f"https://api.nasa.gov/neo/rest/v1/feed/today?detailed=true&api_key={API_KEY}"
     data = requests.get(url).json()
     count = data['element_count']
