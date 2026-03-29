@@ -1,34 +1,40 @@
 import requests
 import os
-from deep_translator import GoogleTranslator
 
+NASA_API_KEY = os.getenv('NASA_API_KEY')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-NASA_API_KEY = os.getenv('NASA_API_KEY') 
 CHANNEL_NAME = '@vladislav_space'
 
 def get_cosmos_photo():
-    # 1. Добавляем параметр &count=1 для случайного фото
-    url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}&count=1"
+    url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     response = requests.get(url).json()
     
-    # 2. Так как пришел список, берем самый первый объект [0]
-    data = response[0]
+    title = response.get('title', 'Космическое фото')
+    explanation = response.get('explanation', '')
+    photo_url = response.get('url')
     
-    photo_url = data.get('url')
-    title_en = data.get('title')
-    explanation_en = data.get('explanation')
+    # Ограничим описание, чтобы оно влезло в лимит Telegram (1024 символа для фото)
+    short_explanation = (explanation[:600] + '...') if len(explanation) > 600 else explanation
     
-    translator = GoogleTranslator(source='auto', target='ru')
-    title_ru = translator.translate(title_en)
-    explanation_ru = translator.translate(explanation_en)
+    caption = f"🌌 <b>{title}</b>\n\n{short_explanation}\n\n"
     
-    caption = f"🌌 <b>{title_ru}</b>\n\n{explanation_ru}"
+    # --- НАША ПОДПИСЬ ---
+    caption += "--------------------------\n"
+    caption += "🚀 Читайте больше в моем блоге:\n"
+    caption += "👉 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+    
     return photo_url, caption
 
-def send_photo(photo_url, caption):
+def send_to_tg():
+    photo, text = get_cosmos_photo()
     api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-    requests.post(api_url, data={'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': caption[:1024], 'parse_mode': 'HTML'})
+    payload = {
+        'chat_id': CHANNEL_NAME,
+        'photo': photo,
+        'caption': text,
+        'parse_mode': 'HTML'
+    }
+    requests.post(api_url, data=payload)
 
-if __name__ == '__main__':
-    img, txt = get_cosmos_photo()
-    send_photo(img, txt)
+if __name__ == "__main__":
+    send_to_tg()
