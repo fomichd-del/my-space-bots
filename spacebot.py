@@ -38,7 +38,7 @@ def get_asteroids():
         report = f"☄️ <b>Астероидный патруль на {today}</b>\n\n"
     # --------------------------------
     
-    for n, ast in enumerate(asteroids[:3], 1):
+    for n, ast in enumerate(asteroids[:5], 1):
         name = ast['name']
         dist = int(float(ast['close_approach_data'][0]['miss_distance']['kilometers']))
         diam = int(ast['estimated_diameter']['meters']['estimated_diameter_max'])
