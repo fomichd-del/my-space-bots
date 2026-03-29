@@ -7,34 +7,36 @@ CHANNEL_NAME = '@vladislav_space'
 
 def get_cosmos_photo():
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
-    response = requests.get(url).json()
+    res = requests.get(url).json()
     
-    title = response.get('title', 'Космическое фото')
-    explanation = response.get('explanation', '')
-    photo_url = response.get('url')
+    title = res.get('title', 'Космическое фото')
+    explanation = res.get('explanation', '')
+    media_type = res.get('media_type') # Проверяем: фото или видео?
+    url_media = res.get('url')
+    hd_url = res.get('hdurl', url_media) # Ссылка на высокое качество
     
-    # Ограничим описание, чтобы оно влезло в лимит Telegram (1024 символа для фото)
-    short_explanation = (explanation[:600] + '...') if len(explanation) > 600 else explanation
+    short_text = (explanation[:500] + '...') if len(explanation) > 500 else explanation
     
-    caption = f"🌌 <b>{title}</b>\n\n{short_explanation}\n\n"
+    report = f"🌌 <b>{title}</b>\n\n{short_text}\n\n"
+    if media_type == 'image':
+        report += f"🖼 <a href='{hd_url}'>Открыть в HD качестве</a>\n\n"
     
-    # --- НАША ПОДПИСЬ ---
-    caption += "--------------------------\n"
-    caption += "🚀 Читайте больше в моем блоге:\n"
-    caption += "👉 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+    # --- ТВОЯ ПОДПИСЬ ---
+    report += "--------------------------\n"
+    report += "🚀 Больше космоса тут:\n"
+    report += "👉 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     
-    return photo_url, caption
+    return url_media, report, media_type
 
 def send_to_tg():
-    photo, text = get_cosmos_photo()
-    api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-    payload = {
-        'chat_id': CHANNEL_NAME,
-        'photo': photo,
-        'caption': text,
-        'parse_mode': 'HTML'
-    }
-    requests.post(api_url, data=payload)
+    url, text, m_type = get_cosmos_photo()
+    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/"
+    
+    if m_type == 'image':
+        requests.post(base_url + "sendPhoto", data={'chat_id': CHANNEL_NAME, 'photo': url, 'caption': text, 'parse_mode': 'HTML'})
+    else:
+        # Если это видео (YouTube), отправляем просто текстом с ссылкой
+        requests.post(base_url + "sendMessage", data={'chat_id': CHANNEL_NAME, 'text': text + f"\n\n📺 Видео дня: {url}", 'parse_mode': 'HTML'})
 
 if __name__ == "__main__":
     send_to_tg()
