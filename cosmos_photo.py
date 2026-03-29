@@ -1,42 +1,37 @@
 import requests
 import os
 
-NASA_API_KEY = os.getenv('NASA_API_KEY')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+NASA_API_KEY = os.getenv('NASA_API_KEY')
 CHANNEL_NAME = '@vladislav_space'
 
-def get_cosmos_photo():
+def get_nasa_photo():
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
-    res = requests.get(url).json()
+    response = requests.get(url).json()
     
-    title = res.get('title', 'Космическое фото')
-    explanation = res.get('explanation', '')
-    media_type = res.get('media_type') # Проверяем: фото или видео?
-    url_media = res.get('url')
-    hd_url = res.get('hdurl', url_media) # Ссылка на высокое качество
+    title = response.get('title', 'Космическое фото')
+    explanation = response.get('explanation', '')
+    img_url = response.get('url', '')
     
-    short_text = (explanation[:500] + '...') if len(explanation) > 500 else explanation
+    # Переводим заголовок на русский (примерный вариант)
+    text = f"🌌 <b>ФОТО ДНЯ: {title}</b>\n\n"
+    # Ограничим описание, чтобы оно не было слишком длинным
+    text += (explanation[:300] + '...') if len(explanation) > 300 else explanation
+    text += "\n\n"
+    text += "🌌 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     
-    report = f"🌌 <b>{title}</b>\n\n{short_text}\n\n"
-    if media_type == 'image':
-        report += f"🖼 <a href='{hd_url}'>Открыть в HD качестве</a>\n\n"
-    
-    # --- ТВОЯ ПОДПИСЬ ---
-    report += "--------------------------\n"
-    report += "🚀 Больше космоса тут:\n"
-    report += "👉 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-    
-    return url_media, report, media_type
+    return img_url, text
 
-def send_to_tg():
-    url, text, m_type = get_cosmos_photo()
-    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/"
-    
-    if m_type == 'image':
-        requests.post(base_url + "sendPhoto", data={'chat_id': CHANNEL_NAME, 'photo': url, 'caption': text, 'parse_mode': 'HTML'})
-    else:
-        # Если это видео (YouTube), отправляем просто текстом с ссылкой
-        requests.post(base_url + "sendMessage", data={'chat_id': CHANNEL_NAME, 'text': text + f"\n\n📺 Видео дня: {url}", 'parse_mode': 'HTML'})
+def send_photo(photo_url, caption):
+    api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    requests.post(api_url, data={
+        'chat_id': CHANNEL_NAME,
+        'photo': photo_url,
+        'caption': caption,
+        'parse_mode': 'HTML'
+        # У фото превью ссылки отключать не нужно, оно и так не появится
+    })
 
-if __name__ == "__main__":
-    send_to_tg()
+if __name__ == '__main__':
+    url, txt = get_nasa_photo()
+    send_photo(url, txt)
