@@ -2,7 +2,7 @@ import requests
 import os
 import random
 from datetime import datetime, timezone
-from deep_translator import GoogleTranslator # 🌐 Импорт переводчика
+from deep_translator import GoogleTranslator
 
 # --- НАСТРОЙКИ ---
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -20,7 +20,6 @@ def save_sent_id(launch_id):
         f.write(f"{launch_id}\n")
 
 def translate_to_russian(text):
-    """Качественный перевод через Google Translate"""
     try:
         return GoogleTranslator(source='en', target='ru').translate(text)
     except Exception as e:
@@ -32,21 +31,20 @@ def check_launches():
     try:
         response = requests.get(url).json()
         if not response.get('results'):
-            return None, None
+            return None, None, None
         launch = response['results'][0]
     except Exception as e:
         print(f"Ошибка API: {e}")
-        return None, None
+        return None, None, None
 
     launch_id = launch['id']
     rocket = launch['rocket']['configuration']['name']
-    mission_name = launch['mission']['name'] if launch['mission'] else "Интересная миссия"
+    image_url = launch['image'] # 📸 Ссылка на фото
     
-    # 📝 Перевод описания
+    mission_name = launch['mission']['name'] if launch['mission'] else "Интересная миссия"
     raw_description = launch['mission']['description'] if launch['mission'] else "Детали появятся позже."
     description = translate_to_russian(raw_description)
     
-    # ⏱️ Таймер до старта
     launch_time_str = launch['net']
     launch_time = datetime.fromisoformat(launch_time_str.replace('Z', '+00:00'))
     now = datetime.now(timezone.utc)
@@ -59,7 +57,6 @@ def check_launches():
     else:
         countdown = "Запуск уже начался!"
 
-    # 🎒 Твоя база из 50 секретов
     secrets_list = [
         "🎒 <b>ПРИНЦИП РЮКЗАКА:</b> Ракета сбрасывает пустые баки, чтобы лететь налегке! 🚀",
         "🌊 <b>ОГРОМНЫЙ ДУШ:</b> Воду льют под ракету, чтобы звук двигателей её не сломал! 🔊",
@@ -112,7 +109,6 @@ def check_launches():
         "⛽ <b>ЗАПРАВКА:</b> Корабли могут заправляться прямо на орбите! ⛽",
         "🎂 <b>ДЕНЬ РОЖДЕНИЯ:</b> Марсоход Curiosity сам спел себе песню на Марсе! 🎂"
     ]
-
     chosen_secret = random.choice(secrets_list)
 
     report = f"🚀 <b>СКОРО В КОСМОС: {rocket.upper()}</b>\n"
@@ -124,21 +120,21 @@ def check_launches():
     report += "--------------------------\n\n"
     report += "🌌 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     
-    return report, launch_id
+    return report, launch_id, image_url
 
-def send_to_telegram(text):
-    api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+def send_to_telegram(text, photo_url):
+    api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     requests.post(api_url, data={
         'chat_id': CHANNEL_NAME, 
-        'text': text, 
-        'parse_mode': 'HTML',
-        'disable_web_page_preview': True
+        'photo': photo_url,
+        'caption': text, 
+        'parse_mode': 'HTML'
     })
 
 if __name__ == '__main__':
-    text_report, current_launch_id = check_launches()
+    text_report, current_launch_id, photo_url = check_launches()
     if text_report and current_launch_id:
         sent_ids = load_sent_ids()
         if current_launch_id not in sent_ids:
-            send_to_telegram(text_report)
+            send_to_telegram(text_report, photo_url)
             save_sent_id(current_launch_id)
