@@ -10,23 +10,27 @@ CHANNEL_NAME = '@vladislav_space'
 DB_FILE = "sent_launches.txt"
 
 def load_sent_ids():
+    """Загружаем список уже отправленных ID 🧠"""
     if not os.path.exists(DB_FILE):
         return set()
     with open(DB_FILE, "r") as f:
         return set(line.strip() for line in f)
 
 def save_sent_id(launch_id):
+    """Сохраняем новый ID в файл памяти 💾"""
     with open(DB_FILE, "a") as f:
         f.write(f"{launch_id}\n")
 
 def translate_to_russian(text):
+    """Переводим описание на русский язык 🌐"""
     try:
-        return GoogleTranslator(source='en', target='ru').translate(text)
+        return GoogleTranslator(source='auto', target='ru').translate(text)
     except Exception as e:
         print(f"Ошибка перевода: {e}")
         return text
 
 def check_launches():
+    """Проверяем API и собираем данные о запуске 🛰️"""
     url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=1"
     try:
         response = requests.get(url).json()
@@ -34,14 +38,14 @@ def check_launches():
             return None, None, None, None
         launch = response['results'][0]
     except Exception as e:
-        print(f"Ошибка API: {e}")
+        print(f"Ошибка при запросе к API: {e}")
         return None, None, None, None
 
     launch_id = launch['id']
     rocket = launch['rocket']['configuration']['name']
-    image_url = launch.get('image')
+    image_url = launch.get('image') # Ссылка на фото 📸
     
-    # Ищем видео 🎥
+    # Ищем ссылки на видео 📺
     video_links = launch.get('vidURLs', [])
     video_url = video_links[0]['url'] if video_links else None
     
@@ -49,6 +53,7 @@ def check_launches():
     raw_description = launch['mission']['description'] if launch['mission'] else "Детали появятся позже."
     description = translate_to_russian(raw_description)
     
+    # Считаем время до старта ⏱️
     launch_time_str = launch['net']
     launch_time = datetime.fromisoformat(launch_time_str.replace('Z', '+00:00'))
     now = datetime.now(timezone.utc)
@@ -61,6 +66,7 @@ def check_launches():
     else:
         countdown = "Запуск уже начался!"
 
+    # Секреты Марти 🎒
     secrets_list = [
         "🎒 <b>ПРИНЦИП РЮКЗАКА:</b> Ракета сбрасывает пустые баки, чтобы лететь налегке! 🚀",
         "🌊 <b>ОГРОМНЫЙ ДУШ:</b> Воду льют под ракету, чтобы звук двигателей её не сломал! 🔊",
@@ -115,6 +121,7 @@ def check_launches():
     ]
     chosen_secret = random.choice(secrets_list)
 
+    # Собираем текст сообщения 📝
     report = f"🚀 <b>СКОРО В КОСМОС: {rocket.upper()}</b>\n"
     report += f"🎯 <b>Миссия:</b> {mission_name}\n"
     report += f"⏳ <b>До старта:</b> {countdown}\n\n"
@@ -123,7 +130,7 @@ def check_launches():
     report += f"🎒 <b>МАРТИ РАССКАЗЫВАЕТ:</b>\n{chosen_secret}\n"
     report += "--------------------------\n\n"
     
-    # 🎥 Добавляем видео, если оно есть
+    # Добавляем ссылку на видео, если она есть 📺
     if video_url:
         report += f"📺 <b>Прямой эфир:</b> <a href='{video_url}'>Смотреть запуск</a>\n\n"
         
@@ -132,29 +139,47 @@ def check_launches():
     return report, launch_id, image_url, video_url
 
 def send_to_telegram(text, photo_url):
+    """Отправляем сообщение в Telegram (с фото или без) 📤"""
     if photo_url:
+        # Если есть фото, используем метод sendPhoto 📸
         api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-        requests.post(api_url, data={
+        payload = {
             'chat_id': CHANNEL_NAME, 
             'photo': photo_url,
             'caption': text, 
             'parse_mode': 'HTML'
-        })
+        }
     else:
+        # Если фото нет, используем обычный sendMessage ✉️
         api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        requests.post(api_url, data={
+        payload = {
             'chat_id': CHANNEL_NAME, 
             'text': text, 
             'parse_mode': 'HTML',
             'disable_web_page_preview': True
-        })
+        }
+    
+    requests.post(api_url, data=payload)
 
 if __name__ == '__main__':
-    # Распаковываем 4 значения 📦
+    print("--- 🏁 Начинаю проверку запусков ---")
+    
     text_report, current_launch_id, photo_url, video_url = check_launches()
+    
+    print(f"📡 Получен ID запуска: {current_launch_id}")
     
     if text_report and current_launch_id:
         sent_ids = load_sent_ids()
+        print(f"🧠 В памяти уже есть: {sent_ids}")
+        
         if current_launch_id not in sent_ids:
+            print("🚀 Обнаружен новый запуск! Отправляю в Telegram...")
             send_to_telegram(text_report, photo_url)
             save_sent_id(current_launch_id)
+            print("✅ Готово! Пост отправлен и ID сохранен.")
+        else:
+            print("⏭️ Этот запуск уже был отправлен ранее. Пропускаю.")
+    else:
+        print("❌ Не удалось получить данные о запусках.")
+    
+    print("--- 🏁 Проверка завершена ---")
