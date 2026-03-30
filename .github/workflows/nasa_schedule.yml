@@ -2,41 +2,30 @@ name: NASA Daily Content
 
 on:
   schedule:
-    # Запуск в 09:00 UTC (12:00 по вашему) для фото
-    - cron: '0 9 * * *'
-    # Запуск в 15:00 UTC (18:00 по вашему) для видео
-    - cron: '0 15 * * *'
-  workflow_dispatch: # Позволяет запускать вручную для проверки
+    - cron: '0 9 * * *'  # 12:00 по твоему времени (фото)
+    - cron: '0 15 * * *' # 18:00 по твоему времени (видео)
+  workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run NASA Bot (Photo)
-        if: github.event.schedule == '0 9 * * *'
+          python-version: '3.10'
+      - run: pip install -r requirements.txt
+      
+      # Если сейчас 9:00 UTC — шлем фото
+      - name: Post Photo
+        if: github.event.schedule == '0 9 * * *' || github.event_name == 'workflow_dispatch'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python cosmos_photo.py image
 
-      - name: Run NASA Bot (Video)
+      # Если сейчас 15:00 UTC — шлем видео
+      - name: Post Video
         if: github.event.schedule == '0 15 * * *'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python cosmos_photo.py video
-
-      - name: Run Manual (if triggered manually)
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        run: python cosmos_photo.py image
