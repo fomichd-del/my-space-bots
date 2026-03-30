@@ -43,7 +43,7 @@ def check_launches():
 
     launch_id = launch['id']
     rocket = launch['rocket']['configuration']['name']
-    image_url = launch.get('image') # Ссылка на фото 📸
+    image_url = launch.get('image') 
     
     # Ищем ссылки на видео 📺
     video_links = launch.get('vidURLs', [])
@@ -53,7 +53,7 @@ def check_launches():
     raw_description = launch['mission']['description'] if launch['mission'] else "Детали появятся позже."
     description = translate_to_russian(raw_description)
     
-    # Считаем время до старта ⏱️
+    # Время до старта ⏱️
     launch_time_str = launch['net']
     launch_time = datetime.fromisoformat(launch_time_str.replace('Z', '+00:00'))
     now = datetime.now(timezone.utc)
@@ -98,7 +98,7 @@ def check_launches():
         "🌒 <b>ОБРАТНАЯ СТОРОНА:</b> Мы никогда не видим одну сторону Луны с Земли! 🌒",
         "👣 <b>ПРЫЖКИ:</b> На Луне ты мог бы прыгнуть в 6 раз выше, чем дома! 🦘",
         "🧤 <b>СКОВАННЫЕ РУКИ:</b> Перчатки скафандра так сильно раздуваются, что ими трудно шевелить! 🧤",
-        "🔌 <b>СОЛНЕЧНЫЕ КРЫЛЬЯ:</b> У МКС есть огромные панели, которые делают ток из света! ⚡",
+        "🔌 <b>СОЛНЕЧНЫЕ КЫЛЬЯ:</b> У МКС есть огромные панели, которые делают ток из света! ⚡",
         "🧱 <b>КИРПИЧИ ИЗ ЛУНЫ:</b> Ученые хотят строить дома на Луне из лунной пыли! 🏗️",
         "🧨 <b>ПИРОБОЛТЫ:</b> Части ракеты отцепляются с помощью маленьких взрывов! 💥",
         "🛡️ <b>ТЕПЛОВОЙ ЩИТ:</b> Дно корабля защищает его от жара в 1500 градусов! 🔥",
@@ -121,7 +121,7 @@ def check_launches():
     ]
     chosen_secret = random.choice(secrets_list)
 
-    # Собираем текст сообщения 📝
+    # Собираем текст 📝
     report = f"🚀 <b>СКОРО В КОСМОС: {rocket.upper()}</b>\n"
     report += f"🎯 <b>Миссия:</b> {mission_name}\n"
     report += f"⏳ <b>До старта:</b> {countdown}\n\n"
@@ -130,7 +130,7 @@ def check_launches():
     report += f"🎒 <b>МАРТИ РАССКАЗЫВАЕТ:</b>\n{chosen_secret}\n"
     report += "--------------------------\n\n"
     
-    # Добавляем ссылку на видео, если она есть 📺
+    # Добавляем видео, если оно есть 📺
     if video_url:
         report += f"📺 <b>Прямой эфир:</b> <a href='{video_url}'>Смотреть запуск</a>\n\n"
         
@@ -139,25 +139,13 @@ def check_launches():
     return report, launch_id, image_url, video_url
 
 def send_to_telegram(text, photo_url):
-    """Отправляем сообщение в Telegram (с фото или без) 📤"""
+    """Отправляем сообщение в Telegram 📤"""
     if photo_url:
-        # Если есть фото, используем метод sendPhoto 📸
         api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-        payload = {
-            'chat_id': CHANNEL_NAME, 
-            'photo': photo_url,
-            'caption': text, 
-            'parse_mode': 'HTML'
-        }
+        payload = {'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': text, 'parse_mode': 'HTML'}
     else:
-        # Если фото нет, используем обычный sendMessage ✉️
         api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {
-            'chat_id': CHANNEL_NAME, 
-            'text': text, 
-            'parse_mode': 'HTML',
-            'disable_web_page_preview': True
-        }
+        payload = {'chat_id': CHANNEL_NAME, 'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': True}
     
     requests.post(api_url, data=payload)
 
@@ -167,6 +155,7 @@ if __name__ == '__main__':
     text_report, current_launch_id, photo_url, video_url = check_launches()
     
     print(f"📡 Получен ID запуска: {current_launch_id}")
+    print(f"🎥 Найдена ссылка на видео: {video_url}") # Наш дебаг!
     
     if text_report and current_launch_id:
         sent_ids = load_sent_ids()
@@ -176,10 +165,10 @@ if __name__ == '__main__':
             print("🚀 Обнаружен новый запуск! Отправляю в Telegram...")
             send_to_telegram(text_report, photo_url)
             save_sent_id(current_launch_id)
-            print("✅ Готово! Пост отправлен и ID сохранен.")
+            print("✅ Готово! Пост отправлен.")
         else:
-            print("⏭️ Этот запуск уже был отправлен ранее. Пропускаю.")
+            print("⏭️ Этот запуск уже был отправлен ранее.")
     else:
-        print("❌ Не удалось получить данные о запусках.")
+        print("❌ Не удалось получить данные.")
     
     print("--- 🏁 Проверка завершена ---")
