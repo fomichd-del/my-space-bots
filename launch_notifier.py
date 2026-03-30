@@ -2,18 +2,38 @@ import requests
 import os
 import random
 
+# --- НАСТРОЙКИ ---
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME = '@vladislav_space'
+DB_FILE = "sent_launches.txt" # Файл-память 💾
+
+def load_sent_ids():
+    """Загружаем список уже отправленных ID"""
+    if not os.path.exists(DB_FILE):
+        return set()
+    with open(DB_FILE, "r") as f:
+        return set(line.strip() for line in f)
+
+def save_sent_id(launch_id):
+    """Сохраняем новый ID в файл"""
+    with open(DB_FILE, "a") as f:
+        f.write(f"{launch_id}\n")
 
 def check_launches():
+    # Запрашиваем данные о ближайшем запуске
     url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=1"
     response = requests.get(url).json()
+    
+    if not response.get('results'):
+        return None, None
+        
     launch = response['results'][0]
+    launch_id = launch['id'] # Уникальный паспорт ракеты 🆔
     
     rocket = launch['rocket']['configuration']['name']
     mission = launch['mission']['name'] if launch['mission'] else "Интересная миссия"
     
-    # Твоя база из 50 секретов
+    # Твоя база из 50 секретов 🎒
     secrets_list = [
         "🎒 <b>ПРИНЦИП РЮКЗАКА:</b> Ракета сбрасывает пустые баки, чтобы лететь налегке! 🚀",
         "🌊 <b>ОГРОМНЫЙ ДУШ:</b> Воду льют под ракету, чтобы звук двигателей её не сломал! 🔊",
@@ -76,7 +96,7 @@ def check_launches():
     report += "--------------------------\n\n"
     report += "🌌 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     
-    return report
+    return report, launch_id
 
 def send_to_telegram(text):
     api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -88,4 +108,17 @@ def send_to_telegram(text):
     })
 
 if __name__ == '__main__':
-    send_to_telegram(check_launches())
+    # 1. Проверяем запуск и получаем ID
+    text_report, current_launch_id = check_launches()
+    
+    if text_report and current_launch_id:
+        # 2. Проверяем, не отправляли ли мы это раньше
+        sent_ids = load_sent_ids()
+        
+        if current_launch_id not in sent_ids:
+            # 3. Если запуск новый — отправляем и сохраняем ID
+            send_to_telegram(text_report)
+            save_sent_id(current_launch_id)
+            print(f"Пост о запуске {current_launch_id} успешно отправлен!")
+        else:
+            print(f"Запуск {current_launch_id} уже был в канале. Пропускаем.")
