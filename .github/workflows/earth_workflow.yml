@@ -1,0 +1,22 @@
+name: Earth Photo Daily
+
+on:
+  schedule:
+    - cron: '30 10 * * *' # 10:30 UTC = 13:30 МСК
+  workflow_dispatch:      # Кнопка для ручного запуска
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Install requests
+      run: pip install requests
+    - name: Run earth bot
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+      run: python earth_bot.py
