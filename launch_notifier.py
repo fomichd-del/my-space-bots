@@ -76,7 +76,7 @@ if __name__ == '__main__':
             secrets = [
                 "🎒 <b>ПРИНЦИП РЮКЗАКА:</b> Ракета сбрасывает пустые баки, чтобы лететь налегке!",
                 "🌊 <b>ОГРОМНЫЙ ДУШ:</b> Воду льют под ракету, чтобы звук не сломал её!",
-                "⚪ <b>ПОЧЕМУ БЕЛЫЙ?</b> Этот цвет отражает солнце, чтобы топливо не грелось!",
+                "⚪ <b>ПОЧЕМУ БЕЛЫЙ?</b> Этот цвет отражает солнце, чтобы топливо не перегрелось!",
                 "🔥 <b>ОГНЕННЫЙ ХВОСТ:</b> Дым из ракеты — это водяной пар и сгоревшее топливо!",
                 "🌑 <b>СЛЕДЫ НА ЛУНЕ:</b> Они останутся там навсегда, ведь там нет ветра!",
                 "🦒 <b>РОСТ КОСМОНАВТА:</b> В космосе человек становится выше на пару сантиметров!",
@@ -126,7 +126,7 @@ if __name__ == '__main__':
                 "🎂 <b>ДЕНЬ РОЖДЕНИЯ:</b> Марсоход Curiosity сам спел себе песню на Марсе!"
             ]
             
-            # Собираем ссылки для анонса
+            # Собираем все ссылки для анонса
             video_section = ""
             if video_links:
                 video_section = "\n\n📺 <b>ГДЕ СМОТРЕТЬ:</b>"
@@ -153,17 +153,23 @@ if __name__ == '__main__':
         if 0 < seconds_to_launch <= 300:
             sent_reminders = load_ids(REMINDERS_FILE)
             if launch_id not in sent_reminders:
-                # Берем только одну ссылку для краткости
-                main_link = ""
+                # Ищем лучшую ссылку (YouTube в приоритете)
+                best_url = ""
                 if video_links:
-                    url = video_links[0]['url']
-                    main_link = f"\n\n📺 <a href='{url}'>Смотреть запуск</a>"
+                    for link in video_links:
+                        if "youtube" in link['url'] or "youtu.be" in link['url']:
+                            best_url = link['url']
+                            break
+                    if not best_url:
+                        best_url = video_links[0]['url']
+
+                link_text = f"\n\n📺 <a href='{best_url}'>Смотреть запуск</a>" if best_url else ""
 
                 reminder_text = (
                     f"🎒 <b>МАРТИ: ВСЕМ ПРИГОТОВИТЬСЯ!</b>\n\n"
                     f"До старта <b>{rocket}</b> осталось всего <b>5 минут</b>! ⏱️\n"
                     f"Проверьте системы и не пропустите момент отрыва! 🚀✨"
-                    f"{main_link}"
+                    f"{link_text}"
                 )
                 
                 send_to_telegram(reminder_text)
