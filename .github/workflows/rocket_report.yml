@@ -20,4 +20,6 @@ jobs:
       - name: Run Rocket Reporter
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        run: python rocketbot2.py
+        run: python launch_notifier.py
+
+
