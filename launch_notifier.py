@@ -1,39 +1,61 @@
 import requests
 import os
 import random
+from datetime import datetime, timezone
 
 # --- НАСТРОЙКИ ---
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME = '@vladislav_space'
-DB_FILE = "sent_launches.txt" # Файл, где бот хранит «память» 🧠
+DB_FILE = "sent_launches.txt" # Файл-память 💾
 
 def load_sent_ids():
-    """Читаем список ID, которые уже отправляли"""
+    """Загружаем список уже отправленных ID из файла"""
     if not os.path.exists(DB_FILE):
         return set()
     with open(DB_FILE, "r") as f:
         return set(line.strip() for line in f)
 
 def save_sent_id(launch_id):
-    """Записываем новый ID в список отправленных"""
+    """Сохраняем новый ID в файл, чтобы не повторяться"""
     with open(DB_FILE, "a") as f:
         f.write(f"{launch_id}\n")
 
 def check_launches():
-    # Берем один ближайший запуск
+    # Запрашиваем данные о ближайшем запуске
     url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=1"
-    response = requests.get(url).json()
-    
-    if not response.get('results'):
+    try:
+        response = requests.get(url).json()
+        if not response.get('results'):
+            return None, None
+        launch = response['results'][0]
+    except Exception as e:
+        print(f"Ошибка при запросе к API: {e}")
         return None, None
-        
-    launch = response['results'][0]
-    launch_id = launch['id'] # Уникальный паспорт ракеты 🆔
-    
+
+    launch_id = launch['id'] # Уникальный ID 🆔
     rocket = launch['rocket']['configuration']['name']
-    mission = launch['mission']['name'] if launch['mission'] else "Интересная миссия"
+    mission_name = launch['mission']['name'] if launch['mission'] else "Интересная миссия"
+    # Добавляем описание миссии 📋
+    description = launch['mission']['description'] if launch['mission'] else "Детали миссии скоро появятся!"
     
-    # Твоя база из 50 секретов 🎒
+    # --- ЛОГИКА ТАЙМЕРА ⏱️ ---
+    launch_time_str = launch['net'] # Время старта из API
+    # Превращаем строку в объект времени UTC
+    launch_time = datetime.fromisoformat(launch_time_str.replace('Z', '+00:00'))
+    now = datetime.now(timezone.utc)
+    
+    # Считаем разницу
+    time_diff = launch_time - now
+    
+    # Форматируем остаток времени
+    if time_diff.total_seconds() > 0:
+        hours, remainder = divmod(int(time_diff.total_seconds()), 3600)
+        minutes, _ = divmod(remainder, 60)
+        countdown = f"{hours}ч {minutes}м"
+    else:
+        countdown = "Запуск уже начался или время уточняется!"
+
+    # --- ТВОЯ БАЗА ИЗ 50 СЕКРЕТОВ 🎒 ---
     secrets_list = [
         "🎒 <b>ПРИНЦИП РЮКЗАКА:</b> Ракета сбрасывает пустые баки, чтобы лететь налегке! 🚀",
         "🌊 <b>ОГРОМНЫЙ ДУШ:</b> Воду льют под ракету, чтобы звук двигателей её не сломал! 🔊",
@@ -89,8 +111,11 @@ def check_launches():
 
     chosen_secret = random.choice(secrets_list)
 
+    # Собираем сообщение 📝
     report = f"🚀 <b>СКОРО В КОСМОС: {rocket.upper()}</b>\n"
-    report += f"🎯 Миссия: {mission}\n\n"
+    report += f"🎯 <b>Миссия:</b> {mission_name}\n"
+    report += f"⏳ <b>До старта:</b> {countdown}\n\n"
+    report += f"📋 <b>Описание:</b> {description}\n\n"
     report += "--------------------------\n"
     report += f"🎒 <b>МАРТИ РАССКАЗЫВАЕТ:</b>\n{chosen_secret}\n"
     report += "--------------------------\n\n"
@@ -108,16 +133,9 @@ def send_to_telegram(text):
     })
 
 if __name__ == '__main__':
-    # Получаем отчет и ID
     text_report, current_launch_id = check_launches()
-    
     if text_report and current_launch_id:
-        # Проверяем «память»
         sent_ids = load_sent_ids()
-        
         if current_launch_id not in sent_ids:
             send_to_telegram(text_report)
             save_sent_id(current_launch_id)
-            print(f"Новый запуск {current_launch_id} отправлен!")
-        else:
-            print("Этот запуск уже есть в канале. Пропускаем.")
