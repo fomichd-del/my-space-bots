@@ -1,21 +1,39 @@
-name: Launch Notifier (Every 15 min)
+name: Space Launch Notifier
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # Запуск каждые 15 минут
+    - cron: '*/30 * * * *' # Проверка каждые 30 минут
   workflow_dispatch:      # Кнопка для ручного запуска
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 🔑 Даем боту права записывать файлы в твой репозиторий
+    permissions:
+      contents: write
+      
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    - name: Install dependencies
-      run: pip install requests
-    - name: Run notifier
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      run: python launch_notifier.py
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Notifier
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: python launch_notifier.py
+
+      # 💾 Самый важный шаг: сохраняем файл с ID запусков
+      - name: Save memory (Commit and Push)
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+          git add sent_launches.txt || true
+          git commit -m "Update sent launches list" || true
+          git push
