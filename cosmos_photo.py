@@ -3,19 +3,20 @@ import os
 import sys
 from deep_translator import GoogleTranslator
 
-# ==========================================
-# ⚙️ НАСТРОЙКИ БОТА И КАНАЛА
-# ==========================================
+# ============================================================
+# ⚙️ БЛОК НАСТРОЕК (Константы)
+# ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-CHANNEL_NAME = '@vladislav_space' 
-NASA_API_KEY = "DEMO_KEY" 
+CHANNEL_NAME   = '@vladislav_space' 
+NASA_API_KEY   = "DEMO_KEY" 
 
 
-# ==========================================
-# 🌐 ФУНКЦИИ ПЕРЕВОДА И ОБРАБОТКИ ССЫЛОК
-# ==========================================
+# ============================================================
+# 🌐 ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (Перевод и ссылки)
+# ============================================================
+
 def translate_to_russian(text):
-    """Переводит английский текст от NASA на русский."""
+    """Переводит текст NASA на русский язык."""
     try:
         if not text: 
             return ""
@@ -26,37 +27,38 @@ def translate_to_russian(text):
 
 
 def fix_video_link(url):
-    """Превращает ссылки в формат, который открывается в плеере Telegram."""
+    """Адаптирует ссылки для видеоплеера Telegram."""
     base_url = url.split("?")[0]
     
     if "youtube.com/embed/" in base_url:
         return base_url.replace("youtube.com/embed/", "youtube.com/watch?v=")
         
-    elif "player.vimeo.com/video/" in base_url:
+    if "player.vimeo.com/video/" in base_url:
         return base_url.replace("player.vimeo.com/video/", "vimeo.com/")
         
     return url
 
 
-# ==========================================
-# 🌌 РАБОТА С API NASA И ОТПРАВКА
-# ==========================================
-def get_random_apod():
-    """Запрашивает у NASA 10 случайных постов."""
+# ============================================================
+# 🌌 ОСНОВНАЯ ЛОГИКА (NASA и Telegram)
+# ============================================================
+
+def get_random_posts():
+    """Запрашивает список из 10 случайных объектов у NASA."""
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}&count=10"
     
     try:
         response = requests.get(url)
         return response.json()
     except Exception as e:
-        print(f"❌ Ошибка API NASA: {e}")
+        print(f"❌ Ошибка при запросе к NASA: {e}")
         return []
 
 
-def send_to_telegram(text, media_url, media_type):
-    """Отправляет готовый пост в Telegram-канал."""
+def send_post(text, media_url, media_type):
+    """Отправляет готовое сообщение в твой канал."""
     if media_type == "image":
-        api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+        method = "sendPhoto"
         payload = {
             'chat_id': CHANNEL_NAME, 
             'photo': media_url, 
@@ -64,50 +66,49 @@ def send_to_telegram(text, media_url, media_type):
             'parse_mode': 'HTML'
         }
     else:
-        fixed_url = fix_video_link(media_url)
-        api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        full_text = f"{text}\n\n📺 <b>Смотреть видео:</b> {fixed_url}"
+        method = "sendMessage"
+        video_url = fix_video_link(media_url)
         payload = {
             'chat_id': CHANNEL_NAME, 
-            'text': full_text, 
+            'text': f"{text}\n\n📺 <b>Видео:</b> {video_url}", 
             'parse_mode': 'HTML'
         }
         
+    api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}"
     res = requests.post(api_url, data=payload)
-    print(f"Статус отправки: {res.status_code}")
+    print(f"📤 Статус отправки: {res.status_code}")
 
 
-# ==========================================
-# 🚀 ЗАПУСК ОСНОВНОЙ ЛОГИКИ
-# ==========================================
+# ============================================================
+# 🚀 ТОЧКА ЗАПУСКА СКРИПТА
+# ============================================================
+
 if __name__ == '__main__':
-    # Определяем, что ищем сегодня: фото или видео
-    target_type = sys.argv[1] if len(sys.argv) > 1 else "image"
+    # 1. Определяем цель: "image" или "video" (берем из команды запуска)
+    target = sys.argv[1] if len(sys.argv) > 1 else "image"
     
-    posts = get_random_apod()
-    selected_post = None
+    # 2. Получаем данные от NASA
+    all_posts = get_random_posts()
+    found_post = None
 
-    # Ищем в списке первый пост нужного формата
-    for post in posts:
-        if post.get('media_type') == target_type:
-            selected_post = post
+    # 3. Ищем первый подходящий пост
+    for p in all_posts:
+        if p.get('media_type') == target:
+            found_post = p
             break
 
-    if selected_post:
-        # Переводим заголовок и описание
-        title_ru = translate_to_russian(selected_post.get('title', 'Космос'))
-        desc_ru = translate_to_russian(selected_post.get('explanation', ''))
-        url = selected_post.get('url', '')
-
-        # Собираем красивый текст сообщения
-        message = (
+    # 4. Если нашли — оформляем и отправляем
+    if found_post:
+        title_ru = translate_to_russian(found_post.get('title', 'Космос'))
+        desc_ru  = translate_to_russian(found_post.get('explanation', ''))
+        
+        content = (
             f"<b>🌌 {title_ru.upper()}</b>\n\n"
-            f"<b>📖 Описание:</b>\n"
-            f"{desc_ru}\n\n"
+            f"<b>📖 Описание:</b>\n{desc_ru}\n\n"
             f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
         
-        send_to_telegram(message, url, target_type)
+        send_post(content, found_post.get('url', ''), target)
     else:
-        print(f"Не удалось найти {target_type} в этой подборке.")
+        print(f"⚠️ Не удалось найти подходящий тип: {target}")
