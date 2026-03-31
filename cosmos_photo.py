@@ -20,7 +20,8 @@ def get_cosmos_content():
         try:
             translator = GoogleTranslator(source='en', target='ru')
             ru_title = translator.translate(title)
-            ru_desc = translator.translate(explanation)
+            # Принудительно разбиваем текст на абзацы после каждой точки с пробелом
+            ru_desc = translator.translate(explanation).replace('. ', '.\n\n')
             return url_photo, ru_title, ru_desc
         except:
             return url_photo, title, explanation
@@ -32,15 +33,15 @@ def send_to_telegram():
 
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     
-    # --- КРАСИВОЕ ФОРМАТИРОВАНИЕ ---
-    # Мы используем тройные кавычки для удобного написания многострочного текста
+    # Формируем структуру поста
+    # \n\n — это пустая строка между блоками
     text = (
-        f"✨ <b>{title.upper()}</b>\n"          # Заголовок заглавными буквами
-        f"━━━━━━━━━━━━━━━\n\n"                 # Разделительная линия
-        f"🔭 <b>О чем это фото?</b>\n"         # Подзаголовок
-        f"{desc[:600]}...\n\n"                 # Текст описания с отступом
-        f"📅 <i>Источник: NASA APOD</i>\n\n"    # Курсив для источника
-        f"🚀 <a href='https://t.me/vladislav_space'>Подписаться на Дневник Космонавта</a>"
+        f"🌌 <b>{title.upper()}</b>\n"
+        f"─────────────────────\n\n"
+        f"🛰 <b>ИССЛЕДОВАНИЕ:</b>\n\n"
+        f"{desc[:700]}...\n\n" # Описание теперь с абзацами
+        f"☄️ <b>Присоединяйся к нам:</b>\n"
+        f"👉 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
     
     payload = {
