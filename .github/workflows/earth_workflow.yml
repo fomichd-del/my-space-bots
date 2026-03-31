@@ -13,8 +13,13 @@ jobs:
     - uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-    - name: Install requests
-      run: pip install requests
+    
+    # Стандартная установка всех нужных библиотек
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
     - name: Run earth bot
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
