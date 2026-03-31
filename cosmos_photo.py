@@ -7,17 +7,23 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 CHANNEL_NAME = '@vladislav_space'
 
-def format_description(text):
-    """Разбивает сплошной текст на красивые абзацы"""
+def get_short_facts(text):
+    """Превращает текст в 3 кратких факта"""
+    # Разделяем текст на предложения
     sentences = text.split('. ')
-    paragraphs = []
-    # Группируем по 2 предложения в абзац для легкости чтения
-    for i in range(0, len(sentences), 2):
-        chunk = ". ".join(sentences[i:i+2])
-        if not chunk.endswith('.'):
-            chunk += '.'
-        paragraphs.append(chunk)
-    return "\n\n".join(paragraphs)
+    # Берем первые 3 предложения
+    top_facts = sentences[:3]
+    
+    # Список эмодзи для фактов
+    icons = ["🚀", "🪐", "🔭"]
+    formatted_list = []
+    
+    for i, fact in enumerate(top_facts):
+        # Очищаем от лишних точек и пробелов
+        clean_fact = fact.strip().replace('.', '')
+        formatted_list.append(f"{icons[i]} {clean_fact}.")
+    
+    return "\n\n".join(formatted_list)
 
 def get_cosmos_content():
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}&count=1"
@@ -32,30 +38,27 @@ def get_cosmos_content():
         try:
             translator = GoogleTranslator(source='en', target='ru')
             ru_title = translator.translate(title)
-            # Переводим и структурируем
+            # Переводим и сокращаем до 3 фактов
             raw_desc = translator.translate(explanation)
-            ru_desc = format_description(raw_desc)
-            return url_photo, ru_title, ru_desc
+            ru_facts = get_short_facts(raw_desc)
+            return url_photo, ru_title, ru_facts
         except:
             return url_photo, title, explanation
     return None, None, None
 
 def send_to_telegram():
-    img, title, desc = get_cosmos_content()
+    img, title, facts = get_cosmos_content()
     if not img: return
 
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     
-    # 🎨 Формируем пост с эмодзи и структурой
-    # Мы ограничиваем текст, чтобы он точно влез в лимит Telegram (1024 символа для фото)
-    clean_desc = desc[:800] + "..." if len(desc) > 800 else desc
-
+    # 🎨 Формируем короткий и стильный пост
     caption_text = (
         f"🌌 <b>{title.upper()}</b>\n"
         f"─────────────────────\n\n"
-        f"🔭 <b>ОБЪЕКТ ИССЛЕДОВАНИЯ:</b>\n\n"
-        f"{clean_desc}\n\n"
-        f"✨ <b>Больше космоса здесь:</b>\n"
+        f"<b>ГЛАВНОЕ ЗА СЕГОДНЯ:</b>\n\n"
+        f"{facts}\n\n"
+        f"✨ <b>Больше космоса:</b>\n"
         f"👉 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
     
