@@ -12,7 +12,7 @@ NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 CHANNEL_NAME   = '@vladislav_space'
 
 def get_asteroid_data():
-    """Получает данные с защитой от сбоев и повторными попытками."""
+    """Получает данные и формирует 3 ключевых факта."""
     url = f"https://api.nasa.gov/neo/rest/v1/feed/today?detailed=true&api_key={NASA_API_KEY}"
     
     for attempt in range(3):
@@ -20,13 +20,12 @@ def get_asteroid_data():
             print(f"Попытка {attempt + 1}: Запрос данных от NASA...")
             response = requests.get(url, timeout=15)
             
-            # Проверка статуса (Вариант 3)
             if response.status_code != 200:
                 print(f"❌ Сервер NASA ответил статусом: {response.status_code}")
                 if attempt < 2:
                     time.sleep(60)
                     continue
-                return f"⚠️ NASA API недоступно (Ошибка {response.status_code})", None
+                return None, None
 
             data = response.json()
             today = datetime.now().strftime('%Y-%m-%d')
@@ -35,9 +34,9 @@ def get_asteroid_data():
             print(f"✅ Данные получены успешно. Обнаружено объектов: {len(asteroids)}")
             
             if not asteroids:
-                return "☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ</b>\nСегодня в окрестностях Земли спокойно. ✨", None
+                return "☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ</b>\n\nСегодня в окрестностях Земли спокойно. ✨", None
 
-            # Выбор главного героя (Опасность -> Размер)
+            # Выбор самого интересного объекта
             hazardous = [a for a in asteroids if a['is_potentially_hazardous_asteroid']]
             if hazardous:
                 hero = max(hazardous, key=lambda x: x['estimated_diameter']['meters']['estimated_diameter_max'])
@@ -46,25 +45,30 @@ def get_asteroid_data():
                 hero = max(asteroids, key=lambda x: x['estimated_diameter']['meters']['estimated_diameter_max'])
                 is_danger = False
 
-            # Формирование текста
+            # Данные объекта
             dist = float(hero['close_approach_data'][0]['miss_distance']['kilometers'])
             size = round(hero['estimated_diameter']['meters']['estimated_diameter_max'])
-            
-            text = (
-                f"☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ</b>\n\n"
-                f"✅ Сегодня замечено объектов: <b>{len(asteroids)}</b>\n"
-                f"🎯 В фокусе: <b>{hero['name']}</b>\n"
-                f"📏 Размер: <b>≈{size} м</b>\n"
-                f"🛣 Дистанция: <b>{round(dist):,} км</b>".replace(",", " ") + "\n\n"
-            )
-            
-            if is_danger:
-                text += "❗ <b>ВНИМАНИЕ: Объект потенциально опасен!</b>\n\n"
-            
-            text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
-            text += "🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+            name = hero['name'].replace("(", "").replace(")", "")
 
-            # Кнопка Web App
+            # 📋 ФОРМИРУЕМ 3 ФАКТА
+            status_icon = "⚠️" if is_danger else "✅"
+            
+            fact_1 = f"📊 Всего обнаружено объектов: <b>{len(asteroids)}</b>"
+            fact_2 = f"🎯 Главный гость: <b>{name}</b> (≈<b>{size} м</b>)"
+            fact_3 = f"🛣 Дистанция пролета: <b>{round(dist):,} км</b>".replace(",", " ")
+
+            text = (
+                f"☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ</b>\n"
+                f"─────────────────────\n\n"
+                f"<b>ГЛАВНЫЕ ФАКТЫ:</b>\n\n"
+                f"{fact_1}\n\n"
+                f"{fact_2}\n\n"
+                f"{fact_3}\n\n"
+                f"{status_icon} <b>Статус: " + ("ОПАСЕН" if is_danger else "БЕЗОПАСЕН") + "</b>\n\n"
+                f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+                f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+            )
+
             keyboard = {
                 "inline_keyboard": [[{
                     "text": "🛰 Исследовать орбиту в 3D",
@@ -75,14 +79,12 @@ def get_asteroid_data():
             return text, keyboard
 
         except Exception as e:
-            print(f"⚠️ Ошибка при попытке {attempt + 1}: {e}")
-            if attempt < 2:
-                time.sleep(60)
-            else:
-                return f"❌ Критическая ошибка после 3 попыток: {e}", None
+            print(f"⚠️ Ошибка: {e}")
+            if attempt < 2: time.sleep(60)
+            else: return None, None
 
 def send_message(text, keyboard):
-    """Отправка сообщения."""
+    """Отправка сообщения с проверкой результата."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         'chat_id': CHANNEL_NAME,
@@ -91,7 +93,13 @@ def send_message(text, keyboard):
         'reply_markup': json.dumps(keyboard) if keyboard else None,
         'disable_web_page_preview': True
     }
-    requests.post(url, data=payload)
+    # Мы сохраняем ответ от Telegram в переменную 'r'
+    r = requests.post(url, data=payload)
+    
+    # ПЕЧАТАЕМ РЕЗУЛЬТАТ: это поможет нам понять, почему «лампа зеленая, а сообщения нет»
+    print(f"📡 Статус отправки в Telegram: {r.status_code}")
+    if r.status_code != 200:
+        print(f"📋 Ответ сервера: {r.text}")
 
 if __name__ == '__main__':
     msg_text, msg_key = get_asteroid_data()
