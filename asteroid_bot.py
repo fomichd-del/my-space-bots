@@ -69,10 +69,11 @@ def get_asteroid_data():
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
 
+            # Исправленная кнопка: используем "url" вместо "web_app"
             keyboard = {
                 "inline_keyboard": [[{
                     "text": "🛰 Исследовать орбиту в 3D",
-                    "web_app": {"url": f"https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr={hero['neo_reference_id']}"}
+                    "url": f"https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr={hero['neo_reference_id']}"
                 }]]
             }
 
@@ -93,10 +94,8 @@ def send_message(text, keyboard):
         'reply_markup': json.dumps(keyboard) if keyboard else None,
         'disable_web_page_preview': True
     }
-    # Мы сохраняем ответ от Telegram в переменную 'r'
     r = requests.post(url, data=payload)
     
-    # ПЕЧАТАЕМ РЕЗУЛЬТАТ: это поможет нам понять, почему «лампа зеленая, а сообщения нет»
     print(f"📡 Статус отправки в Telegram: {r.status_code}")
     if r.status_code != 200:
         print(f"📋 Ответ сервера: {r.text}")
