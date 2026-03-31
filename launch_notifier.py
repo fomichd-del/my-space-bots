@@ -21,10 +21,28 @@ def save_id(filename, launch_id):
     with open(filename, "a") as f:
         f.write(f"{launch_id}\n")
 
-# --- 🌐 ПЕРЕВОД И ДАННЫЕ ---
+# --- 🌐 ПЕРЕВОД И ЛОГИКА ТЕКСТА ---
+def get_short_facts(text):
+    """Превращает длинное описание в 3 понятных факта"""
+    if not text or len(text) < 10:
+        return "Детали миссии скоро появятся! 🛰️"
+    
+    # Разделяем на предложения и берем первые 3
+    sentences = [s.strip() for s in text.split('. ') if s.strip()]
+    top_facts = sentences[:3]
+    
+    icons = ["🔹", "🔹", "🔹"]
+    formatted_facts = []
+    
+    for i, fact in enumerate(top_facts):
+        clean_fact = fact.rstrip('.')
+        formatted_facts.append(f"{icons[i]} {clean_fact}.")
+    
+    return "\n\n".join(formatted_facts)
+
 def translate_to_russian(text):
     try:
-        if not text: return "Детали миссии скоро появятся! 🛰️"
+        if not text: return ""
         return GoogleTranslator(source='auto', target='ru').translate(text)
     except Exception:
         return text
@@ -49,7 +67,7 @@ def send_to_telegram(text, photo_url=None):
         payload = {'chat_id': CHANNEL_NAME, 'text': text, 'parse_mode': 'HTML', 'disable_web_page_preview': False}
     requests.post(api_url, data=payload)
 
-# --- 🚀 ОСНОВНОЙ ЦИКЛ ---
+# --- 🚀 ОСНОВНОЙ ЦИКЛ МАРТИ ---
 if __name__ == '__main__':
     print("--- 🏁 Марти на связи ---")
     launch = check_launches()
@@ -60,7 +78,6 @@ if __name__ == '__main__':
         image_url = launch.get('image')
         video_links = launch.get('vidURLs', [])
         
-        # Расчет времени
         launch_time = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
         now = datetime.now(timezone.utc)
         time_diff = launch_time - now
@@ -70,9 +87,12 @@ if __name__ == '__main__':
         sent_main = load_ids(DB_FILE)
         if launch_id not in sent_main:
             mission_name = launch['mission']['name'] if launch['mission'] else "Космическая миссия"
-            description = translate_to_russian(launch['mission']['description'] if launch['mission'] else "")
             
-            # Список секретов
+            raw_description = launch['mission']['description'] if launch['mission'] else ""
+            translated_description = translate_to_russian(raw_description)
+            short_description = get_short_facts(translated_description)
+            
+            # 🎒 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ
             secrets = [
                 "🎒 <b>ПРИНЦИП РЮКЗАКА:</b> Ракета сбрасывает пустые баки, чтобы лететь налегке!",
                 "🌊 <b>ОГРОМНЫЙ ДУШ:</b> Воду льют под ракету, чтобы звук не сломал её!",
@@ -126,20 +146,19 @@ if __name__ == '__main__':
                 "🎂 <b>ДЕНЬ РОЖДЕНИЯ:</b> Марсоход Curiosity сам спел себе песню на Марсе!"
             ]
             
-            # Собираем все ссылки для анонса
             video_section = ""
             if video_links:
                 video_section = "\n\n📺 <b>ГДЕ СМОТРЕТЬ:</b>"
                 for link in video_links:
-                    url = link['url']
-                    if "youtube.com" in url or "youtu.be" in url: source = "YouTube 📺"
-                    elif "x.com" in url or "twitter.com" in url: source = "Сеть X (Twitter) 🐦"
+                    v_url = link['url']
+                    if "youtube.com" in v_url or "youtu.be" in v_url: source = "YouTube 📺"
+                    elif "x.com" in v_url or "twitter.com" in v_url: source = "Сеть X (Twitter) 🐦"
                     else: source = "Официальный сайт 🌐"
-                    video_section += f"\n• <a href='{url}'>{source}</a>"
+                    video_section += f"\n• <a href='{v_url}'>{source}</a>"
 
             report = (f"🚀 <b>СКОРО В КОСМОС: {rocket.upper()}</b>\n"
                       f"🎯 <b>Миссия:</b> {mission_name}\n\n"
-                      f"📋 <b>Описание:</b> {description}"
+                      f"📋 <b>ГЛАВНОЕ О МИССИИ:</b>\n{short_description}"
                       f"{video_section}\n\n"
                       f"--------------------------\n"
                       f"🎒 <b>МАРТИ РАССКАЗЫВАЕТ:</b>\n{random.choice(secrets)}\n"
@@ -153,7 +172,6 @@ if __name__ == '__main__':
         if 0 < seconds_to_launch <= 300:
             sent_reminders = load_ids(REMINDERS_FILE)
             if launch_id not in sent_reminders:
-                # Ищем лучшую ссылку (YouTube в приоритете)
                 best_url = ""
                 if video_links:
                     for link in video_links:
