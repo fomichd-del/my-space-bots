@@ -7,7 +7,7 @@ from threading import Thread
 from flask import Flask
 from datetime import datetime
 
-# --- 1. ПОДДЕРЖКА РАБОТОСПОСОБНОСТИ (FLASK) ---
+# --- 1. ПОДДЕРЖКА РАБОТОСПОСОБНОСТИ ---
 app = Flask('')
 @app.route('/')
 def home(): return "Мартин на связи! 🛰️"
@@ -26,9 +26,7 @@ def load_data():
     except: return {}
 
 # --- 3. АСТРОНОМИЧЕСКАЯ ЛОГИКА ---
-
 def get_best_constellation(lat, lon):
-    """Определяет созвездие в зените над пользователем"""
     data = load_data()
     obs = ephem.Observer()
     obs.lat, obs.lon = str(lat), str(lon)
@@ -42,19 +40,17 @@ def get_best_constellation(lat, lon):
     return random.choice(list(data.keys()))
 
 def format_full_info(key, info, title_prefix=""):
-    """Красивое оформление карточки созвездия"""
     name = info.get('name', key.replace('_', ' ').capitalize())
     return (
         f"{title_prefix}✨ **{name}**\n\n"
-        f"🔭 **Описание:** {info.get('description', '...')}\n\n"
-        f"📜 **История:** {info.get('history', '...')}\n\n"
+        f"🔭 **Описание:** {info.get('description', '...')}\n"
+        f"📜 **История:** {info.get('history', '...')}\n"
         f"💡 **Секрет:** {info.get('secret', '...')}\n"
         f"📊 **Сложность:** {info.get('difficulty', '⭐⭐')}\n"
         f"📅 **Сезон:** {info.get('season', 'Не указан')}"
     )
 
 # --- 4. ОБРАБОТКА КОМАНД ---
-
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -90,16 +86,20 @@ def handle_all_messages(message):
             "all year": "🔄 **Видны всегда**"
         }
         
-        # Собираем всё в одну строку
-        full_list = "📍 **Атлас созвездий**\n\n"
+        # Начало общего сообщения
+        full_message = "📍 **Атлас созвездий**\n\n"
         
         for season_id, title in seasons_map.items():
+            # Собираем созвездия для текущего сезона
             group = [f"• {info.get('name')} {info.get('difficulty', '⭐')}" 
                      for k, info in data.items() if info.get('season') == season_id]
+            
             if group:
-                full_list += f"{title}\n" + "\n".join(group) + "\n\n"
+                # Добавляем блок сезона к общему сообщению
+                full_message += f"{title}\n" + "\n".join(group) + "\n\n"
         
-        bot.send_message(message.chat.id, full_list, parse_mode='Markdown')
+        # Отправляем всё ОДНИМ сообщением в конце цикла
+        bot.send_message(message.chat.id, full_message, parse_mode='Markdown')
         return
 
     # Поиск по названию
