@@ -2,3 +2,6 @@ requests
 deep-translator
 pyTelegramBotAPI
 flask
+pyTelegramBotAPI
+Flask
+ephem
