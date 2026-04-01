@@ -5,7 +5,8 @@
         "history": "Принцесса, прикованная к скале.",
         "secret": "Здесь находится ближайшая к нам большая галактика.",
         "difficulty": "⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "And"
     },
     "antlia": {
         "name": "Насос (Antlia) 💨",
@@ -13,7 +14,8 @@
         "history": "Названо в честь воздушного насоса Папена.",
         "secret": "В нем почти нет звезд ярче 4-й величины.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Ant"
     },
     "apus": {
         "name": "Райская Птица (Apus) 🕊️",
@@ -21,7 +23,8 @@
         "history": "Олицетворяет экзотическую птицу из Индонезии.",
         "secret": "Оно никогда не заходит за горизонт на юге.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Aps"
     },
     "aquarius": {
         "name": "Водолей (Aquarius) ♒",
@@ -29,7 +32,8 @@
         "history": "Юноша Ганимед, черпающий нектар для богов.",
         "secret": "Здесь находится одна из самых близких к нам планетарных туманностей — Улитка.",
         "difficulty": "⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Aqr"
     },
     "aquila": {
         "name": "Орел (Aquila) 🦅",
@@ -37,7 +41,8 @@
         "history": "Орел Зевса, похитивший Ганимеда.",
         "secret": "Его главная звезда Альтаир вращается так быстро, что сплюснута с полюсов.",
         "difficulty": "⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Aql"
     },
     "ara": {
         "name": "Жертвенник (Ara) 🔥",
@@ -45,7 +50,8 @@
         "history": "Алтарь, на котором боги клялись перед битвой с титанами.",
         "secret": "Лежит в очень яркой части Млечного Пути.",
         "difficulty": "⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Ara"
     },
     "aries": {
         "name": "Овен (Aries) ♈",
@@ -53,7 +59,8 @@
         "history": "Баран с золотым руном.",
         "secret": "В древности именно здесь находилась точка весеннего равноденствия.",
         "difficulty": "⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Ari"
     },
     "auriga": {
         "name": "Возничий (Auriga) 🎡",
@@ -61,7 +68,8 @@
         "history": "Хромой царь Эрихтоний, изобретший колесницу.",
         "secret": "В созвездии находятся три ярких рассеянных скопления.",
         "difficulty": "⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Aur"
     },
     "bootes": {
         "name": "Волопас (Bootes) 👨‍🌾",
@@ -69,7 +77,8 @@
         "history": "Пастух, охраняющий небесных медведей.",
         "secret": "Арктур — самая яркая звезда северного неба.",
         "difficulty": "⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Boo"
     },
     "caelum": {
         "name": "Резец (Caelum) 🔪",
@@ -77,7 +86,8 @@
         "history": "Инструмент скульптора для гравировки.",
         "secret": "Это одно из самых незаметных созвездий.",
         "difficulty": "⭐⭐⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Cae"
     },
     "camelopardalis": {
         "name": "Жираф (Camelopardalis) 🦒",
@@ -85,7 +95,8 @@
         "history": "Введено, чтобы заполнить пустоту между Возничим и Медведицами.",
         "secret": "В нем нет ни одной звезды ярче 4-й величины.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "all year"
+        "season": "all year",
+        "id": "Cam"
     },
     "cancer": {
         "name": "Рак (Cancer) ♋",
@@ -93,7 +104,8 @@
         "history": "Рак, укусивший Геракла за ногу.",
         "secret": "Скопление 'Ясли' видно невооруженным глазом как туманное пятнышко.",
         "difficulty": "⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Cnc"
     },
     "canes_venatici": {
         "name": "Гончие Псы (Canes Venatici) 🐕",
@@ -101,7 +113,8 @@
         "history": "Собаки Волопаса, преследующие медведей.",
         "secret": "Здесь находится знаменитая галактика 'Водоворот'.",
         "difficulty": "⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "CVn"
     },
     "canis_major": {
         "name": "Большой Пес (Canis Major) 🐕",
@@ -109,7 +122,8 @@
         "history": "Верная собака, бегущая за хозяином.",
         "secret": "Здесь находится Сириус — ярчайшая звезда всего неба.",
         "difficulty": "⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "CMa"
     },
     "canis_minor": {
         "name": "Малый Пес (Canis Minor) 🐶",
@@ -117,7 +131,8 @@
         "history": "Вторая собака Ориона.",
         "secret": "Процион в переводе означает 'Перед Собакой', так как он восходит раньше Сириуса.",
         "difficulty": "⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "CMi"
     },
     "capricornus": {
         "name": "Козерог (Capricornus) ♑",
@@ -125,7 +140,8 @@
         "history": "Бог Пан, превратившийся наполовину в рыбу.",
         "secret": "Это одно из самых древних созвездий.",
         "difficulty": "⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Cap"
     },
     "carina": {
         "name": "Киль (Carina) 🚢",
@@ -133,7 +149,8 @@
         "history": "Часть мифического корабля 'Арго'.",
         "secret": "Звезда Эта Киля — одна из самых массивных и нестабильных звезд.",
         "difficulty": "⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Car"
     },
     "cassiopeia": {
         "name": "Кассиопея (Cassiopeia) 👑",
@@ -141,7 +158,8 @@
         "history": "Тщеславная царица, наказанная богами.",
         "secret": "Млечный Путь проходит прямо через это созвездие.",
         "difficulty": "⭐",
-        "season": "all year"
+        "season": "all year",
+        "id": "Cas"
     },
     "centaurus": {
         "name": "Центавр (Centaurus) 🏹",
@@ -149,7 +167,8 @@
         "history": "Мудрый кентавр Хирон.",
         "secret": "Здесь находится Альфа Центавра — ближайшая к Солнцу звездная система.",
         "difficulty": "⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Cen"
     },
     "cepheus": {
         "name": "Цефей (Cepheus) 👑",
@@ -157,7 +176,8 @@
         "history": "Царь Эфиопии, муж Кассиопеи.",
         "secret": "Звезда Дельта Цефея дала название целому классу пульсирующих звезд-маяков.",
         "difficulty": "⭐⭐",
-        "season": "all year"
+        "season": "all year",
+        "id": "Cep"
     },
     "cetus": {
         "name": "Кит (Cetus) 🐳",
@@ -165,7 +185,8 @@
         "history": "Морское чудовище, посланное погубить Андромеду.",
         "secret": "Звезда Мира ('Удивительная') меняет свой блеск в сотни раз.",
         "difficulty": "⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Cet"
     },
     "chamaeleon": {
         "name": "Хамелеон (Chamaeleon) 🦎",
@@ -173,7 +194,8 @@
         "history": "Названо в честь ящерицы, меняющей цвет.",
         "secret": "В нем находятся огромные облака пыли, где рождаются звезды.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Cha"
     },
     "circinus": {
         "name": "Циркуль (Circinus) 📍",
@@ -181,7 +203,8 @@
         "history": "Инструмент для измерения карт.",
         "secret": "Это четвертое самое маленькое созвездие.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Cir"
     },
     "columba": {
         "name": "Голубь (Columba) 🕊️",
@@ -189,7 +212,8 @@
         "history": "Голубь Ноя или птица, выпущенная аргонавтами.",
         "secret": "Здесь находится звезда, которая на огромной скорости улетает из Ориона.",
         "difficulty": "⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Col"
     },
     "coma_berenices": {
         "name": "Волосы Вероники (Coma Berenices) 💇‍♀️",
@@ -197,7 +221,8 @@
         "history": "Волосы царицы, принесенные в жертву богам.",
         "secret": "Здесь находится Северный полюс нашей Галактики.",
         "difficulty": "⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Com"
     },
     "corona_australis": {
         "name": "Южная Корона (Corona Australis) 👑",
@@ -205,7 +230,8 @@
         "history": "Корона кентавра или венок из листьев.",
         "secret": "Здесь находится одна из самых близких к нам областей звездообразования.",
         "difficulty": "⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "CrA"
     },
     "corona_borealis": {
         "name": "Северная Корона (Corona Borealis) 👑",
@@ -213,7 +239,8 @@
         "history": "Венец Ариадны, подаренный Дионисом.",
         "secret": "Самая яркая звезда Гемма переводится как 'Жемчужина'.",
         "difficulty": "⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "CrB"
     },
     "corvus": {
         "name": "Ворон (Corvus) 🐦",
@@ -221,7 +248,8 @@
         "history": "Птица Аполлона, наказанная за ложь.",
         "secret": "Здесь находятся сталкивающиеся галактики 'Антенны'.",
         "difficulty": "⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Crv"
     },
     "crater": {
         "name": "Чаша (Crater) 🍷",
@@ -229,7 +257,8 @@
         "history": "Кубок Аполлона.",
         "secret": "Все звезды в ней слабее 3-й величины.",
         "difficulty": "⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Crt"
     },
     "crux": {
         "name": "Южный Крест (Crux) ✝️",
@@ -237,7 +266,8 @@
         "history": "Ориентир для моряков Южного полушария.",
         "secret": "Самое маленькое созвездие на небе.",
         "difficulty": "⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Cru"
     },
     "cygnus": {
         "name": "Лебедь (Cygnus) 🦢",
@@ -245,7 +275,8 @@
         "history": "Зевс, превратившийся в птицу.",
         "secret": "Здесь находится звезда Денеб — один из самых мощных сверхгигантов.",
         "difficulty": "⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Cyg"
     },
     "delphinus": {
         "name": "Дельфин (Delphinus) 🐬",
@@ -253,7 +284,8 @@
         "history": "Дельфин, спасший певца Ариона.",
         "secret": "Похож на маленького воздушного змея.",
         "difficulty": "⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Del"
     },
     "dorado": {
         "name": "Золотая Рыба (Dorado) 🐠",
@@ -261,7 +293,8 @@
         "history": "Названо в честь хищной тропической рыбы.",
         "secret": "Здесь находится Большое Магелланово Облако — спутник нашей Галактики.",
         "difficulty": "⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Dor"
     },
     "draco": {
         "name": "Дракон (Draco) 🐍",
@@ -269,7 +302,8 @@
         "history": "Дракон Ладон, охранявший золотые яблоки.",
         "secret": "Звезда Тубан в этом созвездии была Полярной 5000 лет назад.",
         "difficulty": "⭐⭐",
-        "season": "all year"
+        "season": "all year",
+        "id": "Dra"
     },
     "equuleus": {
         "name": "Малый Конь (Equuleus) 🐴",
@@ -277,7 +311,8 @@
         "history": "Младший брат Пегаса по имени Целерис.",
         "secret": "Второе самое маленькое созвездие.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Equ"
     },
     "eridanus": {
         "name": "Эридан (Eridanus) 🌊",
@@ -285,7 +320,8 @@
         "history": "Мифическая река, в которую упал Фаэтон.",
         "secret": "Тянется от Ориона глубоко в Южное полушарие.",
         "difficulty": "⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Eri"
     },
     "fornax": {
         "name": "Печь (Fornax) 🔥",
@@ -293,7 +329,8 @@
         "history": "Названо в честь химической печи Лавуазье.",
         "secret": "Здесь находится целое скопление далеких галактик.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "For"
     },
     "gemini": {
         "name": "Близнецы (Gemini) ♊",
@@ -301,7 +338,8 @@
         "history": "Братья Диоскуры, сыновья Зевса.",
         "secret": "Через это созвездие проходит Солнце в день летнего солнцестояния.",
         "difficulty": "⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Gem"
     },
     "grus": {
         "name": "Журавль (Grus) 🏗️",
@@ -309,7 +347,8 @@
         "history": "Названо в честь грациозной птицы.",
         "secret": "Входит в группу 'Южных птиц'.",
         "difficulty": "⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Gru"
     },
     "hercules": {
         "name": "Геркулес (Hercules) 🛡️",
@@ -317,7 +356,8 @@
         "history": "Величайший герой мифов.",
         "secret": "Там находится М13 — самое яркое шаровое скопление северного неба.",
         "difficulty": "⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Her"
     },
     "horologium": {
         "name": "Часы (Horologium) ⏰",
@@ -325,7 +365,8 @@
         "history": "Названо в честь маятниковых часов Гюйгенса.",
         "secret": "В нем находится сверхскопление галактик Часов.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Hor"
     },
     "hydra": {
         "name": "Гидра (Hydra) 🐍",
@@ -333,7 +374,8 @@
         "history": "Лернейская гидра, убитая Гераклом.",
         "secret": "Оно занимает 3% всей площади небесной сферы.",
         "difficulty": "⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Hya"
     },
     "hydrus": {
         "name": "Южная Гидра (Hydrus) 🐍",
@@ -341,7 +383,8 @@
         "history": "Мужской вариант обычной Гидры.",
         "secret": "Лежит между двумя Магеллановыми Облаками.",
         "difficulty": "⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Hyi"
     },
     "indus": {
         "name": "Индеец (Indus) 🏹",
@@ -349,7 +392,8 @@
         "history": "Символизирует коренных жителей Америки.",
         "secret": "Звезда Эпсилон Индейца — одна из ближайших к нам.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Ind"
     },
     "lacerta": {
         "name": "Ящерица (Lacerta) 🦎",
@@ -357,7 +401,8 @@
         "history": "Названо так, потому что для более крупного зверя там не хватило места.",
         "secret": "Находится на краю Млечного Пути.",
         "difficulty": "⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Lac"
     },
     "leo": {
         "name": "Лев (Leo) 🦁",
@@ -365,7 +410,8 @@
         "history": "Немейский лев, первый подвиг Геракла.",
         "secret": "Здесь ежегодно наблюдается метеорный поток Леониды.",
         "difficulty": "⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Leo"
     },
     "leo_minor": {
         "name": "Малый Лев (Leo Minor) 🦁",
@@ -373,7 +419,8 @@
         "history": "Введено в 17 веке астрономом Гевелием.",
         "secret": "В нем нет звезды Альфа.",
         "difficulty": "⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "LMi"
     },
     "lepus": {
         "name": "Заяц (Lepus) 🐰",
@@ -381,7 +428,8 @@
         "history": "Заяц, на которого охотится Орион.",
         "secret": "Звезда R Зайца — одна из самых красных звезд неба ('Малиновая звезда').",
         "difficulty": "⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Lep"
     },
     "libra": {
         "name": "Весы (Libra) ♎",
@@ -389,7 +437,8 @@
         "history": "Весы богини справедливости Астреи.",
         "secret": "Это единственное зодиакальное созвездие, не являющееся живым существом.",
         "difficulty": "⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Lib"
     },
     "lupus": {
         "name": "Волк (Lupus) 🐺",
@@ -397,7 +446,8 @@
         "history": "Зверь, которого Кентавр несет к Жертвеннику.",
         "secret": "В нем вспыхнула самая яркая сверхновая в истории (1006 год).",
         "difficulty": "⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Lup"
     },
     "lynx": {
         "name": "Рысь (Lynx) 🐱",
@@ -405,7 +455,8 @@
         "history": "Нужны глаза рыси, чтобы его увидеть.",
         "secret": "В нем находится очень далекое шаровое скопление 'Межгалактический странник'.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Lyn"
     },
     "lyra": {
         "name": "Лира (Lyra) 🎸",
@@ -413,7 +464,8 @@
         "history": "Инструмент певца Орфея.",
         "secret": "Вега станет нашей Полярной звездой через 12 000 лет.",
         "difficulty": "⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Lyr"
     },
     "mensa": {
         "name": "Столовая Гора (Mensa) ⛰️",
@@ -421,7 +473,8 @@
         "history": "Названо в честь горы в Южной Африке.",
         "secret": "В нем находится часть Большого Магелланова Облака.",
         "difficulty": "⭐⭐⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Men"
     },
     "microscopium": {
         "name": "Микроскоп (Microscopium) 🔬",
@@ -429,7 +482,8 @@
         "history": "Названо в честь оптического прибора.",
         "secret": "Его почти невозможно увидеть при городском освещении.",
         "difficulty": "⭐⭐⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Mic"
     },
     "monoceros": {
         "name": "Единорог (Monoceros) 🦄",
@@ -437,7 +491,8 @@
         "history": "Мифическое животное с одним рогом.",
         "secret": "Здесь находится туманность 'Розетка', похожая на космический цветок.",
         "difficulty": "⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Mon"
     },
     "musca": {
         "name": "Муха (Musca) 🪰",
@@ -445,7 +500,8 @@
         "history": "Единственное созвездие-насекомое.",
         "secret": "Раньше называлось 'Пчелой'.",
         "difficulty": "⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Mus"
     },
     "norma": {
         "name": "Наугольник (Norma) 📐",
@@ -453,7 +509,8 @@
         "history": "Инструмент архитектора.",
         "secret": "В нем нет звезд Альфа и Бета.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Nor"
     },
     "octans": {
         "name": "Октант (Octans) 🧭",
@@ -461,7 +518,8 @@
         "history": "Навигационный прибор.",
         "secret": "Здесь находится Сигма Октанта — ближайшая к полюсу звезда, но она очень тусклая.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "all year"
+        "season": "all year",
+        "id": "Oct"
     },
     "ophiuchus": {
         "name": "Змееносец (Ophiuchus) 🐍",
@@ -469,7 +527,8 @@
         "history": "Бог медицины Асклепий.",
         "secret": "Это '13-е созвездие' зодиака, через которое проходит Солнце.",
         "difficulty": "⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Oph"
     },
     "orion": {
         "name": "Орион (Orion) 🏹",
@@ -477,7 +536,8 @@
         "history": "Великий охотник, сын Посейдона.",
         "secret": "Звезда Бетельгейзе скоро (по космическим меркам) взорвется как сверхновая.",
         "difficulty": "⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Ori"
     },
     "pavo": {
         "name": "Павлин (Pavo) 🦚",
@@ -485,7 +545,8 @@
         "history": "Священная птица богини Геры.",
         "secret": "Главная звезда Пикок очень яркая и видна издалека.",
         "difficulty": "⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Pav"
     },
     "pegasus": {
         "name": "Пегас (Pegasus) 🦄",
@@ -493,7 +554,8 @@
         "history": "Крылатый конь богов.",
         "secret": "У звезды 51 Пегаса впервые нашли планету у другой звезды.",
         "difficulty": "⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Peg"
     },
     "perseus": {
         "name": "Персей (Perseus) ⚔️",
@@ -501,7 +563,8 @@
         "history": "Герой, спасший Андромеду.",
         "secret": "Звезда Алголь — первая открытая переменная звезда ('Глаз дьявола').",
         "difficulty": "⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Per"
     },
     "phoenix": {
         "name": "Феникс (Phoenix) 🔥",
@@ -509,7 +572,8 @@
         "history": "Мифическая птица, возрождающаяся из огня.",
         "secret": "Легко узнаваемо на южном небе благодаря своей форме.",
         "difficulty": "⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Phe"
     },
     "pictor": {
         "name": "Живописец (Pictor) 🎨",
@@ -517,7 +581,8 @@
         "history": "Названо в честь мольберта художника.",
         "secret": "У звезды Живописца найден огромный пылевой диск.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Pic"
     },
     "pisces": {
         "name": "Рыбы (Pisces) ♓",
@@ -525,7 +590,8 @@
         "history": "Афродита и Эрот, спасавшиеся от Тифона.",
         "secret": "Здесь находится точка весеннего равноденствия.",
         "difficulty": "⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Psc"
     },
     "piscis_austrinus": {
         "name": "Южная Рыба (Piscis Austrinus) 🐟",
@@ -533,7 +599,8 @@
         "history": "Рыба, спасшая египетскую богиню Исиду.",
         "secret": "Фомальгаут — 'Одинокая звезда осени'.",
         "difficulty": "⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "PsA"
     },
     "puppis": {
         "name": "Корма (Puppis) ⚓",
@@ -541,7 +608,8 @@
         "history": "Задняя часть корабля 'Арго'.",
         "secret": "Здесь очень много рассеянных звездных скоплений.",
         "difficulty": "⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Pup"
     },
     "pyxis": {
         "name": "Компас (Pyxis) 🧭",
@@ -549,7 +617,8 @@
         "history": "Магнитный компас аргонавтов.",
         "secret": "Раньше это созвездие называли Мачтой.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Pyx"
     },
     "reticulum": {
         "name": "Сетка (Reticulum) 🕸️",
@@ -557,7 +626,8 @@
         "history": "Сетка в окуляре телескопа.",
         "secret": "Здесь находится одна из самых старых звезд во Вселенной.",
         "difficulty": "⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Ret"
     },
     "sagitta": {
         "name": "Стрела (Sagitta) 🏹",
@@ -565,7 +635,8 @@
         "history": "Стрела Геракла или Амура.",
         "secret": "Третье самое маленькое созвездие.",
         "difficulty": "⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Sge"
     },
     "sagittarius": {
         "name": "Стрелец (Sagittarius) ♐",
@@ -573,7 +644,8 @@
         "history": "Мудрый кентавр Хирон.",
         "secret": "Здесь находится 'Радиоисточник Стрелец А' — сверхмассивная черная дыра.",
         "difficulty": "⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Sgr"
     },
     "scorpius": {
         "name": "Скорпион (Scorpius) ♏",
@@ -581,7 +653,8 @@
         "history": "Убийца охотника Ориона.",
         "secret": "Звезда Антарес — красный сверхгигант, похожий на Марс.",
         "difficulty": "⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Sco"
     },
     "sculptor": {
         "name": "Скульптор (Sculptor) 🗿",
@@ -589,7 +662,8 @@
         "history": "Мастерская скульптора.",
         "secret": "Здесь находится южный полюс нашей Галактики.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Scl"
     },
     "scutum": {
         "name": "Щит (Scutum) 🛡️",
@@ -597,7 +671,8 @@
         "history": "Щит польского короля Яна Собеского.",
         "secret": "Здесь находится одно из самых плотных звездных облаков неба.",
         "difficulty": "⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Sct"
     },
     "serpens": {
         "name": "Змея (Serpens) 🐍",
@@ -605,7 +680,8 @@
         "history": "Змея Змееносца.",
         "secret": "Разделено на 'Голову' и 'Хвост'.",
         "difficulty": "⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Ser"
     },
     "sextans": {
         "name": "Секстант (Sextans) 📏",
@@ -613,7 +689,8 @@
         "history": "Прибор для измерения углов.",
         "secret": "Находится прямо под Львом.",
         "difficulty": "⭐⭐⭐⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Sex"
     },
     "taurus": {
         "name": "Телец (Taurus) ♉",
@@ -621,7 +698,8 @@
         "history": "Зевс в образе белого быка.",
         "secret": "Плеяды ('Семь сестер') — самое красивое скопление неба.",
         "difficulty": "⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Tau"
     },
     "telescopium": {
         "name": "Телескоп (Telescopium) 🔭",
@@ -629,7 +707,8 @@
         "history": "Названо в честь главного инструмента астронома.",
         "secret": "Расположено прямо под хвостом Стрельца.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Tel"
     },
     "triangulum": {
         "name": "Треугольник (Triangulum) 📐",
@@ -637,7 +716,8 @@
         "history": "Олицетворяет остров Сицилия.",
         "secret": "В нем находится спиральная галактика М33.",
         "difficulty": "⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Tri"
     },
     "triangulum_australe": {
         "name": "Южный Треугольник (Triangulum Australe) 📐",
@@ -645,7 +725,8 @@
         "history": "Южный аналог обычного Треугольника.",
         "secret": "Его звезды гораздо ярче, чем у северного.",
         "difficulty": "⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "TrA"
     },
     "tucana": {
         "name": "Тукан (Tucana) 🦜",
@@ -653,7 +734,8 @@
         "history": "Экзотическая птица с большим клювом.",
         "secret": "Здесь находится Малое Магелланово Облако.",
         "difficulty": "⭐⭐",
-        "season": "autumn"
+        "season": "autumn",
+        "id": "Tuc"
     },
     "ursa_major": {
         "name": "Большая Медведица (Ursa Major) 🐻",
@@ -661,7 +743,8 @@
         "history": "Нимфа Каллисто, превращенная в зверя.",
         "secret": "На ручке ковша есть двойная звезда Мицар и Алькор.",
         "difficulty": "⭐",
-        "season": "all year"
+        "season": "all year",
+        "id": "UMa"
     },
     "ursa_minor": {
         "name": "Малая Медведица (Ursa Minor) 🐻‍❄️",
@@ -669,7 +752,8 @@
         "history": "Аркад, сын Каллисто.",
         "secret": "Полярная звезда находится всего в 1 градусе от полюса.",
         "difficulty": "⭐",
-        "season": "all year"
+        "season": "all year",
+        "id": "UMi"
     },
     "vela": {
         "name": "Паруса (Vela) ⛵",
@@ -677,7 +761,8 @@
         "history": "Паруса корабля 'Арго'.",
         "secret": "Здесь находится остаток сверхновой, взорвавшейся 11 000 лет назад.",
         "difficulty": "⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Vel"
     },
     "virgo": {
         "name": "Дева (Virgo) ♍",
@@ -685,7 +770,8 @@
         "history": "Богиня Деметра или Дике.",
         "secret": "Здесь находится центр гигантского Сверхскопления галактик.",
         "difficulty": "⭐⭐",
-        "season": "spring"
+        "season": "spring",
+        "id": "Vir"
     },
     "volans": {
         "name": "Летучая Рыба (Volans) 🐟",
@@ -693,7 +779,8 @@
         "history": "Тропическая рыба, умеющая летать.",
         "secret": "Оно находится прямо на краю Млечного Пути.",
         "difficulty": "⭐⭐⭐",
-        "season": "winter"
+        "season": "winter",
+        "id": "Vol"
     },
     "vulpecula": {
         "name": "Лисичка (Vulpecula) 🦊",
@@ -701,6 +788,7 @@
         "history": "Лиса, держащая в зубах гуся.",
         "secret": "Здесь находится красивая туманность 'Гантель'.",
         "difficulty": "⭐⭐⭐⭐",
-        "season": "summer"
+        "season": "summer",
+        "id": "Vul"
     }
 }
