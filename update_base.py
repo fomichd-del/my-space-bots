@@ -2,70 +2,50 @@ import json
 import ephem
 import os
 
-# Полный словарь соответствия: Русское название -> Латинское сокращение (IAU)
-# Это необходимо для того, чтобы библиотека ephem поняла, какое созвездие мы ищем.
+# Обновленный словарь: Твой ключ в JSON -> Латинский код для ephem
 mapping = {
-    "Андромеда": "And", "Насос": "Ant", "Райская Птица": "Aps", "Водолей": "Aqr",
-    "Орел": "Aql", "Жертвенник": "Ara", "Овен": "Ari", "Возница": "Aur",
-    "Волопас": "Boo", "Резец": "Cae", "Жираф": "Cam", "Рак": "Cnc",
-    "Гончие Псы": "CVn", "Большой Пес": "CMa", "Малый Пес": "CMi", "Козерог": "Cap",
-    "Киль": "Car", "Кассиопея": "Cas", "Центавр": "Cen", "Цефей": "Cep",
-    "Кит": "Cet", "Хамелеон": "Cha", "Циркуль": "Cir", "Голубь": "Col",
-    "Волосы Вероники": "Com", "Южная Корона": "CrA", "Северная Корона": "CrB", "Ворон": "Crv",
-    "Чаша": "Crt", "Южный Крест": "Cru", "Лебедь": "Cyg", "Дельфин": "Del",
-    "Золотая Рыба": "Dor", "Дракон": "Dra", "Малый Конь": "Equ", "Эридан": "Eri",
-    "Печь": "For", "Близнецы": "Gem", "Журавль": "Gru", "Геркулес": "Her",
-    "Часы": "Hor", "Гидра": "Hya", "Южная Гидра": "Hyi", "Индеец": "Ind",
-    "Ящерица": "Lac", "Лев": "Leo", "Малый Лев": "LMi", "Заяц": "Lep",
-    "Весы": "Lib", "Волк": "Lup", "Рысь": "Lyn", "Лира": "Lyr",
-    "Столовая Гора": "Men", "Микроскоп": "Mic", "Единорог": "Mon", "Муха": "Mus",
-    "Наугольник": "Nor", "Октант": "Oct", "Змееносец": "Oph", "Орион": "Ori",
-    "Павлин": "Pav", "Пегас": "Peg", "Персей": "Per", "Феникс": "Phe",
-    "Живописец": "Pic", "Рыбы": "Psc", "Южная Рыба": "PsA", "Корма": "Pup",
-    "Компас": "Pyx", "Сетка": "Ret", "Стрела": "Sge", "Стрелец": "Sgr",
-    "Скорпион": "Sco", "Скульптор": "Scl", "Щит": "Sct", "Змея": "Ser",
-    "Секстант": "Sex", "Телец": "Tau", "Телескоп": "Tel", "Треугольник": "Tri",
-    "Южный Треугольник": "TrA", "Тукан": "Tuc", "Большая Медведица": "UMa", "Малая Медведица": "UMi",
-    "Паруса": "Vel", "Дева": "Vir", "Летучая Рыба": "Vol", "Лисичка": "Vul"
+    "andromeda": "And", "antlia": "Ant", "apus": "Aps", "aquarius": "Aqr",
+    "aquila": "Aql", "ara": "Ara", "aries": "Ari", "auriga": "Aur",
+    "bootes": "Boo", "caelum": "Cae", "camelopardalis": "Cam", "cancer": "Cnc",
+    "canes_venatici": "CVn", "canis_major": "CMa", "canis_minor": "CMi", "capricornus": "Cap",
+    "carina": "Car", "cassiopeia": "Cas", "centaurus": "Cen", "cepheus": "Cep",
+    "cetus": "Cet", "chamaeleon": "Cha", "circinus": "Cir", "columba": "Col",
+    "coma_berenices": "Com", "corona_australis": "CrA", "corona_borealis": "CrB", "corvus": "Crv",
+    "crater": "Crt", "crux": "Cru", "cygnus": "Cyg", "delphinus": "Del",
+    "dorado": "Dor", "draco": "Dra", "equuleus": "Equ", "eridanus": "Eri",
+    "fornax": "For", "gemini": "Gem", "grus": "Gru", "hercules": "Her",
+    "horologium": "Hor", "hydra": "Hya", "hydrus": "Hyi", "indus": "Ind",
+    "lacerta": "Lac", "leo": "Leo", "leo_minor": "LMi", "lepus": "Lep",
+    "libra": "Lib", "lupus": "Lup", "lynx": "Lyn", "lyra": "Lyr",
+    "mensa": "Men", "microscopium": "Mic", "monoceros": "Mon", "musca": "Mus",
+    "norma": "Nor", "octans": "Oct", "ophiuchus": "Oph", "orion": "Ori",
+    "pavo": "Pav", "pegasus": "Peg", "perseus": "Per", "phoenix": "Phe",
+    "pictor": "Pic", "pisces": "Psc", "piscis_austrinus": "PsA", "puppis": "Pup",
+    "pyxis": "Pyx", "reticulum": "Ret", "sagitta": "Sge", "sagittarius": "Sgr",
+    "scorpius": "Sco", "sculptor": "Scl", "scutum": "Sct", "serpens": "Ser",
+    "sextans": "Sex", "taurus": "Tau", "telescopium": "Tel", "triangulum": "Tri",
+    "triangulum_australe": "TrA", "tucana": "Tuc", "ursa_major": "UMa", "ursa_minor": "UMi",
+    "vela": "Vel", "virgo": "Vir", "volans": "Vol", "vulpecula": "Vul"
 }
 
 def update_json():
     filename = 'constellations.json'
-    
     if not os.path.exists(filename):
-        print(f"❌ Ошибка: Файл {filename} не найден!")
         return
 
-    try:
-        with open(filename, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        updated_count = 0
-        
-        for ru_name, info in data.items():
-            # Ищем латинский код в нашем словаре
-            iau_code = mapping.get(ru_name)
-            
-            if iau_code:
-                try:
-                    # Получаем границы и центр созвездия через ephem
-                    # Библиотека возвращает кортеж, где один из элементов — примерный центр
-                    info['id'] = iau_code
-                    
-                    # Для точных расчетов нам понадобятся координаты центра. 
-                    # В этом скрипте мы подготавливаем структуру для будущего 'ephem.constellation'
-                    updated_count += 1
-                except Exception as e:
-                    print(f"⚠️ Ошибка при обработке {ru_name}: {e}")
-        
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-            
-        print(f"✅ Готово! Обновлено созвездий: {updated_count} из {len(data)}")
-            
-    except Exception as e:
-        print(f"❌ Произошла ошибка: {e}")
+    with open(filename, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    updated_count = 0
+    for key, info in data.items():
+        iau_code = mapping.get(key.lower())
+        if iau_code:
+            info['id'] = iau_code
+            updated_count += 1
+    
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    print(f"✅ Обновлено: {updated_count} из {len(data)}")
 
 if __name__ == "__main__":
     update_json()
-
