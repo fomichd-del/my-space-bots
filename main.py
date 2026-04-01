@@ -5,12 +5,13 @@ import random
 from threading import Thread
 from flask import Flask
 
-# --- БЛОК АНТИ-СОН (FLASK) ---
+# --- 1. БЛОК ДЛЯ ПОДДЕРЖАНИЯ РАБОТЫ (FLASK) ---
+# Это нужно, чтобы Render видел активность и не отключал бота
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "I'm alive!"
+    return "Мартин на связи! 🛰️"
 
 def run():
     app.run(host='0.0.0.0', port=8080)
@@ -19,67 +20,89 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# --- ОСНОВНАЯ ЛОГИКА БОТА ---
+# --- 2. НАСТРОЙКА БОТА ---
+# Берем токен из переменных окружения, которые мы настроили в Render
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
+# Функция для загрузки данных из JSON
 def load_data():
     try:
         with open('constellations.json', 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
-        print(f"Ошибка чтения JSON: {e}")
+        print(f"Ошибка загрузки JSON: {e}")
         return {}
+
+# --- 3. ОБРАБОТКА КОМАНД ---
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    # Создаем кнопки (эмодзи должны точно совпадать с текстом ниже!)
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    item1 = telebot.types.KeyboardButton("✨ Случайное созвездие")
-    item2 = telebot.types.KeyboardButton("🔍 Список всех")
+    item1 = telebot.types.KeyboardButton("🎲 Случайное созвездие")
+    item2 = telebot.types.KeyboardButton("📋 Список созвездий")
     markup.add(item1, item2)
     
     bot.send_message(
         message.chat.id, 
-        "Привет! Я Мартин, твой гид по 88 созвездиям. Нажми кнопку или напиши название созвездия!", 
+        "Привет! Я Мартин, твой гид по звездному небу. 🌌 Нажми на кнопку или напиши название созвездия!", 
         reply_markup=markup
     )
 
-@bot.message_handler(func=lambda message: message.text == "✨ Случайное созвездие")
-def random_const(message):
+@bot.message_handler(func=lambda message: True)
+def handle_all_messages(message):
     data = load_data()
-    if data:
+    text = message.text.strip()
+
+    # Проверка кнопки "Случайное созвездие" 🎲
+    if text == "🎲 Случайное созвездие":
+        if not data:
+            bot.send_message(message.chat.id, "Извини, моя звездная карта пока пуста. Проверь файл JSON!")
+            return
+        
         const_id = random.choice(list(data.keys()))
         info = data[const_id]
+        
         response = (
-            f"✨ **{info['name']}** ({info['latin']})\n\n"
-            f"📜 **Мифология:** {info['mythology']}\n"
-            f"🌟 **Ярчайшая звезда:** {info['brightest_star']}\n"
-            f"🗓 **Лучшее время:** {info['best_time']}\n"
-            f"💡 **Факт:** {info['fact']}"
+            f"✨ **{info.get('name', 'Неизвестно')}**\n\n"
+            f"📜 **Мифология:** {info.get('mythology', 'В разработке...')}\n"
+            f"🌟 **Ярчайшая звезда:** {info.get('brightest_star', 'Данных нет')}\n"
+            f"💡 **Факт:** {info.get('fact', 'Это очень красивое созвездие!')}"
         )
         bot.send_message(message.chat.id, response, parse_mode='Markdown')
+        return
 
-@bot.message_handler(func=lambda message: True)
-def echo_all(message):
-    data = load_data()
-    # Поиск по названию
+    # Проверка кнопки "Список созвездий" 📋
+    if text == "📋 Список созвездий":
+        if not data:
+            bot.send_message(message.chat.id, "Список пока пуст.")
+            return
+        
+        names = [item['name'] for item in data.values()]
+        full_list = "📍 **Доступные созвездия:**\n\n" + ", ".join(names)
+        # Если список слишком длинный, Telegram может его не отправить, но для начала хватит
+        bot.send_message(message.chat.id, full_list, parse_mode='Markdown')
+        return
+
+    # Если это не кнопка, ищем созвездие по названию
     found = False
     for item in data.values():
-        if message.text.lower() in item['name'].lower():
+        if text.lower() in item['name'].lower():
             response = (
-                f"✅ Нашел!\n\n"
-                f"✨ **{item['name']}**\n"
-                f"📜 {item['mythology']}\n"
-                f"💡 {item['fact']}"
+                f"✨ **{item['name']}**\n\n"
+                f"📜 {item.get('mythology', '')}\n"
+                f"💡 {item.get('fact', '')}"
             )
             bot.send_message(message.chat.id, response, parse_mode='Markdown')
             found = True
             break
+            
     if not found:
-        bot.send_message(message.chat.id, "Хм, такого созвездия я не знаю. Попробуй еще раз!")
+        bot.send_message(message.chat.id, "Хм, такого созвездия я пока не знаю. Попробуй другое! 🔭")
 
-# --- ЗАПУСК ---
+# --- 4. ЗАПУСК ---
 if __name__ == "__main__":
-    keep_alive()  # Запускаем сервер для поддержания активности
-    print("Бот запущен и сервер активен!")
+    keep_alive() # Запускаем Flask в отдельном потоке
+    print("Мартин успешно запущен и слушает звезды...")
     bot.polling(none_stop=True)
