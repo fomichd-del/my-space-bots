@@ -1,0 +1,32 @@
+name: Update Constellation Data
+
+on:
+  workflow_dispatch: # Позволяет запускать скрипт вручную кнопкой
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install ephem
+
+    - name: Run update script
+产      run: python update_base.py
+
+    - name: Commit and push if changed
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add constellations.json
+        git commit -m "Auto-update constellation coordinates" || exit 0
+        git push
