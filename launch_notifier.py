@@ -23,21 +23,11 @@ def save_id(filename, launch_id):
 
 # --- 🌐 ПЕРЕВОД И ЛОГИКА ТЕКСТА ---
 def get_short_facts(text):
-    """Превращает длинное описание в 3 понятных факта"""
     if not text or len(text) < 10:
         return "Детали миссии скоро появятся! 🛰️"
-    
-    # Разделяем на предложения и берем первые 3
     sentences = [s.strip() for s in text.split('. ') if s.strip()]
     top_facts = sentences[:3]
-    
-    icons = ["🔹", "🔹", "🔹"]
-    formatted_facts = []
-    
-    for i, fact in enumerate(top_facts):
-        clean_fact = fact.rstrip('.')
-        formatted_facts.append(f"{icons[i]} {clean_fact}.")
-    
+    formatted_facts = [f"🔹 {fact.rstrip('.')}." for fact in top_facts]
     return "\n\n".join(formatted_facts)
 
 def translate_to_russian(text):
@@ -75,24 +65,23 @@ if __name__ == '__main__':
     if launch:
         launch_id = launch['id']
         rocket = launch['rocket']['configuration']['name']
+        pad_name = launch['pad']['name'] # Добавили космодром 🌍
         image_url = launch.get('image')
         video_links = launch.get('vidURLs', [])
         
         launch_time = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
-        now = datetime.now(timezone.utc)
-        time_diff = launch_time - now
-        seconds_to_launch = time_diff.total_seconds()
-
+        
         # --- 📦 БЛОК 1: БОЛЬШОЙ АНОНС ---
         sent_main = load_ids(DB_FILE)
         if launch_id not in sent_main:
             mission_name = launch['mission']['name'] if launch['mission'] else "Космическая миссия"
-            
+            time_str = launch_time.strftime('%d.%m в %H:%M')
+
             raw_description = launch['mission']['description'] if launch['mission'] else ""
             translated_description = translate_to_russian(raw_description)
             short_description = get_short_facts(translated_description)
             
-            # 🎒 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ
+            # 🎒 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ (ВСЕ 50!)
             secrets = [
                 "🎒 <b>ПРИНЦИП РЮКЗАКА:</b> Ракета сбрасывает пустые баки, чтобы лететь налегке!",
                 "🌊 <b>ОГРОМНЫЙ ДУШ:</b> Воду льют под ракету, чтобы звук не сломал её!",
@@ -151,13 +140,13 @@ if __name__ == '__main__':
                 video_section = "\n\n📺 <b>ГДЕ СМОТРЕТЬ:</b>"
                 for link in video_links:
                     v_url = link['url']
-                    if "youtube.com" in v_url or "youtu.be" in v_url: source = "YouTube 📺"
-                    elif "x.com" in v_url or "twitter.com" in v_url: source = "Сеть X (Twitter) 🐦"
-                    else: source = "Официальный сайт 🌐"
+                    source = "YouTube 📺" if "youtube" in v_url or "youtu.be" in v_url else "Официальный сайт 🌐"
                     video_section += f"\n• <a href='{v_url}'>{source}</a>"
 
             report = (f"🚀 <b>СКОРО В КОСМОС: {rocket.upper()}</b>\n"
-                      f"🎯 <b>Миссия:</b> {mission_name}\n\n"
+                      f"🎯 <b>Миссия:</b> {mission_name}\n"
+                      f"⏰ <b>Время старта:</b> {time_str} (UTC)\n"
+                      f"📍 <b>Место:</b> {pad_name}\n\n" # Добавили место!
                       f"📋 <b>ГЛАВНОЕ О МИССИИ:</b>\n{short_description}"
                       f"{video_section}\n\n"
                       f"--------------------------\n"
@@ -169,27 +158,16 @@ if __name__ == '__main__':
             save_id(DB_FILE, launch_id)
 
         # --- 🔔 БЛОК 2: УМНЫЙ ТАЙМЕР (5 МИНУТ) ---
-        if 0 < seconds_to_launch <= 300:
+        now = datetime.now(timezone.utc)
+        time_diff = launch_time - now
+        if 0 < time_diff.total_seconds() <= 300:
             sent_reminders = load_ids(REMINDERS_FILE)
             if launch_id not in sent_reminders:
-                best_url = ""
-                if video_links:
-                    for link in video_links:
-                        if "youtube" in link['url'] or "youtu.be" in link['url']:
-                            best_url = link['url']
-                            break
-                    if not best_url:
-                        best_url = video_links[0]['url']
-
-                link_text = f"\n\n📺 <a href='{best_url}'>Смотреть запуск</a>" if best_url else ""
-
                 reminder_text = (
                     f"🎒 <b>МАРТИ: ВСЕМ ПРИГОТОВИТЬСЯ!</b>\n\n"
                     f"До старта <b>{rocket}</b> осталось всего <b>5 минут</b>! ⏱️\n"
                     f"Проверьте системы и не пропустите момент отрыва! 🚀✨"
-                    f"{link_text}"
                 )
-                
                 send_to_telegram(reminder_text)
                 save_id(REMINDERS_FILE, launch_id)
     
