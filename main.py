@@ -52,15 +52,15 @@ def get_best_constellation(lat, lon):
     return random.choice(list(data.keys()))
 
 def format_full_info(key, info, title_prefix=""):
-    """Красивое оформление карточки созвездия"""
+    """Оформление подробной карточки созвездия"""
     name = info.get('name', key.replace('_', ' ').capitalize())
     return (
         f"{title_prefix}✨ **{name}**\n\n"
         f"🔭 **Описание:** {info.get('description', '...')}\n\n"
         f"📜 **История:** {info.get('history', '...')}\n\n"
         f"💡 **Секрет:** {info.get('secret', '...')}\n"
-        f"📊 **Сложность:** {info.get('difficulty', '⭐⭐')}\n"
-        f"📅 **Сезон:** {info.get('season', 'Не указан')}"
+        f"📊 **Сложность поиска:** {info.get('difficulty', '⭐⭐')}\n"
+        f"📅 **Лучшее время:** {info.get('season', 'Не указано')}"
     )
 
 # --- 4. ОБРАБОТКА КОМАНД ---
@@ -73,7 +73,7 @@ def send_welcome(message):
     
     bot.send_message(
         message.chat.id, 
-        "Привет! Я Мартин. 🌌 Нажми '📍 Определить мое небо', чтобы я настроил телескоп под твои координаты!", 
+        "Привет! Я Мартин. 🌌 Я помогу тебе разобраться в звездном небе. Нажми '📋 Список созвездий', чтобы увидеть наш новый атлас!", 
         reply_markup=markup
     )
 
@@ -98,34 +98,38 @@ def handle_all_messages(message):
         return
 
     if text == "📋 Список созвездий":
+        # Словарь для оформления заголовков разделов
         seasons_map = {
-            "winter": "❄️ **Зимние созвездия**",
-            "spring": "🌱 **Весенние созвездия**",
-            "summer": "☀️ **Летние созвездия**",
-            "autumn": "🍂 **Осенние созвездия**",
-            "all year": "🔄 **Всесезонные созвездия**"
+            "winter": "❄️ **Зимние созвездия** (лучше видны в дек-фев)",
+            "spring": "🌱 **Весенние созвездия** (лучше видны в мар-май)",
+            "summer": "☀️ **Летние созвездия** (лучше видны в июн-авг)",
+            "autumn": "🍂 **Осенние созвездия** (лучше видны в сен-ноя)",
+            "all year": "🔄 **Видны круглый год**"
         }
         
+        # Перебираем сезоны и отправляем их отдельными блоками
         for season_id, season_title in seasons_map.items():
-            # Собираем список для конкретного сезона
-            group = [
-                f"• {info.get('name')} ({info.get('difficulty', '⭐')})"
-                for k, info in data.items() 
-                if info.get('season') == season_id
-            ]
+            group = []
+            for k, info in data.items():
+                if info.get('season') == season_id:
+                    # Добавляем название и краткую пометку сложности
+                    diff = info.get('difficulty', '⭐')
+                    group.append(f"• {info.get('name')} {diff}")
             
             if group:
-                response = f"{season_title}\n" + "\n".join(group)
+                response = f"{season_title}\n\n" + "\n".join(group)
                 bot.send_message(message.chat.id, response, parse_mode='Markdown')
+        
+        bot.send_message(message.chat.id, "💡 _Напиши название любого созвездия, чтобы я рассказал о нем подробнее!_")
         return
 
-    # Поиск по названию
+    # Поиск по названию (если пользователь просто ввел текст)
     for key, info in data.items():
         if text.lower() in info.get('name', '').lower() or text.lower() in key.lower():
             bot.send_message(message.chat.id, format_full_info(key, info), parse_mode='Markdown')
             return
             
-    bot.send_message(message.chat.id, "🔭 В моих атласах такого нет. Попробуй другое!")
+    bot.send_message(message.chat.id, "🔭 Хм, в моем атласе 88 созвездий, но такого я не нашел. Попробуй проверить название!")
 
 # --- 5. ЗАПУСК ---
 if __name__ == "__main__":
