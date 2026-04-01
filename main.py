@@ -36,7 +36,7 @@ def load_data():
 # --- 3. АСТРОНОМИЧЕСКАЯ ЛОГИКА ---
 
 def get_best_constellation(lat, lon):
-    """Находит созвездие, которое сейчас прямо над пользователем (в зените)"""
+    """Определяет созвездие, которое сейчас находится в зените над пользователем"""
     data = load_data()
     obs = ephem.Observer()
     obs.lat = str(lat)
@@ -44,26 +44,27 @@ def get_best_constellation(lat, lon):
     obs.date = datetime.utcnow()
     
     try:
-        # ephem возвращает кортеж, где второй элемент — это ID созвездия (например, 'Ori')
+        # Получаем ID созвездия по координатам (например, 'Ori')
         _, zenith_const_id = ephem.constellation((obs.lat, obs.lon))
         
-        # Ищем созвездие в нашей базе, сопоставляя ID
+        # Ищем ключ созвездия в нашей базе, сопоставляя его с ID
         for key, info in data.items():
             if info.get('id') == zenith_const_id:
                 return key
     except Exception as e:
-        print(f"Ошибка расчёта неба: {e}")
+        print(f"Ошибка астро-расчета: {e}")
     
-    # Если расчет не удался, выбираем любое
+    # Если расчет не удался, выбираем случайное из базы
     return random.choice(list(data.keys()))
 
-def format_const_reply(key, info, prefix=""):
-    """Вспомогательная функция для красивого оформления текста"""
+def format_full_info(key, info, title_prefix=""):
+    """Форматирует полный текст карточки созвездия"""
+    name = info.get('name', key.replace('_', ' ').capitalize())
     return (
-        f"{prefix}✨ **{info.get('name', key.capitalize())}**\n\n"
-        f"🔭 **Описание:** {info.get('description', '...')}\n\n"
-        f"📜 **История:** {info.get('history', '...')}\n\n"
-        f"💡 **Секрет:** {info.get('secret', '...')}\n"
+        f"{title_prefix}✨ **{name}**\n\n"
+        f"🔭 **Описание:** {info.get('description', 'Информация скоро появится...')}\n\n"
+        f"📜 **История:** {info.get('history', 'Легенды этого созвездия пока скрыты...')}\n\n"
+        f"💡 **Секрет:** {info.get('secret', 'Мартин еще изучает этот объект.')}\n"
         f"📊 **Сложность:** {info.get('difficulty', '⭐⭐')}\n"
         f"📅 **Сезон:** {info.get('season', 'Не указан')}"
     )
@@ -73,29 +74,26 @@ def format_const_reply(key, info, prefix=""):
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    item1 = telebot.types.KeyboardButton("🎲 Случайное созвездие")
-    item2 = telebot.types.KeyboardButton("📋 Список созвездий")
-    item3 = telebot.types.KeyboardButton("📍 Определить мое небо", request_location=True)
-    
-    markup.add(item1, item2)
-    markup.add(item3)
+    markup.add("🎲 Случайное созвездие", "📋 Список созвездий")
+    markup.add(telebot.types.KeyboardButton("📍 Определить мое небо", request_location=True))
     
     bot.send_message(
         message.chat.id, 
-        "Привет! Я Мартин, твой звездный гид. ✨ Нажми 'Определить мое небо', и я настрою телескоп под твои координаты!", 
+        "Привет! Я Мартин, твой персональный астро-навигатор. 🌌\n\n"
+        "Нажми '📍 Определить мое небо', чтобы я узнал, какие звезды светят тебе прямо сейчас!", 
         reply_markup=markup
     )
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
     if message.location:
-        # Расчет созвездия по локации
+        # Находим созвездие над головой
         key = get_best_constellation(message.location.latitude, message.location.longitude)
         data = load_data()
         info = data.get(key, {})
         
-        reply = format_const_reply(key, info, prefix="📍 **Твои координаты приняты!**\nПрямо сейчас над тобой:\n\n")
-        bot.send_message(message.chat.id, reply, parse_mode='Markdown')
+        text = format_full_info(key, info, title_prefix="📍 **Твое небо настроено!**\nПрямо сейчас над тобой:\n\n")
+        bot.send_message(message.chat.id, text, parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
@@ -105,31 +103,31 @@ def handle_all_messages(message):
     if text == "🎲 Случайное созвездие":
         key = random.choice(list(data.keys()))
         info = data[key]
-        bot.send_message(message.chat.id, format_const_reply(key, info), parse_mode='Markdown')
+        bot.send_message(message.chat.id, format_full_info(key, info), parse_mode='Markdown')
         return
 
     if text == "📋 Список созвездий":
         names = [info.get('name', k) for k, info in data.items()]
         full_list = "📍 **Все 88 созвездий в моем атласе:**\n\n" + ", ".join(names)
         
-        # Разбиваем на части, если список слишком длинный для Telegram
+        # Разбиваем на части, если список длинный
         for x in range(0, len(full_list), 4000):
             bot.send_message(message.chat.id, full_list[x:x+4000], parse_mode='Markdown')
         return
 
-    # Поиск созвездия по вводу названия
+    # Поиск по названию
     found = False
     for key, info in data.items():
         if text.lower() in info.get('name', '').lower() or text.lower() in key.lower():
-            bot.send_message(message.chat.id, format_const_reply(key, info), parse_mode='Markdown')
+            bot.send_message(message.chat.id, format_full_info(key, info), parse_mode='Markdown')
             found = True
             break
             
     if not found:
-        bot.send_message(message.chat.id, "Хм, в моих атласах такого нет. Попробуй другое созвездие! 🔭")
+        bot.send_message(message.chat.id, "🔭 В моих звездных картах такого созвездия нет. Попробуй другое!")
 
 # --- 5. ЗАПУСК ---
 if __name__ == "__main__":
     keep_alive()
-    print("Мартин успешно запущен и готов к работе!")
+    print("Мартин успешно заступил на дежурство! 🚀")
     bot.polling(none_stop=True)
