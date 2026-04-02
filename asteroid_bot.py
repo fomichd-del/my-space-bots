@@ -11,12 +11,11 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 CHANNEL_NAME   = '@vladislav_space'
 
-# Красивые космические фоны
+# Список проверенных фонов
 SPACE_PHOTOS = [
-    "https://w.forfun.com/fetch/f6/f67584100c82fb61b369986326e5a4ed.jpeg",
-    "https://w.forfun.com/fetch/5a/5a4b76df87fbff8d2543920678d8a55d.jpeg",
-    "https://w.forfun.com/fetch/31/3141fbe14c8f53347b702da19f7902ba.jpeg",
-    "https://w.forfun.com/fetch/10/104191d966e3fb2427a133481a53b53f.jpeg"
+    "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1200&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1446776877081-d282a0f896e2?q=80&w=1200&auto=format&fit=crop"
 ]
 
 def get_size_comparison(meters):
@@ -31,17 +30,19 @@ def get_asteroid_data():
     url = f"https://api.nasa.gov/neo/rest/v1/feed?start_date={today}&end_date={today}&api_key={NASA_API_KEY}"
     
     try:
+        print(f"📡 Запрашиваю данные NASA на {today}...")
         res = requests.get(url, timeout=15).json()
         asteroids = res['near_earth_objects'].get(today, [])
-        if not asteroids: return None, None, None
+        
+        if not asteroids:
+            print("📭 Астероидов сегодня не обнаружено.")
+            return None, None, None
 
-        # Выбираем самого крупного/опасного
         hero = max(asteroids, key=lambda x: x['estimated_diameter']['meters']['estimated_diameter_max'])
         is_danger = hero['is_potentially_hazardous_asteroid']
         name = hero['name'].replace("(", "").replace(")", "").strip()
         size = round(hero['estimated_diameter']['meters']['estimated_diameter_max'])
         
-        # Дистанция: 1 LD = 384 400 км
         dist_km = float(hero['close_approach_data'][0]['miss_distance']['kilometers'])
         dist_ld = round(dist_km / 384400, 1)
 
@@ -62,11 +63,18 @@ def get_asteroid_data():
         photo_url = random.choice(SPACE_PHOTOS)
 
         return text, keyboard, photo_url
-    except: return None, None, None
+    except Exception as e:
+        print(f"❌ Ошибка сбора данных: {e}")
+        return None, None, None
 
 def send_to_telegram(text, keyboard, photo_url):
-    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-    # Отправляем именно ФОТО, тогда текст будет под ним и лишних ссылок не будет
+    if not TELEGRAM_TOKEN:
+        print("❌ ОШИБКА: TELEGRAM_TOKEN не найден в Secrets!")
+        return
+
+    print(f"📤 Отправляю фото в канал {CHANNEL_NAME}...")
+    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    
     payload = {
         'chat_id': CHANNEL_NAME,
         'photo': photo_url,
@@ -74,9 +82,20 @@ def send_to_telegram(text, keyboard, photo_url):
         'parse_mode': 'HTML',
         'reply_markup': json.dumps(keyboard)
     }
-    requests.post(f"{base_url}/sendPhoto", data=payload)
+    
+    try:
+        r = requests.post(base_url, data=payload, timeout=20)
+        if r.status_code == 200:
+            print("✅ СООБЩЕНИЕ УСПЕШНО ОТПРАВЛЕНО!")
+        else:
+            print(f"❌ ОШИБКА TELEGRAM API: {r.status_code}")
+            print(f"📝 Текст ошибки: {r.text}")
+    except Exception as e:
+        print(f"❌ Ошибка сети при отправке: {e}")
 
 if __name__ == '__main__':
     msg_text, msg_key, img_url = get_asteroid_data()
     if msg_text:
         send_to_telegram(msg_text, msg_key, img_url)
+    else:
+        print("📭 Нечего отправлять.")
