@@ -2,23 +2,26 @@ name: Daily Space Video
 
 on:
   schedule:
-    - cron: '0 16 * * *'  # Автозапуск в 19:00 (Киев/МСК)
-  workflow_dispatch:      # <-- ЭТА СТРОЧКА ДОБАВИТ КНОПКУ РУЧНОГО ЗАПУСКА
+    - cron: '0 16 * * *'
+  workflow_dispatch: 
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
+          
       - name: Install dependencies
-        run: pip install pyTelegramBotAPI google-api-python-client
+        run: |
+          pip install pyTelegramBotAPI google-api-python-client yt-dlp
+          
       - name: Run script
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         run: python video_bot.py
