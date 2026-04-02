@@ -1,12 +1,13 @@
 import os
 import telebot
-import yt_dlp
+import requests
 from googleapiclient.discovery import build
 import random
 from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
+import re
 
-# Конфигурация
+# Настройки
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 CHANNEL_NAME = os.getenv('CHANNEL_NAME') or '@vladislav_space'
@@ -21,90 +22,105 @@ SOURCES = {
     "NASASpaceflight": "UCSUu1lih2nj6Z1qbd1E9Vag"
 }
 
-def translate_and_summarize(text, max_len=400):
+def clean_and_translate(text, length=450):
+    """Качественный перевод и очистка описания"""
     try:
+        # Убираем ссылки и лишние теги из описания YouTube
+        text = re.sub(r'http\S+', '', text)
         translated = translator.translate(text)
-        return translated[:max_len] + "..." if len(translated) > max_len else translated
-    except: return text[:max_len]
+        if len(translated) > length:
+            translated = translated[:length].rsplit('.', 1)[0] + "."
+        return translated
+    except:
+        return "Детали миссии доступны в видеообзоре."
+
+def parse_mission_info(title, description):
+    """Пытается вытащить данные о миссии, времени и месте"""
+    title_ru = translator.translate(title)
+    
+    # Ищем место (примерные ключевые слова)
+    locations = ["Кеннеди", "Байконур", "Канаверал", "Бока-Чика", "Куру", "Ванденберг", "Starbase"]
+    place = "Космический центр (уточняется)"
+    for loc in locations:
+        if loc.lower() in title.lower() or loc.lower() in description.lower():
+            place = loc
+            break
+            
+    # Ищем миссию
+    mission = "Исследовательская миссия"
+    if "Artemis" in title or "Артемида" in title_ru: mission = "Artemis (Лунная программа)"
+    elif "Starship" in title: mission = "Starship Flight Test"
+    elif "Crew" in title: mission = "Пилотируемый полет"
+    elif "Starlink" in title: mission = "Вывод спутников Starlink"
+
+    # Время (из даты публикации или текста)
+    time_str = datetime.now().strftime("%H:%M") + " (МСК)" # По умолчанию
+
+    return title_ru, mission, time_str, place
 
 def get_video_data():
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
     
-    # ПЛАН А: Глобальный поиск по ключевым словам (самый надежный для Live)
-    print("Ищу активные трансляции по ключевым словам...")
-    search_queries = ['NASA Live', 'SpaceX Live Launch', 'Rocket Launch Live', 'ISS Live Stream']
-    
+    # 1. Поиск активных трансляций (самый приоритет)
+    search_queries = ['NASA Live', 'SpaceX Starship Live', 'Artemis Live']
     for q in search_queries:
-        # Ищем по всему YouTube активный Live про космос
-        req = youtube.search().list(
-            q=q, 
-            part='snippet', 
-            type='video', 
-            eventType='live', 
-            maxResults=3,
-            relevanceLanguage='en'
-        )
+        req = youtube.search().list(q=q, part='snippet', type='video', eventType='live', maxResults=1)
         res = req.execute()
         if res.get('items'):
             v = res['items'][0]
-            print(f"НАЙДЕНО ЧЕРЕЗ ГЛОБАЛЬНЫЙ ПОИСК: {v['snippet']['title']}")
+            t, m, tm, p = parse_mission_info(v['snippet']['title'], v['snippet']['description'])
             return {
                 'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
-                'title': "🔴 В ПРЯМОМ ЭФИРЕ: " + translator.translate(v['snippet']['title']),
-                'desc': translate_and_summarize(v['snippet']['description']),
-                'is_live': True
+                'img': v['snippet']['thumbnails']['high']['url'],
+                'title': t, 'mission': m, 'time': tm, 'place': p,
+                'desc': clean_and_translate(v['snippet']['description']),
+                'type': "🔴 ПРЯМОЙ ЭФИР"
             }
 
-    # ПЛАН Б: Если глобальный поиск ничего не дал, проверяем наши каналы
-    print("Глобальный поиск не дал результатов. Проверяю список каналов...")
-    for name, c_id in SOURCES.items():
-        req = youtube.search().list(channelId=c_id, part='snippet', type='video', eventType='live')
-        res = req.execute()
-        if res.get('items'):
-            v = res['items'][0]
-            return {
-                'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
-                'title': f"🛰 {name} В ЭФИРЕ: " + translator.translate(v['snippet']['title']),
-                'desc': translate_and_summarize(v['snippet']['description']),
-                'is_live': True
-            }
-
-    # ПЛАН В: Если стримов НЕТ вообще, ищем свежее короткое видео за сегодня
-    print("Эфиров нет. Ищем свежее короткое видео...")
-    three_days_ago = (datetime.utcnow() - timedelta(days=3)).isoformat() + "Z"
-    for name, c_id in SOURCES.items():
-        req = youtube.search().list(channelId=c_id, part='snippet', type='video', 
-                                    publishedAfter=three_days_ago, order='date', maxResults=1)
-        res = req.execute()
-        if res.get('items'):
-            v = res['items'][0]
-            return {
-                'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
-                'title': "🚀 СОБЫТИЕ: " + translator.translate(v['snippet']['title']),
-                'desc': translate_and_summarize(v['snippet']['description']),
-                'is_live': True
-            }
+    # 2. Если эфиров нет — свежие новости
+    source_name = random.choice(list(SOURCES.keys()))
+    req = youtube.search().list(channelId=SOURCES[source_name], part='snippet', type='video', order='date', maxResults=1)
+    res = req.execute()
+    if res.get('items'):
+        v = res['items'][0]
+        t, m, tm, p = parse_mission_info(v['snippet']['title'], v['snippet']['description'])
+        return {
+            'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
+            'img': v['snippet']['thumbnails']['high']['url'],
+            'title': t, 'mission': m, 'time': "Опубликовано недавно", 'place': p,
+            'desc': clean_and_translate(v['snippet']['description']),
+            'type': "🚀 НОВОСТИ КОСМОСА"
+        }
     return None
 
 def post_daily_video():
     data = get_video_data()
-    if not data:
-        print("Ничего не найдено.")
-        return
+    if not data: return
 
-    # Невидимый символ для превью НАВЕРХУ
-    hidden_link = f"<a href='{data['url']}'>\u200b</a>"
-    
+    # Формируем красивый текст
     caption = (
-        f"{hidden_link}<b>{data['title']}</b>\n\n"
-        f"ℹ️ {data['desc']}\n\n"
-        f"\n\n"
+        f"{data['type']}\n"
+        f"<b>{data['title']}</b>\n\n"
+        f"🛰 <b>Миссия:</b> {data['mission']}\n"
+        f"⏰ <b>Время старта:</b> {data['time']}\n"
+        f"📍 <b>Место отправления:</b> {data['place']}\n\n"
+        f"📖 <b>Описание:</b>\n{data['desc']}\n\n"
+        f"🔗 <a href='{data['url']}'>Смотреть видео полностью</a>\n\n"
+        f"\n"
         f"<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    # Всегда шлем через превью (окошко), чтобы видео было над текстом
-    bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML', disable_web_page_preview=False)
-    print(f"Успешно опубликовано: {data['title']}")
+    try:
+        # Отправляем ФОТО с текстом в подписи (так оформление самое красивое)
+        bot.send_photo(
+            CHANNEL_NAME, 
+            data['img'], 
+            caption=caption, 
+            parse_mode='HTML'
+        )
+        print(f"Пост '{data['title']}' успешно опубликован.")
+    except Exception as e:
+        print(f"Ошибка при отправке: {e}")
 
 if __name__ == "__main__":
     post_daily_video()
