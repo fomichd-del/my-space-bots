@@ -22,10 +22,8 @@ SOURCES = {
 }
 
 def translate_text(text):
-    try:
-        return translator.translate(text)
-    except:
-        return text
+    try: return translator.translate(text)
+    except: return text
 
 def download_video(url):
     filename = 'video_to_send.mp4'
@@ -45,27 +43,24 @@ def download_video(url):
 def get_video_data():
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
     source_name = random.choice(list(SOURCES.keys()))
-    channel_id = SOURCES[source_name]
     
-    print(f"Ищу на канале {source_name}...")
+    # Ищем короткие видео (до 4 мин), чтобы чаще пролезал файл
     request = youtube.search().list(
-        channelId=channel_id, part='snippet', maxResults=5, type='video', order='date'
+        channelId=SOURCES[source_name], 
+        part='snippet', 
+        maxResults=10, 
+        type='video', 
+        videoDuration='short', 
+        order='date'
     )
     res = request.execute()
     
     if res.get('items'):
         video = random.choice(res['items'])
-        raw_title = video['snippet']['title']
-        raw_desc = video['snippet']['description']
-        
-        print("Перевожу текст...")
-        title = translate_text(raw_title)
-        desc = translate_text(raw_desc[:300]) # Переводим только первые 300 символов
-        
         return {
             'url': f"https://www.youtube.com/watch?v={video['id']['videoId']}",
-            'title': title,
-            'desc': desc + "..."
+            'title': translate_text(video['snippet']['title']),
+            'desc': translate_text(video['snippet']['description'][:300])
         }
     return None
 
@@ -73,22 +68,39 @@ def post_daily_video():
     data = get_video_data()
     if not data: return
 
+    # Пробуем скачать
     video_file = download_video(data['url'])
     
+    # Формируем текст
+    # Ссылка на видео спрятана в первом эмодзи для создания встроенного окна (плеера)
     caption = (
-        f"🎬 <b>Тема: {data['title']}</b>\n\n"
+        f"<a href='{data['url']}'>🎬</a> <b>Тема: {data['title']}</b>\n\n"
         f"ℹ️ <b>Описание:</b> {data['desc']}\n\n"
         f"\n\n"
         f"<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
     if video_file and os.path.exists(video_file):
+        # ВАРИАНТ 1: Видео пришло файлом (самое лучшее)
         with open(video_file, 'rb') as v:
-            bot.send_video(CHANNEL_NAME, v, caption=caption, parse_mode='HTML', supports_streaming=True)
+            bot.send_video(
+                CHANNEL_NAME, v, 
+                caption=caption, 
+                parse_mode='HTML', 
+                supports_streaming=True
+            )
         os.remove(video_file)
     else:
-        # Шлем текст без превью (убираем нижний бар)
-        bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML', disable_web_page_preview=True)
+        # ВАРИАНТ 2: Видео слишком тяжелое — создаем "умное окошко" Telegram
+        # Мы НЕ выключаем превью (disable_web_page_preview=False),
+        # но так как ссылка на видео стоит ПЕРВОЙ, Telegram покажет плеер YouTube,
+        # а не бар твоего канала.
+        bot.send_message(
+            CHANNEL_NAME, 
+            caption, 
+            parse_mode='HTML', 
+            disable_web_page_preview=False
+        )
 
 if __name__ == "__main__":
     post_daily_video()
