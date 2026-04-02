@@ -2,86 +2,112 @@ import os
 import telebot
 from googleapiclient.discovery import build
 import random
+from datetime import datetime, timedelta
+from deep_translator import GoogleTranslator
+import re
 
-# Конфигурация из Secrets на GitHub
+# Настройки
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
-# Имя твоего канала из Secrets или используем дефолт
 CHANNEL_NAME = os.getenv('CHANNEL_NAME') or '@vladislav_space'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+translator = GoogleTranslator(source='auto', target='ru')
 
-# Темы для поиска (можно менять)
-QUERIES = [
-    "космос новости за неделю",
-    "запуски ракет обзор",
-    "астрономия интересные факты",
-    "миссия артемида наса"
+# Список только научных и официальных каналов
+SOURCES = {
+    "NASA": "UCOV19_pU-Z58VdB1YfSkA3w",
+    "SpaceX": "UCtI0Hodo5o5dUb67FeUjDeA",
+    "Alpha Centauri": "UC6mD3sE6ZJ_W_7_xI0KxhSg",
+    "NASASpaceflight": "UCSUu1lih2nj6Z1qbd1E9Vag",
+    "ESA": "UCdq0byZ-STP8_7GisA5T-sQ"
+}
+
+# ЧЕРНЫЙ СПИСОК (чтобы никакой политики)
+BANNED_KEYWORDS = [
+    'война', 'санкции', 'политика', 'conflict', 'war', 'sanctions', 
+    'politics', 'украин', 'росс', 'армия', 'army', 'military'
 ]
 
-def get_video_data():
-    if not YOUTUBE_API_KEY:
-        raise Exception("ОШИБКА: YOUTUBE_API_KEY не найден в Secrets!")
-    
-    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-    query = random.choice(QUERIES)
-    
-    request = youtube.search().list(
-        q=query, part='snippet', maxResults=1, type='video', relevanceLanguage='ru', order='date'
-    )
-    response = request.execute()
+def is_safe(text):
+    """Проверяет текст на отсутствие политики"""
+    t = text.lower()
+    return not any(word in t for word in BANNED_KEYWORDS)
 
-    if response['items']:
-        video = response['items'][0]
-        v_id = video['id']['videoId']
-        # На всякий случай обрабатываем опечатку в URL
-        v_url = f"https://www.youtube.com/watch?v={v_id}"
-        
-        # Получаем заголовок и описание
-        title = video['snippet']['title']
-        # Описание часто длинное, берем только начало
-        desc = video['snippet']['description'][:250] + "..."
-        
-        return {
-            'url': v_url,
-            'title': title,
-            'desc': desc
-        }
+def translate_safe(text, length=350):
+    """Перевод и краткое описание"""
+    try:
+        res = translator.translate(text)
+        return res[:length] + "..." if len(res) > length else res
+    except: return "Смотрите подробности в видео миссии."
+
+def parse_mission(title, desc):
+    """Парсинг деталей миссии"""
+    t_ru = translator.translate(title)
+    
+    # Пытаемся найти место
+    place = "Космический центр"
+    for loc in ["Кеннеди", "Байконур", "Канаверал", "Бока-Чика", "Vandenberg", "Starbase"]:
+        if loc.lower() in title.lower() or loc.lower() in desc.lower():
+            place = loc
+            break
+            
+    mission = "Научное исследование"
+    if "Artemis" in title or "Артемида" in t_ru: mission = "Миссия Artemis (Луна)"
+    elif "Starship" in title: mission = "Испытание Starship"
+    elif "Crew" in title: mission = "Пилотируемый полет"
+    
+    return t_ru, mission, place
+
+def get_video_data():
+    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+    
+    # 1. Сначала ищем LIVE (Артемида и т.д.)
+    print("Ищу живые трансляции...")
+    for q in ['NASA Live', 'SpaceX Live', 'Space Launch Live']:
+        req = youtube.search().list(q=q, part='snippet', type='video', eventType='live', maxResults=3)
+        res = req.execute()
+        for item in res.get('items', []):
+            if is_safe(item['snippet']['title']):
+                v = item
+                t, m, p = parse_mission(v['snippet']['title'], v['snippet']['description'])
+                return {'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}", 
+                        'title': t, 'mission': m, 'place': p, 
+                        'desc': translate_safe(v['snippet']['description']), 'type': "🔴 LIVE"}
+
+    # 2. Если LIVE нет — свежие видео за 3 дня
+    print("Эфиров нет, ищу свежие видео...")
+    c_id = random.choice(list(SOURCES.values()))
+    req = youtube.search().list(channelId=c_id, part='snippet', type='video', order='date', maxResults=5)
+    res = req.execute()
+    for item in res.get('items', []):
+        if is_safe(item['snippet']['title']):
+            v = item
+            t, m, p = parse_mission(v['snippet']['title'], v['snippet']['description'])
+            return {'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}", 
+                    'title': t, 'mission': m, 'place': p, 
+                    'desc': translate_safe(v['snippet']['description']), 'type': "🚀 НОВОСТИ"}
     return None
 
 def post_daily_video():
-    print("Начинаю поиск видео...")
     data = get_video_data()
-    if not data:
-        print("Видео не найдено.")
-        return
+    if not data: return
 
-    # Формируем текст сообщения в формате HTML
-    # КЛЮЧЕВОЙ МОМЕНТ: Прячем ссылку в эмодзи в самом начале
-    # <a href="URL">🎬</a> - ссылка будет внутри эмодзи
-    # \u200b - невидимый символ после эмодзи, чтобы текст не прилипал
+    # \u200b - невидимый символ, в который мы прячем ссылку на YouTube
+    # Это заставит плеер появиться СВЕРХУ текста
     caption = (
-        f"<a href='{data['url']}'>🎬</a>\u200b<b>Тема: {data['title']}</b>\n\n"
-        f"ℹ️ <b>Описание:</b> {data['desc']}\n\n"
-        f"\n\n"
-        f"<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+        f"<a href='{data['url']}'>\u200b</a>"
+        f"<b>{data['title']}</b>\n\n"
+        f"🛰 <b>Миссия:</b> {data['mission']}\n"
+        f"📍 <b>Место:</b> {data['place']}\n\n"
+        f"📖 <b>О чем видео:</b>\n{data['desc']}\n\n"
+        f"🔗 <a href='{data['url']}'>Открыть видео в YouTube</a>\n\n"
+        f"🛰 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
-    
-    print(f"Попытка отправить пост в канал {CHANNEL_NAME}...")
-    
-    try:
-        # Отправляем текстовое сообщение, в котором Ссылка на видео стоит ПЕРВОЙ
-        # disabled_web_page_preview=False - ЭТОТ ПАРАМЕТР ВКЛЮЧАЕТ ПРЕДПРОСМОТР ССЫЛКИ
-        bot.send_message(
-            CHANNEL_NAME, 
-            caption, 
-            parse_mode='HTML', 
-            disable_web_page_preview=False
-        )
-        print("Пост опубликован!")
-    except Exception as e:
-        print(f"Ошибка отправки сообщения: {e}")
-        # Если не админ, лог покажет
+
+    # Важно: disable_web_page_preview=False, чтобы появилось окошко видео
+    bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML', disable_web_page_preview=False)
+    print("Пост успешно опубликован!")
 
 if __name__ == "__main__":
     post_daily_video()
