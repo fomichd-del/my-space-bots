@@ -2,27 +2,31 @@ name: Asteroid Radar Daily
 
 on:
   schedule:
-    - cron: '30 6 * * *' # Каждый день в 06:30 UTC
-  workflow_dispatch:      # Кнопка для ручного запуска
+    # Запуск каждый день в 06:30 UTC
+    - cron: '30 6 * * *'
+  workflow_dispatch: # Кнопка для ручного запуска в интерфейсе GitHub
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    
-    - uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        # МЫ УСТАНАВЛИВАЕМ ОБЕ БИБЛИОТЕКИ: Связь с NASA и Рисование
-        pip install requests Pillow
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Run asteroid bot
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
-      run: python asteroid_bot.py
+      - name: Install dependencies
+        # Устанавливаем сразу всё: и для связи с NASA, и для работы с фото
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests Pillow
+
+      - name: Run asteroid bot
+        env:
+          # Эти данные должны быть в Settings -> Secrets -> Actions
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+        run: python asteroid_bot.py
