@@ -1,9 +1,10 @@
 import os
 import telebot
+import yt_dlp
 from googleapiclient.discovery import build
 import random
 
-# Конфигурация из переменных окружения
+# Конфигурация
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
@@ -11,70 +12,76 @@ CHANNEL_NAME   = '@vladislav_space'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Список поисковых запросов для разнообразия
 QUERIES = [
-    "космос новости за неделю",
-    "запуски ракет сегодня",
-    "научные факты о вселенной",
-    "новые открытия в астрономии",
-    "жизнь на мкс видео",
-    "космические миссии 2026"
+    "космос коротко факты",
+    "запуски ракет видео",
+    "планеты солнечной системы обзор",
+    "наука космос интересное"
 ]
 
-def get_latest_video():
-    """Находит видео, его название и описание через YouTube API"""
-    if not YOUTUBE_API_KEY:
-        return None, None, "Ошибка: Не задан YOUTUBE_API_KEY"
+def download_video(url):
+    """Скачивает видео в минимальном качестве, чтобы влезло в лимит Telegram (50МБ)"""
+    ydl_opts = {
+        'format': 'best[ext=mp4][filesize<50M]/worst[ext=mp4]', # Ограничение по весу
+        'outtmpl': 'video_to_send.mp4',
+        'quiet': True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            ydl.download([url])
+            return 'video_to_send.mp4'
+        except:
+            return None
 
-    try:
-        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-        query = random.choice(QUERIES)
-        
-        request = youtube.search().list(
-            q=query,
-            part='snippet',
-            maxResults=1,
-            type='video',
-            relevanceLanguage='ru',
-            order='date' 
-        )
-        response = request.execute()
+def get_video_data():
+    """Ищет видео через YouTube API"""
+    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+    query = random.choice(QUERIES)
+    
+    request = youtube.search().list(
+        q=query, part='snippet', maxResults=1, type='video', relevanceLanguage='ru', order='date'
+    )
+    response = request.execute()
 
-        if response['items']:
-            video = response['items'][0]
-            video_id = video['id']['videoId']
-            title = video['snippet']['title']
-            # Берем описание и обрезаем его для компактности
-            description = video['snippet']['description']
-            if len(description) > 300:
-                description = description[:297] + "..."
-                
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            return video_url, title, description
-        return None, None, "Видео не найдены."
-    except Exception as e:
-        return None, None, f"Ошибка API: {e}"
+    if response['items']:
+        item = response['items'][0]
+        return {
+            'url': f"https://www.youtube.com/watch?v={item['id']['videoId']}",
+            'title': item['snippet']['title'],
+            'desc': item['snippet']['description'][:250] + "..."
+        }
+    return None
 
 def post_daily_video():
-    """Публикует видео с заданным форматированием"""
-    url, title, desc = get_latest_video()
-    
-    if url:
-        # Формируем текст поста
-        # \n\n — это перенос строки. Два раза дает пустую строку.
+    data = get_video_data()
+    if not data: return
+
+    print(f"Начинаю загрузку: {data['title']}")
+    video_file = download_video(data['url'])
+
+    if video_file and os.path.exists(video_file):
         caption = (
-            f"🎬 <b>Тема: {title}</b>\n\n"
-            f"ℹ️ <b>Описание:</b> {desc}\n\n"
-            f"🔗 <b>Смотреть тут:</b> {url}\n\n"
-            f"\n\n" # Две пустые строки перед подписью
+            f"🎬 <b>Тема: {data['title']}</b>\n\n"
+            f"ℹ️ <b>Описание:</b> {data['desc']}\n\n"
+            f"\n\n"
             f"<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
+
+        with open(video_file, 'rb') as v:
+            bot.send_video(
+                CHANNEL_NAME, 
+                v, 
+                caption=caption, 
+                parse_mode='HTML',
+                supports_streaming=True # Позволяет смотреть видео, пока оно качается
+            )
         
-        # Используем parse_mode='HTML' для поддержки тега <a>
-        bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML', disable_web_page_preview=False)
-        print(f"Пост '{title}' опубликован.")
+        os.remove(video_file) # Удаляем файл после отправки
+        print("Видео успешно загружено в канал!")
     else:
-        print(f"Ошибка: {desc}")
+        # Если видео слишком большое или ошибка — шлем просто ссылку
+        caption = f"🎬 <b>Тема: {data['title']}</b>\n\n{data['url']}\n\n\n\n<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+        bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML')
 
 if __name__ == "__main__":
     post_daily_video()
