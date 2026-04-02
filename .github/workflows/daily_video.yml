@@ -1,24 +1,31 @@
-name: Daily Space Video
+name: Space Radar & Daily Post
 
 on:
   schedule:
-    - cron: '0 16 * * *'
-  workflow_dispatch: 
+    # Запуск каждые 15 минут для проверки LIVE-трансляций
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Кнопка для ручного запуска в интерфейсе GitHub
 
 jobs:
-  build:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+
       - name: Install dependencies
         run: |
-          pip install pyTelegramBotAPI google-api-python-client yt-dlp deep-translator
-      - name: Run script
+          pip install pyTelegramBotAPI google-api-python-client deep_translator
+
+      - name: Run Space Bot
         env:
+          # Эти данные берутся из настроек Settings -> Secrets -> Actions
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          CHANNEL_NAME: ${{ secrets.CHANNEL_NAME }}
         run: python video_bot.py
