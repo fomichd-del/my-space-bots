@@ -18,6 +18,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        # МЫ УСТАНАВЛИВАЕМ ОБЕ БИБЛИОТЕКИ: Связь с NASA и Рисование
         pip install requests Pillow
 
     - name: Run asteroid bot
