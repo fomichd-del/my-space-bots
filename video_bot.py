@@ -6,35 +6,37 @@ import random
 
 # Конфигурация
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 CHANNEL_NAME   = '@vladislav_space'
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 QUERIES = [
-    "космос коротко факты",
-    "запуски ракет видео",
-    "планеты солнечной системы обзор",
-    "наука космос интересное"
+    "космос короткие факты",
+    "запуски ракет обзор",
+    "новости астрономии",
+    "космонавтика интересное"
 ]
 
 def download_video(url):
-    """Скачивает видео в минимальном качестве, чтобы влезло в лимит Telegram (50МБ)"""
+    """Скачивает видео с ограничением по размеру для Telegram"""
+    filename = 'video_to_send.mp4'
     ydl_opts = {
-        'format': 'best[ext=mp4][filesize<50M]/worst[ext=mp4]', # Ограничение по весу
-        'outtmpl': 'video_to_send.mp4',
+        # Выбираем лучшее качество, но чтобы файл был до 50МБ
+        'format': 'best[ext=mp4][filesize<50M]/worst[ext=mp4]',
+        'outtmpl': filename,
         'quiet': True,
+        'no_warnings': True,
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-            return 'video_to_send.mp4'
-        except:
-            return None
+        return filename
+    except Exception as e:
+        print(f"Ошибка скачивания: {e}")
+        return None
 
 def get_video_data():
-    """Ищет видео через YouTube API"""
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
     query = random.choice(QUERIES)
     
@@ -44,43 +46,41 @@ def get_video_data():
     response = request.execute()
 
     if response['items']:
-        item = response['items'][0]
+        video = response['items'][0]
         return {
-            'url': f"https://www.youtube.com/watch?v={item['id']['videoId']}",
-            'title': item['snippet']['title'],
-            'desc': item['snippet']['description'][:250] + "..."
+            'url': f"https://www.youtube.com/watch?v={video['id']['videoId']}",
+            'title': video['snippet']['title'],
+            'desc': video['snippet']['description'][:300] + "..."
         }
     return None
 
 def post_daily_video():
     data = get_video_data()
-    if not data: return
+    if not data:
+        return
 
-    print(f"Начинаю загрузку: {data['title']}")
+    print(f"Пытаюсь скачать: {data['title']}")
     video_file = download_video(data['url'])
 
-    if video_file and os.path.exists(video_file):
-        caption = (
-            f"🎬 <b>Тема: {data['title']}</b>\n\n"
-            f"ℹ️ <b>Описание:</b> {data['desc']}\n\n"
-            f"\n\n"
-            f"<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-        )
+    caption = (
+        f"🎬 <b>Тема: {data['title']}</b>\n\n"
+        f"ℹ️ <b>Описание:</b> {data['desc']}\n\n"
+        f"\n\n"
+        f"<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+    )
 
+    if video_file and os.path.exists(video_file):
         with open(video_file, 'rb') as v:
             bot.send_video(
                 CHANNEL_NAME, 
                 v, 
                 caption=caption, 
                 parse_mode='HTML',
-                supports_streaming=True # Позволяет смотреть видео, пока оно качается
+                supports_streaming=True
             )
-        
         os.remove(video_file) # Удаляем файл после отправки
-        print("Видео успешно загружено в канал!")
     else:
-        # Если видео слишком большое или ошибка — шлем просто ссылку
-        caption = f"🎬 <b>Тема: {data['title']}</b>\n\n{data['url']}\n\n\n\n<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+        # Если не скачалось, шлем просто ссылкой (запасной вариант)
         bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML')
 
 if __name__ == "__main__":
