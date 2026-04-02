@@ -1,7 +1,10 @@
 name: Daily Space Video
+
 on:
   schedule:
-    - cron: '0 16 * * *' # 16:00 UTC это 19:00 по Киеву/МСК
+    - cron: '0 16 * * *'  # Автозапуск в 19:00 (Киев/МСК)
+  workflow_dispatch:      # <-- ЭТА СТРОЧКА ДОБАВИТ КНОПКУ РУЧНОГО ЗАПУСКА
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,4 +20,5 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         run: python video_bot.py
