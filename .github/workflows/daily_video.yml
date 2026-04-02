@@ -1,0 +1,20 @@
+name: Daily Space Video
+on:
+  schedule:
+    - cron: '0 16 * * *' # 16:00 UTC это 19:00 по Киеву/МСК
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install pyTelegramBotAPI google-api-python-client
+      - name: Run script
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python video_bot.py
