@@ -14,90 +14,76 @@ CHANNEL_NAME = os.getenv('CHANNEL_NAME') or '@vladislav_space'
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Список каналов
 SOURCES = {
     "NASA": "UCOV19_pU-Z58VdB1YfSkA3w",
     "SpaceX": "UCtI0Hodo5o5dUb67FeUjDeA",
     "Alpha Centauri": "UC6mD3sE6ZJ_W_7_xI0KxhSg",
-    "NASASpaceflight": "UCSUu1lih2nj6Z1qbd1E9Vag",
-    "Roscosmos": "UCOS_m87vNfS6E_5An_Ym2pA"
+    "NASASpaceflight": "UCSUu1lih2nj6Z1qbd1E9Vag"
 }
 
 def translate_and_summarize(text, max_len=400):
     try:
         translated = translator.translate(text)
-        if len(translated) > max_len:
-            trimmed = translated[:max_len]
-            last_p = max(trimmed.rfind('.'), trimmed.rfind('!'), trimmed.rfind('?'))
-            return translated[:last_p + 1] if last_p > 200 else trimmed + "..."
-        return translated
+        return translated[:max_len] + "..." if len(translated) > max_len else translated
     except: return text[:max_len]
 
 def get_video_data():
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-    three_days_ago = (datetime.utcnow() - timedelta(days=3)).isoformat() + "Z"
     
-    print("--- Сканирование на наличие прямых эфиров ---")
-    all_live = []
-    for name, c_id in SOURCES.items():
-        try:
-            req = youtube.search().list(channelId=c_id, part='snippet', type='video', eventType='live')
-            res = req.execute()
-            if res.get('items'):
-                all_live.extend(res['items'])
-        except: continue
+    # ПЛАН А: Глобальный поиск по ключевым словам (самый надежный для Live)
+    print("Ищу активные трансляции по ключевым словам...")
+    search_queries = ['NASA Live', 'SpaceX Live Launch', 'Rocket Launch Live', 'ISS Live Stream']
+    
+    for q in search_queries:
+        # Ищем по всему YouTube активный Live про космос
+        req = youtube.search().list(
+            q=q, 
+            part='snippet', 
+            type='video', 
+            eventType='live', 
+            maxResults=3,
+            relevanceLanguage='en'
+        )
+        res = req.execute()
+        if res.get('items'):
+            v = res['items'][0]
+            print(f"НАЙДЕНО ЧЕРЕЗ ГЛОБАЛЬНЫЙ ПОИСК: {v['snippet']['title']}")
+            return {
+                'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
+                'title': "🔴 В ПРЯМОМ ЭФИРЕ: " + translator.translate(v['snippet']['title']),
+                'desc': translate_and_summarize(v['snippet']['description']),
+                'is_live': True
+            }
 
-    # ПРИОРЕТЕТ: Ищем Артемиду или Луну
-    if all_live:
-        priority_keys = ['artemis', 'moon', 'lunar', 'луна', 'sls', 'orion']
-        for v in all_live:
-            title = v['snippet']['title'].lower()
-            if any(k in title for k in priority_keys):
-                print(f"Найдено приоритетное событие: {v['snippet']['title']}")
-                return {
-                    'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
-                    'title': "🌕 МИССИЯ АРТЕМИДА: " + translator.translate(v['snippet']['title']),
-                    'desc': translate_and_summarize(v['snippet']['description']),
-                    'is_live': True
-                }
-        
-        # Если Луны нет, берем просто первый живой эфир
-        v = all_live[0]
-        return {
-            'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
-            'title': "🔴 ПРЯМОЙ ЭФИР: " + translator.translate(v['snippet']['title']),
-            'desc': translate_and_summarize(v['snippet']['description']),
-            'is_live': True
-        }
-
-    # 2. Поиск недавних событий (3 дня)
-    print("Эфиров нет, ищем запуски за 3 дня...")
+    # ПЛАН Б: Если глобальный поиск ничего не дал, проверяем наши каналы
+    print("Глобальный поиск не дал результатов. Проверяю список каналов...")
     for name, c_id in SOURCES.items():
-        req = youtube.search().list(channelId=c_id, part='snippet', type='video', 
-                                    eventType='completed', publishedAfter=three_days_ago, order='date')
+        req = youtube.search().list(channelId=c_id, part='snippet', type='video', eventType='live')
         res = req.execute()
         if res.get('items'):
             v = res['items'][0]
             return {
                 'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
-                'title': "🚀 НЕДАВНИЙ ЗАПУСК: " + translator.translate(v['snippet']['title']),
+                'title': f"🛰 {name} В ЭФИРЕ: " + translator.translate(v['snippet']['title']),
                 'desc': translate_and_summarize(v['snippet']['description']),
                 'is_live': True
             }
 
-    # 3. Обычное видео (на крайний случай)
-    print("Событий нет, ищем короткое видео...")
-    c_id = random.choice(list(SOURCES.values()))
-    req = youtube.search().list(channelId=c_id, part='snippet', type='video', videoDuration='short', maxResults=3)
-    res = req.execute()
-    if res.get('items'):
-        v = random.choice(res['items'])
-        return {
-            'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
-            'title': translator.translate(v['snippet']['title']),
-            'desc': translate_and_summarize(v['snippet']['description']),
-            'is_live': False
-        }
+    # ПЛАН В: Если стримов НЕТ вообще, ищем свежее короткое видео за сегодня
+    print("Эфиров нет. Ищем свежее короткое видео...")
+    three_days_ago = (datetime.utcnow() - timedelta(days=3)).isoformat() + "Z"
+    for name, c_id in SOURCES.items():
+        req = youtube.search().list(channelId=c_id, part='snippet', type='video', 
+                                    publishedAfter=three_days_ago, order='date', maxResults=1)
+        res = req.execute()
+        if res.get('items'):
+            v = res['items'][0]
+            return {
+                'url': f"https://www.youtube.com/watch?v={v['id']['videoId']}",
+                'title': "🚀 СОБЫТИЕ: " + translator.translate(v['snippet']['title']),
+                'desc': translate_and_summarize(v['snippet']['description']),
+                'is_live': True
+            }
     return None
 
 def post_daily_video():
@@ -116,20 +102,9 @@ def post_daily_video():
         f"<a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    if data.get('is_live'):
-        # Эфиры — только через плеер (они слишком длинные)
-        bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML', disable_web_page_preview=False)
-    else:
-        # Короткие видео — пробуем скачать
-        ydl_opts = {'format': 'best[ext=mp4][filesize<50M]/worst', 'outtmpl': 'vid.mp4', 'quiet': True}
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([data['url']])
-            with open('vid.mp4', 'rb') as v:
-                bot.send_video(CHANNEL_NAME, v, caption=caption, parse_mode='HTML', supports_streaming=True)
-            os.remove('vid.mp4')
-        except:
-            bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML', disable_web_page_preview=False)
+    # Всегда шлем через превью (окошко), чтобы видео было над текстом
+    bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML', disable_web_page_preview=False)
+    print(f"Успешно опубликовано: {data['title']}")
 
 if __name__ == "__main__":
     post_daily_video()
