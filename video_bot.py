@@ -1,151 +1,90 @@
+import requests
 import os
-import telebot
-from googleapiclient.discovery import build
-import random
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
-import re
 
-# Настройки
+# ============================================================
+# ⚙️ НАСТРОЙКИ
+# ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
-CHANNEL_NAME = os.getenv('CHANNEL_NAME') or '@vladislav_space'
+NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
+CHANNEL_NAME   = '@vladislav_space'
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
 translator = GoogleTranslator(source='auto', target='ru')
 
-# ГЛОБАЛЬНЫЕ ИСТОЧНИКИ (Весь мир)
-SOURCES = {
-    "NASA": "UCOV19_pU-Z58VdB1YfSkA3w",
-    "SpaceX": "UCtI0Hodo5o5dUb67FeUjDeA",
-    "Роскосмос": "UCOS_m87vNfS6E_5An_Ym2pA",
-    "ESA (Европа)": "UCdq0byZ-STP8_7GisA5T-sQ",
-    "ISRO (Индия)": "UC9fD-XU0sQG_uQZ7YtqO8pA",
-    "JAXA (Япония)": "UCY8YJ_R6O7oXf0O88SSTK1w",
-    "Alpha Centauri": "UC6mD3sE6ZJ_W_7_xI0KxhSg",
-    "NASASpaceflight": "UCSUu1lih2nj6Z1qbd1E9Vag"
-}
-
-# Политический фильтр остается жестким
-BANNED_KEYWORDS = ['война', 'санкции', 'политика', 'conflict', 'war', 'politics', 'армия', 'military']
-
-THEMATIC_QUERIES = [
-    "планеты солнечной системы", "черные дыры", "как устроена вселенная",
-    "жизнь на мкс", "будущее колонизации марса", "история полета гагарина",
-    "телескоп джеймс уэбб", "лунная база будущего"
-]
-
-def is_safe(text):
-    t = text.lower()
-    return not any(word in t for word in BANNED_KEYWORDS)
-
-def format_description(text):
-    try:
-        text = re.sub(r'http\S+', '', text)
-        text = re.sub(r'#\S+', '', text)
-        translated = translator.translate(text)
-        sentences = translated.split('. ')
-        return '. '.join(sentences[:3]).strip() + "."
-    except:
-        return "Детали миссии доступны в прямом эфире."
-
-def parse_mission_details(title, desc):
-    """Распознает международные миссии и космодромы"""
-    title_ru = translator.translate(title)
-    
-    # География запусков (Весь мир)
-    locations = {
-        "Байконур": ["Baikonur", "Байконур"],
-        "Восточный": ["Vostochny", "Восточный"],
-        "Кеннеди (США)": ["Kennedy", "KSC"],
-        "Канаверал (США)": ["Canaveral"],
-        "Куру (Французская Гвиана)": ["Kourou", "Guiana"],
-        "Шрихарикота (Индия)": ["Sriharikota", "Satish Dhawan"],
-        "Танегасима (Япония)": ["Tanegashima"],
-        "Бока-Чика (Starbase)": ["Boca Chica", "Starbase"],
-        "Плесецк": ["Plesetsk", "Плесецк"]
-    }
-    
-    place = "Международный космодром"
-    for p_name, keys in locations.items():
-        if any(k.lower() in title.lower() or k.lower() in desc.lower() for k in keys):
-            place = p_name
-            break
-            
-    # Тип миссии
-    mission = "Космическая миссия"
-    if "Artemis" in title or "Артемида" in title_ru: mission = "Артемида (Луна)"
-    elif "Soyuz" in title or "Союз" in title_ru: mission = "Полет корабля Союз"
-    elif "Starship" in title: mission = "Испытание Starship"
-    elif "Progress" in title or "Прогресс" in title_ru: mission = "Грузовой корабль"
-    elif "Chandrayaan" in title: mission = "Индийская лунная миссия"
-    
-    return title_ru, mission, place
+def should_be_silent():
+    """Проверяет, нужно ли присылать без звука (с 22:00 до 07:00 по МСК)"""
+    # GitHub работает по UTC. Москва — это UTC + 3.
+    msk_now = datetime.utcnow() + timedelta(hours=3)
+    return 22 <= msk_now.hour or msk_now.hour < 7
 
 def get_video_data():
-    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-    now = datetime.utcnow()
-    is_evening_slot = (now.hour == 16 and now.minute < 15) # 19:00 по Киеву/МСК
+    """Получает видео дня от NASA (APOD)"""
+    url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     
-    # 1. МЕЖДУНАРОДНЫЙ РАДАР (Live прямо сейчас)
-    print("Глобальный радар: ищу трансляции по всему миру...")
-    # Ищем на английском и русском для максимального охвата
-    search_queries = ['Space Launch Live', 'Запуск ракеты прямой эфир', 'NASA Live', 'Roscosmos Live']
+    try:
+        print("📡 Запрашиваю данные у NASA...")
+        res = requests.get(url, timeout=20).json()
+        
+        if res.get('media_type') != 'video':
+            print("ℹ️ Сегодня у NASA не видео, а фото. Пропускаю запуск видео-бота.")
+            return None, None, None
+
+        url_video = res.get('url')
+        title_en = res.get('title', 'Космическое видео')
+        desc_en = res.get('explanation', '')
+
+        print(f"📝 Перевожу заголовок: {title_en}")
+        title_ru = translator.translate(title_en)
+        
+        # Берем первые 4 предложения описания для краткости
+        sentences = desc_en.split('.')
+        short_desc_en = '. '.join(sentences[:4]) + '.'
+        desc_ru = translator.translate(short_desc_en)
+
+        return url_video, title_ru, desc_ru
+        
+    except Exception as e:
+        print(f"❌ Ошибка получения видео: {e}")
+        return None, None, None
+
+def send_to_telegram():
+    url_video, title_ru, desc_ru = get_video_data()
     
-    for q in search_queries:
-        req = youtube.search().list(q=q, part='snippet', type='video', eventType='live', maxResults=2)
-        res = req.execute()
-        for item in res.get('items', []):
-            if is_safe(item['snippet']['title']):
-                title_ru, mission, place = parse_mission_details(item['snippet']['title'], item['snippet']['description'])
-                return {
-                    'url': f"https://www.youtube.com/watch?v={item['id']['videoId']}",
-                    'title': f"🔴 ПРЯМОЙ ЭФИР: {title_ru}",
-                    'status': f"🕒 Идет сейчас (время: {now.strftime('%H:%M')})",
-                    'mission': mission,
-                    'place': place,
-                    'desc': format_description(item['snippet']['description']),
-                    'label': "Глобальный мониторинг космических запусков."
-                }
+    if not url_video:
+        return
 
-    # 2. ВЕЧЕРНИЙ ПОСТ (в 19:00, если нет эфира)
-    if is_evening_slot:
-        print("Вечерний слот: тематическое видео...")
-        query = random.choice(THEMATIC_QUERIES)
-        req = youtube.search().list(q=query, part='snippet', type='video', maxResults=5, relevanceLanguage='ru')
-        res = req.execute()
-        if res.get('items'):
-            item = random.choice(res['items'])
-            if is_safe(item['snippet']['title']):
-                return {
-                    'url': f"https://www.youtube.com/watch?v={item['id']['videoId']}",
-                    'title': f"🌌 ВЕЧЕРНИЙ КОСМОС: {translator.translate(item['snippet']['title'])}",
-                    'status': "📅 Ежедневный познавательный выпуск",
-                    'mission': "Образование и наука",
-                    'place': "Вся Вселенная",
-                    'desc': format_description(item['snippet']['description']),
-                    'label': "Расширяем горизонты знаний о космосе."
-                }
-    return None
+    # МАГИЯ: Прячем ссылку в невидимый символ \u200b
+    # Это оставит видео-плеер внизу, но уберет длинную ссылку из текста
+    invisible_link = f'<a href="{url_video}">\u200b</a>'
 
-def post_video():
-    data = get_video_data()
-    if not data: return
-
-    hidden_link = f"<a href='{data['url']}'>\u200b</a>"
     caption = (
-        f"{hidden_link}<b>{data['title']}</b>\n\n"
-        f"🛰 <b>Статус:</b> {data['status']}\n"
-        f"🚀 <b>Миссия:</b> {data['mission']}\n"
-        f"📍 <b>Место:</b> {data['place']}\n\n"
-        f"📖 <b>Что происходит:</b>\n{data['desc']}\n\n"
-        f"🎯 <b>{data['label']}</b>\n\n"
-        f"🔗 <a href='{data['url']}'>Смотреть на YouTube</a>\n\n"
-        f"🛰 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+        f"{invisible_link}🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
+        f"─────────────────────\n\n"
+        f"<b>О ЧЕМ РОЛИК:</b>\n"
+        f"{desc_ru}\n\n"
+        f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+        f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    bot.send_message(CHANNEL_NAME, caption, parse_mode='HTML', disable_web_page_preview=False)
-    print(f"Опубликовано: {data['title']}")
+    print("📤 Отправляю чистое сообщение в Telegram...")
+    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    
+    payload = {
+        'chat_id': CHANNEL_NAME,
+        'text': caption,
+        'parse_mode': 'HTML',
+        'disable_web_page_preview': False, # Оставляем False, чтобы видео-плеер появился
+        'disable_notification': should_be_silent()
+    }
+    
+    r = requests.post(base_url, data=payload)
+    if r.status_code == 200:
+        print("✅ Видео успешно опубликовано без лишних ссылок!")
+    else:
+        print(f"❌ Ошибка Telegram: {r.text}")
 
-if __name__ == "__main__":
-    post_video()
+if __name__ == '__main__':
+    print("--- 🎬 Запуск Video Bot ---")
+    send_to_telegram()
