@@ -2,6 +2,7 @@ import requests
 import os
 import random
 from datetime import datetime, timedelta
+from deep_translator import GoogleTranslator
 
 # ============================================================
 # ⚙️ НАСТРОЙКИ
@@ -10,90 +11,97 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 CHANNEL_NAME   = '@vladislav_space'
 
-def get_mars_photo():
-    """Ищет свежие фото, а если их нет — вытягивает из архива NASA."""
-    active_rovers = ['perseverance', 'curiosity']
-    
-    # 1. Поиск за неделю
-    for day_offset in range(7):
-        target_date = (datetime.now() - timedelta(days=day_offset)).strftime('%Y-%m-%d')
-        random.shuffle(active_rovers)
-        for rover in active_rovers:
-            print(f"🔍 Проверка {rover} за {target_date}...")
-            url = f"https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/photos?earth_date={target_date}&api_key={NASA_API_KEY}"
-            try:
-                response = requests.get(url, timeout=15)
-                if response.status_code == 200:
-                    photos = response.json().get('photos', [])
-                    if photos:
-                        print(f"✅ Найдено свежее фото ровера {rover}!")
-                        return random.choice(photos), False
-            except Exception as e:
-                print(f"⚠️ Ошибка при проверке {rover}: {e}")
+translator = GoogleTranslator(source='auto', target='ru')
 
-    # 2. План Б: Latest Photos
-    print("⏳ Свежих фото за неделю нет. Ищу в архиве последних снимков...")
-    rover = random.choice(active_rovers)
-    url = f"https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/latest_photos?api_key={NASA_API_KEY}"
+def translate_cam(cam_name):
+    """Переводит технические названия камер на понятный язык"""
+    cams = {
+        "Mast Camera": "Основная панорамная камера (Mastcam)",
+        "Front Hazard Avoidance Camera": "Передняя камера избегания препятствий (Hazcam)",
+        "Rear Hazard Avoidance Camera": "Задняя камера избегания препятствий (Hazcam)",
+        "Navigation Camera": "Навигационная камера (Navcam)",
+        "Chemistry and Camera Complex": "Химический анализатор (ChemCam)",
+        "Mars Hand Lens Imager": "Микроскоп для камней (MAHLI)",
+        "Mars Descent Imager": "Камера для съемки при посадке (MARDI)"
+    }
+    return cams.get(cam_name, cam_name)
+
+def get_mars_data():
+    """Получает фото: либо свежее, либо крутое из архива."""
+    # Список роверов и их максимальные Солы (примерно)
+    rovers = {
+        'perseverance': {'status': 'active', 'max_sol': 1100},
+        'curiosity': {'status': 'active', 'max_sol': 4100},
+        'opportunity': {'status': 'completed', 'max_sol': 5111},
+        'spirit': {'status': 'completed', 'max_sol': 2200}
+    }
+    
+    selected_rover = random.choice(list(rovers.keys()))
+    print(f"🤖 Выбран ровер: {selected_rover}")
+    
+    # План А: Пытаемся найти СВЕЖЕЕ (только для активных)
+    if rovers[selected_rover]['status'] == 'active':
+        for day_offset in range(1, 10):
+            date = (datetime.now() - timedelta(days=day_offset)).strftime('%Y-%m-%d')
+            url = f"https://api.nasa.gov/mars-photos/api/v1/rovers/{selected_rover}/photos?earth_date={date}&api_key={NASA_API_KEY}"
+            try:
+                res = requests.get(url, timeout=15).json()
+                if res.get('photos'):
+                    photo = random.choice(res['photos'])
+                    return photo, "🆕 СВЕЖИЙ КАДР С МАРСА"
+            except: continue
+
+    # План Б: СЛУЧАЙНЫЙ СОЛ (для всех, включая легендарные миссии)
+    print(f"📂 Ищу крутой кадр в архиве {selected_rover}...")
+    max_sol = rovers[selected_rover]['max_sol']
+    random_sol = random.randint(1, max_sol)
+    url = f"https://api.nasa.gov/mars-photos/api/v1/rovers/{selected_rover}/photos?sol={random_sol}&api_key={NASA_API_KEY}"
     
     try:
-        response = requests.get(url, timeout=15)
-        print(f"📡 Запрос к архиву {rover}: Статус {response.status_code}")
-        data = response.json()
-        
-        # Проверяем, есть ли фотографии в списке
-        if 'latest_photos' in data and data['latest_photos']:
-            print(f"📦 План Б сработал! Фото ровера {rover} получено.")
-            return random.choice(data['latest_photos']), True
-        else:
-            print(f"📭 В архиве {rover} тоже пусто.")
-    except Exception as e:
-        print(f"❌ Ошибка в Плане Б: {e}")
-                
-    return None, False
+        res = requests.get(url, timeout=15).json()
+        if res.get('photos'):
+            photo = random.choice(res['photos'])
+            return photo, "📜 ЛЕГЕНДАРНЫЕ МИССИИ"
+    except: pass
+    
+    return None, None
 
 def send_mars_post():
-    photo, is_archive = get_mars_photo()
-    
+    photo, tag = get_mars_data()
     if not photo:
-        print("🛑 Сообщение не отправлено: фото не найдено ни в свежем, ни в архивном списке.")
+        print("❌ Не удалось получить фото Марса")
         return
 
-    # Данные снимка
-    rover = photo['rover']['name']
-    date = photo['earth_date']
+    # Данные
+    rover_name = photo['rover']['name']
+    cam_name = translate_cam(photo['camera']['full_name'])
+    earth_date = photo['earth_date']
     sol = photo['sol']
-    cam = photo['camera']['full_name']
-    
-    # Исправляем ссылку (некоторые роверы присылают http вместо https)
-    img = photo['img_src']
-    if img.startswith('http://'):
-        img = img.replace('http://', 'https://', 1)
+    img_url = photo['img_src'].replace("http://", "https://")
 
-    title = "📂 АРХИВНОЕ ФОТО" if is_archive else "🆕 СВЕЖИЙ КАДР С МАРСА"
-    
-    text = (
-        f"🪐 <b>{title}</b>\n"
+    # Текст как в боте Земли
+    caption = (
+        f"🪐 <b>{tag}</b>\n"
         f"─────────────────────\n\n"
-        f"🤖 Ровер: <b>{rover}</b>\n"
-        f"📸 Камера: <b>{cam}</b>\n"
-        f"📅 Дата: <b>{date}</b> (Sol {sol})\n\n"
+        f"🤖 Ровер: <b>{rover_name}</b>\n"
+        f"📸 Камера: <b>{cam_name}</b>\n"
+        f"📅 Дата: <b>{earth_date}</b> (Sol {sol})\n\n"
+        f"Марсианские сутки (Сол) длятся на 40 минут дольше земных. "
+        f"Этот снимок был передан на Землю через сеть дальней космической связи NASA. 📡\n\n"
         f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
-    payload = {'chat_id': CHANNEL_NAME, 'photo': img, 'caption': text, 'parse_mode': 'HTML'}
+    # Отправка
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    payload = {'chat_id': CHANNEL_NAME, 'photo': img_url, 'caption': caption, 'parse_mode': 'HTML'}
     
-    try:
-        r = requests.post(api_url, data=payload)
-        print(f"📡 Статус отправки в Telegram: {r.status_code}")
-        if r.status_code != 200:
-            print(f"📋 Ответ Telegram: {r.text}")
-    except Exception as e:
-        print(f"❌ Ошибка при отправке в Telegram: {e}")
+    r = requests.post(url, data=payload)
+    if r.status_code == 200:
+        print(f"✅ Пост про Марс ({rover_name}) отправлен!")
+    else:
+        print(f"❌ Ошибка: {r.text}")
 
 if __name__ == '__main__':
-    print("--- 🏁 Запуск Mars Bot ---")
-    send_message = send_mars_post()
-    print("--- 🏁 Работа завершена ---")
+    print("--- 🏁 Старт Mars Bot ---")
+    send_mars_post()
