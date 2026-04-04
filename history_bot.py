@@ -13,7 +13,7 @@ CHANNEL_NAME   = '@vladislav_space'
 translator = GoogleTranslator(source='auto', target='ru')
 
 def get_global_history():
-    """Ищет мировые космические события на текущий день через Wikipedia"""
+    """Ищет мировые космические события через Wikipedia API"""
     now = datetime.now()
     month = now.month
     day = now.day
@@ -24,23 +24,27 @@ def get_global_history():
     ]
     date_display = f"{day} {months_ru[month-1]}"
 
-    # Используем международный API Википедии
+    # API Википедии
     url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/{month}/{day}"
     
+    # ВАЖНО: Добавляем User-Agent, чтобы не было ошибки 403
+    headers = {
+        'User-Agent': 'MarsBotHistory/1.0 (contact: your-email@example.com) Python-requests'
+    }
+    
     try:
-        print(f"🌐 Ищу события на {date_display}...")
-        response = requests.get(url, timeout=25)
+        print(f"🌐 Ищу мировые события на {date_display}...")
+        response = requests.get(url, headers=headers, timeout=25)
         
         if response.status_code != 200:
             print(f"❌ Ошибка API Википедии: {response.status_code}")
             return None, None
 
         data = response.json()
-        # Собираем все события дня
         events = data.get('selected', []) + data.get('events', [])
         
-        # Ключевые слова для фильтрации именно КОСМОСА
-        keywords = ['space', 'launch', 'orbit', 'rocket', 'moon', 'satellite', 'gagarin', 'soyuz', 'apollo', 'vostok', 'nasa', 'roscosmos']
+        # Ключевые слова для космоса
+        keywords = ['space', 'launch', 'orbit', 'rocket', 'moon', 'satellite', 'gagarin', 'soyuz', 'apollo', 'vostok', 'nasa', 'roscosmos', 'astronomy']
         
         space_events = [e for e in events if any(k in e.get('text', '').lower() for k in keywords)]
         
@@ -48,13 +52,13 @@ def get_global_history():
             print(f"📭 На {date_display} космических дат в базе нет.")
             return None, None
 
-        # Берем случайное событие
+        # Выбираем случайное
         event = random.choice(space_events)
         year = event.get('year')
         text_en = event.get('text')
         
-        # Ищем фото в событии
-        img_url = "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=1200" # Запасное
+        # Картинка
+        img_url = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200"
         if 'pages' in event and event['pages']:
             for page in event['pages']:
                 if 'thumbnail' in page:
@@ -64,14 +68,14 @@ def get_global_history():
         print(f"📝 Перевожу событие {year} года...")
         text_ru = translator.translate(text_en)
 
-        # Невидимая ссылка, чтобы пост был чистым (без ссылки в тексте)
+        # Прячем ссылку в невидимый символ
         invisible_link = f'<a href="{img_url}">\u200b</a>'
 
         caption = (
             f"{invisible_link}📜 <b>ЭТОТ ДЕНЬ В ИСТОРИИ: {date_display.upper()}</b>\n"
             f"─────────────────────\n\n"
             f"📅 <b>Год: {year}</b>\n\n"
-            f"🚀 <b>Событие:</b>\n{text_ru}\n\n"
+            f"🚀 <b>Что произошло:</b>\n{text_ru}\n\n"
             f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
@@ -88,18 +92,19 @@ def send_to_telegram():
     if not img_url:
         return
 
+    print("📤 Отправляю пост со звуком...")
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     payload = {
         'chat_id': CHANNEL_NAME,
         'photo': img_url,
         'caption': caption,
         'parse_mode': 'HTML',
-        'disable_notification': False # ВСЕГДА СО ЗВУКОМ
+        'disable_notification': False  # Звук всегда включен
     }
     
     r = requests.post(url, data=payload)
     if r.status_code == 200:
-        print("✅ История опубликована!")
+        print("✅ Успешно!")
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
