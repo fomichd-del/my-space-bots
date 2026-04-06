@@ -11,58 +11,67 @@ CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🌌 МАКСИМАЛЬНЫЙ КОСМИЧЕСКИЙ ПОИСК
-SPACE_KEYWORDS = [
+# 🌌 КОСМИЧЕСКИЙ ГЛОССАРИЙ (Для поиска во всех базах)
+SPACE_TERMS = [
     'space', 'nasa', 'rocket', 'satellite', 'planet', 'star', 'astronomer',
     'pioneer', 'voyager', 'apollo', 'soyuz', 'shuttle', 'iss', 'orbit',
     'launch', 'telescope', 'hubble', 'galaxy', 'cosmos', 'comet', 'nebula',
     'asteroid', 'discovery', 'observed', 'moon', 'mars', 'jupiter', 'saturn',
-    'supernova', 'observatory', 'cosmic', 'cosmology', 'spacewalk'
+    'intelsat', 'challenger', 'exploration', 'cosmonaut', 'astronaut'
 ]
 
-# 🚫 ФИЛЬТР АГРЕССИИ И ПОЛИТИКИ
+# 🚫 ЗАПРЕТНАЯ ЗОНА (Никакой агрессии и политики)
 STOP_WORDS = [
     'war', 'military', 'army', 'battle', 'killed', 'politics', 'weapon',
-    'война', 'военный', 'армия', 'битва', 'убит', 'оружие', 'база', 'штаб'
+    'война', 'военный', 'армия', 'битва', 'убит', 'оружие', 'база', 'штаб',
+    'агрессия', 'удар', 'ракета томагавк', 'вторжение', 'конфликт'
 ]
 
-def get_space_history():
+def get_cosmic_history():
     now = datetime.now()
-    # Используем самую полную базу - английскую Wikipedia All
-    url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/{now.month}/{now.day}"
+    month, day = now.month, now.day
     
-    print(f"📡 Сканирую историю Вселенной за {now.day}/{now.month}...")
-    try:
-        response = requests.get(url, timeout=30)
-        if response.status_code != 200: return []
-        data = response.json()
-    except:
-        return []
-
-    # Собираем всё в одну кучу: избранное, обычные события и рождения ученых
-    all_raw = data.get('selected', []) + data.get('events', []) + data.get('births', [])
+    # Сначала идем в самую полную английскую базу
+    urls = [
+        f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/selected/{month}/{day}",
+        f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}",
+        f"https://ru.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}"
+    ]
     
     found_events = []
-    for e in all_raw:
-        text = e.get('text', '').lower()
-        
-        # Ищем космос и отсекаем политику
-        is_space = any(word in text for word in SPACE_KEYWORDS)
-        no_politics = not any(word in text for word in STOP_WORDS)
-        
-        if is_space and no_politics:
-            found_events.append(e)
+    
+    for url in urls:
+        try:
+            print(f"📡 Сканирую: {url}")
+            r = requests.get(url, timeout=25)
+            if r.status_code != 200: continue
+            
+            data = r.json()
+            # Собираем события и рождения великих ученых
+            batch = data.get('selected', []) + data.get('events', []) + data.get('births', [])
+            
+            for e in batch:
+                text = e.get('text', '').lower()
+                is_space = any(word in text for word in SPACE_TERMS)
+                no_politics = not any(word in text for word in STOP_WORDS)
+                
+                if is_space and no_politics:
+                    found_events.append(e)
+            
+            if len(found_events) > 3: break # Нашли достаточно
+        except:
+            continue
             
     return found_events
 
 def send_to_telegram():
-    events = get_space_history()
+    events = get_cosmic_history()
     
     if not events:
-        print("📭 Космических событий на сегодня не найдено.")
+        print("📭 Космических тайн на сегодня больше не найдено.")
         return
 
-    # Выбираем главное (желательно с фото)
+    # Выбираем центральное событие (лучше с картинкой)
     main_event = events[0]
     for e in events:
         if 'pages' in e and e['pages'][0].get('originalimage'):
@@ -70,27 +79,28 @@ def send_to_telegram():
             break
 
     year = main_event.get('year')
-    raw_text = main_event.get('text', '')
-    text_ru = translator.translate(raw_text)
+    title_ru = translator.translate(main_event.get('text', ''))
     
+    # Собираем остальные факты
+    extra_facts = []
+    for e in events:
+        if e != main_event and len(extra_facts) < 3:
+            f_year = e.get('year')
+            f_text = translator.translate(e.get('text', ''))
+            extra_facts.append(f"• <b>{f_year}:</b> {f_text}")
+
     # Формируем пост
     caption = (
-        f"🚀 <b>КОСМИЧЕСКИЙ КАЛЕНДАРЬ</b>\n"
-        f"📅 <b>{datetime.now().strftime('%d %B')} {year} года</b>\n"
+        f"🚀 <b>КОСМИЧЕСКАЯ ЛЕТОПИСЬ</b>\n"
+        f"📅 <b>{datetime.now().strftime('%d %B')}</b>\n"
         f"─────────────────────\n\n"
-        f"<b>ГЛАВНОЕ СОБЫТИЕ:</b>\n"
-        f"{text_ru}\n\n"
+        f"🌟 <b>ГЛАВНОЕ СОБЫТИЕ {year} ГОДА:</b>\n"
+        f"{title_ru}\n\n"
     )
 
-    # Добавляем другие факты (открытия, наблюдения и т.д.)
-    other_facts = [e for e in events if e != main_event]
-    if other_facts:
-        caption += "<b>ЧТО ЕЩЕ УЗНАЛО ЧЕЛОВЕЧЕСТВО:</b>\n"
-        for fact in other_facts[:3]: # Берем еще 3 факта
-            f_year = fact.get('year')
-            f_text = translator.translate(fact.get('text', ''))
-            caption += f"• <b>{f_year}:</b> {f_text}\n"
-        caption += "\n"
+    if extra_facts:
+        caption += "🔍 <b>ДРУГИЕ ФАКТЫ ЭТОГО ДНЯ:</b>\n"
+        caption += "\n".join(extra_facts) + "\n\n"
 
     caption += (
         f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
@@ -103,14 +113,13 @@ def send_to_telegram():
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
+    # Отправляем фото или текст (всегда текст СВЕРХУ)
     if photo_url:
         payload = {'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': caption, 'parse_mode': 'HTML', 'show_caption_above_media': True}
         requests.post(f"{base_url}/sendPhoto", data=payload)
     else:
         payload = {'chat_id': CHANNEL_NAME, 'text': caption, 'parse_mode': 'HTML', 'link_preview_options': {'is_disabled': True}}
         requests.post(f"{base_url}/sendMessage", json=payload)
-    
-    print("✅ Космическая летопись отправлена!")
 
 if __name__ == '__main__':
     send_to_telegram()
