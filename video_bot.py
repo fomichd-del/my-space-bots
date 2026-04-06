@@ -14,7 +14,7 @@ CHANNEL_NAME   = '@vladislav_space'
 translator = GoogleTranslator(source='auto', target='ru')
 
 def get_video_data():
-    """Получает данные и защищен от любых KeyError"""
+    """Получает данные и защищен от пустых полей"""
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     
     try:
@@ -23,7 +23,6 @@ def get_video_data():
         res = response.json()
         
         if response.status_code != 200 or 'url' not in res:
-            print(f"❌ Ошибка API: {res.get('msg', 'Нет ссылки на контент')}")
             return None, None, None, False
 
         if res.get('media_type') != 'video':
@@ -33,7 +32,6 @@ def get_video_data():
         raw_url = res.get('url', '')
         is_youtube = any(x in raw_url for x in ['youtube.com', 'youtu.be'])
         
-        # Исправляем ссылку YouTube
         if is_youtube:
             if 'embed/' in raw_url:
                 video_id = raw_url.split('/embed/')[1].split('?')[0]
@@ -43,14 +41,13 @@ def get_video_data():
         else:
             final_url = raw_url
 
-        # БЕЗОПАСНОЕ ПОЛУЧЕНИЕ ТЕКСТА
         title_en = str(res.get('title') or "Космическое видео")
         desc_en = str(res.get('explanation') or "Описание сегодня не предоставлено.")
 
         print(f"📝 Перевожу заголовок...")
         title_ru = translator.translate(title_en)
         
-        # Перевод описания с защитой
+        # Перевод описания
         sentences = desc_en.split('.')
         short_desc_en = '. '.join(sentences[:4]) + '.'
         desc_ru = translator.translate(short_desc_en)
@@ -67,13 +64,13 @@ def send_to_telegram():
     if not video_url:
         return
 
+    # ТЕПЕРЬ ССЫЛКА НАВЕРХУ, А КАНАЛА ВНИЗУ НЕТ
     caption = (
         f"🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
+        f"🍿 <a href='{video_url}'><b>СМОТРЕТЬ РОЛИК</b></a>\n"
         f"─────────────────────\n\n"
         f"<b>О ЧЕМ РОЛИК:</b>\n"
-        f"{desc_ru}\n\n"
-        f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
-        f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+        f"{desc_ru}"
     )
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
@@ -93,7 +90,7 @@ def send_to_telegram():
         }
         requests.post(f"{base_url}/sendMessage", json=payload)
     else:
-        # Для файлов .mp4: пробуем отправить как видеофайл
+        # Для файлов .mp4: отправляем как видеофайл
         print(f"📹 Пробую отправить файл: {video_url}")
         payload = {
             "chat_id": CHANNEL_NAME,
@@ -104,18 +101,19 @@ def send_to_telegram():
         }
         r = requests.post(f"{base_url}/sendVideo", data=payload)
         
-        # Если файл не прошел (Ошибка 400), шлем просто ссылкой с баром
+        # Если файл не прошел, шлем просто текстом с баром
         if r.status_code != 200:
-            print("⚠️ Файл не прошел, шлю ссылкой...")
             payload_fallback = {
                 "chat_id": CHANNEL_NAME,
-                "text": caption + f"\n\n🍿 <a href='{video_url}'>Смотреть ролик</a>",
+                "text": caption,
                 "parse_mode": "HTML",
-                "link_preview_options": {"is_disabled": False}
+                "link_preview_options": {
+                    "url": video_url,
+                    "prefer_large_media": True,
+                    "show_above_text": True
+                }
             }
             requests.post(f"{base_url}/sendMessage", json=payload_fallback)
-        else:
-            print("✅ Видеофайл успешно отправлен!")
 
 if __name__ == '__main__':
     send_to_telegram()
