@@ -69,6 +69,7 @@ def send_to_telegram():
     print(f"📤 Отправляю в Telegram с принудительным видео: {url_video}")
     
     # Это "сердце" нашего решения:
+    # Мы прямо указываем Телеграму, какую именно ссылку превьюировать.
     payload = {
         'chat_id': CHANNEL_NAME,
         'text': caption,
