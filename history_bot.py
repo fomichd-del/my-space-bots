@@ -11,17 +11,18 @@ CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🚀 КОСМИЧЕСКИЙ ФИЛЬТР
-SPACE_ONLY = ['space', 'nasa', 'rocket', 'planet', 'pioneer', 'voyager', 'apollo', 'soyuz', 'shuttle', 'iss', 'orbit', 'launch', 'telescope']
+# 🚀 ФИЛЬТРЫ
+SPACE_WORDS = ['space', 'nasa', 'rocket', 'planet', 'pioneer', 'voyager', 'apollo', 'soyuz', 'shuttle', 'iss', 'orbit', 'launch', 'telescope']
 FORBIDDEN = ['war', 'military', 'nuclear', 'test', 'explosion', 'army', 'politics', 'weapon', 'война', 'ядерный', 'испытание', 'взрыв']
 
-# 🎖 ЗОЛОТОЙ ФОНД (Развернутый урок на 6 апреля)
+# 🎖 ПОДРОБНЫЙ УРОК НА 6 АПРЕЛЯ (Если сайт не выдаст детали)
 FALLBACK_LESSON = {
     "year": "1973",
-    "title": "ЗАПУСК СТАНЦИИ «ПИОНЕР-11»",
-    "description": "В этот день с Земли улетела автоматическая станция «Пионер-11». Это был настоящий смельчак среди роботов! Он отправился в невероятно долгое путешествие к самым большим планетам нашей Солнечной системы — Юпитеру и Сатурну.",
-    "why_cool": "«Пионер-11» стал первым в истории человечества аппаратом, который смог вблизи сфотографировать Сатурн и его таинственные кольца. До него люди видели Сатурн только в телескопы как маленькое пятнышко.",
-    "fact": "На борту аппарата закреплена золотая пластинка с посланием для инопланетян! На ней нарисовано, как выглядят люди и где находится наша Земля в огромном космосе.",
+    "title": "МИССИЯ «ПИОНЕР-11»: ПУТЕШЕСТВИЕ К ГИГАНТАМ",
+    "description": "В этот день с Земли стартовал космический аппарат «Пионер-11». Это был небольшой, но очень отважный робот-исследователь весом всего 258 килограммов.",
+    "purpose": "Ученые хотели впервые в истории увидеть Сатурн вблизи. До этого мы знали об этой планете очень мало, и нам нужны были четкие фотографии её колец.",
+    "result": "Аппарат летел долгих 6 лет! В 1979 году он наконец добрался до Сатурна, пролетел всего в 20 тысячах километров от него и открыл новое кольцо, которое раньше никто не видел. Он доказал, что на Сатурне очень холодно и ветрено.",
+    "fact": "На борту «Пионера-11» есть золотая пластинка с посланием. Если когда-нибудь инопланетяне найдут его, они увидят карту, как найти нашу Землю!",
     "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Pioneer_11.jpg/800px-Pioneer_11.jpg"
 }
 
@@ -36,7 +37,7 @@ def get_event():
         events = data.get('selected', []) + data.get('events', [])
         for e in events:
             text = e.get('text', '').lower()
-            if any(w in text for w in SPACE_ONLY) and not any(w in text for w in FORBIDDEN):
+            if any(w in text for w in SPACE_WORDS) and not any(w in text for w in FORBIDDEN):
                 return e
         return None
     except:
@@ -45,32 +46,35 @@ def get_event():
 def send_to_telegram():
     event = get_event()
     
-    # Если событие из интернета, формируем его подробно
-    if event and event.get('year') != "1973": 
+    # Если событие сегодня — наш «Пионер-11», берем готовое глубокое описание
+    if event and event.get('year') == "1973":
+        lesson = FALLBACK_LESSON
+    elif event:
+        # Для других событий делаем перевод и базовую структуру
         year = event.get('year')
         raw_text = event.get('text', '')
         translated_text = translator.translate(raw_text)
-        
         lesson = {
             "year": year,
-            "title": "НОВОЕ ОТКРЫТИЕ",
+            "title": "ВАЖНЫЙ ШАГ В КОСМОС",
             "description": translated_text,
-            "why_cool": "Это событие помогло нам лучше понять, как устроена Вселенная и как работают законы физики в космосе.",
-            "fact": "Каждый такой запуск или открытие приближает нас к моменту, когда люди смогут свободно путешествовать между звездами!",
+            "purpose": "Это событие было частью большого плана человечества по изучению звезд и планет.",
+            "result": "Благодаря этому успеху ученые получили новые знания, которые помогли нам строить более совершенные ракеты и телескопы.",
+            "fact": "Каждое такое событие делает нас на шаг ближе к жизни на других планетах!",
             "image": event['pages'][0].get('originalimage', {}).get('source') if 'pages' in event else None
         }
     else:
-        # Берем наш детальный резерв
-        lesson = FALLBACK_LESSON
+        lesson = FALLBACK_LESSON # Резерв
 
-    # ФОРМИРУЕМ КРАСИВЫЙ ПОСТ
+    # ФОРМИРУЕМ ПОДРОБНЫЙ ПОСТ
     caption = (
         f"👨‍🚀 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
-        f"📅 <b>Тема: {datetime.now().strftime('%d %B')} {lesson['year']} года</b>\n"
+        f"📅 <b>Дата: {datetime.now().strftime('%d %B')} {lesson['year']} года</b>\n"
         f"─────────────────────\n\n"
         f"🚀 <b>{lesson['title']}</b>\n\n"
-        f"📖 <b>ЧТО ПРОИЗОШЛО:</b>\n{lesson['description']}\n\n"
-        f"🌟 <b>ПОЧЕМУ ЭТО ВАЖНО:</b>\n{lesson['why_cool']}\n\n"
+        f"📖 <b>ЧТО ЭТО БЫЛО?</b>\n{lesson['description']}\n\n"
+        f"🎯 <b>ДЛЯ ЧЕГО ЭТО СДЕЛАЛИ?</b>\n{lesson['purpose']}\n\n"
+        f"✅ <b>ЧТО В ИТОГЕ СЛУЧИЛОСЬ?</b>\n{lesson['result']}\n\n"
         f"💡 <b>А ТЫ ЗНАЛ, ЧТО...</b>\n{lesson['fact']}\n\n"
         f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
@@ -79,6 +83,7 @@ def send_to_telegram():
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
     if lesson.get('image'):
+        # Фото СВЕРХУ, текст ПОД НИМ
         payload = {'chat_id': CHANNEL_NAME, 'photo': lesson['image'], 'caption': caption, 'parse_mode': 'HTML'}
         requests.post(f"{base_url}/sendPhoto", data=payload)
     else:
