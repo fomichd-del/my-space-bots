@@ -11,28 +11,28 @@ CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🚀 ФИЛЬТРЫ
+# 🚀 КОСМИЧЕСКИЕ КЛЮЧИ
 SPACE_WORDS = ['space', 'nasa', 'rocket', 'planet', 'pioneer', 'voyager', 'apollo', 'soyuz', 'shuttle', 'iss', 'orbit', 'launch', 'telescope']
-FORBIDDEN = ['war', 'military', 'nuclear', 'test', 'explosion', 'army', 'politics', 'weapon', 'война', 'ядерный', 'испытание', 'взрыв']
+FORBIDDEN = ['war', 'military', 'nuclear', 'test', 'explosion', 'army', 'politics', 'weapon', 'война', 'ядерный', 'испытание']
 
-# 🎖 ПОДРОБНЫЙ УРОК НА 6 АПРЕЛЯ (Если сайт не выдаст детали)
-FALLBACK_LESSON = {
-    "year": "1973",
-    "title": "МИССИЯ «ПИОНЕР-11»: ПУТЕШЕСТВИЕ К ГИГАНТАМ",
-    "description": "В этот день с Земли стартовал космический аппарат «Пионер-11». Это был небольшой, но очень отважный робот-исследователь весом всего 258 килограммов.",
-    "purpose": "Ученые хотели впервые в истории увидеть Сатурн вблизи. До этого мы знали об этой планете очень мало, и нам нужны были четкие фотографии её колец.",
-    "result": "Аппарат летел долгих 6 лет! В 1979 году он наконец добрался до Сатурна, пролетел всего в 20 тысячах километров от него и открыл новое кольцо, которое раньше никто не видел. Он доказал, что на Сатурне очень холодно и ветрено.",
-    "fact": "На борту «Пионера-11» есть золотая пластинка с посланием. Если когда-нибудь инопланетяне найдут его, они увидят карту, как найти нашу Землю!",
-    "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Pioneer_11.jpg/800px-Pioneer_11.jpg"
-}
+def get_detailed_summary(page_title):
+    """Заходит вглубь Википедии и берет подробное описание статьи"""
+    url = f"https://ru.wikipedia.org/api/rest_v1/page/summary/{page_title}"
+    try:
+        r = requests.get(url, timeout=20)
+        if r.status_code == 200:
+            data = r.json()
+            return data.get('extract', '')
+    except:
+        return ""
+    return ""
 
 def get_event():
     now = datetime.now()
     url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/{now.month:02d}/{now.day:02d}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=30)
-        if r.status_code != 200: return None
         data = r.json()
         events = data.get('selected', []) + data.get('events', [])
         for e in events:
@@ -45,47 +45,50 @@ def get_event():
 
 def send_to_telegram():
     event = get_event()
-    
-    # Если событие сегодня — наш «Пионер-11», берем готовое глубокое описание
-    if event and event.get('year') == "1973":
-        lesson = FALLBACK_LESSON
-    elif event:
-        # Для других событий делаем перевод и базовую структуру
-        year = event.get('year')
-        raw_text = event.get('text', '')
-        translated_text = translator.translate(raw_text)
-        lesson = {
-            "year": year,
-            "title": "ВАЖНЫЙ ШАГ В КОСМОС",
-            "description": translated_text,
-            "purpose": "Это событие было частью большого плана человечества по изучению звезд и планет.",
-            "result": "Благодаря этому успеху ученые получили новые знания, которые помогли нам строить более совершенные ракеты и телескопы.",
-            "fact": "Каждое такое событие делает нас на шаг ближе к жизни на других планетах!",
-            "image": event['pages'][0].get('originalimage', {}).get('source') if 'pages' in event else None
-        }
-    else:
-        lesson = FALLBACK_LESSON # Резерв
+    if not event:
+        print("📭 Событий не найдено.")
+        return
 
-    # ФОРМИРУЕМ ПОДРОБНЫЙ ПОСТ
+    year = event.get('year')
+    # Получаем название страницы для глубокого поиска
+    page_title = event['pages'][0]['title'] if 'pages' in event else ""
+    
+    # Пытаемся получить развернутый текст
+    detailed_info = get_detailed_summary(page_title)
+    if not detailed_info:
+        detailed_info = translator.translate(event.get('text', ''))
+
+    # Специальный разбор для Пионера-11 (6 апреля)
+    if year == "1973" and "Pioneer" in page_title:
+        title = "ЛЕГЕНДАРНЫЙ ПРЫЖОК К САТУРНУ: ПИОНЕР-11"
+        purpose = "Главной целью было изучение пояса астероидов и гигантских планет. Ученые хотели впервые увидеть Сатурн и его кольца так близко, как никогда раньше."
+        result = "Аппарат летел 6 лет! В итоге он открыл новое кольцо Сатурна и показал нам, что там бушуют мощные штормы. А еще он доказал, что через пояс астероидов можно летать безопасно."
+        fact = "На его борту закреплена золотая пластинка с рисунками людей. Это письмо в бутылке, брошенное в космический океан!"
+    else:
+        title = "КОСМИЧЕСКАЯ МИССИЯ"
+        purpose = "Изучение новых границ нашей Вселенной и проверка технологий, которые позволят людям в будущем жить на других планетах."
+        result = "Это событие дало ученым бесценные данные, которые мы используем сегодня для запусков современных ракет SpaceX и постройки новых телескопов."
+        fact = "Знаешь ли ты, что каждый такой запуск — это труд тысяч инженеров, которые работают, чтобы мы знали о звездах больше?"
+
+    # ОФОРМЛЕНИЕ
     caption = (
         f"👨‍🚀 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
-        f"📅 <b>Дата: {datetime.now().strftime('%d %B')} {lesson['year']} года</b>\n"
+        f"📅 <b>Дата: {datetime.now().strftime('%d %B')} {year} года</b>\n"
         f"─────────────────────\n\n"
-        f"🚀 <b>{lesson['title']}</b>\n\n"
-        f"📖 <b>ЧТО ЭТО БЫЛО?</b>\n{lesson['description']}\n\n"
-        f"🎯 <b>ДЛЯ ЧЕГО ЭТО СДЕЛАЛИ?</b>\n{lesson['purpose']}\n\n"
-        f"✅ <b>ЧТО В ИТОГЕ СЛУЧИЛОСЬ?</b>\n{lesson['result']}\n\n"
-        f"💡 <b>А ТЫ ЗНАЛ, ЧТО...</b>\n{lesson['fact']}\n\n"
+        f"🚀 <b>{title}</b>\n\n"
+        f"📖 <b>ЧТО ПРОИЗОШЛО:</b>\n{detailed_info[:500]}...\n\n"
+        f"🎯 <b>ОСНОВНАЯ ЦЕЛЬ:</b>\n{purpose}\n\n"
+        f"✅ <b>ИТОГ И РЕЗУЛЬТАТ:</b>\n{result}\n\n"
+        f"💡 <b>А ТЫ ЗНАЛ, ЧТО...</b>\n{fact}\n\n"
         f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
+    photo_url = event['pages'][0].get('originalimage', {}).get('source') if 'pages' in event else None
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
-    if lesson.get('image'):
-        # Фото СВЕРХУ, текст ПОД НИМ
-        payload = {'chat_id': CHANNEL_NAME, 'photo': lesson['image'], 'caption': caption, 'parse_mode': 'HTML'}
-        requests.post(f"{base_url}/sendPhoto", data=payload)
+    if photo_url:
+        requests.post(f"{base_url}/sendPhoto", data={'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': caption, 'parse_mode': 'HTML'})
     else:
         requests.post(f"{base_url}/sendMessage", data={'chat_id': CHANNEL_NAME, 'text': caption, 'parse_mode': 'HTML'})
 
