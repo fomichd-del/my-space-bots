@@ -1,6 +1,5 @@
 import requests
 import os
-import json
 from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
 
@@ -14,7 +13,7 @@ CHANNEL_NAME   = '@vladislav_space'
 translator = GoogleTranslator(source='auto', target='ru')
 
 def get_video_data():
-    """Получает видео дня и превращает его в формат, который понимает Telegram"""
+    """Получает видео дня от NASA и очищает ссылку"""
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     
     try:
@@ -27,8 +26,7 @@ def get_video_data():
 
         raw_url = res.get('url')
         
-        # КРИТИЧЕСКИЙ МОМЕНТ: Превращаем embed-ссылку в полноценную ссылку YouTube.
-        # Без этого "окно" (бар) видео часто не появляется.
+        # Вырезаем ID видео и делаем стандартную ссылку YouTube
         video_id = ""
         if 'youtube.com/embed/' in raw_url:
             video_id = raw_url.split('/embed/')[1].split('?')[0]
@@ -37,14 +35,15 @@ def get_video_data():
         elif 'v=' in raw_url:
             video_id = raw_url.split('v=')[1].split('&')[0]
         
-        url_video = f"https://www.youtube.com/watch?v={video_id}" if video_id else raw_url
+        if video_id:
+            # Стандартная ссылка, которую Telegram понимает на 100%
+            url_video = f"https://www.youtube.com/watch?v={video_id}"
+        else:
+            url_video = raw_url
 
         title_ru = translator.translate(res.get('title', 'Космическое видео'))
-        
-        # Сокращаем описание, чтобы пост не был слишком длинным
         desc_en = res.get('explanation', '')
-        short_desc_en = '. '.join(desc_en.split('.')[:4]) + '.'
-        desc_ru = translator.translate(short_desc_en)
+        desc_ru = translator.translate('. '.join(desc_en.split('.')[:4]) + '.')
 
         return url_video, title_ru, desc_ru
         
@@ -58,8 +57,9 @@ def send_to_telegram():
     if not url_video:
         return
 
-    # Мы ставим невидимый символ в начало, чтобы Telegram зацепился за ссылку.
-    # Но в самом тексте НИКАКИХ лишних ссылок не будет.
+    # 1. Ссылка на видео прячется в невидимый символ &#8203; в самом начале
+    # 2. Ссылку на канал внизу мы делаем так, чтобы Telegram её игнорировал (без превью)
+    
     invisible_link = f'<a href="{url_video}">&#8203;</a>'
 
     caption = (
@@ -71,34 +71,22 @@ def send_to_telegram():
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    print(f"📤 Отправляю пост с принудительным плеером видео...")
+    print(f"📤 Отправляю в Telegram. Ссылка для плеера: {url_video}")
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     
-    # link_preview_options — это секретное оружие.
-    # Оно говорит: "Бери только ссылку на видео, игнорируй ссылку на канал!"
+    # Мы используем классический метод, но с жестким указанием не делать превью для канала
     payload = {
         'chat_id': CHANNEL_NAME,
         'text': caption,
         'parse_mode': 'HTML',
-        'link_preview_options': json.dumps({
-            'url': url_video,             # Ссылка на видео для превью
-            'prefer_large_media': True,   # Делаем окно видео БОЛЬШИМ (как на твоем фото)
-            'show_above_text': False      # Плеер будет ПОД текстом
-        })
+        'disable_web_page_preview': False # Разрешаем превью (для видео)
     }
     
     r = requests.post(base_url, data=payload)
     if r.status_code == 200:
-        print("✅ Готово! Теперь видео внизу в окошке.")
+        print("✅ Пост опубликован!")
     else:
-        # Если Telegram-бот старый и не знает link_preview_options, шлем по-старинке
-        payload_old = {
-            'chat_id': CHANNEL_NAME,
-            'text': caption,
-            'parse_mode': 'HTML',
-            'disable_web_page_preview': False
-        }
-        requests.post(base_url, data=payload_old)
+        print(f"❌ Ошибка Telegram: {r.text}")
 
 if __name__ == '__main__':
     send_to_telegram()
