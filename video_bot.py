@@ -14,7 +14,7 @@ CHANNEL_NAME   = '@vladislav_space'
 translator = GoogleTranslator(source='auto', target='ru')
 
 def get_video_data():
-    """Получает видео дня от NASA и исправляет формат ссылки"""
+    """Получает видео дня от NASA и делает ссылку понятной для Telegram"""
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     
     try:
@@ -27,7 +27,8 @@ def get_video_data():
 
         raw_url = res.get('url')
         
-        # Превращаем техническую ссылку NASA (embed) в обычную ссылку YouTube
+        # Превращаем техническую ссылку (embed) в стандартную ссылку YouTube
+        # Это критично для того, чтобы плеер ("бар") появился внизу
         if 'youtube.com/embed/' in raw_url:
             video_id = raw_url.split('/')[-1].split('?')[0]
             url_video = f"https://www.youtube.com/watch?v={video_id}"
@@ -40,7 +41,7 @@ def get_video_data():
         print(f"📝 Перевожу заголовок...")
         title_ru = translator.translate(title_en)
         
-        # Сокращаем описание для красоты
+        # Берем 4 предложения для описания
         sentences = desc_en.split('.')
         short_desc_en = '. '.join(sentences[:4]) + '.'
         desc_ru = translator.translate(short_desc_en)
@@ -48,7 +49,7 @@ def get_video_data():
         return url_video, title_ru, desc_ru
         
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"❌ Ошибка получения данных: {e}")
         return None, None, None
 
 def send_to_telegram():
@@ -57,13 +58,15 @@ def send_to_telegram():
     if not url_video:
         return
 
-    # Чтобы видео ГАРАНТИРОВАННО появилось, мы добавим маленькую ссылку "СМОТРЕТЬ"
-    # Это лучше, чем скрытый символ, потому что Telegram точно её увидит.
+    # МАГИЯ: Используем специальный невидимый код &#8203; 
+    # Мы ставим его в самом начале. Telegram увидит ссылку и создаст "бар", 
+    # но в тексте поста ссылки НЕ БУДЕТ видно.
+    invisible_link = f'<a href="{url_video}">&#8203;</a>'
+
     caption = (
-        f"🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
+        f"{invisible_link}🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
         f"─────────────────────\n\n"
-        f"🍿 <a href='{url_video}'>СМОТРЕТЬ РОЛИК</a>\n\n"
-        f"<b>О ЧЕМ ВИДЕО:</b>\n"
+        f"<b>О ЧЕМ РОЛИК:</b>\n"
         f"{desc_ru}\n\n"
         f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
@@ -72,32 +75,18 @@ def send_to_telegram():
     print(f"📤 Отправляю в Telegram...")
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     
-    # Мы используем новые настройки предпросмотра (Bot API 7.0+)
-    # Это отключит превью для ссылки на канал и оставит только видео
     payload = {
         'chat_id': CHANNEL_NAME,
         'text': caption,
         'parse_mode': 'HTML',
-        'link_preview_options': json.dumps({
-            'url': url_video,             # Показываем только видео
-            'prefer_large_media': True,   # Большой плеер
-            'show_above_text': False      # Плеер под текстом
-        })
+        'disable_web_page_preview': False  # Это ОБЯЗАТЕЛЬНО должно быть False
     }
     
     r = requests.post(base_url, data=payload)
     if r.status_code == 200:
-        print("✅ Пост опубликован!")
+        print("✅ Пост опубликован! Проверь плеер внизу.")
     else:
-        # Если новый метод не сработал (старая библиотека), пробуем старый
-        print("⚠️ Новый метод не прошел, пробую классический...")
-        payload_old = {
-            'chat_id': CHANNEL_NAME,
-            'text': caption,
-            'parse_mode': 'HTML',
-            'disable_web_page_preview': False
-        }
-        requests.post(base_url, data=payload_old)
+        print(f"❌ Ошибка Telegram: {r.text}")
 
 if __name__ == '__main__':
     send_to_telegram()
