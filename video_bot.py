@@ -14,7 +14,7 @@ CHANNEL_NAME   = '@vladislav_space'
 translator = GoogleTranslator(source='auto', target='ru')
 
 def get_video_data():
-    """Получает данные и защищен от отсутствующих полей (KeyError)"""
+    """Получает данные и защищен от любых KeyError"""
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     
     try:
@@ -22,9 +22,8 @@ def get_video_data():
         response = requests.get(url, timeout=25)
         res = response.json()
         
-        # Проверка: если NASA вернула ошибку вместо данных
-        if 'error' in res or response.status_code != 200:
-            print(f"❌ Ошибка NASA API: {res.get('msg', 'Неизвестная ошибка')}")
+        if response.status_code != 200 or 'url' not in res:
+            print(f"❌ Ошибка API: {res.get('msg', 'Нет ссылки на контент')}")
             return None, None, None, False
 
         if res.get('media_type') != 'video':
@@ -34,6 +33,7 @@ def get_video_data():
         raw_url = res.get('url', '')
         is_youtube = any(x in raw_url for x in ['youtube.com', 'youtu.be'])
         
+        # Исправляем ссылку YouTube
         if is_youtube:
             if 'embed/' in raw_url:
                 video_id = raw_url.split('/embed/')[1].split('?')[0]
@@ -43,14 +43,14 @@ def get_video_data():
         else:
             final_url = raw_url
 
-        # Безопасно получаем заголовок и описание (без KeyError)
-        title_en = res.get('title', 'Космическое видео дня')
-        desc_en = res.get('explanation', 'Описание сегодня не предоставлено.')
+        # БЕЗОПАСНОЕ ПОЛУЧЕНИЕ ТЕКСТА
+        title_en = str(res.get('title') or "Космическое видео")
+        desc_en = str(res.get('explanation') or "Описание сегодня не предоставлено.")
 
-        print(f"📝 Перевожу: {title_en}")
+        print(f"📝 Перевожу заголовок...")
         title_ru = translator.translate(title_en)
         
-        # Сокращаем описание
+        # Перевод описания с защитой
         sentences = desc_en.split('.')
         short_desc_en = '. '.join(sentences[:4]) + '.'
         desc_ru = translator.translate(short_desc_en)
@@ -58,14 +58,13 @@ def get_video_data():
         return final_url, title_ru, desc_ru, is_youtube
         
     except Exception as e:
-        print(f"❌ Критическая ошибка в get_video_data: {e}")
+        print(f"❌ Ошибка в обработке данных: {e}")
         return None, None, None, False
 
 def send_to_telegram():
     video_url, title_ru, desc_ru, is_youtube = get_video_data()
     
     if not video_url:
-        print("📭 Нечего отправлять.")
         return
 
     caption = (
@@ -79,38 +78,44 @@ def send_to_telegram():
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-    try:
-        if is_youtube:
-            print(f"📺 Отправляю YouTube: {video_url}")
-            payload = {
-                "chat_id": CHANNEL_NAME,
-                "text": caption,
-                "parse_mode": "HTML",
-                "link_preview_options": {
-                    "url": video_url,
-                    "prefer_large_media": True,
-                    "show_above_text": True  # Текст СВЕРХУ для YouTube превью
-                }
+    if is_youtube:
+        # Для YouTube: текст СВЕРХУ, видео СНИЗУ (через бар)
+        print(f"📺 Отправляю YouTube бар...")
+        payload = {
+            "chat_id": CHANNEL_NAME,
+            "text": caption,
+            "parse_mode": "HTML",
+            "link_preview_options": {
+                "url": video_url,
+                "prefer_large_media": True,
+                "show_above_text": True  # Текст над видео
             }
-            r = requests.post(f"{base_url}/sendMessage", json=payload)
-        else:
-            print(f"📹 Отправляю видеофайл: {video_url}")
-            payload = {
+        }
+        requests.post(f"{base_url}/sendMessage", json=payload)
+    else:
+        # Для файлов .mp4: пробуем отправить как видеофайл
+        print(f"📹 Пробую отправить файл: {video_url}")
+        payload = {
+            "chat_id": CHANNEL_NAME,
+            "video": video_url,
+            "caption": caption,
+            "parse_mode": "HTML",
+            "show_caption_above_media": True # Текст над видео
+        }
+        r = requests.post(f"{base_url}/sendVideo", data=payload)
+        
+        # Если файл не прошел (Ошибка 400), шлем просто ссылкой с баром
+        if r.status_code != 200:
+            print("⚠️ Файл не прошел, шлю ссылкой...")
+            payload_fallback = {
                 "chat_id": CHANNEL_NAME,
-                "video": video_url,
-                "caption": caption,
+                "text": caption + f"\n\n🍿 <a href='{video_url}'>Смотреть ролик</a>",
                 "parse_mode": "HTML",
-                "show_caption_above_media": True # Текст СВЕРХУ для файла
+                "link_preview_options": {"is_disabled": False}
             }
-            r = requests.post(f"{base_url}/sendVideo", data=payload)
-
-        if r.status_code == 200:
-            print("✅ Успешно доставлено!")
+            requests.post(f"{base_url}/sendMessage", json=payload_fallback)
         else:
-            print(f"❌ Ошибка Telegram: {r.text}")
-            
-    except Exception as e:
-        print(f"❌ Ошибка при отправке: {e}")
+            print("✅ Видеофайл успешно отправлен!")
 
 if __name__ == '__main__':
     send_to_telegram()
