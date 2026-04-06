@@ -32,6 +32,7 @@ def get_video_data():
         raw_url = res.get('url', '')
         is_youtube = any(x in raw_url for x in ['youtube.com', 'youtu.be'])
         
+        # Исправляем формат ссылки YouTube
         if is_youtube:
             if 'embed/' in raw_url:
                 video_id = raw_url.split('/embed/')[1].split('?')[0]
@@ -41,13 +42,14 @@ def get_video_data():
         else:
             final_url = raw_url
 
+        # Безопасно получаем тексты
         title_en = str(res.get('title') or "Космическое видео")
         desc_en = str(res.get('explanation') or "Описание сегодня не предоставлено.")
 
         print(f"📝 Перевожу заголовок...")
         title_ru = translator.translate(title_en)
         
-        # Перевод описания
+        # Перевод и обрезка описания
         sentences = desc_en.split('.')
         short_desc_en = '. '.join(sentences[:4]) + '.'
         desc_ru = translator.translate(short_desc_en)
@@ -64,45 +66,48 @@ def send_to_telegram():
     if not video_url:
         return
 
-    # ТЕПЕРЬ ССЫЛКА НАВЕРХУ, А КАНАЛА ВНИЗУ НЕТ
+    # ФОРМИРУЕМ ПОСТ: ссылка на просмотр сверху, ссылка на канал снизу
     caption = (
         f"🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
         f"🍿 <a href='{video_url}'><b>СМОТРЕТЬ РОЛИК</b></a>\n"
         f"─────────────────────\n\n"
         f"<b>О ЧЕМ РОЛИК:</b>\n"
-        f"{desc_ru}"
+        f"{desc_ru}\n\n"
+        f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+        f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
     if is_youtube:
-        # Для YouTube: текст СВЕРХУ, видео СНИЗУ (через бар)
-        print(f"📺 Отправляю YouTube бар...")
+        # Для YouTube: форсируем превью только для видео
+        print(f"📺 Отправляю YouTube плеер...")
         payload = {
             "chat_id": CHANNEL_NAME,
             "text": caption,
             "parse_mode": "HTML",
             "link_preview_options": {
-                "url": video_url,
+                "url": video_url,             # Превью только для видео!
                 "prefer_large_media": True,
-                "show_above_text": True  # Текст над видео
+                "show_above_text": True       # Текст будет над плеером
             }
         }
         requests.post(f"{base_url}/sendMessage", json=payload)
     else:
-        # Для файлов .mp4: отправляем как видеофайл
-        print(f"📹 Пробую отправить файл: {video_url}")
+        # Для файлов .mp4: шлем видеофайлом (текст будет сверху)
+        print(f"📹 Отправляю видеофайл напрямую...")
         payload = {
             "chat_id": CHANNEL_NAME,
             "video": video_url,
             "caption": caption,
             "parse_mode": "HTML",
-            "show_caption_above_media": True # Текст над видео
+            "show_caption_above_media": True 
         }
         r = requests.post(f"{base_url}/sendVideo", data=payload)
         
-        # Если файл не прошел, шлем просто текстом с баром
+        # Если файл не прошел, шлем ссылкой с жестким превью видео
         if r.status_code != 200:
+            print("⚠️ Файл не прошел, шлю через превью...")
             payload_fallback = {
                 "chat_id": CHANNEL_NAME,
                 "text": caption,
