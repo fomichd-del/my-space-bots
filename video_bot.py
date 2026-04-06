@@ -14,7 +14,7 @@ CHANNEL_NAME   = '@vladislav_space'
 translator = GoogleTranslator(source='auto', target='ru')
 
 def get_video_data():
-    """Получает данные от NASA и формирует надежные ссылки"""
+    """Получает данные от NASA и готовит ссылки"""
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     
     try:
@@ -25,37 +25,40 @@ def get_video_data():
             print("ℹ️ Сегодня не видео. Пропускаю.")
             return None, None, None
 
-        # Ссылка на само видео (может быть YouTube или .mp4)
-        video_url = res.get('url', '')
+        raw_url = res.get('url', '')
         
-        # МАГИЯ: Создаем ссылку на СТРАНИЦУ APOD. 
-        # Telegram лучше всего делает "бары" именно со страниц.
-        now = datetime.now()
-        date_str = now.strftime("%y%m%d")
-        page_url = f"https://apod.nasa.gov/apod/ap{date_str}.html"
+        # Если это YouTube, делаем красивую ссылку
+        if 'youtube.com' in raw_url or 'youtu.be' in raw_url:
+            if 'embed/' in raw_url:
+                video_id = raw_url.split('/embed/')[1].split('?')[0]
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+            else:
+                video_url = raw_url
+        else:
+            # Если это прямой файл .mp4, даем ссылку на страницу NASA (она надежнее)
+            now = datetime.now()
+            date_str = now.strftime("%y%m%d")
+            video_url = f"https://apod.nasa.gov/apod/ap{date_str}.html"
 
         title_ru = translator.translate(res.get('title', 'Космическое видео'))
         desc_en = res.get('explanation', '')
         desc_ru = translator.translate('. '.join(desc_en.split('.')[:4]) + '.')
 
-        return page_url, title_ru, desc_ru
+        return video_url, title_ru, desc_ru
         
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         return None, None, None
 
 def send_to_telegram():
-    page_url, title_ru, desc_ru = get_video_data()
+    video_url, title_ru, desc_ru = get_video_data()
     
-    if not page_url:
+    if not video_url:
         return
 
-    # Невидимая ссылка на СТРАНИЦУ NASA в самом начале.
-    # Это заставит Telegram просканировать страницу и найти видео.
-    invisible_link = f'<a href="{page_url}">&#8203;</a>'
-
+    # Текст сообщения без ссылок (чистый и красивый)
     caption = (
-        f"{invisible_link}🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
+        f"🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
         f"─────────────────────\n\n"
         f"<b>О ЧЕМ РОЛИК:</b>\n"
         f"{desc_ru}\n\n"
@@ -63,27 +66,33 @@ def send_to_telegram():
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    print(f"📤 Отправляю пост через страницу: {page_url}")
+    # Создаем кнопку под постом
+    reply_markup = {
+        "inline_keyboard": [[
+            {
+                "text": "СМОТРЕТЬ ВИДЕО 🚀", 
+                "url": video_url
+            }
+        ]]
+    }
+
+    print(f"📤 Отправляю в Telegram с кнопкой: {video_url}")
     
-    # Используем современные настройки превью
     payload = {
         "chat_id": CHANNEL_NAME,
         "text": caption,
         "parse_mode": "HTML",
-        "link_preview_options": {
-            "url": page_url,              # Ссылка на страницу APOD
-            "prefer_large_media": True,   # Большое окно видео
-            "show_above_text": False      # Окно под текстом
-        }
+        "disable_web_page_preview": False,
+        "reply_markup": json.dumps(reply_markup) # Добавляем кнопку
     }
     
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    r = requests.post(base_url, json=payload)
+    r = requests.post(base_url, data=payload)
     
     if r.status_code == 200:
-        print("✅ ПОБЕДА! Видео должно появиться в канале.")
+        print("✅ Пост с кнопкой опубликован!")
     else:
-        print(f"❌ Ошибка Telegram: {r.text}")
+        print(f"❌ Ошибка: {r.text}")
 
 if __name__ == '__main__':
     send_to_telegram()
