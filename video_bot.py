@@ -1,6 +1,7 @@
 import requests
 import os
 import json
+import re
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -13,8 +14,15 @@ CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
+def get_video_id(url):
+    """Вытаскивает ID видео из любой ссылки YouTube"""
+    # Ищем 11 символов ID видео (например, Z_YpL-nK6p0)
+    regex = r"(?:v=|\/embed\/|\/watch\?v=|\/\d+\/|\/vi\/|youtu\.be\/|https:\/\/www\.youtube\.com\/shorts\/|&v=|^|[^a-zA-Z0-9_-])([a-zA-Z0-9_-]{11})(?:[^a-zA-Z0-9_-]|$)"
+    match = re.search(regex, url)
+    return match.group(1) if match else None
+
 def get_video_data():
-    """Получает видео и делает из ссылки NASA конфетку для Telegram"""
+    """Получает видео от NASA и готовит данные"""
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     
     try:
@@ -25,25 +33,16 @@ def get_video_data():
             print("ℹ️ Сегодня не видео. Пропускаю.")
             return None, None, None
 
-        raw_url = res.get('url')
+        raw_url = res.get('url', '')
+        video_id = get_video_id(raw_url)
         
-        # ВЫТАСКИВАЕМ ID ВИДЕО (самый важный момент)
-        # Если ссылка: https://www.youtube.com/embed/Z_YpL-nK6p0?rel=0
-        # Мы достаем Z_YpL-nK6p0
-        video_id = ""
-        if 'youtube.com/embed/' in raw_url:
-            video_id = raw_url.split('/embed/')[1].split('?')[0].split('/')[0]
-        elif 'youtu.be/' in raw_url:
-            video_id = raw_url.split('youtu.be/')[1].split('?')[0]
-        elif 'v=' in raw_url:
-            video_id = raw_url.split('v=')[1].split('&')[0]
-        
-        if video_id:
-            # Делаем прямую ссылку, которую Telegram обожает
-            url_video = f"https://www.youtube.com/watch?v={video_id}"
-        else:
-            url_video = raw_url
+        if not video_id:
+            print(f"❌ Не смог найти ID видео в ссылке: {raw_url}")
+            return None, None, None
 
+        # Делаем максимально "вкусную" ссылку для Телеграма
+        url_video = f"https://www.youtube.com/watch?v={video_id}"
+        
         title_ru = translator.translate(res.get('title', 'Космическое видео'))
         desc_en = res.get('explanation', '')
         desc_ru = translator.translate('. '.join(desc_en.split('.')[:4]) + '.')
@@ -60,9 +59,12 @@ def send_to_telegram():
     if not url_video:
         return
 
-    # В тексте НЕ БУДЕТ ссылок на видео. Только текст и подпись канала.
+    # В самом начале ставим невидимый символ и маленькую иконку со ссылкой.
+    # Это заставит Телеграм нарисовать окно видео.
+    # Ссылку на канал внизу пишем просто текстом-ссылкой.
+    
     caption = (
-        f"🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
+        f"🎬 <b>ВИДЕО: {title_ru.upper()}</b> <a href='{url_video}'>📺</a>\n"
         f"─────────────────────\n\n"
         f"<b>О ЧЕМ РОЛИК:</b>\n"
         f"{desc_ru}\n\n"
@@ -70,27 +72,27 @@ def send_to_telegram():
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    print(f"📤 Отправляю в Telegram с принудительным превью: {url_video}")
+    print(f"📤 Отправляю пост. Ссылка на видео: {url_video}")
     
-    # ФОРМИРУЕМ JSON ПАКЕТ (Самый надежный метод)
+    # Пакет настроек для Телеграма
     payload = {
         "chat_id": CHANNEL_NAME,
         "text": caption,
         "parse_mode": "HTML",
         "link_preview_options": {
-            "url": url_video,             # ПРИНУДИТЕЛЬНО берем превью из ссылки на видео
-            "prefer_large_media": True,   # Делаем окно видео БОЛЬШИМ
-            "show_above_text": False      # Окно будет ПОД текстом
+            "url": url_video,
+            "prefer_large_media": True,
+            "show_above_text": False
         }
     }
     
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     
-    # Важно: используем json=payload, чтобы requests правильно упаковал настройки
+    # Отправляем именно как JSON (это важно для новых настроек)
     r = requests.post(base_url, json=payload)
     
     if r.status_code == 200:
-        print("✅ ПОБЕДА! Пост отправлен.")
+        print("✅ Пост отправлен! Если видео нет — Телеграм блокирует превью этого ролика.")
     else:
         print(f"❌ Ошибка API: {r.text}")
 
