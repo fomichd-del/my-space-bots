@@ -11,70 +11,55 @@ CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🚀 КОСМИЧЕСКИЕ КЛЮЧИ (Для поиска во всех базах)
+# 🌌 ТЕМЫ ДЛЯ УРОКА
 SPACE_TERMS = [
-    'космос', 'ракета', 'спутник', 'планета', 'звезда', 'наса', 'байконур', 
-    'гагарин', 'космонавт', 'астроном', 'орбита', 'мкс', 'space', 'nasa', 
-    'rocket', 'satellite', 'planet', 'pioneer', 'voyager', 'apollo', 'soyuz', 
-    'iss', 'shuttle', 'telescope', 'hubble', 'galaxy', 'discovery', 'moon'
+    'space', 'nasa', 'rocket', 'planet', 'star', 'astronomer', 'pioneer', 
+    'voyager', 'apollo', 'soyuz', 'shuttle', 'iss', 'orbit', 'launch', 
+    'telescope', 'hubble', 'galaxy', 'cosmos', 'comet', 'nebula', 'asteroid', 
+    'discovery', 'observed', 'moon', 'mars', 'jupiter', 'saturn'
 ]
 
-# 🚫 СТОП-СЛОВА (Никакой политики, войн и баз)
+# 🚫 ЗАПРЕТНЫЕ ТЕМЫ (Анти-политика)
 STOP_WORDS = [
-    'война', 'армия', 'битва', 'база', 'штаб', 'оружие', 'атака', 'конфликт', 
-    'президент', 'политика', 'вторжение', 'министр', 'правительство', 'плен', 
-    'убит', 'war', 'military', 'army', 'base', 'politics', 'killed', 'strike', 'syria'
+    'war', 'military', 'army', 'battle', 'killed', 'politics', 'weapon',
+    'война', 'военный', 'армия', 'битва', 'убит', 'оружие', 'база', 'штаб'
 ]
 
-def get_combined_history():
-    """Собирает космические факты со всего мира (RU + EN базы)"""
+def get_lesson_content():
     now = datetime.now()
     month, day = now.month, now.day
     
-    # Ссылки на русскую и английскую базы
+    # Ищем в международной базе (EN) и русской (RU)
     urls = [
-        f"https://ru.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}",
-        f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/selected/{month}/{day}"
+        f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/selected/{month}/{day}",
+        f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}",
+        f"https://ru.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}"
     ]
     
-    found_events = {} # Используем словарь, чтобы избежать дублей по годам
-    
+    found_events = []
     for url in urls:
         try:
-            print(f"📡 Опрашиваю базу: {url}")
             r = requests.get(url, timeout=25)
             if r.status_code != 200: continue
-            
             data = r.json()
-            events = data.get('selected', []) + data.get('events', [])
+            batch = data.get('selected', []) + data.get('events', [])
             
-            for e in events:
-                year = e.get('year')
+            for e in batch:
                 text = e.get('text', '').lower()
-                
-                # Проверка: это про космос и без политики?
-                is_space = any(word in text for word in SPACE_TERMS)
-                no_politics = not any(word in text for word in STOP_WORDS)
-                
-                if is_space and no_politics:
-                    # Если этого года еще нет в списке — добавляем
-                    if year not in found_events:
-                        found_events[year] = e
+                if any(word in text for word in SPACE_TERMS) and not any(word in text for word in STOP_WORDS):
+                    found_events.append(e)
+            if len(found_events) > 5: break
         except:
             continue
-            
-    # Сортируем по годам (от старых к новым)
-    sorted_years = sorted(found_events.keys())
-    return [found_events[y] for y in sorted_years]
+    return found_events
 
 def send_to_telegram():
-    events = get_combined_history()
-    
+    events = get_lesson_content()
     if not events:
-        print("📭 Космических событий на сегодня не найдено.")
+        print("📭 На сегодня уроков истории не найдено.")
         return
 
-    # 1. Главное событие (берем самое раннее или с фото)
+    # Выбираем событие с картинкой (для "Урока" это обязательно)
     main_event = events[0]
     for e in events:
         if 'pages' in e and e['pages'][0].get('originalimage'):
@@ -82,30 +67,25 @@ def send_to_telegram():
             break
 
     year = main_event.get('year')
-    # Переводим, если текст не на русском
-    raw_text = main_event.get('text', '')
-    text_ru = translator.translate(raw_text)
+    title_ru = translator.translate(main_event.get('text', ''))
     
-    # 2. Дополнительные факты (еще 3 интересных события)
-    extra_facts = []
-    for e in events:
-        if e != main_event and len(extra_facts) < 3:
-            f_year = e.get('year')
-            f_text = translator.translate(e.get('text', ''))
-            extra_facts.append(f"• <b>{f_year} год:</b> {f_text}")
-
-    # ФОРМИРУЕМ ПОСТ
+    # Формируем пост в стиле урока
     caption = (
-        f"🚀 <b>КОСМИЧЕСКАЯ ЛЕТОПИСЬ МИРА</b>\n"
-        f"📅 <b>{datetime.now().strftime('%d %B')}</b>\n"
+        f"🎬 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b> 🧑‍🚀\n"
+        f"📅 <b>Тема дня: {datetime.now().strftime('%d %B')} {year} года</b>\n"
         f"─────────────────────\n\n"
-        f"🌟 <b>ГЛАВНОЕ СОБЫТИЕ {year} ГОДА:</b>\n"
-        f"{text_ru}\n\n"
+        f"📖 <b>ЧТО МЫ ИЗУЧАЕМ:</b>\n"
+        f"{title_ru}\n\n"
     )
 
-    if extra_facts:
-        caption += "🔍 <b>ТАКЖЕ В ЭТОТ ДЕНЬ:</b>\n"
-        caption += "\n".join(extra_facts) + "\n\n"
+    # Добавляем дополнительные факты ("Домашнее чтение")
+    extra = [e for e in events if e != main_event]
+    if extra:
+        caption += "🔍 <b>ДОПОЛНИТЕЛЬНЫЕ ФАКТЫ:</b>\n"
+        for f in extra[:2]:
+            f_text = translator.translate(f.get('text', ''))
+            caption += f"• В {f.get('year')} году: {f_text}\n"
+        caption += "\n"
 
     caption += (
         f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
@@ -118,20 +98,20 @@ def send_to_telegram():
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
-    # Текст СВЕРХУ, фото/бар СНИЗУ
+    # Отправляем фото СВЕРХУ
     if photo_url:
         payload = {
             'chat_id': CHANNEL_NAME,
             'photo': photo_url,
             'caption': caption,
-            'parse_mode': 'HTML',
-            'show_caption_above_media': True
+            'parse_mode': 'HTML'
         }
         requests.post(f"{base_url}/sendPhoto", data=payload)
     else:
+        # Если фото нет, шлем текст с иконкой урока
         payload = {
             'chat_id': CHANNEL_NAME,
-            'text': caption,
+            'text': "📚 " + caption,
             'parse_mode': 'HTML',
             'link_preview_options': {'is_disabled': True}
         }
