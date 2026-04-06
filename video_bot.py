@@ -8,117 +8,122 @@ from deep_translator import GoogleTranslator
 # ⚙️ НАСТРОЙКИ
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-def get_video_data():
-    """Получает данные и защищен от пустых полей"""
-    url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
+# 🚀 ТОЛЬКО КОСМОС (Ключевые слова-маркеры)
+SPACE_KEYWORDS = [
+    'космос', 'ракета', 'спутник', 'астроном', 'планета', 'звезда', 
+    'наса', 'nasa', 'байконур', 'гагарин', 'космонавт', 'астронавт', 
+    'телескоп', 'хаббл', 'марсоход', 'луноход', 'орбита', 'мкс', 
+    'аполлон', 'союз', 'запуск', 'открытие', 'вселенная', 'галактика'
+]
+
+# 🚫 ПОЛНЫЙ ЗАПРЕТ (Политика, война, базы)
+STOP_WORDS = [
+    'война', 'военный', 'армия', 'флот', 'битва', 'база', 'штаб', 
+    'оружие', 'атака', 'конфликт', 'президент', 'политика', 'вторжение',
+    'министр', 'правительство', 'санкции', 'плен', 'убит', 'смерть'
+]
+
+def get_space_history():
+    """Ищет только космические события в мировой истории"""
+    now = datetime.now()
+    url = f"https://ru.wikipedia.org/api/rest_v1/feed/onthisday/events/{now.month}/{now.day}"
     
     try:
-        print("📡 Запрашиваю данные у NASA...")
-        response = requests.get(url, timeout=25)
-        res = response.json()
+        print("📡 Ищу космические события в истории...")
+        res = requests.get(url, timeout=20).json()
+        all_events = res.get('events', [])
         
-        if response.status_code != 200 or 'url' not in res:
-            return None, None, None, False
-
-        if res.get('media_type') != 'video':
-            print("ℹ️ Сегодня не видео. Пропускаю.")
-            return None, None, None, False
-
-        raw_url = res.get('url', '')
-        is_youtube = any(x in raw_url for x in ['youtube.com', 'youtu.be'])
+        space_events = []
+        for e in all_events:
+            text = e.get('text', '').lower()
+            
+            # Проверяем: это про космос и без политики?
+            is_space = any(word in text for word in SPACE_KEYWORDS)
+            no_politics = not any(word in text for word in STOP_WORDS)
+            
+            if is_space and no_politics:
+                space_events.append(e)
         
-        # Исправляем формат ссылки YouTube
-        if is_youtube:
-            if 'embed/' in raw_url:
-                video_id = raw_url.split('/embed/')[1].split('?')[0]
-                final_url = f"https://www.youtube.com/watch?v={video_id}"
-            else:
-                final_url = raw_url
-        else:
-            final_url = raw_url
-
-        # Безопасно получаем тексты
-        title_en = str(res.get('title') or "Космическое видео")
-        desc_en = str(res.get('explanation') or "Описание сегодня не предоставлено.")
-
-        print(f"📝 Перевожу заголовок...")
-        title_ru = translator.translate(title_en)
-        
-        # Перевод и обрезка описания
-        sentences = desc_en.split('.')
-        short_desc_en = '. '.join(sentences[:4]) + '.'
-        desc_ru = translator.translate(short_desc_en)
-
-        return final_url, title_ru, desc_ru, is_youtube
-        
+        return space_events
     except Exception as e:
-        print(f"❌ Ошибка в обработке данных: {e}")
-        return None, None, None, False
+        print(f"❌ Ошибка API: {e}")
+        return []
 
 def send_to_telegram():
-    video_url, title_ru, desc_ru, is_youtube = get_video_data()
+    events = get_space_history()
     
-    if not video_url:
+    if not events:
+        print("📭 Сегодня чисто космических дат не найдено. Пропускаю пост.")
         return
 
-    # ФОРМИРУЕМ ПОСТ: ссылка на просмотр сверху, ссылка на канал снизу
+    # Выбираем главное событие (лучше с картинкой)
+    main_event = events[0]
+    for e in events:
+        if 'pages' in e and e['pages'][0].get('originalimage'):
+            main_event = e
+            break
+
+    year = main_event.get('year')
+    text = main_event.get('text', 'Нет описания')
+    
+    # Формируем структуру поста
     caption = (
-        f"🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
-        f"🍿 <a href='{video_url}'><b>СМОТРЕТЬ РОЛИК</b></a>\n"
+        f"🚀 <b>КОСМИЧЕСКИЙ КАЛЕНДАРЬ</b>\n"
+        f"📅 <b>{datetime.now().strftime('%d %B')} {year} года</b>\n"
         f"─────────────────────\n\n"
-        f"<b>О ЧЕМ РОЛИК:</b>\n"
-        f"{desc_ru}\n\n"
+        f"<b>ГЛАВНОЕ СОБЫТИЕ:</b>\n"
+        f"{text}\n\n"
+    )
+
+    # Добавляем дополнительные факты, если они есть
+    if len(events) > 1:
+        caption += "<b>ТАКЖЕ В ЭТОТ ДЕНЬ:</b>\n"
+        for fact in events[1:3]: # Берем еще максимум 2 факта
+            caption += f"• В {fact.get('year')} году: {fact.get('text')}\n"
+        caption += "\n"
+
+    caption += (
         f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    # Ищем фото
+    photo_url = None
+    try:
+        if 'pages' in main_event and main_event['pages'][0].get('originalimage'):
+            photo_url = main_event['pages'][0]['originalimage']['source']
+    except:
+        photo_url = None
 
-    if is_youtube:
-        # Для YouTube: форсируем превью только для видео
-        print(f"📺 Отправляю YouTube плеер...")
+    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+    
+    # Отправляем
+    if photo_url:
         payload = {
-            "chat_id": CHANNEL_NAME,
-            "text": caption,
-            "parse_mode": "HTML",
-            "link_preview_options": {
-                "url": video_url,             # Превью только для видео!
-                "prefer_large_media": True,
-                "show_above_text": True       # Текст будет над плеером
-            }
+            'chat_id': CHANNEL_NAME,
+            'photo': photo_url,
+            'caption': caption,
+            'parse_mode': 'HTML',
+            'show_caption_above_media': True # Текст СВЕРХУ
         }
-        requests.post(f"{base_url}/sendMessage", json=payload)
+        r = requests.post(f"{base_url}/sendPhoto", data=payload)
     else:
-        # Для файлов .mp4: шлем видеофайлом (текст будет сверху)
-        print(f"📹 Отправляю видеофайл напрямую...")
         payload = {
-            "chat_id": CHANNEL_NAME,
-            "video": video_url,
-            "caption": caption,
-            "parse_mode": "HTML",
-            "show_caption_above_media": True 
+            'chat_id': CHANNEL_NAME,
+            'text': caption,
+            'parse_mode': 'HTML',
+            'link_preview_options': {'is_disabled': True} # Отключаем бар канала
         }
-        r = requests.post(f"{base_url}/sendVideo", data=payload)
-        
-        # Если файл не прошел, шлем ссылкой с жестким превью видео
-        if r.status_code != 200:
-            print("⚠️ Файл не прошел, шлю через превью...")
-            payload_fallback = {
-                "chat_id": CHANNEL_NAME,
-                "text": caption,
-                "parse_mode": "HTML",
-                "link_preview_options": {
-                    "url": video_url,
-                    "prefer_large_media": True,
-                    "show_above_text": True
-                }
-            }
-            requests.post(f"{base_url}/sendMessage", json=payload_fallback)
+        r = requests.post(f"{base_url}/sendMessage", json=payload)
+
+    if r.status_code == 200:
+        print("✅ Космический календарь опубликован!")
+    else:
+        print(f"❌ Ошибка отправки: {r.text}")
 
 if __name__ == '__main__':
     send_to_telegram()
