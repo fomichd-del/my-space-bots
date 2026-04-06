@@ -11,102 +11,89 @@ CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🚀 ТОЛЬКО КОСМОС (Обязательные слова)
-STRICT_SPACE_WORDS = [
-    'nasa', 'наса', 'космос', 'астронавт', 'космонавт', 'планета', 'звезда',
-    'спутник', 'ракета-носитель', 'байконур', 'мкс', 'iss', 'телескоп', 
-    'хаббл', 'hubble', 'марсоход', 'луноход', 'аполлон', 'apollo', 'союз', 
-    'шаттл', 'shuttle', 'pioneer', 'voyager', 'discovery', 'orbit', 'орбита'
+# 🚫 ТОТАЛЬНЫЙ ЗАПРЕТ (Никакой политики, ядерных тестов и агрессии)
+FORBIDDEN = [
+    'war', 'military', 'nuclear', 'test', 'explosion', 'army', 'politics', 'weapon',
+    'война', 'ядерный', 'испытание', 'взрыв', 'полигон', 'армия', 'битва', 'убит'
 ]
 
-# 🚫 ЗАПРЕТ (Никакой политики, ядерных испытаний и войн)
-TOTAL_FORBIDDEN = [
-    'война', 'военный', 'армия', 'ядерный', 'атомный', 'взрыв', 'испытание', 
-    'полигон', 'бомба', 'удар', 'база', 'штаб', 'министр', 'президент', 
-    'правительство', 'конфликт', 'битва', 'убит', 'смерть', 'politics', 'nuclear'
+# 🚀 ТОЛЬКО КОСМОС
+SPACE_ONLY = [
+    'space', 'nasa', 'rocket', 'satellite', 'planet', 'pioneer', 'voyager', 
+    'apollo', 'soyuz', 'shuttle', 'iss', 'orbit', 'launch', 'telescope'
 ]
 
-def get_pure_cosmic_lesson():
+# 🎖 РЕЗЕРВНЫЕ УРОКИ (Если сайт упал или не нашел космос)
+# Если на 6 апреля ничего не найдется, бот возьмет этот факт
+FALLBACK_LESSON = {
+    "year": "1973",
+    "text": "The Pioneer 11 spacecraft was launched. It became the first human-made object to encounter Saturn and send back close-up pictures of its rings!",
+    "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Pioneer_11.jpg/800px-Pioneer_11.jpg"
+}
+
+def get_pure_space_event():
     now = datetime.now()
-    # Английская база "Selected" — самая качественная и проверенная
-    url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/selected/{now.month:02d}/{now.day:02d}"
-    
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/{now.month:02d}/{now.day:02d}"
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SpaceExplorer/1.0'}
     
     try:
         r = requests.get(url, headers=headers, timeout=30)
-        if r.status_code != 200: return []
+        if r.status_code != 200: return None
         data = r.json()
         
-        events = data.get('selected', [])
-        clean_events = []
+        # Собираем все события
+        events = data.get('selected', []) + data.get('events', [])
         
         for e in events:
             text = e.get('text', '').lower()
-            
-            # Проверка 1: Это точно про космос?
-            is_space = any(word in text for word in STRICT_SPACE_WORDS)
-            # Проверка 2: Там точно нет политики и ядерных тем?
-            is_clean = not any(word in text for word in TOTAL_FORBIDDEN)
-            
-            if is_space and is_clean:
-                clean_events.append(e)
-        
-        return clean_events
+            # Проверка: есть космос и НЕТ ядерных испытаний/войны
+            if any(w in text for w in SPACE_ONLY) and not any(w in text for w in FORBIDDEN):
+                return e
+        return None
     except:
-        return []
+        return None
 
 def send_to_telegram():
-    events = get_pure_cosmic_lesson()
+    event = get_pure_space_event()
     
-    if not events:
-        print("📭 Космических уроков на сегодня не найдено. Пост отменен.")
-        return
+    # Если интернет-база подвела, берем наш золотой запас
+    if not event:
+        print("🛰 Использую резервный космический урок...")
+        event = FALLBACK_LESSON
 
-    # Выбираем самое красивое событие с картинкой
-    main_event = events[0]
-    for e in events:
-        if 'pages' in e and e['pages'][0].get('originalimage'):
-            main_event = e
-            break
-
-    year = main_event.get('year')
-    raw_text = main_event.get('text', '')
+    year = event.get('year')
+    raw_text = event.get('text', '')
     
-    # Делаем перевод понятным и добрым
-    text_ru = translator.translate(raw_text)
+    # Перевод и адаптация для ребенка
+    translated = translator.translate(raw_text)
     
-    # ОФОРМЛЕНИЕ
+    # ФОРМИРУЕМ ПОСТ (Картинка в Telegram всегда выше текста в подписи)
     caption = (
-        f"🧑‍🚀 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
+        f"🎬 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b> 🧑‍🚀\n"
         f"📅 <b>Тема: {datetime.now().strftime('%d %B')} {year} года</b>\n"
         f"─────────────────────\n\n"
-        f"📖 <b>ИНТЕРЕСНЫЙ ФАКТ:</b>\n"
-        f"{text_ru}\n\n"
+        f"🌟 <b>ЗНАЕШЬ ЛИ ТЫ, ЧТО:</b>\n"
+        f"{translated}\n\n"
         f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
+    # Ищем фото (в событии или берем из резерва)
     photo_url = None
-    if 'pages' in main_event and main_event['pages'][0].get('originalimage'):
-        photo_url = main_event['pages'][0]['originalimage']['source']
+    if 'image' in event: # Для резервного факта
+        photo_url = event['image']
+    elif 'pages' in event and event['pages'][0].get('originalimage'):
+        photo_url = event['pages'][0]['originalimage']['source']
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
     if photo_url:
-        # В Telegram при отправке Photo подпись (caption) всегда под картинкой
-        payload = {
-            'chat_id': CHANNEL_NAME,
-            'photo': photo_url,
-            'caption': caption,
-            'parse_mode': 'HTML'
-        }
+        payload = {'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': caption, 'parse_mode': 'HTML'}
         requests.post(f"{base_url}/sendPhoto", data=payload)
     else:
-        # Если фото нет, шлем текстом с эмодзи
-        requests.post(f"{base_url}/sendMessage", data={'chat_id': CHANNEL_NAME, 'text': "🌌 " + caption, 'parse_mode': 'HTML'})
+        requests.post(f"{base_url}/sendMessage", data={'chat_id': CHANNEL_NAME, 'text': caption, 'parse_mode': 'HTML'})
     
-    print("✅ Космический урок успешно отправлен в канал!")
+    print("✅ Урок успешно отправлен!")
 
 if __name__ == '__main__':
     send_to_telegram()
