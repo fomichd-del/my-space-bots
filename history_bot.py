@@ -1,5 +1,6 @@
 import requests
 import os
+import random
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -11,7 +12,7 @@ CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🛰 КОСМИЧЕСКИЕ КЛЮЧИ (Расширил для точности)
+# 🚀 КОСМИЧЕСКИЕ КЛЮЧИ
 SPACE_KEYWORDS = [
     'space', 'nasa', 'rocket', 'satellite', 'planet', 'star', 'astronomy',
     'pioneer', 'voyager', 'apollo', 'soyuz', 'shuttle', 'iss', 'orbit',
@@ -19,53 +20,55 @@ SPACE_KEYWORDS = [
     'asteroid', 'discovery', 'observed', 'moon', 'mars', 'intelsat'
 ]
 
-# 🚫 ФИЛЬТР (Политика и война)
+# 🚫 СТОП-СЛОВА
 STOP_WORDS = [
     'war', 'military', 'army', 'battle', 'killed', 'politics', 'weapon',
     'война', 'военный', 'армия', 'битва', 'убит', 'оружие', 'база', 'штаб',
-    'агрессия', 'удар', 'вторжение', 'конфликт', 'сирия', 'missile'
+    'агрессия', 'удар', 'вторжение', 'конфликт', 'сирия'
 ]
 
 def get_cosmic_lesson():
     now = datetime.now()
-    # Стучимся в английскую базу (она самая полная)
-    url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/{now.month}/{now.day}"
+    month = f"{now.month:02d}" # Делаем 04 вместо 4
+    day = f"{now.day:02d}"     # Делаем 06 вместо 6
     
-    # 🛡 ВАЖНО: Добавляем "паспорт" для Википедии, чтобы не было ошибки 403
+    # Списки адресов для проверки (если один даст 404, пробуем другой)
+    urls = [
+        f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/{month}/{day}",
+        f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/selected/{month}/{day}",
+        f"https://ru.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}"
+    ]
+    
+    # 🛡 МАСКИРОВКА ПОД БРАУЗЕР (чтобы не было 403 и 404)
     headers = {
-        'User-Agent': 'VladislavSpaceBot/1.0 (https://t.me/vladislav_space; contact: your-email@example.com)'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
     }
     
-    try:
-        print(f"📡 Подключаюсь к архивам за {now.day}/{now.month}...")
-        r = requests.get(url, headers=headers, timeout=30)
-        
-        if r.status_code != 200:
-            print(f"❌ Ошибка доступа к Википедии: {r.status_code}")
-            return []
-        
-        data = r.json()
-        # Собираем все события
-        all_events = data.get('selected', []) + data.get('events', [])
-        
-        print(f"🔎 Проверяю {len(all_events)} событий на 'космичность'...")
-        
-        found = []
-        for e in all_events:
-            text = e.get('text', '').lower()
+    for url in urls:
+        try:
+            print(f"📡 Пробую достучаться до: {url}")
+            r = requests.get(url, headers=headers, timeout=30)
             
-            is_space = any(word in text for word in SPACE_KEYWORDS)
-            has_politics = any(word in text for word in STOP_WORDS)
-            
-            if is_space and not has_politics:
-                found.append(e)
-            elif is_space and has_politics:
-                print(f"🚫 Отфильтровано (политика): {text[:60]}...")
-        
-        return found
-    except Exception as e:
-        print(f"❌ Критическая ошибка: {e}")
-        return []
+            if r.status_code == 200:
+                data = r.json()
+                all_events = data.get('selected', []) + data.get('events', [])
+                
+                found = []
+                for e in all_events:
+                    text = e.get('text', '').lower()
+                    if any(w in text for w in SPACE_KEYWORDS) and not any(w in text for w in STOP_WORDS):
+                        found.append(e)
+                
+                if found:
+                    print(f"✅ Найдено {len(found)} событий!")
+                    return found
+            else:
+                print(f"⚠️ Сервер ответил кодом: {r.status_code}")
+        except Exception as e:
+            print(f"❌ Ошибка запроса: {e}")
+            continue
+    return []
 
 def send_to_telegram():
     events = get_cosmic_lesson()
@@ -74,7 +77,7 @@ def send_to_telegram():
         print("📭 Космических уроков на сегодня не найдено.")
         return
 
-    # Выбираем главное событие (лучше с картинкой)
+    # Выбираем главное событие с картинкой
     main_event = events[0]
     for e in events:
         if 'pages' in e and e['pages'][0].get('originalimage'):
@@ -82,12 +85,9 @@ def send_to_telegram():
             break
 
     year = main_event.get('year')
-    raw_text = main_event.get('text', '')
+    text_ru = translator.translate(main_event.get('text', ''))
     
-    print(f"📝 Перевожу событие {year} года...")
-    text_ru = translator.translate(raw_text)
-    
-    # Оформление (Картинка всегда сверху)
+    # 🎨 ОФОРМЛЕНИЕ (Картинка всегда сверху)
     caption = (
         f"👨‍🚀 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
         f"📅 <b>Тема: {datetime.now().strftime('%d %B')} {year} года</b>\n"
@@ -96,10 +96,9 @@ def send_to_telegram():
         f"{text_ru}\n\n"
     )
 
-    # Добавляем 2 доп. факта
     other = [e for e in events if e != main_event]
     if other:
-        caption += "🔍 <b>ДОПОЛНИТЕЛЬНО:</b>\n"
+        caption += "🔍 <b>ДОПОЛНИТЕЛЬНЫЕ ФАКТЫ:</b>\n"
         for f in other[:2]:
             f_text = translator.translate(f.get('text', ''))
             caption += f"• В {f.get('year')}г. — {f_text}\n"
@@ -117,14 +116,12 @@ def send_to_telegram():
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
     if photo_url:
-        print(f"📸 Отправляю фото урока...")
+        print(f"📸 Отправляю урок с фото: {photo_url}")
         payload = {'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': caption, 'parse_mode': 'HTML'}
         requests.post(f"{base_url}/sendPhoto", data=payload)
     else:
         print("📝 Отправляю текстовый урок...")
         requests.post(f"{base_url}/sendMessage", data={'chat_id': CHANNEL_NAME, 'text': caption, 'parse_mode': 'HTML'})
-    
-    print("✅ Готово!")
 
 if __name__ == '__main__':
     send_to_telegram()
