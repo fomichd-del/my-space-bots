@@ -12,78 +12,100 @@ CHANNEL_NAME   = '@vladislav_space'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🚀 ТОЛЬКО КОСМОС (Ключевые слова-маркеры)
+# 🚀 КОСМИЧЕСКИЕ МАРКЕРЫ (для поиска)
 SPACE_KEYWORDS = [
     'космос', 'ракета', 'спутник', 'астроном', 'планета', 'звезда', 
     'наса', 'nasa', 'байконур', 'гагарин', 'космонавт', 'астронавт', 
     'телескоп', 'хаббл', 'марсоход', 'луноход', 'орбита', 'мкс', 
-    'аполлон', 'союз', 'запуск', 'открытие', 'вселенная', 'галактика'
+    'аполлон', 'союз', 'шаттл', 'запуск', 'открытие', 'вселенная', 'space'
 ]
 
-# 🚫 ПОЛНЫЙ ЗАПРЕТ (Политика, война, базы)
+# 🚫 ЖЕСТКИЙ ЗАПРЕТ (война, политика, базы)
 STOP_WORDS = [
     'война', 'военный', 'армия', 'флот', 'битва', 'база', 'штаб', 
     'оружие', 'атака', 'конфликт', 'президент', 'политика', 'вторжение',
-    'министр', 'правительство', 'санкции', 'плен', 'убит', 'смерть'
+    'министр', 'правительство', 'санкции', 'плен', 'убит', 'смерть', 'strike'
 ]
 
 def get_space_history():
-    """Ищет только космические события в мировой истории"""
+    """Ищет космические события. Сначала в RU, если нет - в EN Википедии"""
     now = datetime.now()
-    url = f"https://ru.wikipedia.org/api/rest_v1/feed/onthisday/events/{now.month}/{now.day}"
+    month, day = now.month, now.day
     
-    try:
-        print("📡 Ищу космические события в истории...")
-        res = requests.get(url, timeout=20).json()
-        all_events = res.get('events', [])
-        
-        space_events = []
-        for e in all_events:
-            text = e.get('text', '').lower()
+    # 1. Пробуем русскую Википедию
+    urls = [
+        f"https://ru.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}",
+        f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}" # Резерв
+    ]
+    
+    space_events = []
+    
+    for url in urls:
+        try:
+            print(f"📡 Запрос к API: {url}")
+            response = requests.get(url, timeout=25)
+            if response.status_code != 200:
+                continue
+                
+            res = response.json()
+            events = res.get('events', [])
             
-            # Проверяем: это про космос и без политики?
-            is_space = any(word in text for word in SPACE_KEYWORDS)
-            no_politics = not any(word in text for word in STOP_WORDS)
+            for e in events:
+                text_to_check = e.get('text', '').lower()
+                
+                # Проверяем на космос и отсутствие политики
+                is_space = any(word in text_to_check for word in SPACE_KEYWORDS)
+                no_politics = not any(word in text_to_check for word in STOP_WORDS)
+                
+                if is_space and no_politics:
+                    space_events.append(e)
             
-            if is_space and no_politics:
-                space_events.append(e)
-        
-        return space_events
-    except Exception as e:
-        print(f"❌ Ошибка API: {e}")
-        return []
+            # Если нашли события в первой же базе, дальше не идем
+            if space_events:
+                print(f"✅ Найдено {len(space_events)} событий!")
+                break
+        except Exception as e:
+            print(f"⚠️ Ошибка при чтении API: {e}")
+            continue
+
+    return space_events
 
 def send_to_telegram():
     events = get_space_history()
     
     if not events:
-        print("📭 Сегодня чисто космических дат не найдено. Пропускаю пост.")
+        print("📭 Космических событий на сегодня не найдено.")
         return
 
-    # Выбираем главное событие (лучше с картинкой)
+    # Выбираем главное
     main_event = events[0]
     for e in events:
         if 'pages' in e and e['pages'][0].get('originalimage'):
             main_event = e
             break
 
-    year = main_event.get('year')
-    text = main_event.get('text', 'Нет описания')
+    # Переводим, если пришло из английской базы
+    raw_text = main_event.get('text', '')
+    print("📝 Перевожу основной факт...")
+    text_ru = translator.translate(raw_text)
     
-    # Формируем структуру поста
+    year = main_event.get('year')
+    
+    # Формируем пост
     caption = (
         f"🚀 <b>КОСМИЧЕСКИЙ КАЛЕНДАРЬ</b>\n"
         f"📅 <b>{datetime.now().strftime('%d %B')} {year} года</b>\n"
         f"─────────────────────\n\n"
         f"<b>ГЛАВНОЕ СОБЫТИЕ:</b>\n"
-        f"{text}\n\n"
+        f"{text_ru}\n\n"
     )
 
-    # Добавляем дополнительные факты, если они есть
+    # Добавляем доп. факты (с переводом)
     if len(events) > 1:
         caption += "<b>ТАКЖЕ В ЭТОТ ДЕНЬ:</b>\n"
-        for fact in events[1:3]: # Берем еще максимум 2 факта
-            caption += f"• В {fact.get('year')} году: {fact.get('text')}\n"
+        for fact in events[1:3]:
+            f_text = translator.translate(fact.get('text', ''))
+            caption += f"• В {fact.get('year')} году: {f_text}\n"
         caption += "\n"
 
     caption += (
@@ -91,39 +113,29 @@ def send_to_telegram():
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    # Ищем фото
     photo_url = None
-    try:
-        if 'pages' in main_event and main_event['pages'][0].get('originalimage'):
-            photo_url = main_event['pages'][0]['originalimage']['source']
-    except:
-        photo_url = None
+    if 'pages' in main_event and main_event['pages'][0].get('originalimage'):
+        photo_url = main_event['pages'][0]['originalimage']['source']
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
-    # Отправляем
     if photo_url:
         payload = {
             'chat_id': CHANNEL_NAME,
             'photo': photo_url,
             'caption': caption,
             'parse_mode': 'HTML',
-            'show_caption_above_media': True # Текст СВЕРХУ
+            'show_caption_above_media': True
         }
-        r = requests.post(f"{base_url}/sendPhoto", data=payload)
+        requests.post(f"{base_url}/sendPhoto", data=payload)
     else:
         payload = {
             'chat_id': CHANNEL_NAME,
             'text': caption,
             'parse_mode': 'HTML',
-            'link_preview_options': {'is_disabled': True} # Отключаем бар канала
+            'link_preview_options': {'is_disabled': True}
         }
-        r = requests.post(f"{base_url}/sendMessage", json=payload)
-
-    if r.status_code == 200:
-        print("✅ Космический календарь опубликован!")
-    else:
-        print(f"❌ Ошибка отправки: {r.text}")
+        requests.post(f"{base_url}/sendMessage", json=payload)
 
 if __name__ == '__main__':
     send_to_telegram()
