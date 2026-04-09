@@ -26,38 +26,42 @@ def get_size_comparison(meters):
     else: return "⛰ Размером с гору"
 
 def is_already_sent(asteroid_id):
-    """Проверяет память, чтобы не было дублей"""
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE, 'r') as f:
-            return asteroid_id in f.read()
+            return str(asteroid_id) in f.read()
     return False
 
 def get_asteroid_data():
-    # NASA использует время UTC, поэтому берем его
+    # Используем UTC, как и NASA
     today = datetime.utcnow().strftime('%Y-%m-%d')
-    url = f"https://api.nasa.gov/neo/rest/v1/feed?start_date={today}&end_date={today}&api_key={NASA_API_KEY}"
+    # ИСПРАВЛЕННЫЙ URL
+    url = f"https://api.nasa.gov/neo/rest_v1/feed?start_date={today}&end_date={today}&api_key={NASA_API_KEY}"
     
     try:
         print(f"📡 Запрашиваю данные NASA на {today}...")
         response = requests.get(url, timeout=15)
         res = response.json()
         
-        # БЕЗОПАСНАЯ ПРОВЕРКА: Если ключа нет, бот не упадет, а просто напишет ошибку
+        # Защита: проверяем, что пришел словарь, а не список ошибок
+        if not isinstance(res, dict):
+            print(f"⚠️ NASA прислала странный ответ (не словарь): {res}")
+            return None, None, None, None
+
         neo_data = res.get('near_earth_objects', {})
         asteroids = neo_data.get(today, [])
         
         if not asteroids:
-            print(f"📭 Астероидов в данных NASA на {today} не найдено. Ответ: {res}")
+            print(f"📭 Астероидов на {today} не найдено.")
             return None, None, None, None
 
-        # Фильтруем те, что уже были
+        # Фильтруем новые
         new_asteroids = [a for a in asteroids if not is_already_sent(a['neo_reference_id'])]
         
         if not new_asteroids:
-            print("✅ Все астероиды на сегодня уже опубликованы.")
+            print("✅ Всё уже опубликовано.")
             return None, None, None, None
 
-        # Выбираем самый крупный
+        # Выбираем героя дня
         hero = max(new_asteroids, key=lambda x: x['estimated_diameter']['meters']['estimated_diameter_max'])
         ast_id = hero['neo_reference_id']
         is_danger = hero['is_potentially_hazardous_asteroid']
@@ -86,7 +90,7 @@ def get_asteroid_data():
         return text, keyboard, photo_url, ast_id
         
     except Exception as e:
-        print(f"❌ Критическая ошибка: {e}")
+        print(f"❌ Ошибка: {e}")
         return None, None, None, None
 
 def send_to_telegram(text, keyboard, photo_url, ast_id):
@@ -101,12 +105,11 @@ def send_to_telegram(text, keyboard, photo_url, ast_id):
     
     r = requests.post(base_url, data=payload, timeout=20)
     if r.status_code == 200:
-        print("✅ Пост отправлен!")
-        # Записываем в память
+        print("✅ Пост улетел!")
         with open(HISTORY_FILE, 'a') as f:
             f.write(f"{ast_id}\n")
     else:
-        print(f"❌ Ошибка TG: {r.text}")
+        print(f"❌ Ошибка ТГ: {r.text}")
 
 if __name__ == '__main__':
     msg_text, msg_key, img_url, ast_id = get_asteroid_data()
