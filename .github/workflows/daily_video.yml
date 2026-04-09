@@ -2,9 +2,12 @@ name: Space Radar & Daily Post
 
 on:
   schedule:
-    # Запуск каждые 15 минут для проверки LIVE-трансляций
+    # Запуск каждые 15 минут (память теперь защитит от спама)
     - cron: '*/15 * * * *'
-  workflow_dispatch: # Кнопка для ручного запуска в интерфейсе GitHub
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Разрешаем сохранять файл с датой
 
 jobs:
   run-bot:
@@ -20,12 +23,19 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pyTelegramBotAPI google-api-python-client deep_translator
+          pip install requests deep_translator pyTelegramBotAPI google-api-python-client
 
       - name: Run Space Bot
         env:
-          # Эти данные берутся из настроек Settings -> Secrets -> Actions
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           CHANNEL_NAME: ${{ secrets.CHANNEL_NAME }}
         run: python video_bot.py
+
+      - name: Save memory (Commit date)
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add last_video_date.txt || true
+          git commit -m "Update last video date" || true
+          git push
