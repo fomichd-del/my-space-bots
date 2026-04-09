@@ -2,6 +2,7 @@ import requests
 import os
 import json
 import random
+import time
 from datetime import datetime
 
 # ============================================================
@@ -32,66 +33,69 @@ def is_already_sent(asteroid_id):
     return False
 
 def get_asteroid_data():
-    # Используем UTC, как и NASA
     today = datetime.utcnow().strftime('%Y-%m-%d')
-    # ИСПРАВЛЕННЫЙ URL
     url = f"https://api.nasa.gov/neo/rest_v1/feed?start_date={today}&end_date={today}&api_key={NASA_API_KEY}"
     
-    try:
-        print(f"📡 Запрашиваю данные NASA на {today}...")
-        response = requests.get(url, timeout=15)
-        res = response.json()
-        
-        # Защита: проверяем, что пришел словарь, а не список ошибок
-        if not isinstance(res, dict):
-            print(f"⚠️ NASA прислала странный ответ (не словарь): {res}")
-            return None, None, None, None
+    # 🔄 СИСТЕМА ПОВТОРОВ (Попытаемся 3 раза)
+    for attempt in range(3):
+        try:
+            print(f"📡 Попытка {attempt + 1}: Запрашиваю NASA (ждем до 60 сек)...")
+            response = requests.get(url, timeout=60) # Увеличили таймаут
+            
+            if response.status_code != 200:
+                print(f"⚠️ Сервер NASA занят (Код {response.status_code}). Ждем...")
+                time.sleep(5)
+                continue
 
-        neo_data = res.get('near_earth_objects', {})
-        asteroids = neo_data.get(today, [])
-        
-        if not asteroids:
-            print(f"📭 Астероидов на {today} не найдено.")
-            return None, None, None, None
+            res = response.json()
+            neo_data = res.get('near_earth_objects', {})
+            asteroids = neo_data.get(today, [])
+            
+            if not asteroids:
+                print(f"📭 На {today} астероидов не найдено.")
+                return None, None, None, None
 
-        # Фильтруем новые
-        new_asteroids = [a for a in asteroids if not is_already_sent(a['neo_reference_id'])]
-        
-        if not new_asteroids:
-            print("✅ Всё уже опубликовано.")
-            return None, None, None, None
+            # Фильтруем новые
+            new_asteroids = [a for a in asteroids if not is_already_sent(a['neo_reference_id'])]
+            if not new_asteroids:
+                print("✅ Все сегодняшние астероиды уже были в канале.")
+                return None, None, None, None
 
-        # Выбираем героя дня
-        hero = max(new_asteroids, key=lambda x: x['estimated_diameter']['meters']['estimated_diameter_max'])
-        ast_id = hero['neo_reference_id']
-        is_danger = hero['is_potentially_hazardous_asteroid']
-        name = hero['name'].replace("(", "").replace(")", "").strip()
-        size = round(hero['estimated_diameter']['meters']['estimated_diameter_max'])
-        
-        dist_km = float(hero['close_approach_data'][0]['miss_distance']['kilometers'])
-        dist_ld = round(dist_km / 384400, 1)
+            hero = max(new_asteroids, key=lambda x: x['estimated_diameter']['meters']['estimated_diameter_max'])
+            ast_id = hero['neo_reference_id']
+            is_danger = hero['is_potentially_hazardous_asteroid']
+            name = hero['name'].replace("(", "").replace(")", "").strip()
+            size = round(hero['estimated_diameter']['meters']['estimated_diameter_max'])
+            
+            dist_km = float(hero['close_approach_data'][0]['miss_distance']['kilometers'])
+            dist_ld = round(dist_km / 384400, 1)
 
-        text = (
-            f"☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ</b>\n"
-            f"─────────────────────\n\n"
-            f"🛰 <b>Название:</b> {name}\n"
-            f"📏 <b>Размер:</b> ~{size} метров\n"
-            f"👉 <i>{get_size_comparison(size)}</i>\n\n"
-            f"🛣 <b>Дистанция:</b> {dist_ld} расстояний до Луны\n"
-            f"<i>({round(dist_km / 1_000_000, 1)} млн км от нас)</i>\n\n"
-            f"{'⚠️' if is_danger else '✅'} <b>Статус: {'ОПАСЕН' if is_danger else 'БЕЗОПАСЕН'}</b>\n\n"
-            f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
-            f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-        )
+            text = (
+                f"☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ</b>\n"
+                f"─────────────────────\n\n"
+                f"🛰 <b>Название:</b> {name}\n"
+                f"📏 <b>Размер:</b> ~{size} метров\n"
+                f"👉 <i>{get_size_comparison(size)}</i>\n\n"
+                f"🛣 <b>Дистанция:</b> {dist_ld} расстояний до Луны\n"
+                f"<i>({round(dist_km / 1_000_000, 1)} млн км от нас)</i>\n\n"
+                f"{'⚠️' if is_danger else '✅'} <b>Статус: {'ОПАСЕН' if is_danger else 'БЕЗОПАСЕН'}</b>\n\n"
+                f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+                f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+            )
 
-        keyboard = {"inline_keyboard": [[{"text": "👁 Орбита в 3D", "url": f"https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr={ast_id}"}]]}
-        photo_url = random.choice(SPACE_PHOTOS)
+            keyboard = {"inline_keyboard": [[{"text": "👁 Орбита в 3D", "url": f"https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr={ast_id}"}]]}
+            photo_url = random.choice(SPACE_PHOTOS)
 
-        return text, keyboard, photo_url, ast_id
-        
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-        return None, None, None, None
+            return text, keyboard, photo_url, ast_id
+
+        except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
+            print(f"❌ Ошибка при попытке {attempt + 1}: {e}")
+            if attempt < 2:
+                time.sleep(10) # Ждем 10 секунд перед следующей попыткой
+            else:
+                print("🏁 Все попытки исчерпаны. NASA сегодня не в духе.")
+    
+    return None, None, None, None
 
 def send_to_telegram(text, keyboard, photo_url, ast_id):
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
@@ -103,13 +107,16 @@ def send_to_telegram(text, keyboard, photo_url, ast_id):
         'reply_markup': json.dumps(keyboard)
     }
     
-    r = requests.post(base_url, data=payload, timeout=20)
-    if r.status_code == 200:
-        print("✅ Пост улетел!")
-        with open(HISTORY_FILE, 'a') as f:
-            f.write(f"{ast_id}\n")
-    else:
-        print(f"❌ Ошибка ТГ: {r.text}")
+    try:
+        r = requests.post(base_url, data=payload, timeout=30)
+        if r.status_code == 200:
+            print("✅ СООБЩЕНИЕ УСПЕШНО ОТПРАВЛЕНО!")
+            with open(HISTORY_FILE, 'a') as f:
+                f.write(f"{ast_id}\n")
+        else:
+            print(f"❌ ОШИБКА TELEGRAM API: {r.text}")
+    except Exception as e:
+        print(f"❌ Ошибка сети при отправке в ТГ: {e}")
 
 if __name__ == '__main__':
     msg_text, msg_key, img_url, ast_id = get_asteroid_data()
