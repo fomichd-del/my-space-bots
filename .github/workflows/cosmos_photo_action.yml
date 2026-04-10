@@ -1,18 +1,20 @@
 name: Cosmos Photo Bot Daily
 
-# 1. Когда запускать?
 on:
   schedule:
-    - cron: '0 12 * * *' # Каждый день в 12:00 по Гринвичу (UTC)
-  workflow_dispatch:      # Позволяет запускать бота вручную кнопкой
+    - cron: '0 12 * * *' # Запуск в 12:00 UTC
+  workflow_dispatch:      
 
 jobs:
   build:
-    runs-on: ubuntu-latest # Используем сервер Linux
+    runs-on: ubuntu-latest
+    # Даем права на запись, чтобы Action мог сохранить файл в репозиторий
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3 # Копируем файлы в облако
+      uses: actions/checkout@v3
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -20,28 +22,22 @@ jobs:
         python-version: '3.10'
 
     - name: Install dependencies
-      run: |
-        pip install requests deep-translator # Устанавливаем библиотеки
+      run: pip install requests deep_translator
 
     - name: Run bot
       env:
-        # Передаем наши секреты в программу
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
-      run: python cosmos_photo.py # Запускаем файл
+      run: python cosmos_photo.py image # Добавили аргумент 'image' по умолчанию
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # --- ВОТ ЭТОТ БЛОК НУЖНО ДОБАВИТЬ ---
+    - name: Commit and Push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        # Проверяем, изменился ли файл, и если да — сохраняем
+        if [ -f last_cosmo_post.txt ]; then
+          git add last_cosmo_post.txt
+          git commit -m "Update last post record" || echo "No changes to commit"
+          git push
+        fi
