@@ -1,43 +1,52 @@
 name: Cosmos Photo Bot Daily
 
+# 1. Расписание запуска
 on:
   schedule:
-    - cron: '0 12 * * *' # Запуск в 12:00 UTC
-  workflow_dispatch:      
+    # Запуск один раз в день в 12:00 по Гринвичу (15:00 по МСК)
+    - cron: '0 12 * * *'
+  # Возможность запускать вручную через вкладку Actions
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Даем права на запись, чтобы Action мог сохранить файл в репозиторий
+    
+    # Даем права на запись, чтобы GitHub мог сохранить файл с датой последнего поста
     permissions:
       contents: write
 
     steps:
+    # Шаг 1: Копируем файлы репозитория на виртуальный сервер
     - name: Checkout code
       uses: actions/checkout@v3
 
+    # Шаг 2: Устанавливаем Python
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
+    # Шаг 3: Устанавливаем необходимые библиотеки
     - name: Install dependencies
-      run: pip install requests deep_translator
+      run: |
+        pip install requests deep_translator
 
+    # Шаг 4: Запускаем основной скрипт бота
     - name: Run bot
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
-      run: python cosmos_photo.py image # Добавили аргумент 'image' по умолчанию
+      # По умолчанию запускаем в режиме фото
+      run: python cosmos_photo.py image
 
-    # --- ВОТ ЭТОТ БЛОК НУЖНО ДОБАВИТЬ ---
+    # Шаг 5: Сохраняем изменения (файл last_cosmo_post.txt) обратно в репозиторий
     - name: Commit and Push changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        # Проверяем, изменился ли файл, и если да — сохраняем
-        if [ -f last_cosmo_post.txt ]; then
-          git add last_cosmo_post.txt
-          git commit -m "Update last post record" || echo "No changes to commit"
-          git push
-        fi
+        # Проверяем, изменился ли файл памяти
+        git add last_cosmo_post.txt
+        # Если изменений нет, не выдаем ошибку
+        git commit -m "Update last cosmo post date" || echo "No changes to commit"
+        git push
