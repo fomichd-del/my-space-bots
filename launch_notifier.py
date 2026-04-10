@@ -76,57 +76,55 @@ def save_id(filename, launch_id):
     with open(filename, "a", encoding='utf-8') as f:
         f.write(f"{launch_id}\n")
 
-def translate_text(text):
-    if not text: return ""
-    try:
-        return translator.translate(text)
-    except:
-        return text
-
 def get_short_facts(text, icon):
-    if not text: return f"{icon} Детали скоро появятся! 🛰️"
+    if not text: return f"{icon} Детали появятся позже."
     try:
-        ru_text = translate_text(text)
+        ru_text = translator.translate(text)
         sentences = [s.strip() for s in ru_text.split('. ') if s.strip()]
         return "\n".join([f"{icon} {s}." for s in sentences[:3]])
-    except:
-        return f"{icon} {text[:100]}..."
+    except: return f"{icon} {text[:100]}..."
 
 def send_to_telegram(text, photo_url=None):
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     if photo_url:
         payload = {'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': text, 'parse_mode': 'HTML'}
-        requests.post(f"{base_url}/sendPhoto", data=payload)
+        r = requests.post(f"{base_url}/sendPhoto", data=payload)
     else:
         payload = {'chat_id': CHANNEL_NAME, 'text': text, 'parse_mode': 'HTML'}
-        requests.post(f"{base_url}/sendMessage", data=payload)
+        r = requests.post(f"{base_url}/sendMessage", data=payload)
+    print(f"📡 Ответ Telegram: {r.status_code}")
 
 def check_launches():
     url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=1"
+    print(f"📡 Запрашиваю данные о запусках...")
     try:
-        res = requests.get(url, timeout=25).json()
+        response = requests.get(url, timeout=25)
+        res = response.json()
         launch = res['results'][0] if res.get('results') else None
-    except: return
+    except Exception as e:
+        print(f"❌ Ошибка API: {e}")
+        return
 
     if launch:
         launch_id = launch['id']
-        rocket_data = launch['rocket']['configuration']
+        rocket_name = launch['rocket']['configuration']['name']
         launch_time = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
-        
+        print(f"🔎 Вижу запуск: {rocket_name} (ID: {launch_id})")
+
         # 1. ОСНОВНОЙ АНОНС
         sent_main = load_ids(DB_FILE)
         if launch_id not in sent_main:
+            print("🆕 Это новый запуск. Отправляю анонс...")
             mission_name = launch['mission']['name'] if launch['mission'] else "Секретная"
             short_mission = get_short_facts(launch['mission']['description'] if launch['mission'] else "", "🛰️")
-            short_rocket = get_short_facts(rocket_data.get('description', ""), "🚀")
+            short_rocket = get_short_facts(launch['rocket']['configuration'].get('description', ""), "🚀")
             
-            # Поиск видео-ссылки
             best_video = None
             vid_urls = launch.get('vidURLs', [])
             if vid_urls: best_video = vid_urls[0].get('url')
             video_btn = f"\n\n📺 <b>ТРАНСЛЯЦИЯ:</b>\n• <a href='{best_video}'>Смотреть запуск</a>" if best_video else ""
             
-            report = (f"🚀 <b>СКОРО В КОСМОС: {rocket_data['name'].upper()}</b>\n"
+            report = (f"🚀 <b>СКОРО В КОСМОС: {rocket_name.upper()}</b>\n"
                       f"─────────────────────\n"
                       f"🎯 <b>Миссия:</b> {mission_name}\n"
                       f"⏰ <b>Старт:</b> {launch_time.strftime('%d.%m %H:%M')} UTC\n"
@@ -138,18 +136,27 @@ def check_launches():
             
             send_to_telegram(report, launch.get('image'))
             save_id(DB_FILE, launch_id)
+        else:
+            print("✋ Анонс этого запуска уже был в канале.")
 
-        # 2. НАПОМИНАНИЕ (10 минут до старта для запаса)
+        # 2. НАПОМИНАНИЕ (10 минут до старта)
         time_to_start = (launch_time - datetime.now(timezone.utc)).total_seconds()
+        print(f"⏳ До старта: {round(time_to_start/60, 1)} мин.")
+        
         if 0 < time_to_start <= 600:
             sent_reminders = load_ids(REMINDERS_FILE)
             if launch_id not in sent_reminders:
+                print("🔔 Отправляю напоминание (5 минут до старта)...")
                 reminder = (f"🎒 <b>МАРТИ: ГОТОВНОСТЬ 5 МИНУТ!</b>\n"
                            f"─────────────────────\n\n"
-                           f"Ракета <b>{rocket_data['name']}</b> уже на старте! Готовимся к отрыву! 🚀✨\n\n"
+                           f"Ракета <b>{rocket_name}</b> уже на старте! Готовимся к отрыву! 🚀✨\n\n"
                            f"🌌 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
                 send_to_telegram(reminder)
                 save_id(REMINDERS_FILE, launch_id)
+            else:
+                print("✋ Напоминание уже было.")
+    else:
+        print("📭 Ближайших запусков не найдено.")
 
 if __name__ == '__main__':
     check_launches()
