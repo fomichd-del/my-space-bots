@@ -10,6 +10,9 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_history_event.txt" # Файл памяти
 
+# ТВОЯ КАРТИНКА ОФОРМЛЕНИЯ ТЕМЫ ИСТОРИИ (можешь заменить на свою ссылку)
+HISTORY_THEME_IMG = "https://images.unsplash.com/photo-1543783207-ec64e4d95325?q=80&w=1200&auto=format&fit=crop"
+
 translator = GoogleTranslator(source='auto', target='ru')
 
 # 🚀 КОСМИЧЕСКИЕ КЛЮЧИ
@@ -56,7 +59,6 @@ def send_to_telegram():
     page_title = event['pages'][0]['title'] if 'pages' in event else ""
     
     # --- ПРОВЕРКА НА ПОВТОРЫ ---
-    # Создаем уникальный ключ события (год + заголовок страницы)
     current_event_id = f"{year}_{page_title}"
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r', encoding='utf-8') as f:
@@ -91,18 +93,13 @@ def send_to_telegram():
         f"🎯 <b>ОСНОВНАЯ ЦЕЛЬ:</b>\n{purpose}\n\n"
         f"✅ <b>ИТОГ И РЕЗУЛЬТАТ:</b>\n{result}\n\n"
         f"💡 <b>А ТЫ ЗНАЛ, ЧТО...</b>\n{fact}\n\n"
-        f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+        # БАР УБРАН, ОСТАЛАСЬ ТОЛЬКО ССЫЛКА
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    photo_url = event['pages'][0].get('originalimage', {}).get('source') if 'pages' in event else None
+    # ОТПРАВКА С ФИКСИРОВАННОЙ КАРТИНКОЙ ТЕМЫ
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-    
-    # Отправка
-    if photo_url:
-        r = requests.post(f"{base_url}/sendPhoto", data={'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': caption, 'parse_mode': 'HTML'})
-    else:
-        r = requests.post(f"{base_url}/sendMessage", data={'chat_id': CHANNEL_NAME, 'text': caption, 'parse_mode': 'HTML'})
+    r = requests.post(f"{base_url}/sendPhoto", data={'chat_id': CHANNEL_NAME, 'photo': HISTORY_THEME_IMG, 'caption': caption, 'parse_mode': 'HTML'})
 
     # Если отправка успешна — записываем в память
     if r.status_code == 200:
