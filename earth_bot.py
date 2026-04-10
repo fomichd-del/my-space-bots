@@ -17,28 +17,29 @@ translator = GoogleTranslator(source='auto', target='ru')
 def is_already_sent(image_id):
     """Проверяет, отправляли ли мы это фото раньше"""
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, 'r') as f:
+        with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
             sent_ids = f.read().splitlines()
-            return image_id in sent_ids
+            return str(image_id) in sent_ids
     return False
 
 def save_sent_id(image_id):
     """Сохраняет ID отправленного фото"""
-    with open(HISTORY_FILE, 'a') as f:
+    with open(HISTORY_FILE, 'a', encoding='utf-8') as f:
         f.write(f"{image_id}\n")
 
 def get_epic_data():
-    """Режим 1: Полный диск Земли (DSCOVR)"""
+    """Режим 1: Полный диск Земли (спутник DSCOVR)"""
     url = f"https://api.nasa.gov/EPIC/api/natural/available?api_key={NASA_API_KEY}"
     try:
-        dates = requests.get(url).json()
+        dates = requests.get(url, timeout=20).json()
         last_date = dates[-1]
         data_url = f"https://api.nasa.gov/EPIC/api/natural/date/{last_date}?api_key={NASA_API_KEY}"
-        shots = requests.get(data_url).json()
+        shots = requests.get(data_url, timeout=20).json()
         
-        # Фильтруем те, что еще не слали
+        # Фильтруем те, что еще не отправляли
         available_shots = [s for s in shots if not is_already_sent(s['image'])]
-        if not available_shots: return None, None, None
+        if not available_shots: 
+            return None, None, None
         
         shot = random.choice(available_shots)
         img_id = shot['image']
@@ -50,11 +51,12 @@ def get_epic_data():
             f"🌍 <b>ВЗГЛЯД ИЗ ТОЧКИ L1</b>\n"
             f"─────────────────────\n"
             f"Этот снимок сделал спутник <b>DSCOVR</b> с расстояния 1.5 миллиона километров. Мы видим всю планету целиком!\n\n"
-            f"📅 Дата: <b>{last_date}</b>\n"
+            f"📅 Дата: <b>{last_date}</b>\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
         return img_url, caption, img_id
-    except: return None, None, None
+    except: 
+        return None, None, None
 
 def get_nasa_library_data():
     """Режим 2: Снимки с МКС и других спутников (NASA Library)"""
@@ -63,7 +65,7 @@ def get_nasa_library_data():
     url = f"https://images-api.nasa.gov/search?q={q}&media_type=image"
     
     try:
-        res = requests.get(url).json()
+        res = requests.get(url, timeout=20).json()
         items = res['collection']['items']
         
         # Ищем фото, которое еще не слали
@@ -84,15 +86,19 @@ def get_nasa_library_data():
                 )
                 return img_url, caption, nasa_id
         return None, None, None
-    except: return None, None, None
+    except: 
+        return None, None, None
 
 def post_to_telegram():
+    # Шанс 50/50 какой режим выбрать
     mode = random.choice(["EPIC", "LIBRARY"])
     print(f"Выбран режим: {mode}")
     
     url, cap, img_id = get_epic_data() if mode == "EPIC" else get_nasa_library_data()
     
-    if not url: # Пробуем запасной режим
+    # Если в выбранном режиме нет новинок, пробуем другой
+    if not url:
+        print("🔄 Пробую запасной режим...")
         url, cap, img_id = get_nasa_library_data() if mode == "EPIC" else get_epic_data()
 
     if url and img_id:
@@ -101,11 +107,11 @@ def post_to_telegram():
         
         if r.status_code == 200:
             save_sent_id(img_id)
-            print(f"✅ Пост {img_id} отправлен!")
+            print(f"✅ Пост {img_id} успешно отправлен!")
         else:
             print(f"❌ Ошибка ТГ: {r.text}")
     else:
-        print("📭 Новых фото на сегодня нет.")
+        print("📭 Новых фотографий Земли сегодня не найдено.")
 
 if __name__ == '__main__':
     post_to_telegram()
