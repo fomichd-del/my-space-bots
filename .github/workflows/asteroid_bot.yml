@@ -1,14 +1,18 @@
-name: Asteroid Radar Daily
+name: asteroid_bot.py
 
 on:
   schedule:
-    # Запуск каждый день в 06:30 UTC
-    - cron: '30 6 * * *'
-  workflow_dispatch: # Кнопка для ручного запуска в интерфейсе GitHub
+    # Запуск ежедневно в 11:00 UTC (14:00 по МСК)
+    - cron: '0 11 * * *'
+  workflow_dispatch:      # Кнопка ручного запуска
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write # Нужно для сохранения last_asteroid_id.txt
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -19,14 +23,19 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        # Устанавливаем сразу всё: и для связи с NASA, и для работы с фото
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests Pillow
+        run: pip install requests
 
-      - name: Run asteroid bot
+      - name: Run asteroid_bot.py
         env:
-          # Эти данные должны быть в Settings -> Secrets -> Actions
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         run: python asteroid_bot.py
+
+      - name: Save memory
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+          git add last_asteroid_id.txt
+          git commit -m "Update asteroid memory: $(date)" || echo "No changes"
+          git pull --rebase origin main
+          git push origin main
