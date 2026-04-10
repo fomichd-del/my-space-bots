@@ -4,14 +4,14 @@ on:
   schedule:
     # Запуск в 10:30 UTC (13:30 по МСК)
     - cron: '30 10 * * *'
-  workflow_dispatch:      # Кнопка для ручного запуска
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     permissions:
-      contents: write # Разрешение на сохранение файла памяти
+      contents: write
 
     steps:
       - name: Checkout code
@@ -36,10 +36,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
-          # Добавляем файл истории в индекс
           git add last_earth_id.txt
-          # Фиксируем изменения
-          git commit -m "Update Earth memory: $(date)" || echo "No changes to commit"
-          # Синхронизация и пуш
+          git commit -m "Update Earth extensive history: $(date)" || echo "No changes"
           git pull --rebase origin main
           git push origin main
