@@ -1,0 +1,42 @@
+name: mars_bot.py
+
+on:
+  schedule:
+    # Запуск ежедневно в 08:00 UTC (11:00 по МСК)
+    - cron: '0 8 * * *'
+  workflow_dispatch:      # Кнопка для ручного запуска
+
+jobs:
+  run-mars-bot:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests deep_translator
+
+      - name: Run mars_bot.py
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+        run: python mars_bot.py
+
+      - name: Save memory
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+          git add last_mars_photo.txt
+          git commit -m "Update Mars/Universe memory: $(date)" || echo "No changes"
+          git pull --rebase origin main
+          git push origin main
