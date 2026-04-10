@@ -6,18 +6,19 @@ from deep_translator import GoogleTranslator
 # --- ⚙️ НАСТРОЙКИ ---
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME = '@vladislav_space'
-DB_FILE = "sent_radar_lives.txt"
+DB_FILE = "sent_radar_lives.txt" # Память, чтобы не частить
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Список стоп-слов (без политики и войны)
-FORBIDDEN_WORDS = ['military', 'defense', 'spy', 'reconnaissance', 'missile', 'combat', 'war', 'weapon', 'nuke', 'army', 'война', 'оборона']
+# Стоп-слова (строго без войны и политики)
+FORBIDDEN_WORDS = ['military', 'defense', 'spy', 'reconnaissance', 'missile', 'combat', 'war', 'weapon', 'nuke', 'army', 'война', 'оборона', 'ядерный']
 
 def is_military(text):
     if not text: return False
     return any(word in text.lower() for word in FORBIDDEN_WORDS)
 
 def get_global_launches():
+    """Ищет ближайшие мирные запуски"""
     url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=5"
     try:
         response = requests.get(url, timeout=25)
@@ -26,10 +27,11 @@ def get_global_launches():
         data = response.json()
         launches = data.get('results', [])
         
-        sent_ids = []
         if os.path.exists(DB_FILE):
             with open(DB_FILE, 'r', encoding='utf-8') as f:
                 sent_ids = f.read().splitlines()
+        else:
+            sent_ids = []
 
         for launch in launches:
             launch_id = str(launch['id'])
@@ -44,23 +46,27 @@ def get_global_launches():
             launch_time = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
             img_url = launch.get('image')
             
-            # Собираем все возможные ссылки на видео
-            video_url = None
+            # --- ЛОГИКА ПОИСКА ССЫЛКИ ---
+            watch_link = None
+            # 1. Проверяем видео-ссылки (YouTube, X, Twitch)
             vid_urls = launch.get('vidURLs', [])
             if vid_urls:
-                video_url = vid_urls[0].get('url')
+                watch_link = vid_urls[0].get('url')
             
-            # Если видео-ссылки нет совсем, используем ссылку на инфо-страницу
-            if not video_url:
+            # 2. Если видео нет, берем ссылку на инфо-страницу
+            if not watch_link:
                 info_urls = launch.get('infoURLs', [])
-                if info_urls: video_url = info_urls[0].get('url')
+                if info_urls:
+                    watch_link = info_urls[0].get('url')
 
-            mission_ru = translator.translate(mission_desc) if mission_desc else "Научная миссия."
+            mission_ru = translator.translate(mission_desc) if mission_desc else "Научная миссия по изучению космоса."
             agency_ru = translator.translate(launch['launch_service_provider']['name'])
 
-            # ОФОРМЛЕНИЕ
-            # Если видео нет, ссылка в тексте ведет на пост, а превью покажет картинку запуска
-            watch_link = video_url if video_url else f"https://t.me/{CHANNEL_NAME[1:]}"
+            # Формируем строку кнопки только если ссылка есть
+            if watch_link:
+                action_line = f"🍿 <a href='{watch_link}'><b>СМОТРЕТЬ ТРАНСЛЯЦИЮ</b></a>\n\n"
+            else:
+                action_line = f"🍿 <i>Ссылка на трансляцию появится ближе к старту</i>\n\n"
             
             caption = (
                 f"🚀 <b>МИРОВОЙ ЗАПУСК: {rocket_name.upper()}</b>\n"
@@ -69,7 +75,7 @@ def get_global_launches():
                 f"📍 <b>Космодром:</b> {location}\n"
                 f"📅 <b>Старт:</b> {launch_time.strftime('%d.%m.%Y %H:%M')} UTC\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{mission_ru}\n\n"
-                f"🍿 <a href='{watch_link}'><b>СМОТРЕТЬ ТРАНСЛЯЦИЮ</b></a>\n\n"
+                f"{action_line}"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
             
@@ -81,23 +87,20 @@ def get_global_launches():
 def send():
     text, launch_id, img_url, watch_link = get_global_launches()
     if text:
-        # Умный превью-бар: 
-        # Если есть видео — покажет плеер. Если нет — покажет большую картинку запуска.
+        # Если ссылки на видео нет, используем картинку запуска для превью
+        preview_url = watch_link if watch_link else img_url
+        
         payload = {
             "chat_id": CHANNEL_NAME,
             "text": text,
             "parse_mode": "HTML",
             "link_preview_options": {
-                "url": watch_link,
-                "prefer_large_media": True, # Делает картинку/видео на всю ширину
+                "url": preview_url,
+                "prefer_large_media": True, 
                 "show_above_text": False
             }
         }
         
-        # Если ссылка на трансляцию слабая, используем img_url как обложку
-        if not any(x in watch_link for x in ['youtube', 'youtu.be', 'vimeo', 'twitch']):
-            payload["link_preview_options"]["url"] = img_url if img_url else watch_link
-
         r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
         if r.status_code == 200:
             with open(DB_FILE, 'a', encoding='utf-8') as f:
