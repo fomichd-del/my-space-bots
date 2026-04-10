@@ -9,6 +9,7 @@ from deep_translator import GoogleTranslator
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
+DB_FILE        = "last_mars_photo.txt" # Файл памяти для планетарной рулетки
 
 translator = GoogleTranslator(source='auto', target='ru')
 
@@ -22,9 +23,8 @@ PLANETS = [
 def get_planet_data():
     """Выбирает случайную планету и ищет её лучшее фото в NASA Image Library"""
     planet_query = random.choice(PLANETS)
-    planet_name_simple = planet_query.split()[0] # Получаем чистое название
+    planet_name_simple = planet_query.split()[0]
     
-    # Поиск в официальной библиотеке NASA
     url = f"https://images-api.nasa.gov/search?q={planet_query}&media_type=image"
     
     try:
@@ -32,41 +32,55 @@ def get_planet_data():
         res = requests.get(url, timeout=20).json()
         items = res['collection']['items']
         
-        # Берем случайное фото из первых 15 результатов (там самые качественные)
-        item = random.choice(items[:15])
-        
-        img_url = item['links'][0]['href']
-        title_en = item['data'][0]['title']
-        desc_en = item['data'][0].get('description', '')
+        # Загружаем историю отправленных фото
+        sent_ids = []
+        if os.path.exists(DB_FILE):
+            with open(DB_FILE, 'r', encoding='utf-8') as f:
+                sent_ids = f.read().splitlines()
 
-        # Перевод на русский
-        print(f"📝 Перевожу описание...")
-        title_ru = translator.translate(title_en)
+        # Ищем в результатах фото, которого еще не было в канале
+        random.shuffle(items) # Перемешиваем результаты для разнообразия
+        target_item = None
         
-        # Берем первые 2-3 предложения описания
+        for item in items[:20]: # Проверяем первые 20 качественных результатов
+            nasa_id = item['data'][0]['nasa_id']
+            if nasa_id not in sent_ids:
+                target_item = item
+                break
+        
+        if not target_item:
+            print("📭 Все найденные сегодня фото уже были в канале.")
+            return None, None, None
+
+        img_url = target_item['links'][0]['href']
+        nasa_id = target_item['data'][0]['nasa_id']
+        title_en = target_item['data'][0]['title']
+        desc_en = target_item['data'][0].get('description', '')
+
+        # Перевод
+        title_ru = translator.translate(title_en)
         short_desc_en = '. '.join(desc_en.split('.')[:3]) + '.'
         desc_ru = translator.translate(short_desc_en)
 
+        # ОФОРМЛЕНИЕ (без бара)
         caption = (
             f"🪐 <b>ПЛАНЕТА ДНЯ: {title_ru.upper()}</b>\n"
             f"─────────────────────\n\n"
             f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
             f"🔭 <i>Этот снимок был сделан одной из межпланетных станций NASA во время исследования нашей системы.</i>\n\n"
-            f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
         
-        return img_url, caption
+        return img_url, caption, nasa_id
         
     except Exception as e:
-        print(f"❌ Ошибка поиска планеты: {e}")
-        return None, None
+        print(f"❌ Ошибка поиска: {e}")
+        return None, None, None
 
 def send_to_telegram():
-    img_url, caption = get_planet_data()
+    img_url, caption, nasa_id = get_planet_data()
     
     if not img_url:
-        print("📭 Не удалось найти подходящее фото.")
         return
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
@@ -79,10 +93,12 @@ def send_to_telegram():
     
     r = requests.post(base_url, data=payload)
     if r.status_code == 200:
-        print(f"✅ Пост про планету успешно отправлен!")
+        # Сохраняем ID фото в память
+        with open(DB_FILE, 'a', encoding='utf-8') as f:
+            f.write(f"{nasa_id}\n")
+        print(f"✅ Пост про {nasa_id} успешно отправлен!")
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
 if __name__ == '__main__':
-    print("--- 🏁 Запуск Планетарного Бота ---")
     send_to_telegram()
