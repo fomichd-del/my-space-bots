@@ -2,16 +2,15 @@ name: video_bot.py
 
 on:
   schedule:
-    # Запуск каждые 15 минут для проверки обновлений
-    - cron: '*/15 * * * *'
-  workflow_dispatch:      # Кнопка для ручного запуска
+    - cron: '*/15 * * * *' # Проверка каждые 15 минут
+  workflow_dispatch:
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
     permissions:
-      contents: write # Разрешение на изменение файлов в репозитории
+      contents: write
 
     steps:
       - name: Checkout code
@@ -30,17 +29,14 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
-          CHANNEL_NAME: ${{ secrets.CHANNEL_NAME }}
         run: python video_bot.py
 
       - name: Save memory
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
-          # Добавляем файл памяти в индекс
+          touch last_video_date.txt # Создает файл, если его не существует
           git add last_video_date.txt
-          # Фиксируем изменения
-          git commit -m "Update last video date: $(date)" || echo "No changes to commit"
-          # Синхронизация и пуш
+          git commit -m "Update video memory: $(date)" || echo "No changes to commit"
           git pull --rebase origin main
           git push origin main
