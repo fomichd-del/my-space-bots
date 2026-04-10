@@ -8,6 +8,7 @@ from deep_translator import GoogleTranslator
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
+DB_FILE        = "last_history_event.txt" # Файл памяти
 
 translator = GoogleTranslator(source='auto', target='ru')
 
@@ -28,6 +29,7 @@ def get_detailed_summary(page_title):
     return ""
 
 def get_event():
+    """Ищет подходящее космическое событие на текущий день"""
     now = datetime.now()
     url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/{now.month:02d}/{now.day:02d}"
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -37,6 +39,7 @@ def get_event():
         events = data.get('selected', []) + data.get('events', [])
         for e in events:
             text = e.get('text', '').lower()
+            # Проверяем, чтобы было про космос и не было запрещенных тем
             if any(w in text for w in SPACE_WORDS) and not any(w in text for w in FORBIDDEN):
                 return e
         return None
@@ -46,19 +49,27 @@ def get_event():
 def send_to_telegram():
     event = get_event()
     if not event:
-        print("📭 Событий не найдено.")
+        print("📭 Космических событий на сегодня не найдено.")
         return
 
     year = event.get('year')
-    # Получаем название страницы для глубокого поиска
     page_title = event['pages'][0]['title'] if 'pages' in event else ""
     
-    # Пытаемся получить развернутый текст
+    # --- ПРОВЕРКА НА ПОВТОРЫ ---
+    # Создаем уникальный ключ события (год + заголовок страницы)
+    current_event_id = f"{year}_{page_title}"
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, 'r', encoding='utf-8') as f:
+            if f.read().strip() == current_event_id:
+                print(f"✋ Событие '{current_event_id}' уже публиковалось ранее.")
+                return
+
+    # Пытаемся получить развернутый текст из русской Википедии
     detailed_info = get_detailed_summary(page_title)
     if not detailed_info:
         detailed_info = translator.translate(event.get('text', ''))
 
-    # Специальный разбор для Пионера-11 (6 апреля)
+    # Спец-кейсы для оформления (твой авторский блок)
     if year == "1973" and "Pioneer" in page_title:
         title = "ЛЕГЕНДАРНЫЙ ПРЫЖОК К САТУРНУ: ПИОНЕР-11"
         purpose = "Главной целью было изучение пояса астероидов и гигантских планет. Ученые хотели впервые увидеть Сатурн и его кольца так близко, как никогда раньше."
@@ -87,10 +98,17 @@ def send_to_telegram():
     photo_url = event['pages'][0].get('originalimage', {}).get('source') if 'pages' in event else None
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
+    # Отправка
     if photo_url:
-        requests.post(f"{base_url}/sendPhoto", data={'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': caption, 'parse_mode': 'HTML'})
+        r = requests.post(f"{base_url}/sendPhoto", data={'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': caption, 'parse_mode': 'HTML'})
     else:
-        requests.post(f"{base_url}/sendMessage", data={'chat_id': CHANNEL_NAME, 'text': caption, 'parse_mode': 'HTML'})
+        r = requests.post(f"{base_url}/sendMessage", data={'chat_id': CHANNEL_NAME, 'text': caption, 'parse_mode': 'HTML'})
+
+    # Если отправка успешна — записываем в память
+    if r.status_code == 200:
+        with open(DB_FILE, 'w', encoding='utf-8') as f:
+            f.write(current_event_id)
+        print(f"✅ Пост за {year} год успешно опубликован!")
 
 if __name__ == '__main__':
     send_to_telegram()
