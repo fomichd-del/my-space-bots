@@ -1,59 +1,67 @@
 name: NASA Daily Content
 
+# 1. Расписание запусков
 on:
   schedule:
-    - cron: '0 9 * * *'  # Утренний запуск (12:00 МСК)
-    - cron: '0 15 * * *' # Вечерний запуск (18:00 МСК)
-  workflow_dispatch:      # Кнопка ручного запуска
+    - cron: '0 9 * * *'  # Утренний запуск (12:00 МСК) — для ФОТО
+    - cron: '0 15 * * *' # Вечерний запуск (18:00 МСК) — для ВИДЕО
+  workflow_dispatch:      # Кнопка для ручного запуска в интерфейсе GitHub
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     
+    # Даем права на запись, чтобы бот мог сохранять файлы памяти в репозиторий
     permissions:
-      contents: write # Разрешение на сохранение файла памяти
+      contents: write
 
     steps:
+      # Шаг 1: Загружаем код из репозитория
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # Шаг 2: Устанавливаем Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
+      # Шаг 3: Устанавливаем библиотеки
       - name: Install dependencies
         run: pip install requests deep_translator
 
+      # Шаг 4: Запуск логики выбора контента
       - name: Post Content
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         shell: bash
         run: |
-          # Проверяем, по какому расписанию запущен воркфлоу
-          # Если cron на 9:00 — режим image, если на 15:00 — video
+          # Проверяем, какой сейчас час по расписанию cron
           if [[ "${{ github.event.schedule }}" == "0 9 * * *" ]]; then
-            echo "Запуск: Утреннее фото"
+            echo "⏰ Режим: Утреннее фото"
             python cosmos_photo.py image
           elif [[ "${{ github.event.schedule }}" == "0 15 * * *" ]]; then
-            echo "Запуск: Вечернее видео"
+            echo "⏰ Режим: Вечернее видео"
             python cosmos_photo.py video
           else
-            # Если нажали кнопку вручную, по умолчанию шлем фото
-            echo "Запуск: Ручной (режим Image)"
+            # Если запустили кнопкой вручную, по умолчанию шлем фото
+            echo "▶️ Ручной запуск: режим Image"
             python cosmos_photo.py image
           fi
 
+      # Шаг 5: Сохранение «памяти» (важно для защиты от дублей)
       - name: Save memory
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
-          # Добавляем файл базы данных в индекс
-          git add last_cosmo_post.txt
+          
+          # Добавляем ВСЕ файлы памяти (last_cosmo_image.txt и last_cosmo_video.txt)
+          git add last_cosmo_*.txt
+          
           # Фиксируем изменения, если они есть
           git commit -m "Update NASA memory: $(date)" || echo "No changes to commit"
-          # Подтягиваем изменения из репозитория, чтобы не было конфликтов
+          
+          # Синхронизируемся с сервером и отправляем данные обратно в репозиторий
           git pull --rebase origin main
-          # Отправляем в репозиторий
           git push origin main
