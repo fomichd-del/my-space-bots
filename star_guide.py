@@ -2,17 +2,15 @@ import requests
 import os
 import json
 import random
-from datetime import datetime
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ
+# ⚙️ НАСТРОЙКИ (Проверь CHANNEL_NAME!)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-CHANNEL_NAME   = '@vladislav_space'
-# Твоя ссылка на чудо-кнопку
-MAP_URL = "https://fomichd-del.github.io/my-space-bots/" 
+CHANNEL_NAME   = '@vladislav_space' # Твой канал
+MAP_URL        = "https://fomichd-del.github.io/my-space-bots/" 
 
-# БАЗА ДАННЫХ (50 ФАКТОВ)
+# БАЗА ДАННЫХ (50 УНИКАЛЬНЫХ ФАКТОВ)
 CONSTELLATIONS = [
     {"name": "Большая Медведица", "fact": "По двум крайним звездам её «ковша» можно найти Полярную звезду."},
     {"name": "Орион", "fact": "В этом созвездии находится Бетельгейзе — красный гигант, который в будущем может стать сверхновой."},
@@ -74,14 +72,17 @@ STAR_PHOTOS = [
 ]
 
 def post_star_guide():
+    if not TELEGRAM_TOKEN:
+        print("❌ ОШИБКА: TELEGRAM_TOKEN не найден в Secrets!")
+        return
+
     item = random.choice(CONSTELLATIONS)
     
-    # --- КРАСОЧНОЕ ОФОРМЛЕНИЕ (НОВОЕ!) ---
-    # Мы добавили "звездные" эмодзи и сделали текст более воздушным
+    # --- КРАСОЧНОЕ ОФОРМЛЕНИЕ ---
     text = (
         f"💫 <b>ВРЕМЯ СМОТРЕТЬ НА ЗВЕЗДЫ!</b>\n"
         f"─────────────────────\n"
-        f"🔭 <i>Прием, экипаж! Ночное небо уже зажгло свои волшебные огни. Самое время направить наши телескопы ввысь!</i> 🌌\n\n"
+        f"🔭 <i>Прием, экипаж! Ночное небо уже зажгло свои волшебные огни. Самое время направить телескопы ввысь!</i> 🌌\n\n"
         f"🛸 <b>Сегодня мы охотимся на:</b>\n"
         f"✨ 👉 <b>{item['name']}</b> 👈 ✨\n\n"
         f"📖 <b>Космический факт:</b> {item['fact']}\n"
@@ -90,7 +91,6 @@ def post_star_guide():
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    # Мы сделали текст кнопки более ярким с помощью КАПСЛОКА и искр
     keyboard = {
         "inline_keyboard": [
             [{"text": "✨ ВКЛЮЧИТЬ ПЛАНЕТАРИЙ ✨", "url": MAP_URL}]
@@ -105,7 +105,17 @@ def post_star_guide():
         'reply_markup': json.dumps(keyboard)
     }
     
-    requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
+    # --- ОТПРАВКА И ОТЛАДКА ---
+    print(f"📡 Попытка отправки в канал {CHANNEL_NAME}...")
+    response = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
+    
+    print(f"📡 Статус ответа Telegram: {response.status_code}")
+    print(f"📝 Текст ответа: {response.text}")
+
+    if response.status_code == 200:
+        print(f"✅ Успешно отправлено созвездие: {item['name']}")
+    else:
+        print(f"❌ Ошибка отправки!")
 
 if __name__ == '__main__':
     post_star_guide()
