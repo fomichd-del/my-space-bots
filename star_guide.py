@@ -4,20 +4,20 @@ import json
 import random
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ (Проверь CHANNEL_NAME!)
+# ⚙️ НАСТРОЙКИ
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-CHANNEL_NAME   = '@vladislav_space' # Твой канал
+CHANNEL_NAME   = '@vladislav_space' 
 MAP_URL        = "https://fomichd-del.github.io/my-space-bots/" 
 
-# БАЗА ДАННЫХ (50 УНИКАЛЬНЫХ ФАКТОВ)
+# БАЗА ДАННЫХ (50 ФАКТОВ)
 CONSTELLATIONS = [
     {"name": "Большая Медведица", "fact": "По двум крайним звездам её «ковша» можно найти Полярную звезду."},
-    {"name": "Орион", "fact": "В этом созвездии находится Бетельгейзе — красный гигант, который в будущем может стать сверхновой."},
+    {"name": "Орион", "fact": "В этом созвездии находится Бетельгейзе — красный гигант, который может стать сверхновой."},
     {"name": "Кассиопея", "fact": "Она всегда выглядит как буква W или M, вращаясь вокруг Полярной звезды."},
     {"name": "Лебедь", "fact": "В шее Лебедя находится звезда Денеб — одна из самых далеких звезд, видимых глазом."},
     {"name": "Лира", "fact": "Её главная звезда Вега через 12 000 лет станет новой Полярной звездой."},
-    {"name": "Пегас", "fact": "Главный квадрат Пегаса настолько велик, что внутри него почти не видно тусклых звезд."},
+    {"name": "Пегас", "fact": "Главный квадрат Пегаса настолько велик, что внутри него почти нет тусклых звезд."},
     {"name": "Андромеда", "fact": "В этом созвездии видна Туманность Андромеды — ближайшая к нам крупная галактика."},
     {"name": "Персей", "fact": "Каждый август из этого созвездия вылетает знаменитый метеорный поток Персеиды."},
     {"name": "Лев", "fact": "Его сердце — звезда Регул. Она вращается так быстро, что сплюснулась у полюсов."},
@@ -64,21 +64,21 @@ CONSTELLATIONS = [
     {"name": "Эридан", "fact": "Самое длинное созвездие-река, которое тянется через всё небо."}
 ]
 
+# НАДЕЖНЫЕ ПРЯМЫЕ ССЫЛКИ НА КАРТИНКИ
 STAR_PHOTOS = [
-    "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200",
-    "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?q=80&w=1200",
-    "https://images.unsplash.com/photo-1506318137071-a8e063b4bc04?q=80&w=1200",
-    "https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=1200"
+    "https://cdn.pixabay.com/photo/2016/11/21/15/48/milky-way-1846050_1280.jpg",
+    "https://cdn.pixabay.com/photo/2011/12/13/14/28/earth-11001_1280.jpg",
+    "https://cdn.pixabay.com/photo/2016/10/20/18/35/earth-1756274_1280.jpg",
+    "https://cdn.pixabay.com/photo/2015/04/23/21/59/hot-air-balloon-736879_1280.jpg"
 ]
 
 def post_star_guide():
     if not TELEGRAM_TOKEN:
-        print("❌ ОШИБКА: TELEGRAM_TOKEN не найден в Secrets!")
+        print("❌ Ошибка: Токен не найден.")
         return
 
     item = random.choice(CONSTELLATIONS)
     
-    # --- КРАСОЧНОЕ ОФОРМЛЕНИЕ ---
     text = (
         f"💫 <b>ВРЕМЯ СМОТРЕТЬ НА ЗВЕЗДЫ!</b>\n"
         f"─────────────────────\n"
@@ -92,9 +92,7 @@ def post_star_guide():
     )
 
     keyboard = {
-        "inline_keyboard": [
-            [{"text": "✨ ВКЛЮЧИТЬ ПЛАНЕТАРИЙ ✨", "url": MAP_URL}]
-        ]
+        "inline_keyboard": [[{"text": "✨ ВКЛЮЧИТЬ ПЛАНЕТАРИЙ ✨", "url": MAP_URL}]]
     }
 
     payload = {
@@ -105,17 +103,8 @@ def post_star_guide():
         'reply_markup': json.dumps(keyboard)
     }
     
-    # --- ОТПРАВКА И ОТЛАДКА ---
-    print(f"📡 Попытка отправки в канал {CHANNEL_NAME}...")
-    response = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
-    
-    print(f"📡 Статус ответа Telegram: {response.status_code}")
-    print(f"📝 Текст ответа: {response.text}")
-
-    if response.status_code == 200:
-        print(f"✅ Успешно отправлено созвездие: {item['name']}")
-    else:
-        print(f"❌ Ошибка отправки!")
+    res = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
+    print(f"📡 Статус: {res.status_code}, Ответ: {res.text}")
 
 if __name__ == '__main__':
     post_star_guide()
