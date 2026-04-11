@@ -3,53 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Навигационный Центр - Космос</title>
+    <title>Навигационный Центр</title>
     <style>
-        body { background: #050a18; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-        .card { padding: 25px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); max-width: 350px; width: 100%; text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.7); }
-        h2 { font-size: 20px; margin-bottom: 10px; color: #4db8ff; }
-        p { color: #8e9aaf; font-size: 14px; margin-bottom: 20px; }
-        .btn { display: block; margin: 10px 0; padding: 14px; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 14px; transition: 0.2s; }
-        .btn-pro { background: #2980b9; }
+        body { background: #050a18; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .card { padding: 30px; border-radius: 20px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); max-width: 350px; text-align: center; }
+        .btn { display: block; margin: 15px 0; padding: 15px; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; transition: 0.2s; }
+        .btn-3d { background: #2980b9; }
         .btn-lite { background: #27ae60; }
-        .btn-map { background: #8e44ad; }
-        .btn:active { transform: scale(0.98); }
-        .footer-note { font-size: 11px; color: #576574; margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); }
-        b { color: #ff9f43; }
+        p { color: #8e9aaf; font-size: 14px; margin-bottom: 25px; }
+        .footer { font-size: 11px; color: #576574; margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>🛰 ЦЕНТР НАВИГАЦИИ</h2>
-        <p>Выбери режим отображения звездного неба для своего устройства:</p>
+        <h2>🔭 ПУЛЬТ НАВИГАЦИИ</h2>
+        <p>Выбери режим карты для своего устройства:</p>
         
-        <a href="#" id="pro-link" class="btn btn-pro">🚀 3D ПЛАНЕТАРИЙ (PRO)</a>
-        <a href="#" id="lite-link" class="btn btn-lite">🛰 ЛЕГКАЯ КАРТА (LITE)</a>
-        <a href="#" id="sky-link" class="btn btn-map">🌌 КАРТА GOOGLE SKY</a>
+        <a href="#" id="link-3d" class="btn btn-3d">🚀 3D ПЛАНЕТАРИЙ (PRO)</a>
+        <a href="#" id="link-lite" class="btn btn-lite">🛰 ЛЕГКАЯ КАРТА (LITE)</a>
 
-        <div class="footer-note">
-            ⚠️ <b>Совет:</b> Если видишь белый экран, нажми "три точки" в углу Telegram и выбери <b>"Открыть в браузере"</b>.
+        <div class="footer">
+            Если видишь белый экран — нажми "три точки" в углу и выбери <b>"Открыть в браузере"</b>.
         </div>
     </div>
 
     <script>
-        function setup(lat, lon) {
-            // Stellarium (тяжелый 3D)
-            document.getElementById('pro-link').href = `https://stellarium-web.org/skymap?lat=${lat}&lng=${lon}`;
-            // The Sky Live (легкий, работает везде)
-            document.getElementById('lite-link').href = `https://theskylive.com/planetarium?obj=&now=1&lat=${lat}&lon=${lon}`;
-            // Google Sky (средний)
-            document.getElementById('sky-link').href = `https://www.google.com/sky/#latitude=${lat}&longitude=${lon}&zoom=6`;
+        function set(lat, lon) {
+            document.getElementById('link-3d').href = `https://stellarium-web.org/skymap?lat=${lat}&lng=${lon}`;
+            document.getElementById('link-lite').href = `https://theskylive.com/planetarium?obj=&now=1&lat=${lat}&lon=${lon}`;
         }
-
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (p) => setup(p.coords.latitude, p.coords.longitude),
-                () => setup(50.45, 30.52) // По умолчанию
-            );
-        } else {
-            setup(50.45, 30.52);
-        }
+            navigator.geolocation.getCurrentPosition(p => set(p.coords.latitude, p.coords.longitude), () => set(50.45, 30.52));
+        } else { set(50.45, 30.52); }
     </script>
 </body>
 </html>
