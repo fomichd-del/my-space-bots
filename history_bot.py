@@ -13,103 +13,116 @@ DB_FILE        = "last_history_event.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Список слов для СТРОГОЙ фильтрации (никакой политики и религии)
+# Строгий фильтр для Википедии
 SPACE_KEYWORDS = [
     'space', 'nasa', 'rocket', 'satellite', 'orbit', 'launch', 'moon', 'mars', 
     'astronaut', 'cosmonaut', 'sputnik', 'apollo', 'soyuz', 'telescope', 'galaxy',
-    'astronomy', 'iss', 'mks', 'baikonur', 'shuttle', 'gagarin', 'armstrong', 
-    'planet', 'nebula', 'supernova', 'vostok', 'pioneer', 'voyager'
+    'astronomy', 'iss', 'mks', 'baikonur', 'shuttle', 'gagarin', 'armstrong'
 ]
 
-def get_space_history_event():
-    """Ищет только те события из Википедии, которые реально про космос"""
+# Заголовки, чтобы сайты не думали, что мы злой бот (Фикс ошибки 403)
+HEADERS = {'User-Agent': 'SpaceBotHistoryProject/1.0 (contact: your-email@example.com)'}
+
+def get_pro_space_events():
+    """Источник 1: Профессиональный календарь космических событий (The Space Devs)"""
     today = datetime.now()
     month, day = today.month, today.day
+    # Ищем события, связанные с текущим днем
+    url = f"https://ll.thespacedevs.com/2.2.0/event/?limit=10"
     
+    try:
+        print("📡 Сканирую профессиональную базу космических событий...")
+        response = requests.get(url, headers=HEADERS, timeout=30)
+        if response.status_code != 200: return None
+        
+        events = response.json().get('results', [])
+        valid_events = []
+        
+        for e in events:
+            # Проверяем, совпадает ли дата (день и месяц)
+            event_date = datetime.fromisoformat(e['date'].replace('Z', '+00:00'))
+            if event_date.month == month and event_date.day == day:
+                valid_events.append(e)
+        
+        if not valid_events: return None
+        
+        # Выбираем случайное из подходящих
+        event = random.choice(valid_events)
+        year = datetime.fromisoformat(event['date'].replace('Z', '+00:00')).year
+        
+        return {
+            'year': year,
+            'text': event['description'],
+            'img': event.get('feature_image'),
+            'source': 'Space Devs Archive'
+        }
+    except: return None
+
+def get_wikipedia_event():
+    """Источник 2: Википедия (Запасной вариант с фильтром)"""
+    today = datetime.now()
+    month, day = today.month, today.day
     url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}"
     
     try:
-        print(f"📡 Запрос к архивам Википедии на {day}/{month}...")
-        response = requests.get(url, timeout=30)
+        print("📡 Профессиональная база пуста. Ищу в Википедии...")
+        response = requests.get(url, headers=HEADERS, timeout=30)
+        if response.status_code != 200: return None
         
-        # Защита от пустых ответов или ошибок сервера
-        if response.status_code != 200:
-            print(f"⚠️ Википедия временно недоступна (Код: {response.status_code}).")
-            return None, None, None
-
-        if not response.text.strip():
-            print("❌ Ошибка: Получен пустой ответ от API.")
-            return None, None, None
-
         data = response.json()
         events = data.get('events', [])
         
-        # 1. СТРОГИЙ ФИЛЬТР: Ищем только космос
-        space_events = []
-        for e in events:
-            text_en = e['text'].lower()
-            if any(key in text_en for key in SPACE_KEYWORDS):
-                space_events.append(e)
+        # Строгая фильтрация по ключевым словам
+        space_events = [e for e in events if any(k in e['text'].lower() for k in SPACE_KEYWORDS)]
         
-        if not space_events:
-            print("📭 Космических дат на сегодня не обнаружено. Ждем завтра!")
-            return None, None, None
-
-        # 2. ПРОВЕРКА ПАМЯТИ
+        if not space_events: return None
+        
+        # Проверка памяти
         sent_years = []
         if os.path.exists(DB_FILE):
-            with open(DB_FILE, 'r', encoding='utf-8') as f:
-                sent_years = f.read().splitlines()
-
-        # 3. ВЫБОР НОВОГО СОБЫТИЯ
+            with open(DB_FILE, 'r') as f: sent_years = f.read().splitlines()
+            
         random.shuffle(space_events)
-        target = None
         for e in space_events:
             if str(e['year']) not in sent_years:
-                target = e
-                break
+                img = e['pages'][0]['originalimage']['source'] if e.get('pages') and e['pages'][0].get('originalimage') else None
+                return {'year': e['year'], 'text': e['text'], 'img': img, 'source': 'Wikipedia History'}
         
-        if not target:
-            print("✋ Все космические события этого дня уже были в канале.")
-            return None, None, None
+        return None
+    except: return None
 
-        year = target['year']
-        text_en = target['text']
+def send_history():
+    # Пробуем сначала профильный источник
+    event = get_pro_space_events()
+    
+    # Если там пусто — идем в Википедию
+    if not event:
+        event = get_wikipedia_event()
         
-        # Получаем фото темы (или космос по умолчанию)
-        img_url = "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=1200&auto=format&fit=crop"
-        if target.get('pages') and target['pages'][0].get('originalimage'):
-            img_url = target['pages'][0]['originalimage']['source']
+    if not event:
+        print("📭 Сегодня ничего космического не произошло.")
+        return
 
-        # ПЕРЕВОД
-        print(f"📝 Перевожу событие {year} года...")
-        text_ru = translator.translate(text_en)
-        
-        caption = (
-            f"📜 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
-            f"📅 <b>Дата: {day}.{month}.{year} года</b>\n"
-            f"─────────────────────\n\n"
-            f"🚀 <b>ЧТО ПРОИЗОШЛО:</b>\n"
-            f"{text_ru}\n\n"
-            f"🔭 <i>Это событие — важный шаг в освоении бескрайних просторов Вселенной.</i>\n\n"
-            f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-        )
-        
-        return img_url, caption, year
+    # Перевод и оформление
+    text_ru = translator.translate(event['text'])
+    img_url = event['img'] or "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=1200"
+    
+    caption = (
+        f"📜 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
+        f"📅 <b>Дата: {datetime.now().day}.{datetime.now().month}.{event['year']} года</b>\n"
+        f"─────────────────────\n\n"
+        f"🚀 <b>ЧТО ПРОИЗОШЛО:</b>\n"
+        f"{text_ru}\n\n"
+        f"🔭 <i>Источник: {event['source']}</i>\n\n"
+        f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+    )
 
-    except Exception as e:
-        print(f"❌ Критическая ошибка: {e}")
-        return None, None, None
-
-def send():
-    img_url, caption, year = get_space_history_event()
-    if img_url:
-        payload = {'chat_id': CHANNEL_NAME, 'photo': img_url, 'caption': caption, 'parse_mode': 'HTML'}
-        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
-        if r.status_code == 200:
-            with open(DB_FILE, 'a', encoding='utf-8') as f:
-                f.write(f"{year}\n")
-            print(f"✅ Урок истории за {year} год опубликован!")
+    payload = {'chat_id': CHANNEL_NAME, 'photo': img_url, 'caption': caption, 'parse_mode': 'HTML'}
+    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
+    
+    if r.status_code == 200:
+        with open(DB_FILE, 'a') as f: f.write(f"{event['year']}\n")
+        print(f"✅ Урок за {event['year']} год опубликован!")
 
 if __name__ == '__main__':
-    send()
+    send_history()
