@@ -3,42 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Центр Навигации</title>
+    <title>Навигация Космоса</title>
     <style>
         body { background: #050a18; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
         .card { padding: 30px; border-radius: 24px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(15px); max-width: 340px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         .btn { display: block; margin: 15px 0; padding: 18px; color: white; text-decoration: none; border-radius: 16px; font-weight: bold; font-size: 15px; transition: 0.3s; }
         .btn-pro { background: linear-gradient(135deg, #3498db, #2980b9); box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4); }
         .btn-lite { background: linear-gradient(135deg, #27ae60, #1e8449); box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4); }
-        h2 { font-size: 24px; margin-bottom: 10px; color: #fff; letter-spacing: 1px; }
-        p { color: #8e9aaf; font-size: 14px; line-height: 1.5; margin-bottom: 25px; }
+        h2 { font-size: 24px; margin-bottom: 10px; }
+        p { color: #8e9aaf; font-size: 14px; margin-bottom: 25px; }
         .warning { background: rgba(255, 159, 67, 0.1); color: #ff9f43; padding: 15px; border-radius: 12px; font-size: 12px; border: 1px solid rgba(255, 159, 67, 0.3); margin-top: 20px; text-align: left; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>🔭 НАВИГАЦИЯ</h2>
-        <p>Выберите режим работы бортового компьютера:</p>
+        <p>Выберите режим работы компьютера:</p>
         
-        <a href="#" id="link-pro" class="btn btn-pro">🚀 3D КАРТА (PRO-ВЕРСИЯ)</a>
+        <a href="#" id="link-pro" class="btn btn-pro">🚀 3D КАРТА (PRO)</a>
         <a href="#" id="link-lite" class="btn btn-lite">🛰 ЛЕГКАЯ КАРТА (LITE)</a>
 
         <div class="warning">
-            <b>ИНСТРУКЦИЯ ШТУРМАНА:</b><br>
-            Если 3D карта не загрузилась (белый экран) — нажмите <b>три точки</b> в углу экрана Telegram и выберите <b>"Открыть в браузере"</b>.
+            <b>ДЛЯ SAMSUNG S24:</b><br>
+            Если видите белый экран, нажмите <b>"три точки"</b> в углу Telegram и выберите <b>"Открыть в браузере"</b>. В Chrome всё заработает идеально!
         </div>
     </div>
 
     <script>
         function set(lat, lon) {
-            // Stellarium (тяжелый 3D)
+            // Stellarium (Тяжелый 3D)
             document.getElementById('link-pro').href = `https://stellarium-web.org/skymap?lat=${lat}&lng=${lon}`;
-            // Sky-Map.org (легкий, без рекламы)
-            document.getElementById('link-lite').href = `http://sky-map.org/?ra=0&de=0&zoom=2&show_grid=1&show_constellation_lines=1&show_constellation_boundaries=1&show_constellation_names=1`;
+            // WikiSky (Легкий, без рекламы)
+            document.getElementById('link-lite').href = `http://sky-map.org/?ra=0&de=0&zoom=2&show_grid=1&show_constellation_lines=1&show_constellation_names=1`;
         }
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(p => set(p.coords.latitude, p.coords.longitude), () => set(50.45, 30.52));
-        } else { set(50.45, 30.52); }
+            navigator.geolocation.getCurrentPosition(p => set(p.coords.latitude, p.coords.longitude), () => set(51.52, 31.28));
+        } else { set(51.52, 31.28); }
     </script>
 </body>
 </html>
