@@ -1,5 +1,6 @@
 import requests
 import os
+import random
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -8,104 +9,103 @@ from deep_translator import GoogleTranslator
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
-DB_FILE        = "last_history_event.txt" # Файл памяти
-
-# ТВОЯ КАРТИНКА ОФОРМЛЕНИЯ ТЕМЫ ИСТОРИИ (можешь заменить на свою ссылку)
-HISTORY_THEME_IMG = "https://images.unsplash.com/photo-1543783207-ec64e4d95325?q=80&w=1200&auto=format&fit=crop"
+DB_FILE        = "last_history_event.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🚀 КОСМИЧЕСКИЕ КЛЮЧИ
-SPACE_WORDS = ['space', 'nasa', 'rocket', 'planet', 'pioneer', 'voyager', 'apollo', 'soyuz', 'shuttle', 'iss', 'orbit', 'launch', 'telescope']
-FORBIDDEN = ['war', 'military', 'nuclear', 'test', 'explosion', 'army', 'politics', 'weapon', 'война', 'ядерный', 'испытание']
+# Список слов, которые ОБЯЗАТЕЛЬНО должны быть в событии, чтобы мы его запостили
+SPACE_KEYWORDS = [
+    'space', 'nasa', 'rocket', 'satellite', 'orbit', 'launch', 'moon', 'mars', 
+    'astronaut', 'cosmonaut', 'sputnik', 'apollo', 'soyuz', 'telescope', 'galaxy',
+    'astronomy', 'iss', 'mks', 'baikonur', 'shuttle', 'gagarin', 'armstrong'
+]
 
-def get_detailed_summary(page_title):
-    """Заходит вглубь Википедии и берет подробное описание статьи"""
-    url = f"https://ru.wikipedia.org/api/rest_v1/page/summary/{page_title}"
-    try:
-        r = requests.get(url, timeout=20)
-        if r.status_code == 200:
-            data = r.json()
-            return data.get('extract', '')
-    except:
-        return ""
-    return ""
-
-def get_event():
-    """Ищет подходящее космическое событие на текущий день"""
-    now = datetime.now()
-    url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/{now.month:02d}/{now.day:02d}"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    try:
-        r = requests.get(url, headers=headers, timeout=30)
-        data = r.json()
-        events = data.get('selected', []) + data.get('events', [])
-        for e in events:
-            text = e.get('text', '').lower()
-            # Проверяем, чтобы было про космос и не было запрещенных тем
-            if any(w in text for w in SPACE_WORDS) and not any(w in text for w in FORBIDDEN):
-                return e
-        return None
-    except:
-        return None
-
-def send_to_telegram():
-    event = get_event()
-    if not event:
-        print("📭 Космических событий на сегодня не найдено.")
-        return
-
-    year = event.get('year')
-    page_title = event['pages'][0]['title'] if 'pages' in event else ""
+def get_space_history_event():
+    """Ищет только те события из Википедии, которые связаны с космосом"""
+    today = datetime.now()
+    month = today.month
+    day = today.day
     
-    # --- ПРОВЕРКА НА ПОВТОРЫ ---
-    current_event_id = f"{year}_{page_title}"
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
-            if f.read().strip() == current_event_id:
-                print(f"✋ Событие '{current_event_id}' уже публиковалось ранее.")
-                return
+    # Берем события дня из Википедии (английской, там база больше)
+    url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/{month}/{day}"
+    
+    try:
+        print(f"📡 Сканирую исторические архивы на {day}/{month}...")
+        response = requests.get(url, timeout=20)
+        data = response.json()
+        events = data.get('events', [])
+        
+        # Фильтруем: оставляем только те, где есть 'space' ключевые слова
+        space_events = []
+        for e in events:
+            text_lower = e['text'].lower()
+            if any(key in text_lower for key in SPACE_KEYWORDS):
+                space_events.append(e)
+        
+        if not space_events:
+            print("📭 Настоящих космических событий сегодня не найдено.")
+            return None, None, None
 
-    # Пытаемся получить развернутый текст из русской Википедии
-    detailed_info = get_detailed_summary(page_title)
-    if not detailed_info:
-        detailed_info = translator.translate(event.get('text', ''))
+        # Проверка памяти (чтобы не постить одно и то же каждый год)
+        if os.path.exists(DB_FILE):
+            with open(DB_FILE, 'r', encoding='utf-8') as f:
+                sent_years = f.read().splitlines()
+        else:
+            sent_years = []
 
-    # Спец-кейсы для оформления (твой авторский блок)
-    if year == "1973" and "Pioneer" in page_title:
-        title = "ЛЕГЕНДАРНЫЙ ПРЫЖОК К САТУРНУ: ПИОНЕР-11"
-        purpose = "Главной целью было изучение пояса астероидов и гигантских планет. Ученые хотели впервые увидеть Сатурн и его кольца так близко, как никогда раньше."
-        result = "Аппарат летел 6 лет! В итоге он открыл новое кольцо Сатурна и показал нам, что там бушуют мощные штормы. А еще он доказал, что через пояс астероидов можно летать безопасно."
-        fact = "На его борту закреплена золотая пластинка с рисунками людей. Это письмо в бутылке, брошенное в космический океан!"
-    else:
-        title = "КОСМИЧЕСКАЯ МИССИЯ"
-        purpose = "Изучение новых границ нашей Вселенной и проверка технологий, которые позволят людям в будущем жить на других планетах."
-        result = "Это событие дало ученым бесценные данные, которые мы используем сегодня для запусков современных ракет SpaceX и постройки новых телескопов."
-        fact = "Знаешь ли ты, что каждый такой запуск — это труд тысяч инженеров, которые работают, чтобы мы знали о звездах больше?"
+        # Ищем событие, которого еще не было
+        random.shuffle(space_events)
+        target_event = None
+        for e in space_events:
+            if str(e['year']) not in sent_years:
+                target_event = e
+                break
+        
+        if not target_event:
+            return None, None, None
 
-    # ОФОРМЛЕНИЕ
-    caption = (
-        f"👨‍🚀 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
-        f"📅 <b>Дата: {datetime.now().strftime('%d %B')} {year} года</b>\n"
-        f"─────────────────────\n\n"
-        f"🚀 <b>{title}</b>\n\n"
-        f"📖 <b>ЧТО ПРОИЗОШЛО:</b>\n{detailed_info[:500]}...\n\n"
-        f"🎯 <b>ОСНОВНАЯ ЦЕЛЬ:</b>\n{purpose}\n\n"
-        f"✅ <b>ИТОГ И РЕЗУЛЬТАТ:</b>\n{result}\n\n"
-        f"💡 <b>А ТЫ ЗНАЛ, ЧТО...</b>\n{fact}\n\n"
-        # БАР УБРАН, ОСТАЛАСЬ ТОЛЬКО ССЫЛКА
-        f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-    )
+        year = target_event['year']
+        text_en = target_event['text']
+        
+        # Получаем картинку, если она есть
+        img_url = "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1200&auto=format&fit=crop"
+        if target_event.get('pages') and target_event['pages'][0].get('originalimage'):
+            img_url = target_event['pages'][0]['originalimage']['source']
 
-    # ОТПРАВКА С ФИКСИРОВАННОЙ КАРТИНКОЙ ТЕМЫ
-    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-    r = requests.post(f"{base_url}/sendPhoto", data={'chat_id': CHANNEL_NAME, 'photo': HISTORY_THEME_IMG, 'caption': caption, 'parse_mode': 'HTML'})
+        # Перевод
+        print(f"📝 Нашел событие {year} года. Перевожу...")
+        text_ru = translator.translate(text_en)
+        
+        caption = (
+            f"📜 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
+            f"📅 <b>Дата: {day} {today.strftime('%B')} {year} года</b>\n"
+            f"─────────────────────\n\n"
+            f"🚀 <b>ЧТО ПРОИЗОШЛО:</b>\n"
+            f"{text_ru}\n\n"
+            f"🔭 <i>Это событие навсегда вошло в летопись освоения Вселенной.</i>\n\n"
+            f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+        )
+        
+        return img_url, caption, year
 
-    # Если отправка успешна — записываем в память
-    if r.status_code == 200:
-        with open(DB_FILE, 'w', encoding='utf-8') as f:
-            f.write(current_event_id)
-        print(f"✅ Пост за {year} год успешно опубликован!")
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        return None, None, None
+
+def send():
+    img_url, caption, year = get_space_history_event()
+    if img_url:
+        payload = {
+            'chat_id': CHANNEL_NAME,
+            'photo': img_url,
+            'caption': caption,
+            'parse_mode': 'HTML'
+        }
+        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
+        if r.status_code == 200:
+            with open(DB_FILE, 'a', encoding='utf-8') as f:
+                f.write(f"{year}\n")
+            print(f"✅ Урок истории за {year} год отправлен!")
 
 if __name__ == '__main__':
-    send_to_telegram()
+    send()
