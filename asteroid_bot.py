@@ -27,7 +27,7 @@ def get_size_comparison(meters):
 
 def get_asteroid_data():
     today = datetime.now().strftime('%Y-%m-%d')
-    url = f"https://api.nasa.gov/neo/rest/v1/feed?start_date={today}&end_date={today}&api_key={NASA_API_KEY}"
+    url = f"https://api.nasa.gov/near_earth_objects/rest/v1/feed?start_date={today}&end_date={today}&api_key={NASA_API_KEY}"
     
     try:
         print(f"📡 Запрос к NASA на {today}...")
@@ -42,7 +42,7 @@ def get_asteroid_data():
         if os.path.exists(DB_FILE):
             with open(DB_FILE, 'r', encoding='utf-8') as f:
                 if ast_id in f.read():
-                    print("✋ Уже было сегодня.")
+                    print("✋ Этот астероид уже был в канале сегодня.")
                     return None, None, None, None
 
         is_danger = hero['is_potentially_hazardous_asteroid']
@@ -62,9 +62,11 @@ def get_asteroid_data():
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
 
-        # Ссылка обычная (url), так как web_app в канале требует регистрации бота
-        orbit_url = f"https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr={ast_id}"
-        keyboard = {"inline_keyboard": [[{"text": "👁 Орбита в 3D", "url": orbit_url}]]}
+        # ПРЯМАЯ ССЫЛКА НА 3D ПЛЕЕР (Orbit Viewer)
+        # Эта ссылка открывает СРАЗУ визуализатор, без таблицы данных
+        direct_orbit_url = f"https://ssd.jpl.nasa.gov/tools/orbit_viewer.html?sstr={ast_id}"
+        
+        keyboard = {"inline_keyboard": [[{"text": "👁 СМОТРЕТЬ ОРБИТУ В 3D", "url": direct_orbit_url}]]}
         
         return text, keyboard, random.choice(SPACE_PHOTOS), ast_id
     except Exception as e:
@@ -74,9 +76,17 @@ def get_asteroid_data():
 def send():
     text, keyb, photo, ast_id = get_asteroid_data()
     if text:
-        payload = {'chat_id': CHANNEL_NAME, 'photo': photo, 'caption': text, 'parse_mode': 'HTML', 'reply_markup': json.dumps(keyb)}
+        payload = {
+            'chat_id': CHANNEL_NAME, 
+            'photo': photo, 
+            'caption': text, 
+            'parse_mode': 'HTML', 
+            'reply_markup': json.dumps(keyb)
+        }
         r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
         if r.status_code == 200:
             with open(DB_FILE, 'a', encoding='utf-8') as f: f.write(f"{ast_id}\n")
+            print(f"✅ Астероид {ast_id} отправлен с прямой ссылкой на плеер.")
 
-if __name__ == '__main__': send()
+if __name__ == '__main__':
+    send()
