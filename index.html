@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Звездный мост - Дневник юного космонавта</title>
+    <style>
+        body { background: #0b1026; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div>
+        <h2>🛰 Настраиваю телескопы...</h2>
+        <p>Определяю твои координаты для точной карты неба</p>
+        <div class="loader"></div>
+    </div>
+
+    <script>
+        function redirectToStellarium() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        // Перенаправляем на Stellarium с координатами
+                        window.location.href = `https://stellarium-web.org/skymap?lat=${lat}&lng=${lon}`;
+                    },
+                    () => {
+                        // Если пользователь запретил геопозицию, просто открываем Stellarium (он сам попробует найти по IP)
+                        window.location.href = "https://stellarium-web.org/";
+                    }
+                );
+            } else {
+                window.location.href = "https://stellarium-web.org/";
+            }
+        }
+        // Запускаем процесс через секунду, чтобы пользователь успел увидеть заставку
+        setTimeout(redirectToStellarium, 1000);
+    </script>
+</body>
+</html>
