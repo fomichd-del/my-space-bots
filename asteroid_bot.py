@@ -2,7 +2,8 @@ import requests
 import os
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo 
 
 # ============================================================
 # ⚙️ НАСТРОЙКИ
@@ -19,21 +20,25 @@ SPACE_PHOTOS = [
 ]
 
 def get_size_comparison(meters):
-    if meters < 15: return "🚌 Размером с автобус"
-    elif meters < 40: return "🏠 Размером с большой дом"
-    elif meters < 100: return "⚽️ Размером с футбольное поле"
-    elif meters < 250: return "🏢 Размером с небоскреб"
-    else: return "⛰ Размером с гору"
+    if meters < 15: return "🚌 Автобус"
+    elif meters < 40: return "🏠 Большой дом"
+    elif meters < 100: return "⚽️ Футбольное поле"
+    elif meters < 250: return "🏢 Небоскреб"
+    else: return "⛰ Гора"
 
 def get_asteroid_data():
-    today = datetime.now().strftime('%Y-%m-%d')
-    url = f"https://api.nasa.gov/neo/rest/v1/feed?start_date={today}&end_date={today}&api_key={NASA_API_KEY}"
+    now_local = datetime.now(ZoneInfo("Europe/Kyiv"))
+    today_str = now_local.strftime('%Y-%m-%d')
+    
+    # 1. Получаем список астероидов на сегодня
+    feed_url = f"https://api.nasa.gov/neo/rest/v1/feed?start_date={today_str}&end_date={today_str}&api_key={NASA_API_KEY}"
     
     try:
-        res = requests.get(url, timeout=40).json()
-        asteroids = res['near_earth_objects'].get(today, [])
+        res = requests.get(feed_url, timeout=40).json()
+        asteroids = res['near_earth_objects'].get(today_str, [])
         if not asteroids: return None, None, None, None
 
+        # Выбираем самый заметный объект
         hero = max(asteroids, key=lambda x: x['estimated_diameter']['meters']['estimated_diameter_max'])
         ast_id = str(hero['neo_reference_id'])
 
@@ -41,43 +46,62 @@ def get_asteroid_data():
             with open(DB_FILE, 'r', encoding='utf-8') as f:
                 if ast_id in f.read(): return None, None, None, None
 
-        is_danger = hero['is_potentially_hazardous_asteroid']
-        raw_name = hero['name'].replace("(", "").replace(")", "").strip()
-        link_name = raw_name.replace(" ", "_")
+        # 2. ДЕЛАЕМ ДОПОЛНИТЕЛЬНЫЙ ЗАПРОС (LOOKUP) ДЛЯ ДОСЬЕ
+        details_url = f"https://api.nasa.gov/neo/rest/v1/neo/{ast_id}?api_key={NASA_API_KEY}"
+        details = requests.get(details_url, timeout=30).json()
+        
+        discovery_date = details.get('orbital_data', {}).get('first_observation_date', "Неизвестно")
+        orbit_class = details.get('orbital_data', {}).get('orbit_class', {}).get('orbit_class_description', "Околоземный")
 
+        # Сбор основных данных
+        name = hero['name'].replace("(", "").replace(")", "").strip()
+        link_name = name.replace(" ", "_")
         size = round(hero['estimated_diameter']['meters']['estimated_diameter_max'])
-        dist_km = float(hero['close_approach_data'][0]['miss_distance']['kilometers'])
-        dist_ld = round(dist_km / 384400, 1)
+        is_danger = hero['is_potentially_hazardous_asteroid']
+        
+        approach = hero['close_approach_data'][0]
+        dist_km = float(approach['miss_distance']['kilometers'])
+        velocity = float(approach['relative_velocity']['kilometers_per_hour'])
+        
+        timestamp_ms = approach['epoch_date_close_approach']
+        approach_dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc).astimezone(ZoneInfo("Europe/Kyiv"))
 
-        # ТЕКСТ ПОСТА С ПОДСКАЗКАМИ
+        # Оценка опасности (почему стоит бояться/не бояться)
+        danger_text = "⚠️ Потенциально опасен (нужен мониторинг)" if is_danger else "✅ Не представляет угрозы Земле"
+        interest_reason = "Крупный размер" if size > 100 else "Очень близкий пролет" if dist_km < 1000000 else "Высокая скорость"
+
+        # ТЕКСТ ПОСТА
         text = (
-            f"☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ</b>\n"
+            f"☄️ <b>ДОСЬЕ ОБЪЕКТА: {name}</b>\n"
             f"─────────────────────\n\n"
-            f"🛰 <b>Название:</b> {raw_name}\n"
-            f"📏 <b>Размер:</b> ~{size} метров\n"
-            f"👉 <i>{get_size_comparison(size)}</i>\n\n"
-            f"🛣 <b>Дистанция:</b> {dist_ld} расстояний до Луны\n"
-            f"{'⚠️' if is_danger else '✅'} <b>Статус: {'ОПАСЕН' if is_danger else 'БЕЗОПАСЕН'}</b>\n\n"
-            f"📖 <b>ШПАРГАЛКА ДЛЯ 3D:</b>\n"
-            f"▫️ <i>Distance</i> — расстояние\n"
-            f"▫️ <i>Velocity</i> — скорость\n"
-            f"▫️ <i>Diameter</i> — диаметр\n\n"
+            f"⏰ <b>Пик сближения:</b> {approach_dt.strftime('%H:%M')}\n"
+            f"🗓 <b>Впервые замечен:</b> {discovery_date}\n\n"
+            f"📏 <b>Размер:</b> ~{size} м ({get_size_comparison(size)})\n"
+            f"🚀 <b>Скорость:</b> {int(velocity):,} км/ч\n"
+            f"🛣 <b>Дистанция:</b> {round(dist_km / 1_000_000, 2)} млн км\n\n"
+            f"🛰 <b>Орбита:</b> {orbit_class}\n"
+            f"🛡 <b>Статус:</b> {danger_text}\n"
+            f"🧐 <b>Интересно:</b> {interest_reason}\n"
+            f"─────────────────────\n"
+            f"📍 <b>ГДЕ ИСКАТЬ:</b> Нажми кнопку ниже. В 3D-плеере разверни камеру на Землю — астероид будет подлетать с освещенной или ночной стороны.\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
 
         eyes_url = f"https://eyes.nasa.gov/apps/asteroids/#/asteroid/{link_name}"
-        keyboard = {"inline_keyboard": [[{"text": "🚀 СМОТРЕТЬ В 3D (NASA EYES)", "url": eyes_url}]]}
+        button_text = f"✨ СМОТРЕТЬ ТРАЕКТОРИЮ В 3D ✨"
+        keyboard = {"inline_keyboard": [[{"text": button_text, "url": eyes_url}]]}
         
         return text, keyboard, random.choice(SPACE_PHOTOS), ast_id
-    except: return None, None, None, None
+    except Exception as e:
+        print(f"❌ Ошибка досье: {e}")
+        return None, None, None, None
 
 def send():
     text, keyb, photo, ast_id = get_asteroid_data()
     if text:
         payload = {'chat_id': CHANNEL_NAME, 'photo': photo, 'caption': text, 'parse_mode': 'HTML', 'reply_markup': json.dumps(keyb)}
-        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
-        if r.status_code == 200:
-            with open(DB_FILE, 'a', encoding='utf-8') as f: f.write(f"{ast_id}\n")
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
+        with open(DB_FILE, 'a', encoding='utf-8') as f: f.write(f"{ast_id}\n")
 
 if __name__ == '__main__':
     send()
