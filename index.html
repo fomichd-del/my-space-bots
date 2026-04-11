@@ -5,14 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Центр Управления Полетами</title>
     <style>
-        body { background: #050a18; color: white; font-family: 'Comic Sans MS', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; text-align: center; }
+        body { background: #050a18; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; text-align: center; }
         .card { padding: 30px; border-radius: 30px; background: rgba(255,255,255,0.07); border: 2px solid #4db8ff; backdrop-filter: blur(15px); max-width: 350px; box-shadow: 0 0 40px rgba(77, 184, 255, 0.3); }
-        h2 { font-size: 26px; color: #ffce00; text-shadow: 2px 2px #e67e22; margin-bottom: 10px; }
-        p { color: #e0e0e0; font-size: 16px; line-height: 1.4; margin-bottom: 25px; }
-        .btn { display: block; margin: 15px 0; padding: 18px; color: white; text-decoration: none; border-radius: 20px; font-weight: bold; font-size: 16px; transition: transform 0.2s; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
-        .btn-pro { background: linear-gradient(135deg, #3498db, #2ecc71); border-bottom: 5px solid #2980b9; }
-        .btn-lite { background: linear-gradient(135deg, #a55eea, #eb3b5a); border-bottom: 5px solid #8854d0; }
-        .btn:active { transform: scale(0.95); }
+        h2 { font-size: 26px; color: #ffce00; margin-bottom: 10px; }
+        p { color: #e0e0e0; font-size: 16px; margin-bottom: 25px; }
+        .btn { display: block; margin: 15px 0; padding: 18px; color: white; text-decoration: none; border-radius: 20px; font-weight: bold; font-size: 16px; transition: 0.3s; }
+        .btn-pro { background: #3498db; border-bottom: 5px solid #2980b9; }
+        .btn-lite { background: #2ecc71; border-bottom: 5px solid #27ae60; }
         .help { background: #fffae6; color: #333; padding: 15px; border-radius: 15px; font-size: 13px; margin-top: 25px; border: 2px dashed #f1c40f; }
     </style>
 </head>
@@ -21,12 +20,12 @@
         <h2>🛰 ПУЛЬТ УПРАВЛЕНИЯ</h2>
         <p>Выбирай режим работы бортовых компьютеров:</p>
         
-        <a href="#" id="link-pro" class="btn btn-pro">🚀 3D КАРТА (STELLARIUM)</a>
+        <a href="#" id="link-pro" class="btn btn-pro">🚀 3D КАРТА (PRO-ВЕРСИЯ)</a>
         <a href="#" id="link-lite" class="btn btn-lite">🛰 БЫСТРАЯ КАРТА (WIKISKY)</a>
 
         <div class="help">
             <b>ПОДСКАЗКА ДЛЯ КОСМОНАВТОВ:</b><br>
-            Если экран белый — нажми <b>"три точки"</b> в самом верху экрана и выбери <b>"Открыть в браузере"</b>. Тогда всё заработает!
+            Если экран белый — нажми <b>"три точки"</b> в самом верху экрана и выберите <b>"Открыть в браузере"</b>. Тогда всё заработает!
         </div>
     </div>
 
@@ -36,8 +35,8 @@
             document.getElementById('link-lite').href = `http://sky-map.org/?ra=0&de=0&zoom=2&show_grid=1&show_constellation_lines=1&show_constellation_names=1`;
         }
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(p => set(p.coords.latitude, p.coords.longitude), () => set(50.45, 30.52));
-        } else { set(50.45, 30.52); }
+            navigator.geolocation.getCurrentPosition(p => set(p.coords.latitude, p.coords.longitude), () => set(51.52, 31.28));
+        } else { set(51.52, 31.28); }
     </script>
 </body>
 </html>
