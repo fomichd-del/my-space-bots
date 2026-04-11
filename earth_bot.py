@@ -1,6 +1,7 @@
 import requests
 import os
 import random
+import json # НОВЫЙ ИМПОРТ (нужен для кнопок)
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -46,7 +47,7 @@ def get_epic_data():
         caption = (
             f"🌍 <b>ВЗГЛЯД ИЗ ТОЧКИ L1</b>\n"
             f"─────────────────────\n"
-            f"Этот снимок сделан с расстояния 1.5 миллиона километров. Мы видим нашу планету целиком, как хрупкий «Голубой мрамор» в пустоте.\n\n"
+            f"Этот снимок спутник DSCOVR сделал с расстояния 1.5 млн км. Мы видим нашу планету целиком, как хрупкий «Голубой мрамор» в пустоте.\n\n"
             f"📅 Дата: <b>{last_date}</b>\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
@@ -88,7 +89,7 @@ def get_extensive_library_data():
                     f"🛰 <b>ОБШИРНЫЙ КОСМОС: {title_ru.upper()}</b>\n"
                     f"─────────────────────\n\n"
                     f"📖 <b>Инфо:</b> {desc_ru}\n\n"
-                    f"🔭 <i>Этот кадр показывает нашу планету с орбиты или во время дальних космических миссий.</i>\n\n"
+                    f"🔭 <i>Этот кадр показывает нашу планету с орбиты или во время космических миссий.</i>\n\n"
                     f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
                 return img_url, caption, nasa_id
@@ -107,7 +108,28 @@ def post_to_telegram():
         url, cap, img_id = get_extensive_library_data() if mode == "EPIC" else get_epic_data()
 
     if url and img_id:
-        payload = {'chat_id': CHANNEL_NAME, 'photo': url, 'caption': cap, 'parse_mode': 'HTML'}
+        
+        # --- БЛОК КНОПОК (НОВОЕ!) ---
+        # Формируем структуру кнопок одна под другой
+        keyboard = {
+            "inline_keyboard": [
+                # Кнопка 1: 3D Глобус (NASA Eyes)
+                [{"text": "🗺 ГЛАЗА ЗЕМЛИ (3D КАРТА)", "url": "https://eyes.nasa.gov/apps/earth/"}],
+                # Кнопка 2: Ютуб-трансляция с МКС
+                [{"text": "📹 МКС: ПРЯМОЙ ЭФИР", "url": "https://www.youtube.com/watch?v=jPTD2gnZFUw"}]
+            ]
+        }
+        # --- КОНЕЦ БЛОКА КНОПОК ---
+
+        # Добавляем reply_markup в payload
+        payload = {
+            'chat_id': CHANNEL_NAME, 
+            'photo': url, 
+            'caption': cap, 
+            'parse_mode': 'HTML',
+            'reply_markup': json.dumps(keyboard) # ПРЕВРАЩАЕМ КНОПКИ В СТРОКУ JSON
+        }
+        
         r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
         
         if r.status_code == 200:
