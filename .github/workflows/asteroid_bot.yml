@@ -1,8 +1,7 @@
 name: asteroid_bot.py
-
 on:
   schedule:
-    - cron: '0 12 * * *' # Проверка раз в день в 15:00 по МСК
+    - cron: '0 12 * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,32 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          pip install requests
-
-      - name: Run asteroid_bot.py
+      - run: pip install requests
+      - name: Run bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         run: python asteroid_bot.py
-
       - name: Save memory
         run: |
-          git config --global user.name "GitHub Action Bot"
-          git config --global user.email "actions@github.com"
-          touch last_asteroid_id.txt # Создает файл, если его нет
+          git config --global user.name "GitHub Bot"
+          git config --global user.email "bot@github.com"
+          # Создаем файл если его нет, чтобы git add не падал
+          if [ ! -f last_asteroid_id.txt ]; then touch last_asteroid_id.txt; fi
           git add last_asteroid_id.txt
-          git commit -m "Update asteroid memory: $(date)" || echo "No changes"
-          git pull --rebase origin main
-          git push origin main
+          git commit -m "Update memory" || echo "No changes"
+          git push
