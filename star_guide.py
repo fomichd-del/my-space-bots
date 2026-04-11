@@ -17,7 +17,7 @@ CONSTELLATIONS = [
     {"name": "Кассиопея", "fact": "Она всегда выглядит как буква W или M, вращаясь вокруг Полярной звезды."},
     {"name": "Лебедь", "fact": "В шее Лебедя находится звезда Денеб — одна из самых далеких звезд, видимых глазом."},
     {"name": "Лира", "fact": "Её главная звезда Вега через 12 000 лет станет новой Полярной звездой."},
-    {"name": "Пегас", "fact": "Главный квадрат Пегаса настолько велик, что внутри него почти нет тусклых звезд."},
+    {"name": "Пегас", "fact": "Главный квадрат Пегаса настолько велик, что внутри него почти не видно тусклых звезд."},
     {"name": "Андромеда", "fact": "В этом созвездии видна Туманность Андромеды — ближайшая к нам крупная галактика."},
     {"name": "Персей", "fact": "Каждый август из этого созвездия вылетает знаменитый метеорный поток Персеиды."},
     {"name": "Лев", "fact": "Его сердце — звезда Регул. Она вращается так быстро, что сплюснулась у полюсов."},
@@ -64,12 +64,12 @@ CONSTELLATIONS = [
     {"name": "Эридан", "fact": "Самое длинное созвездие-река, которое тянется через всё небо."}
 ]
 
-# НАДЕЖНЫЕ ПРЯМЫЕ ССЫЛКИ НА КАРТИНКИ
+# СУПЕР-НАДЕЖНЫЕ ССЫЛКИ (WIKIMEDIA COMMONS)
 STAR_PHOTOS = [
-    "https://cdn.pixabay.com/photo/2016/11/21/15/48/milky-way-1846050_1280.jpg",
-    "https://cdn.pixabay.com/photo/2011/12/13/14/28/earth-11001_1280.jpg",
-    "https://cdn.pixabay.com/photo/2016/10/20/18/35/earth-1756274_1280.jpg",
-    "https://cdn.pixabay.com/photo/2015/04/23/21/59/hot-air-balloon-736879_1280.jpg"
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/NGC_4414_%28NASA-Hubble%29.jpg/1200px-NGC_4414_%28NASA-Hubble%29.jpg",
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Crab_Nebula.jpg/1200px-Crab_Nebula.jpg",
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Stars_over_the_Atacama_Desert.jpg/1200px-Stars_over_the_Atacama_Desert.jpg",
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/Hubble_Ultra_Deep_Field_alt_full_res.jpg/1200px-Hubble_Ultra_Deep_Field_alt_full_res.jpg"
 ]
 
 def post_star_guide():
@@ -103,8 +103,18 @@ def post_star_guide():
         'reply_markup': json.dumps(keyboard)
     }
     
+    # Отправка
+    print(f"📡 Отправка в {CHANNEL_NAME}...")
     res = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
-    print(f"📡 Статус: {res.status_code}, Ответ: {res.text}")
+    
+    # Расширенный лог для понимания
+    print(f"📡 Статус: {res.status_code}")
+    print(f"📝 Текст ответа: {res.text}")
+
+    if res.status_code == 200:
+        print(f"✅ Успех!")
+    else:
+        print(f"❌ Провал!")
 
 if __name__ == '__main__':
     post_star_guide()
