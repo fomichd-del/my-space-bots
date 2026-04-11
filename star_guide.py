@@ -64,7 +64,7 @@ CONSTELLATIONS = [
     {"name": "Эридан", "fact": "Самое длинное созвездие-река, которое тянется через всё небо."}
 ]
 
-# СУПЕР-НАДЕЖНЫЕ ССЫЛКИ (WIKIMEDIA COMMONS)
+# НАДЕЖНЫЕ ПРЯМЫЕ ССЫЛКИ НА АРХИВЫ NASA И WIKIMEDIA
 STAR_PHOTOS = [
     "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/NGC_4414_%28NASA-Hubble%29.jpg/1200px-NGC_4414_%28NASA-Hubble%29.jpg",
     "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Crab_Nebula.jpg/1200px-Crab_Nebula.jpg",
@@ -104,17 +104,28 @@ def post_star_guide():
     }
     
     # Отправка
-    print(f"📡 Отправка в {CHANNEL_NAME}...")
+    print(f"📡 Попытка отправки в канал {CHANNEL_NAME}...")
     res = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
     
-    # Расширенный лог для понимания
-    print(f"📡 Статус: {res.status_code}")
+    print(f"📡 Статус ответа Telegram: {res.status_code}")
     print(f"📝 Текст ответа: {res.text}")
 
     if res.status_code == 200:
         print(f"✅ Успех!")
     else:
-        print(f"❌ Провал!")
+        # План Б: Если фото не прошло, отправляем только текст
+        print(f"⚠️ Фото не прошло, пробую отправить только текст...")
+        payload_text = {
+            'chat_id': CHANNEL_NAME,
+            'text': text,
+            'parse_mode': 'HTML',
+            'reply_markup': json.dumps(keyboard)
+        }
+        res_text = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data=payload_text)
+        if res_text.status_code == 200:
+            print("✅ Текстовый пост отправлен!")
+        else:
+            print(f"❌ Полный провал: {res_text.text}")
 
 if __name__ == '__main__':
     post_star_guide()
