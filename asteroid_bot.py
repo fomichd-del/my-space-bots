@@ -30,7 +30,6 @@ def get_asteroid_data():
     url = f"https://api.nasa.gov/neo/rest/v1/feed?start_date={today}&end_date={today}&api_key={NASA_API_KEY}"
     
     try:
-        print(f"📡 Запрос к NASA на {today}...")
         res = requests.get(url, timeout=40).json()
         asteroids = res['near_earth_objects'].get(today, [])
         if not asteroids: return None, None, None, None
@@ -38,61 +37,47 @@ def get_asteroid_data():
         hero = max(asteroids, key=lambda x: x['estimated_diameter']['meters']['estimated_diameter_max'])
         ast_id = str(hero['neo_reference_id'])
 
-        # Проверка памяти
         if os.path.exists(DB_FILE):
             with open(DB_FILE, 'r', encoding='utf-8') as f:
-                if ast_id in f.read():
-                    print("✋ Этот астероид уже был в канале сегодня.")
-                    return None, None, None, None
+                if ast_id in f.read(): return None, None, None, None
 
         is_danger = hero['is_potentially_hazardous_asteroid']
-        
-        # Чистим имя для ссылки (убираем скобки и лишние пробелы)
         raw_name = hero['name'].replace("(", "").replace(")", "").strip()
-        display_name = raw_name
-        # Для ссылки в NASA Eyes нужно заменить пробелы на нижнее подчеркивание
         link_name = raw_name.replace(" ", "_")
 
         size = round(hero['estimated_diameter']['meters']['estimated_diameter_max'])
         dist_km = float(hero['close_approach_data'][0]['miss_distance']['kilometers'])
         dist_ld = round(dist_km / 384400, 1)
 
+        # ТЕКСТ ПОСТА С ПОДСКАЗКАМИ
         text = (
             f"☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ</b>\n"
             f"─────────────────────\n\n"
-            f"🛰 <b>Название:</b> {display_name}\n"
+            f"🛰 <b>Название:</b> {raw_name}\n"
             f"📏 <b>Размер:</b> ~{size} метров\n"
             f"👉 <i>{get_size_comparison(size)}</i>\n\n"
-            f"🛣 <b>Дистанция:</b> {dist_ld} расстояний до Луны\n\n"
+            f"🛣 <b>Дистанция:</b> {dist_ld} расстояний до Луны\n"
             f"{'⚠️' if is_danger else '✅'} <b>Статус: {'ОПАСЕН' if is_danger else 'БЕЗОПАСЕН'}</b>\n\n"
+            f"📖 <b>ШПАРГАЛКА ДЛЯ 3D:</b>\n"
+            f"▫️ <i>Distance</i> — расстояние\n"
+            f"▫️ <i>Velocity</i> — скорость\n"
+            f"▫️ <i>Diameter</i> — диаметр\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
 
-        # ФОРМИРУЕМ ПРЯМУЮ ССЫЛКУ НА 3D ПЛЕЕР NASA EYES
-        # Это современный, полноэкранный визуализатор
         eyes_url = f"https://eyes.nasa.gov/apps/asteroids/#/asteroid/{link_name}"
-        
         keyboard = {"inline_keyboard": [[{"text": "🚀 СМОТРЕТЬ В 3D (NASA EYES)", "url": eyes_url}]]}
         
         return text, keyboard, random.choice(SPACE_PHOTOS), ast_id
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-        return None, None, None, None
+    except: return None, None, None, None
 
 def send():
     text, keyb, photo, ast_id = get_asteroid_data()
     if text:
-        payload = {
-            'chat_id': CHANNEL_NAME, 
-            'photo': photo, 
-            'caption': text, 
-            'parse_mode': 'HTML', 
-            'reply_markup': json.dumps(keyb)
-        }
+        payload = {'chat_id': CHANNEL_NAME, 'photo': photo, 'caption': text, 'parse_mode': 'HTML', 'reply_markup': json.dumps(keyb)}
         r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
         if r.status_code == 200:
             with open(DB_FILE, 'a', encoding='utf-8') as f: f.write(f"{ast_id}\n")
-            print(f"✅ Астероид {ast_id} отправлен! Ссылка на NASA Eyes активна.")
 
 if __name__ == '__main__':
     send()
