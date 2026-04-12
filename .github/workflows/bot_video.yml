@@ -36,4 +36,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🤖 Память видео обновлена: db_video.txt"
-          file_pattern: 'db_video.txt' # СОХРАНЯЕМ НОВЫЙ ФАЙЛ ПАМЯТИ
+          file_pattern: 'last_video_date.txt' # СОХРАНЯЕМ НОВЫЙ ФАЙЛ ПАМЯТИ
