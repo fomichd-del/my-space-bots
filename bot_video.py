@@ -2,6 +2,7 @@ import requests
 import os
 import json
 import time
+import random
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -11,14 +12,13 @@ from deep_translator import GoogleTranslator
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 CHANNEL_NAME   = '@vladislav_space'
-DB_FILE        = "db_video.txt" # НОВОЕ ИМЯ ПАМЯТИ
+DB_FILE        = "last_video_date.txt" # ВОЗВРАЩАЕМ ТВОЁ НАЗВАНИЕ
 
 translator = GoogleTranslator(source='auto', target='ru')
 
 def get_video_data():
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     
-    # ПЫТАЕМСЯ ДОСТУЧАТЬСЯ 3 РАЗА
     for attempt in range(3):
         try:
             print(f"📡 Запрос к NASA (Попытка {attempt + 1})...")
@@ -28,27 +28,26 @@ def get_video_data():
                 res = response.json()
                 if res.get('media_type') != 'video':
                     print("ℹ️ Сегодня не видео. Пропускаю.")
-                    return None, None, None, False, None
+                    return None, None
                 
                 current_date = res.get('date')
 
-                # Проверка памяти
+                # Проверка памяти по твоему файлу
                 if os.path.exists(DB_FILE):
                     with open(DB_FILE, 'r', encoding='utf-8') as f:
                         if f.read().strip() == current_date:
                             print(f"✋ Видео за {current_date} уже было.")
-                            return None, None, None, False, None
+                            return None, None
                 
                 return res, current_date
             
-            print(f"⚠️ NASA ответила ошибкой {response.status_code}. Ждем...")
-            time.sleep(5) # Пауза перед следующей попыткой
-            
-        except Exception as e:
-            print(f"❌ Ошибка при попытке {attempt + 1}: {e}")
+            print(f"⚠️ NASA ответила ошибкой {response.status_code}. Пауза...")
             time.sleep(5)
             
-    print("❌ Все попытки исчерпаны. Сервер NASA не отвечает.")
+        except Exception as e:
+            print(f"❌ Ошибка: {e}")
+            time.sleep(5)
+            
     return None, None
 
 def send_to_telegram():
@@ -60,7 +59,6 @@ def send_to_telegram():
     raw_url = res_data.get('url', '')
     is_youtube = any(x in raw_url for x in ['youtube.com', 'youtu.be'])
     
-    # Формирование ссылки без бэкслешей внутри f-строк
     if is_youtube:
         if 'embed/' in raw_url:
             v_id = raw_url.split('/embed/')[1].split('?')[0]
@@ -68,17 +66,12 @@ def send_to_telegram():
         else:
             final_url = raw_url
     else:
-        # Для других видео берем ссылку на страницу APOD
         clean_date = video_date[2:].replace('-', '')
         final_url = f"https://apod.nasa.gov/apod/ap{clean_date}.html"
 
-    # Перевод
-    title_en = res_data.get('title', 'Космическое видео дня')
-    title_ru = translator.translate(title_en)
-    
+    title_ru = translator.translate(res_data.get('title', 'Космическое видео'))
     desc_en = res_data.get('explanation', '')
-    short_desc_en = '. '.join(desc_en.split('.')[:4]) + '.'
-    desc_ru = translator.translate(short_desc_en)
+    desc_ru = translator.translate('. '.join(desc_en.split('.')[:4]) + '.')
 
     caption = (
         f"🎬 <b>ВИДЕО: {title_ru.upper()}</b>\n"
@@ -93,21 +86,15 @@ def send_to_telegram():
         "chat_id": CHANNEL_NAME,
         "text": caption,
         "parse_mode": "HTML",
-        "link_preview_options": {
-            "url": final_url, 
-            "prefer_large_media": True
-        }
+        "link_preview_options": {"url": final_url, "prefer_large_media": True}
     }
     
     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
     
     if r.status_code == 200:
-        # Сохраняем дату в файл памяти
         with open(DB_FILE, 'w', encoding='utf-8') as f:
             f.write(video_date)
-        print("✅ Пост опубликован!")
-    else:
-        print(f"❌ Ошибка Telegram: {r.text}")
+        print(f"✅ Успешно! Дата {video_date} записана в {DB_FILE}")
 
 if __name__ == '__main__':
     send_to_telegram()
