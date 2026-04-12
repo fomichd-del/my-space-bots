@@ -10,12 +10,12 @@ from deep_translator import GoogleTranslator
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
-DB_FILE        = "sent_launches.txt"
+DB_FILE        = "db_launch.txt" # НОВОЕ ИМЯ ФАЙЛА ПАМЯТИ
 
 translator = GoogleTranslator(source='auto', target='ru')
 
 # ============================================================
-# 🐩 ВСЕ 50 КОСМИЧЕСКИХ СЕКРЕТОВ ОТ МАРТИ (БЕЗ ОБРЕЗОК!)
+# 🐩 ВСЕ 50 КОСМИЧЕСКИХ СЕКРЕТОВ ОТ МАРТИ
 # ============================================================
 MARTI_FACTS = [
     "В космосе абсолютная тишина, потому что там нет воздуха, чтобы передавать звуки.",
@@ -44,7 +44,7 @@ MARTI_FACTS = [
     "Первым живым существом на орбите была собака Лайка. Марти гордится её смелостью!",
     "На Луне нет ветра, поэтому флаги там висят на специальных Г-образных палках.",
     "Если бы вы крикнули в космосе, вас бы никто не услышал, даже если бы стоял рядом.",
-    "Самая горячая планета — Венера, хотя Меркурий находится ближе к Солну.",
+    "Самая горячая планета — Венера, хотя Меркурий находится ближе к Солнцу.",
     "В центре Млечного Пути находится сверхмассивная черная дыра Стрелец А*.",
     "У Урана 27 спутников, и все они названы в честь героев Шекспира и Александра Поупа.",
     "Комета Галлея вернется к нам только в 2061 году. Ждем!",
@@ -72,59 +72,36 @@ MARTI_FACTS = [
 ]
 
 def get_launch_data():
-    """Получает данные о 5 ближайших пусках"""
     url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=5"
     try:
         res = requests.get(url, timeout=30)
-        if res.status_code == 429:
-            print("⚠️ Ошибка 429: Лимит запросов. Ждем следующего запуска.")
-            return None
-        data = res.json()
-        return data.get('results', [])
-    except Exception as e:
-        print(f"❌ Ошибка сети: {e}")
-        return None
+        if res.status_code == 429: return None
+        return res.json().get('results', [])
+    except: return None
 
 def main():
     launches = get_launch_data()
     if not launches: return
 
     now = datetime.now(timezone.utc)
-    
+    sent_ids = []
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, 'r') as f:
+            sent_ids = [line.strip() for line in f.readlines()]
+
     for launch in launches:
         l_id = launch['id']
         name = launch['name']
         net = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
         diff = (net - now).total_seconds() / 60
         
-        print(f"📡 Проверка: {name} (старт через {int(diff)} мин)")
-
-        # Проверка окна: от 0 до 24 часов
         if 0 < diff < 1450:
-            # Создаем уникальный ключ для памяти (24ч или 1ч)
             memory_key = f"{l_id}_{'final' if diff < 70 else 'early'}"
-            
-            # Проверяем базу
-            if os.path.exists(DB_FILE):
-                with open(DB_FILE, 'r') as f:
-                    if memory_key in f.read():
-                        print(f"⏭ {name} уже отправлен в этом статусе. Пропускаю.")
-                        continue
+            if memory_key in sent_ids: continue
 
             status = "ГОТОВНОСТЬ 24 ЧАСА" if diff > 120 else "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)"
-            
-            print(f"🚀 ПОДГОТОВКА ПОСТА: {name}")
-            
-            # Описание миссии
-            desc_en = launch.get('mission', {}).get('description', 'Научная миссия.')
-            desc_ru = translator.translate(desc_en)
-            
-            # Ссылки на видео и картинку
-            video_url = None
-            if launch.get('vidURLs'):
-                video_url = launch['vidURLs'][0].get('url')
-
-            video_line = f"\n🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>" if video_url else ""
+            desc_ru = translator.translate(launch.get('mission', {}).get('description', 'Научная миссия.'))
+            video_url = launch['vidURLs'][0]['url'] if launch.get('vidURLs') else None
             img_url = launch.get('image')
 
             caption = (
@@ -133,7 +110,7 @@ def main():
                 f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
                 f"📍 <b>Космодром:</b> {launch['pad']['location']['name']}\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{desc_ru}\n"
-                f"{video_line}\n\n"
+                f"{f'\n🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href=\"{video_url}\">СМОТРЕТЬ</a>' if video_url else ''}\n\n"
                 f"🐩 <b>СЕКРЕТ ОТ МАРТИ:</b>\n<i>{random.choice(MARTI_FACTS)}</i>\n\n"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
@@ -142,26 +119,12 @@ def main():
                 "chat_id": CHANNEL_NAME,
                 "text": caption,
                 "parse_mode": "HTML",
-                "link_preview_options": {
-                    "url": video_url if video_url else img_url,
-                    "prefer_large_media": True
-                }
+                "link_preview_options": {"url": video_url if video_url else img_url, "prefer_large_media": True}
             }
             
-            response = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
-            if response.status_code == 200:
-                print(f"✅ Успешно отправлено: {name}")
+            if requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload).status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{memory_key}\n")
-            else:
-                print(f"❌ Ошибка Telegram: {response.text}")
-            
-            # Останавливаем цикл, чтобы за один запуск присылать только одну ракету
-            break 
-        else:
-            if diff < 0:
-                print(f"🏁 {name} уже на орбите (или запуск прошел).")
-            else:
-                print(f"⏳ {name} еще слишком далеко.")
+                break 
 
 if __name__ == '__main__':
     main()
