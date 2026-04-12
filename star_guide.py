@@ -88,7 +88,7 @@ def post_star_guide():
         f"🛸 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    keyboard = {"inline_keyboard": [[{"text": "🚀 ВКЛЮЧИТЬ ПЛАНЕТАРИЙ 🚀", "url": MAP_URL}]]}
+    keyboard = {"inline_keyboard": [[{"text": "🚀ВКЛЮЧИТЬ КАРТУ СОЗВЕЗДИЙ🚀", "url": MAP_URL}]]}
 
     payload = {
         'chat_id': CHANNEL_NAME,
