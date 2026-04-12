@@ -1,7 +1,7 @@
 import requests
 import os
 import random
-import json # НОВЫЙ ИМПОРТ (нужен для кнопок)
+import json
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -16,14 +16,14 @@ HISTORY_FILE   = 'last_earth_id.txt'
 translator = GoogleTranslator(source='auto', target='ru')
 
 def is_already_sent(image_id):
-    """Проверяет память бота"""
+    """Проверяет память бота, чтобы не слать одно и то же"""
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
             return str(image_id) in f.read()
     return False
 
 def save_sent_id(image_id):
-    """Записывает ID в память"""
+    """Записывает ID отправленного фото в память"""
     with open(HISTORY_FILE, 'a', encoding='utf-8') as f:
         f.write(f"{image_id}\n")
 
@@ -56,7 +56,6 @@ def get_epic_data():
 
 def get_extensive_library_data():
     """Режим 2: Обширная библиотека (МКС, Горизонты, Виды с Луны)"""
-    # Расширенные запросы для поиска самых крутых видов
     queries = [
         "Earth limb from space", "Earth and Moon", "Global Earth from ISS",
         "View of Earth from Apollo", "Earth at night from space", 
@@ -71,7 +70,6 @@ def get_extensive_library_data():
         items = res['collection']['items']
         
         random.shuffle(items)
-        # Ищем качественное фото, которого еще не было
         for item in items[:40]:
             nasa_id = item['data'][0]['nasa_id']
             if not is_already_sent(nasa_id):
@@ -79,9 +77,7 @@ def get_extensive_library_data():
                 title_en = item['data'][0]['title']
                 desc_en = item['data'][0].get('description', '')
 
-                # Перевод
                 title_ru = translator.translate(title_en)
-                # Берем только суть из описания
                 short_desc = '. '.join(desc_en.split('.')[:2]) + '.'
                 desc_ru = translator.translate(short_desc)
                 
@@ -97,40 +93,37 @@ def get_extensive_library_data():
     except: return None, None, None
 
 def post_to_telegram():
-    # 50% шанс на полный диск, 50% на обширную библиотеку
     mode = random.choice(["EPIC", "LIBRARY"])
     print(f"Выбран режим: {mode}")
     
     url, cap, img_id = get_epic_data() if mode == "EPIC" else get_extensive_library_data()
     
-    # Запасной вариант, если первый режим ничего не нашел
     if not url:
         url, cap, img_id = get_extensive_library_data() if mode == "EPIC" else get_epic_data()
 
     if url and img_id:
         
-        # --- БЛОК КНОПОК (НОВОЕ!) ---
-        # Формируем структуру кнопок одна под другой
+        # --- ОБНОВЛЕННЫЙ БЛОК КНОПОК ---
         keyboard = {
             "inline_keyboard": [
-                # Кнопка 1: 3D Глобус (NASA Eyes)
-                [{"text": "🗺 ГЛАЗА ЗЕМЛИ (3D КАРТА)", "url": "https://eyes.nasa.gov/apps/earth/"}],
-                # Кнопка 2: Ютуб-трансляция с МКС
-                [{"text": "📹 МКС: ПРЯМОЙ ЭФИР", "url": "https://www.youtube.com/watch?v=jPTD2gnZFUw"}]
+                # Кнопка МКС теперь ведет на надежный N2YO
+                [{"text": "🛰 МКС: ПРЯМОЙ ЭФИР + КАРТА", "url": "https://www.n2yo.com/space-station/"}],
+                # Твоя любимая 3D карта
+                [{"text": "🌍 ГЛАЗА ЗЕМЛИ (3D КАРТА)", "url": "https://eyes.nasa.gov/apps/earth/"}]
             ]
         }
-        # --- КОНЕЦ БЛОКА КНОПОК ---
 
-        # Добавляем reply_markup в payload
         payload = {
             'chat_id': CHANNEL_NAME, 
             'photo': url, 
             'caption': cap, 
             'parse_mode': 'HTML',
-            'reply_markup': json.dumps(keyboard) # ПРЕВРАЩАЕМ КНОПКИ В СТРОКУ JSON
+            'reply_markup': json.dumps(keyboard),
+            # Отключаем превью ссылок, чтобы пост был компактным
+            'link_preview_options': {'is_disabled': True}
         }
         
-        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
+        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
         
         if r.status_code == 200:
             save_sent_id(img_id)
