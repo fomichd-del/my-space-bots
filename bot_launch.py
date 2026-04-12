@@ -10,7 +10,7 @@ from deep_translator import GoogleTranslator
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
-DB_FILE        = "db_launch.txt" # НОВОЕ ИМЯ ФАЙЛА ПАМЯТИ
+DB_FILE        = "db_launch.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
@@ -101,7 +101,10 @@ def main():
 
             status = "ГОТОВНОСТЬ 24 ЧАСА" if diff > 120 else "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)"
             desc_ru = translator.translate(launch.get('mission', {}).get('description', 'Научная миссия.'))
+            
+            # ИСПРАВЛЕННАЯ ЛОГИКА ССЫЛОК (без слэшей внутри {})
             video_url = launch['vidURLs'][0]['url'] if launch.get('vidURLs') else None
+            video_line = f"\n🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>" if video_url else ""
             img_url = launch.get('image')
 
             caption = (
@@ -110,7 +113,7 @@ def main():
                 f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
                 f"📍 <b>Космодром:</b> {launch['pad']['location']['name']}\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{desc_ru}\n"
-                f"{f'\n🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href=\"{video_url}\">СМОТРЕТЬ</a>' if video_url else ''}\n\n"
+                f"{video_line}\n\n"
                 f"🐩 <b>СЕКРЕТ ОТ МАРТИ:</b>\n<i>{random.choice(MARTI_FACTS)}</i>\n\n"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
@@ -119,11 +122,15 @@ def main():
                 "chat_id": CHANNEL_NAME,
                 "text": caption,
                 "parse_mode": "HTML",
-                "link_preview_options": {"url": video_url if video_url else img_url, "prefer_large_media": True}
+                "link_preview_options": {
+                    "url": video_url if video_url else img_url, 
+                    "prefer_large_media": True
+                }
             }
             
             if requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload).status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{memory_key}\n")
+                print(f"✅ Успешно отправлено: {name}")
                 break 
 
 if __name__ == '__main__':
