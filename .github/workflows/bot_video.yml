@@ -1,17 +1,14 @@
-name: Bot Video Cinema
+name: Bot Video Cinema (Subtitles Edition)
 
 on:
   schedule:
-    # Запуск каждый час (можно изменить на нужный интервал)
-    - cron: '0 * * * *'
-  workflow_dispatch:
-    # Позволяет запускать бота вручную через вкладку Actions
+    - cron: '0 * * * *' # Запуск каждый час
+  workflow_dispatch:      # Кнопка ручного запуска
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
-    # Права на запись необходимы для сохранения истории в репозиторий
     permissions:
       contents: write
 
@@ -27,6 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install requests deep_translator Pillow
+          sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Run Video Bot
         env:
@@ -37,5 +35,5 @@ jobs:
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🤖 Кинотеатр: история обновлена (last_video_date.txt)"
+          commit_message: "🤖 Кинотеатр: память и субтитры обновлены"
           file_pattern: 'last_video_date.txt'
