@@ -1,14 +1,17 @@
-name: Bot Video Cinema (Subtitles Edition)
+name: Bot Video Cinema (AI Translation Edition)
 
 on:
   schedule:
-    - cron: '0 * * * *' # Запуск каждый час
-  workflow_dispatch:      # Кнопка ручного запуска
+    # Запуск каждый час
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    # Возможность ручного запуска
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
+    # Права на запись для обновления файла памяти (last_video_date.txt)
     permissions:
       contents: write
 
@@ -21,10 +24,15 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install System Dependencies
         run: |
-          pip install requests deep_translator Pillow
-          sudo apt-get update && sudo apt-get install -y ffmpeg
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python Libraries
+        run: |
+          pip install --upgrade pip
+          pip install requests deep_translator Pillow openai-whisper
 
       - name: Run Video Bot
         env:
@@ -35,5 +43,5 @@ jobs:
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🤖 Кинотеатр: память и субтитры обновлены"
+          commit_message: "🤖 Кинотеатр: AI перевод выполнен (last_video_date.txt)"
           file_pattern: 'last_video_date.txt'
