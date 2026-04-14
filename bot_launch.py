@@ -15,7 +15,7 @@ DB_FILE        = "db_launch.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 
 # ============================================================
-# 🐩 ВСЕ КОСМИЧЕСКИЕ СЕКРЕТЫ ОТ МАРТИ (ПОЛНЫЙ СПИСОК)
+# 🐩 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ (51 ФАКТ)
 # ============================================================
 MARTI_FACTS = [
     "В космосе абсолютная тишина, потому что там нет воздуха, чтобы передавать звуки.",
@@ -72,12 +72,10 @@ MARTI_FACTS = [
 ]
 
 def get_launch_data():
-    """Получает данные о 5 ближайших пусках"""
     url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=5"
     try:
-        res = requests.get(url, timeout=30)
-        if res.status_code == 429: return None
-        return res.json().get('results', [])
+        res = requests.get(url, timeout=30).json()
+        return res.get('results', [])
     except: return None
 
 def main():
@@ -93,30 +91,35 @@ def main():
     for launch in launches:
         l_id = launch['id']
         name = launch['name']
+        provider = launch['launch_service_provider']['name'] # КТО ЗАПУСКАЕТ
         net = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
         diff = (net - now).total_seconds() / 60
         
-        # Окно уведомления: от 0 до 24 часов
         if 0 < diff < 1450:
             memory_key = f"{l_id}_{'final' if diff < 70 else 'early'}"
             if memory_key in sent_ids: continue
 
             status = "ГОТОВНОСТЬ 24 ЧАСА" if diff > 120 else "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)"
             desc_ru = translator.translate(launch.get('mission', {}).get('description', 'Научная миссия.'))
-            
-            # --- УМНЫЙ ПОИСК ТРАНСЛЯЦИИ (ЧТОБЫ КНОПКА БЫЛА ВСЕГДА) ---
+            provider_ru = translator.translate(provider)
+
+            # --- УЛУЧШЕННЫЙ ПОИСК ТРАНСЛЯЦИИ ---
             video_url = None
             if launch.get('vidURLs'):
                 video_url = launch['vidURLs'][0]['url']
             
-            # Резервные ссылки, если основной трансляции еще нет в API
+            # Если прямой ссылки еще нет, даем ссылку на главную страницу трансляций провайдера
             if not video_url:
-                if "SpaceX" in name:
+                p_lower = provider.lower()
+                if "spacex" in p_lower:
                     video_url = "https://www.youtube.com/@SpaceX/streams"
-                elif "NASA" in name:
+                elif "nasa" in p_lower:
                     video_url = "https://www.nasa.gov/nasatv/"
+                elif "roscosmos" in p_lower or "роскосмос" in p_lower:
+                    video_url = "https://www.youtube.com/@RoscosmosMedia/streams"
+                elif "isro" in p_lower: # ИНДИЯ
+                    video_url = "https://www.youtube.com/@isroofficial5844/streams"
                 else:
-                    # Самый надежный запасной вариант: монитор МКС
                     video_url = "https://www.n2yo.com/space-station/"
 
             video_line = f"\n🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>"
@@ -125,6 +128,7 @@ def main():
             caption = (
                 f"🚀 <b>{status}: {name.upper()}</b>\n"
                 f"─────────────────────\n\n"
+                f"🏢 <b>Организатор:</b> {provider_ru}\n"
                 f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
                 f"📍 <b>Космодром:</b> {launch['pad']['location']['name']}\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{desc_ru}\n"
@@ -137,17 +141,12 @@ def main():
                 "chat_id": CHANNEL_NAME,
                 "text": caption,
                 "parse_mode": "HTML",
-                "link_preview_options": {
-                    "url": video_url if video_url else img_url, 
-                    "prefer_large_media": True
-                }
+                "link_preview_options": {"url": video_url if video_url else img_url, "prefer_large_media": True}
             }
             
-            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
-            if r.status_code == 200:
+            if requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload).status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{memory_key}\n")
-                print(f"✅ Успешно отправлено: {name}")
-                break # Отправляем только одну актуальную ракету
+                break 
 
 if __name__ == '__main__':
     main()
