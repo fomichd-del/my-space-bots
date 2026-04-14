@@ -16,105 +16,136 @@ DB_FILE        = "last_video_date.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Источники RSS (не только YouTube)
+# Глобальные RSS-каналы (Не только YouTube!)
 FEEDS = {
-    'ESA (Европа/Vimeo/Native)': 'https://www.esa.int/rssfeed/Videos',
-    'NASA (Общий)': 'https://www.nasa.gov/rss/dyn/breaking_news.rss',
+    'ESA (Европа)': 'https://www.esa.int/rssfeed/Videos',
+    'NASA Breaking': 'https://www.nasa.gov/rss/dyn/breaking_news.rss',
+    'Hubble (Телескоп)': 'https://hubblesite.org/rss/news',
     'JAXA (Япония)': 'https://www.jaxa.jp/rss/index_e.rdf'
 }
 
-# Каналы YouTube (как дополнительный, но не единственный источник)
+# YouTube каналы (через RSS)
 YT_CHANNELS = {
     'SpaceX': 'UC_h_S6G_9A440VUM_KOn6Zg',
     'Роскосмос': 'UCp7fGZ8Z9zX_lZpY_l475_g',
-    'Blue Origin': 'UCOpNcN46zbB0AgvW4t6OMvA'
+    'NASA Video': 'UCOpNcN46zbB0AgvW4t6OMvA',
+    'James Webb': 'UCv88N6mY_D-FpXgK70l69iQ'
 }
 
-SEARCH_KEYWORDS = ['Mars Rover', 'ISS Tour', 'Saturn Rings', 'SpaceX Launch', 'Black Hole']
+SEARCH_KEYWORDS = ['Mars Rover', 'ISS Tour', 'Saturn Rings', 'SpaceX Starship', 'Black Hole', 'Earth from Space']
 
 # ============================================================
-# 🛰️ МОДУЛИ ПОИСКА
+# 🛰️ МОДУЛИ ПОИСКА (Теперь с подробным логированием)
 # ============================================================
 
 def get_esa_video():
-    """Источник: ESA (Европейское агентство) - часто Vimeo или прямые MP4"""
-    print("📡 Проверяю архивы Европы (ESA)...")
+    print("📡 [SCANNER] Проверяю архивы Европы (ESA)...")
     try:
-        res = requests.get(FEEDS['ESA (Европа/Vimeo/Native)'], timeout=20)
+        res = requests.get(FEEDS['ESA (Европа)'], timeout=30)
         root = ET.fromstring(res.content)
         item = root.find('.//item')
-        title = item.find('title').text
-        link = item.find('link').text
-        desc = item.find('description').text if item.find('description') is not None else ""
-        return {'url': link, 'title': title, 'desc': desc, 'source': 'ESA'}
-    except: return None
+        if item is not None:
+            return {
+                'url': item.find('link').text,
+                'title': item.find('title').text,
+                'desc': item.find('description').text if item.find('description') is not None else "Космические открытия Европы.",
+                'source': 'ESA (Европа)'
+            }
+    except Exception as e: print(f"⚠️ [ESA ERROR]: {e}")
+    return None
 
 def get_nasa_library():
-    """Источник: NASA Archive - Прямые ссылки на .mp4 файлы"""
     keyword = random.choice(SEARCH_KEYWORDS)
-    print(f"📡 Глубокий поиск в архивах NASA по теме: {keyword}...")
+    print(f"📡 [SCANNER] Глубокий поиск в NASA Archive по теме: {keyword}...")
     try:
         url = f"https://images-api.nasa.gov/search?q={keyword}&media_type=video"
-        res = requests.get(url, timeout=20).json()
-        item = random.choice(res['collection']['items'][:5])
-        nasa_id = item['data'][0]['nasa_id']
-        title = item['data'][0]['title']
-        desc = item['data'][0].get('description', '')
+        res = requests.get(url, timeout=30).json()
+        items = res.get('collection', {}).get('items', [])
         
-        # Получаем прямую ссылку на видеофайл высокого качества
-        assets = requests.get(f"https://images-api.nasa.gov/asset/{nasa_id}", timeout=20).json()
-        video_url = next(a['href'] for a in assets['collection']['items'] if '~orig.mp4' in a['href'] or 'mp4' in a['href'])
-        return {'url': video_url, 'title': title, 'desc': desc, 'source': 'NASA Library'}
-    except: return None
+        for item in items[:10]: # Проверяем первые 10 результатов
+            nasa_id = item['data'][0]['nasa_id']
+            assets_res = requests.get(f"https://images-api.nasa.gov/asset/{nasa_id}", timeout=25).json()
+            asset_items = assets_res.get('collection', {}).get('items', [])
+            
+            video_url = None
+            for a in asset_items:
+                if '~orig.mp4' in a['href'] or 'mp4' in a['href']:
+                    video_url = a['href']
+                    break
+            
+            if video_url:
+                return {
+                    'url': video_url,
+                    'title': item['data'][0]['title'],
+                    'desc': item['data'][0].get('description', 'Захватывающие кадры из архивов.'),
+                    'source': 'NASA Archive'
+                }
+        print(f"ℹ️ [NASA] По теме {keyword} видео не найдено, только статика.")
+    except Exception as e: print(f"⚠️ [NASA LIB ERROR]: {e}")
+    return None
 
 def get_youtube_fallback():
-    """Источник: YouTube RSS (SpaceX, Роскосмос и др.)"""
     name, c_id = random.choice(list(YT_CHANNELS.items()))
-    print(f"📡 Проверяю канал: {name}...")
+    print(f"📡 [SCANNER] Заглядываю на канал: {name}...")
     try:
         url = f"https://www.youtube.com/feeds/videos.xml?channel_id={c_id}"
-        res = requests.get(url, timeout=20)
+        res = requests.get(url, timeout=30)
         root = ET.fromstring(res.content)
         entry = root.find('{http://www.w3.org/2005/Atom}entry')
-        v_id = entry.find('{http://www.youtube.com/xml/schemas/2009}videoId').text
-        title = entry.find('{http://www.w3.org/2005/Atom}title').text
-        return {'url': f"https://www.youtube.com/watch?v={v_id}", 'title': title, 'desc': f"Свежее видео от {name}.", 'source': name}
-    except: return None
+        if entry is not None:
+            v_id = entry.find('{http://www.youtube.com/xml/schemas/2009}videoId').text
+            return {
+                'url': f"https://www.youtube.com/watch?v={v_id}",
+                'title': entry.find('{http://www.w3.org/2005/Atom}title').text,
+                'desc': f"Свежее видео от {name}.",
+                'source': f"YouTube ({name})"
+            }
+    except Exception as e: print(f"⚠️ [YT ERROR]: {e}")
+    return None
 
 # ============================================================
 # 🎬 ГЛАВНАЯ ЛОГИКА
 # ============================================================
 
 def send():
-    print("🎬 Запуск Межгалактического Кинотеатра...")
+    print("🎬 [ЦУП] Запуск Межгалактического Кинотеатра v4.0...")
     
-    # Ротация источников для разнообразия
+    # Пытаемся по очереди, пока не найдем что-то новое
     methods = [get_esa_video, get_nasa_library, get_youtube_fallback]
     random.shuffle(methods)
     
-    video = None
-    for method in methods:
-        video = method()
-        if video: break
-
-    if not video: return
-
-    # Проверка памяти
-    v_id = video['url']
+    final_video = None
+    
+    # Загружаем базу отправленных, чтобы не повторяться
+    sent_data = ""
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r', encoding='utf-8') as f:
-            if v_id in f.read():
-                print("⏭ Это видео уже было.")
-                return
+            sent_data = f.read()
 
-    # Перевод
-    title_ru = translator.translate(video['title'])
-    desc_ru = translator.translate('. '.join(video['desc'].split('.')[:3]) + '.')
+    for method in methods:
+        video = method()
+        if video:
+            v_id = video['url']
+            if v_id in sent_data or video['title'] in sent_data:
+                print(f"⏭ [SKIP] Видео '{video['title']}' уже было в канале. Ищу дальше...")
+                continue
+            
+            final_video = video
+            break
+
+    if not final_video:
+        print("🛑 [STOP] Все системы сканирования молчат. Нового видео не найдено.")
+        return
+
+    # ПЕРЕВОД
+    print(f"✅ [PROCESS] Найдено видео: {final_video['title']}. Перевожу...")
+    title_ru = translator.translate(final_video['title'])
+    desc_ru = translator.translate('. '.join(final_video['desc'].split('.')[:3]) + '.')
 
     caption = (
-        f"🎬 <b>КОСМИЧЕСКИЙ КИНОТЕАТР: {video['source']}</b>\n"
+        f"🎬 <b>КОСМИЧЕСКИЙ КИНОТЕАТР: {final_video['source']}</b>\n"
         f"🌟 <b>{title_ru.upper()}</b>\n\n"
-        f"🍿 <a href='{video['url']}'><b>СМОТРЕТЬ РОЛИК</b></a>\n"
+        f"🍿 <a href='{final_video['url']}'><b>СМОТРЕТЬ РОЛИК</b></a>\n"
         f"─────────────────────\n"
         f"<b>ИНФО:</b> {desc_ru}\n\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
@@ -124,14 +155,17 @@ def send():
         "chat_id": CHANNEL_NAME,
         "text": caption,
         "parse_mode": "HTML",
-        "link_preview_options": {"url": video['url'], "prefer_large_media": True}
+        "link_preview_options": {"url": final_video['url'], "prefer_large_media": True}
     }
     
     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
     
     if r.status_code == 200:
-        with open(DB_FILE, 'a', encoding='utf-8') as f: f.write(f"{v_id}\n")
-        print(f"✅ Опубликовано из источника: {video['source']}")
+        with open(DB_FILE, 'a', encoding='utf-8') as f:
+            f.write(f"\n{final_video['url']} | {final_video['title']}")
+        print(f"🎉 [DONE] Пост опубликован!")
+    else:
+        print(f"❌ [TELEGRAM ERROR]: {r.text}")
 
 if __name__ == '__main__':
     send()
