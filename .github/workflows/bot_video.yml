@@ -1,17 +1,17 @@
-name: Bot Video Cinema (AI Global Edition)
+name: Bot Video Cinema (Universal Science Edition)
 
 on:
   schedule:
-    # Запуск каждый час (можно настроить, например, '0 12 * * *' для раза в день)
+    # Запуск каждый час
     - cron: '0 * * * *'
   workflow_dispatch:
-    # Кнопка для ручного запуска в Actions
+    # Кнопка ручного запуска в меню Actions
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
-    # Права на запись для обновления файла памяти last_video_date.txt
+    # Права на запись для ведения базы данных просмотренных роликов
     permissions:
       contents: write
 
@@ -32,7 +32,7 @@ jobs:
       - name: Install Python Libraries
         run: |
           pip install --upgrade pip
-          pip install requests deep_translator Pillow openai-whisper yt-dlp
+          pip install requests deep_translator Pillow openai-whisper yt-dlp beautifulsoup4
 
       - name: Run Video Bot
         env:
@@ -43,5 +43,5 @@ jobs:
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🤖 Кинотеатр: Глобальный ИИ-перевод выполнен"
+          commit_message: "🤖 Кинотеатр: Глобальный научный поиск завершен"
           file_pattern: 'last_video_date.txt'
