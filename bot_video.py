@@ -2,10 +2,11 @@ import requests
 import os
 import random
 import time
-import urllib.parse
-import io
+import xml.etree.ElementTree as ET
 import subprocess
-import whisper # Нейросеть для распознавания речи
+import whisper
+import yt_dlp
+import io
 from datetime import datetime
 from deep_translator import GoogleTranslator
 from PIL import Image, ImageDraw, ImageFont
@@ -19,150 +20,113 @@ CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
-# Загружаем модель Whisper (tiny - самая быстрая для GitHub)
 model = whisper.load_model("tiny")
 
-SEARCH_KEYWORDS = ['Mars Rover', 'ISS Tour', 'SpaceX Launch', 'Moon Mission', 'Black Hole']
+GLOBAL_CHANNELS = {
+    'Роскосмос': 'UCp7fGZ8Z9zX_lZpY_l475_g',
+    'SpaceX': 'UC_h_S6G_9A440VUM_KOn6Zg',
+    'ISRO (Индия)': 'UC16vrn4PmwzOm_8atGYU8YQ',
+    'ESA (Европа)': 'UC8u9uH_V83_Fns70cyJK_Iw',
+    'NASA Video': 'UCOpNcN46zbB0AgvW4t6OMvA',
+    'JAXA (Япония)': 'UC1S_S6G_9A440VUM_KOn6Zg'
+}
 
 # ============================================================
-# 🧠 МОДУЛЬ ИИ-ПЕРЕВОДА (Whisper)
+# 🧠 ИИ-ОБРАБОТКА (Whisper + FFmpeg)
 # ============================================================
 
 def format_time(seconds):
-    """Форматирует секунды в формат SRT: 00:00:00,000"""
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
+    h = int(seconds // 3600); m = int((seconds % 3600) // 60); s = int(seconds % 60)
     ms = int((seconds - int(seconds)) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
-def transcribe_and_translate(video_path):
-    """Слушает видео и создает перевод по секундам"""
-    print("🧠 ИИ начинает слушать видео...")
-    # 1. Распознаем речь (Whisper сам поймет язык и переведет в текст)
-    result = model.transcribe(video_path)
-    segments = result.get('segments', [])
-    
-    if not segments:
-        return None
-
-    print(f"📝 Распознано {len(segments)} фраз. Начинаю перевод...")
-    srt_content = ""
-    
-    for i, seg in enumerate(segments):
-        start = format_time(seg['start'])
-        end = format_time(seg['end'])
-        text_en = seg['text'].strip()
-        
-        # Переводим каждую фразу на русский
-        try:
-            text_ru = translator.translate(text_en)
-        except:
-            text_ru = text_en
-            
-        srt_content += f"{i+1}\n{start} --> {end}\n{text_ru}\n\n"
-    
-    with open("subs.srt", "w", encoding="utf-8") as f:
-        f.write(srt_content)
-    return "subs.srt"
-
-def burn_subtitles(video_url):
-    """Главный процесс: скачка, прослушка, вшивка"""
+def process_video_ai(video_url, is_youtube=False):
+    """Качает видео, слушает и вшивает ИИ-субтитры"""
     try:
-        print("📥 Загрузка видео...")
-        r = requests.get(video_url, stream=True, timeout=120)
-        with open("input.mp4", "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192): f.write(chunk)
+        filename = "input.mp4"
+        if is_youtube:
+            print(f"📥 Качаю видео с YouTube: {video_url}")
+            ydl_opts = {'format': 'best[ext=mp4]/best', 'outtmpl': filename, 'quiet': True}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([video_url])
+        else:
+            print(f"📥 Качаю прямой файл: {video_url}")
+            r = requests.get(video_url, timeout=100); open(filename, "wb").write(r.content)
+
+        print("🧠 ИИ слушает дорожку...")
+        result = model.transcribe(filename)
+        segments = result.get('segments', [])
         
-        # Запускаем ИИ
-        srt_file = transcribe_and_translate("input.mp4")
+        srt_content = ""
+        for i, seg in enumerate(segments):
+            text_ru = translator.translate(seg['text'].strip())
+            srt_content += f"{i+1}\n{format_time(seg['start'])} --> {format_time(seg['end'])}\n{text_ru}\n\n"
         
-        if srt_file:
-            print("🔥 Впекаю ИИ-субтитры в видео...")
-            style = "FontSize=22,PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=2,Alignment=2,MarginV=20"
-            cmd = [
-                'ffmpeg', '-y', '-i', 'input.mp4', 
-                '-vf', f"subtitles=subs.srt:force_style='{style}'", 
-                '-c:a', 'copy', '-preset', 'ultrafast', 'output.mp4'
-            ]
-            subprocess.run(cmd, check=True)
-            return "output.mp4"
-        return "input.mp4"
+        with open("subs.srt", "w", encoding="utf-8") as f: f.write(srt_content)
+
+        print("🔥 Вшиваю перевод...")
+        style = "FontSize=22,PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=2,Alignment=2,MarginV=25"
+        subprocess.run(['ffmpeg', '-y', '-i', filename, '-vf', f"subtitles=subs.srt:force_style='{style}'", 
+                        '-c:a', 'copy', '-preset', 'ultrafast', 'output.mp4'], check=True)
+        return "output.mp4"
     except Exception as e:
-        print(f"⚠️ Ошибка ИИ-перевода: {e}")
-        return "input.mp4"
+        print(f"⚠️ Ошибка ИИ: {e}"); return filename if os.path.exists(filename) else None
 
 # ============================================================
-# 🖌 АФИША И ПОИСК (Оставляем проверенное)
+# 🛰️ ГЛОБАЛЬНЫЙ ПОИСК
 # ============================================================
 
-def create_poster(img_url):
-    try:
-        res = requests.get(img_url, timeout=20)
-        img = Image.open(io.BytesIO(res.content)).convert('RGB')
-        img.thumbnail((400, 400))
-        draw = ImageDraw.Draw(img, 'RGBA')
-        draw.rectangle([(0, img.height-45), (img.width, img.height)], fill=(0,0,0,180))
-        draw.text((15, img.height-33), "🎬 ИИ-ПЕРЕВОД: ОНЛАЙН", fill="#00FFFF")
-        buf = io.BytesIO()
-        img.save(buf, format='JPEG')
-        buf.seek(0)
-        return buf
-    except: return None
-
-def get_nasa_video():
-    kw = random.choice(SEARCH_KEYWORDS)
-    try:
-        url = f"https://images-api.nasa.gov/search?q={kw}&media_type=video"
-        res = requests.get(url, timeout=30).json()
-        items = res['collection']['items']
-        for item in items[:10]:
-            nasa_id = item['data'][0]['nasa_id']
-            assets = requests.get(f"https://images-api.nasa.gov/asset/{nasa_id}").json()
-            links = [a['href'] for a in assets['collection']['items']]
-            video = next((l for l in links if '~medium.mp4' in l), None)
-            thumb = next((l for l in links if '~medium.jpg' in l), None)
-            if video and thumb:
-                return {'url': video, 'img': thumb, 'title': item['data'][0]['title']}
-    except: return None
+def get_world_video():
+    """Ищет видео либо в NASA, либо в мировых YouTube-каналах"""
+    if random.choice([True, False]):
+        # NASA Library
+        print("📡 Ищу в архивах NASA...")
+        try:
+            kw = random.choice(['Mars', 'ISS', 'Artemis', 'Galaxy'])
+            res = requests.get(f"https://images-api.nasa.gov/search?q={kw}&media_type=video").json()
+            item = random.choice(res['collection']['items'][:10])
+            assets = requests.get(f"https://images-api.nasa.gov/asset/{item['data'][0]['nasa_id']}").json()
+            video_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
+            return {'url': video_url, 'title': item['data'][0]['title'], 'is_yt': False, 'source': 'NASA'}
+        except: return None
+    else:
+        # YouTube World
+        name, c_id = random.choice(list(GLOBAL_CHANNELS.items()))
+        print(f"📡 Ищу в {name}...")
+        try:
+            res = requests.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={c_id}", timeout=20)
+            entry = ET.fromstring(res.content).find('{http://www.w3.org/2005/Atom}entry')
+            v_id = entry.find('{http://www.youtube.com/xml/schemas/2009}videoId').text
+            return {'url': f"https://www.youtube.com/watch?v={v_id}", 'title': entry.find('{http://www.w3.org/2005/Atom}title').text, 'is_yt': True, 'source': name}
+        except: return None
 
 # ============================================================
 # 🎬 ЗАПУСК
 # ============================================================
 
 def main():
-    video = get_nasa_video()
+    video = get_world_video()
     if not video: return
     
-    db = ""
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r') as f: db = f.read()
+    db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     if video['url'] in db: return
 
-    print(f"🎬 ИИ-перевод ролика: {video['title']}")
+    print(f"🎬 Старт выпуска: {video['title']} ({video['source']})")
     
-    # 1. Запускаем ИИ-обработку звука
-    processed_path = burn_subtitles(video['url'])
-    
-    # 2. Переводим заголовок
+    processed_path = process_video_ai(video['url'], is_youtube=video['is_yt'])
+    if not processed_path: return
+
     t_ru = translator.translate(video['title'])
-    poster = create_poster(video['img'])
-    
     caption = (f"🎬 <b>{t_ru.upper()}</b>\n\n"
-               f"🎙 <b>Голос переведен ИИ (Whisper)</b>\n"
-               f"📺 <i>Смотрите со включенным звуком!</i>\n\n"
+               f"🌎 <b>Источник:</b> {video['source']}\n"
+               f"🎙 <b>Перевод:</b> ИИ (Whisper)\n\n"
                f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
 
     with open(processed_path, 'rb') as v:
-        files = {"video": v}
-        if poster: files["thumbnail"] = ("thumb.jpg", poster, "image/jpeg")
-        
-        payload = {"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True}
-        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files=files, data=payload)
+        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                          files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True})
         
         if r.status_code == 200:
-            with open(DB_FILE, 'a') as f: f.write(f"\n{video['url']}")
-            print("🎉 Видео с ИИ-переводом голоса опубликовано!")
+            open(DB_FILE, 'a').write(f"\n{video['url']}")
+            print("🎉 Глобальный выпуск опубликован!")
 
-if __name__ == '__main__':
-    main()
+if __name__ == '__main__': main()
