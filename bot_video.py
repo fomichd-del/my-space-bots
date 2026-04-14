@@ -17,18 +17,19 @@ DB_FILE        = "last_video_date.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-FEEDS = {
-    'ESA (Европа)': 'https://www.esa.int/rssfeed/Videos',
-    'NASA Breaking': 'https://www.nasa.gov/rss/dyn/breaking_news.rss'
+# СПИСОК ВСЕХ МИРОВЫХ КАНАЛОВ (YouTube RSS)
+GLOBAL_CHANNELS = {
+    'Роскосмос (Россия)': 'UCp7fGZ8Z9zX_lZpY_l475_g',
+    'SpaceX (США)': 'UC_h_S6G_9A440VUM_KOn6Zg',
+    'ISRO (Индия)': 'UC16vrn4PmwzOm_8atGYU8YQ',
+    'JAXA (Япония)': 'UC1S_S6G_9A440VUM_KOn6Zg',
+    'ESA (Европа)': 'UC8u9uH_V83_Fns70cyJK_Iw',
+    'Blue Origin (Частники)': 'UCOpNcN46zbB0AgvW4t6OMvA',
+    'NASA Video': 'UCOpNcN46zbB0AgvW4t6OMvA',
+    'CNSA / SciNews (Китай)': 'UCu3WicZMcXpUksat9yU859g',
+    'James Webb Video': 'UCv88N6mY_D-FpXgK70l69iQ',
+    'Space.com (Мир)': 'UC6PnFayKstU9O_2uU_9rS7w'
 }
-
-YT_CHANNELS = {
-    'SpaceX': 'UC_h_S6G_9A440VUM_KOn6Zg',
-    'Роскосмос': 'UCp7fGZ8Z9zX_lZpY_l475_g',
-    'NASA Video': 'UCOpNcN46zbB0AgvW4t6OMvA'
-}
-
-SEARCH_KEYWORDS = ['Mars Rover', 'ISS Tour', 'Saturn Rings', 'SpaceX Starship', 'Black Hole']
 
 def clean_url(url):
     """Исправляет ссылки для Telegram (http -> https + кодировка)"""
@@ -42,54 +43,49 @@ def clean_url(url):
 # 🛰️ МОДУЛИ ПОИСКА
 # ============================================================
 
-def get_esa_video():
-    print("📡 [SCANNER] Проверяю ESA...")
-    try:
-        res = requests.get(FEEDS['ESA (Европа)'], timeout=30)
-        root = ET.fromstring(res.content)
-        item = root.find('.//item')
-        if item is not None:
-            return {'url': clean_url(item.find('link').text), 'title': item.find('title').text, 
-                    'desc': "Космические открытия Европы.", 'source': 'ESA'}
-    except: return None
-
 def get_nasa_library():
-    keyword = random.choice(SEARCH_KEYWORDS)
-    print(f"📡 [SCANNER] NASA Library: {keyword}...")
+    """Архивы NASA (прямые MP4 файлы для инлайн-плеера)"""
+    keywords = ['Mars', 'ISS', 'Artemis', 'Galaxy', 'Nebula', 'Rocket']
+    kw = random.choice(keywords)
+    print(f"📡 [SCANNER] Глубокий поиск NASA: {kw}...")
     try:
-        url = f"https://images-api.nasa.gov/search?q={keyword}&media_type=video"
+        url = f"https://images-api.nasa.gov/search?q={kw}&media_type=video"
         res = requests.get(url, timeout=30).json()
-        items = res.get('collection', {}).get('items', [])
-        for item in items[:10]:
+        items = res['collection']['items']
+        for item in items[:15]:
             nasa_id = item['data'][0]['nasa_id']
             assets = requests.get(f"https://images-api.nasa.gov/asset/{nasa_id}", timeout=20).json()
-            for a in assets.get('collection', {}).get('items', []):
-                # Ищем именно mp4 файл
+            for a in assets['collection']['items']:
                 if '~orig.mp4' in a['href'] or 'mp4' in a['href']:
                     return {'url': clean_url(a['href']), 'title': item['data'][0]['title'], 
                             'desc': item['data'][0].get('description', ''), 'source': 'NASA Library'}
     except: return None
 
-def get_youtube_fallback():
-    name, c_id = random.choice(list(YT_CHANNELS.items()))
-    print(f"📡 [SCANNER] YouTube: {name}...")
+def get_world_youtube():
+    """Случайное свежее видео из любой страны мира"""
+    name, c_id = random.choice(list(GLOBAL_CHANNELS.items()))
+    print(f"📡 [SCANNER] Проверяю эфир: {name}...")
     try:
         url = f"https://www.youtube.com/feeds/videos.xml?channel_id={c_id}"
         res = requests.get(url, timeout=30)
         root = ET.fromstring(res.content)
         entry = root.find('{http://www.w3.org/2005/Atom}entry')
-        v_id = entry.find('{http://www.youtube.com/xml/schemas/2009}videoId').text
-        return {'url': f"https://www.youtube.com/watch?v={v_id}", 'title': entry.find('{http://www.w3.org/2005/Atom}title').text, 
-                'desc': f"Свежее видео от {name}.", 'source': f"YouTube ({name})"}
+        if entry is not None:
+            v_id = entry.find('{http://www.youtube.com/xml/schemas/2009}videoId').text
+            return {'url': f"https://www.youtube.com/watch?v={v_id}", 
+                    'title': entry.find('{http://www.w3.org/2005/Atom}title').text, 
+                    'desc': f"Свежее видео от {name}.", 'source': name}
     except: return None
 
 # ============================================================
-# 🎬 ГЛАВНАЯ ЛОГИКА ОТПРАВКИ
+# 🎬 ГЛАВНАЯ ЛОГИКА
 # ============================================================
 
 def send():
-    print("🎬 [ЦУП] Кинотеатр v4.2 стартовал...")
-    methods = [get_esa_video, get_nasa_library, get_youtube_fallback]
+    print("🎬 [ЦУП] Глобальный Кинотеатр v4.3 стартовал...")
+    
+    # 50% шанс: или архив NASA (MP4), или YouTube со всего мира
+    methods = [get_nasa_library, get_world_youtube]
     random.shuffle(methods)
     
     sent_data = ""
@@ -103,28 +99,21 @@ def send():
             t_ru = translator.translate(video['title'])
             d_ru = translator.translate('. '.join(video['desc'].split('.')[:3]) + '.')
             
-            # Общий заголовок
+            # Оформление заголовка
             caption = (f"🎬 <b>{video['source'].upper()}: {t_ru.upper()}</b>\n\n"
                        f"📖 <b>О ЧЕМ:</b> {d_ru}\n\n"
                        f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
 
-            # ПРОВЕРКА: Если это прямой файл MP4 (например, из NASA Library)
+            # ВАРИАНТ 1: Прямое видео (плеер сразу в ТГ)
             if '.mp4' in video['url'].lower():
-                print("🎥 Отправляю как нативное видео для 'окошка'...")
-                payload = {
-                    "chat_id": CHANNEL_NAME,
-                    "video": video['url'],
-                    "caption": caption,
-                    "parse_mode": "HTML"
-                }
+                payload = {"chat_id": CHANNEL_NAME, "video": video['url'], "caption": caption, "parse_mode": "HTML"}
                 r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", data=payload)
             
-            # ПРОВЕРКА: Если это YouTube
+            # ВАРИАНТ 2: YouTube (инлайн-плеер через превью)
             else:
-                print("📺 Отправляю как ссылку с плеером...")
                 payload = {
                     "chat_id": CHANNEL_NAME,
-                    "text": f"🍿 <b>ВИДЕО:</b> <a href='{video['url']}'>{t_ru.upper()}</a>\n\n{caption}",
+                    "text": f"🍿 <b>СМОТРЕТЬ:</b> <a href='{video['url']}'>{t_ru.upper()}</a>\n\n{caption}",
                     "parse_mode": "HTML",
                     "link_preview_options": {
                         "url": video['url'],
@@ -136,12 +125,12 @@ def send():
 
             if r.status_code == 200:
                 with open(DB_FILE, 'a', encoding='utf-8') as f: f.write(f"\n{video['url']}")
-                print("🎉 Видео успешно встроено в канал!")
+                print(f"🎉 Видео от {video['source']} опубликовано!")
                 return
             else:
-                print(f"❌ Ошибка отправки: {r.text}")
+                print(f"❌ Ошибка ТГ: {r.text}")
 
-    print("🛑 Ничего нового не найдено.")
+    print("🛑 Новых видео пока нет.")
 
 if __name__ == '__main__':
     send()
