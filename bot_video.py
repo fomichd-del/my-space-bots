@@ -7,10 +7,8 @@ import subprocess
 import whisper
 import yt_dlp
 import io
-import urllib.parse
 from datetime import datetime
 from deep_translator import GoogleTranslator
-from PIL import Image, ImageDraw, ImageFont
 
 # ============================================================
 # ⚙️ НАСТРОЙКИ
@@ -21,43 +19,40 @@ CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
-# Загружаем ИИ-модель Whisper (модель tiny — самая быстрая)
+# Загружаем ИИ-модель Whisper (tiny — оптимальна для GitHub)
 model = whisper.load_model("tiny")
 
 EMOJIS = ["✨", "🔭", "📡", "🛰", "👨‍🚀", "🛸", "🌍", "☄️", "👾", "🚀"]
 
-# ============================================================
-# 🧠 МОДУЛЬ ИИ-ОБРАБОТКИ (Hardsub & Whisper)
-# ============================================================
-
 def format_time(seconds):
-    """Форматирует секунды для SRT"""
     h = int(seconds // 3600); m = int((seconds % 3600) // 60); s = int(seconds % 60)
     ms = int((seconds - int(seconds)) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
+# ============================================================
+# 🧠 МОДУЛЬ ИИ-ОБРАБОТКИ
+# ============================================================
+
 def process_video_ai(video_url, is_youtube=False):
-    """Качает видео, слушает голос через Whisper и вшивает перевод"""
     try:
         filename = "input.mp4"
         if is_youtube:
-            print(f"📥 [YT-DLP] Качаю видео с YouTube...")
+            print(f"📥 [YT-DLP] Качаю с YouTube: {video_url}")
             ydl_opts = {'format': 'best[ext=mp4]/best', 'outtmpl': filename, 'quiet': True}
             with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([video_url])
         else:
-            print(f"📥 [REQUESTS] Качаю прямой файл...")
+            print(f"📥 [NASA] Качаю прямой файл: {video_url}")
             r = requests.get(video_url, timeout=120)
-            with open(filename, "wb") as f: f.write(r.content)
+            open(filename, "wb").write(r.content)
 
-        print("🧠 [WHISPER] ИИ анализирует аудиодорожку...")
+        print("🧠 [WHISPER] Слушаю голос...")
         result = model.transcribe(filename)
         segments = result.get('segments', [])
         
         if not segments:
-            print("ℹ️ Голоса не обнаружено, вшивка субтитров пропущена.")
+            print("ℹ️ В ролике нет речи для перевода. Отправляю как есть.")
             return filename
 
-        print(f"📝 [AI] Распознано {len(segments)} фраз. Перевожу...")
         srt_content = ""
         for i, seg in enumerate(segments):
             text_ru = translator.translate(seg['text'].strip())
@@ -65,31 +60,27 @@ def process_video_ai(video_url, is_youtube=False):
         
         with open("subs.srt", "w", encoding="utf-8") as f: f.write(srt_content)
 
-        print("🔥 [FFMPEG] Впекаю аккуратные субтитры...")
-        # Стиль: FontSize=14 (компактно), MarginV=10 (внизу), тонкая обводка
+        print("🔥 [FFMPEG] Впекаю субтитры...")
         style = "FontSize=14,PrimaryColour=&H00FFFFFF,OutlineColour=&H000000,BorderStyle=1,Outline=1,Alignment=2,MarginV=10"
         subprocess.run(['ffmpeg', '-y', '-i', filename, '-vf', f"subtitles=subs.srt:force_style='{style}'", 
                         '-c:a', 'copy', '-preset', 'ultrafast', 'output.mp4'], check=True)
         return "output.mp4"
     except Exception as e:
-        print(f"⚠️ Ошибка ИИ-обработки: {e}")
-        return filename if os.path.exists(filename) else None
+        print(f"⚠️ Ошибка ИИ: {e}"); return filename if os.path.exists(filename) else None
 
 # ============================================================
-# 🛰️ ГЛОБАЛЬНАЯ РУЛЕТКА ПОИСКА
+# 🛰️ ГЛОБАЛЬНЫЙ ПОИСК (10 попыток)
 # ============================================================
 
 def get_world_video():
-    """Абсолютно случайный поиск по всем мировым источникам"""
     sources = ['nasa_archive', 'spacex', 'roscosmos', 'isro', 'esa', 'jaxa', 'nasa_yt']
     choice = random.choice(sources)
-    print(f"📡 [SCANNER] Выбран сектор поиска: {choice.upper()}")
     
     if choice == 'nasa_archive':
         try:
-            kw = random.choice(['Mars', 'ISS', 'Artemis', 'Galaxy', 'Jupiter', 'Nebula', 'Black Hole'])
+            kw = random.choice(['Mars', 'ISS', 'Artemis', 'Galaxy', 'Jupiter', 'Nebula'])
             res = requests.get(f"https://images-api.nasa.gov/search?q={kw}&media_type=video").json()
-            item = random.choice(res['collection']['items'][:15])
+            item = random.choice(res['collection']['items'][:20])
             assets = requests.get(f"https://images-api.nasa.gov/asset/{item['data'][0]['nasa_id']}").json()
             video_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
             return {'url': video_url, 'title': item['data'][0]['title'], 'is_yt': False, 'source': 'NASA Archive', 'desc': item['data'][0].get('description', '')}
@@ -112,37 +103,35 @@ def get_world_video():
         except: return None
 
 # ============================================================
-# 🎬 ГЛАВНАЯ ЛОГИКА
+# 🎬 ЗАПУСК
 # ============================================================
 
 def main():
-    print("🎬 [ЦУП] Начинаю поиск контента...")
+    print("🎬 [ЦУП] Поиск нового контента...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
 
     video = None
-    for attempt in range(5):
+    for attempt in range(10): # Увеличили до 10 попыток
         video = get_world_video()
         if video and video['url'] not in db: break
         video = None
 
     if not video:
-        print("🛑 Новых видео не обнаружено.")
+        print("🛑 [INFO] Новых роликов не найдено (все уже были в канале или сбой API).")
         return
 
     print(f"✅ Цель захвачена: {video['title']}")
-    
-    # Запускаем ИИ-обработку
     processed_path = process_video_ai(video['url'], is_youtube=video['is_yt'])
-    if not processed_path: return
-
-    # Подготовка текста
-    t_ru = translator.translate(video['title'])
-    d_ru = translator.translate('. '.join(video['desc'].split('.')[:2]) + '.') if video['desc'] else "Уникальные кадры космических достижений."
     
-    rand_emoji = random.choice(EMOJIS)
+    if not processed_path or not os.path.exists(processed_path):
+        print("❌ [ERROR] Не удалось подготовить видеофайл.")
+        return
+
+    t_ru = translator.translate(video['title'])
+    d_ru = translator.translate('. '.join(video['desc'].split('.')[:2]) + '.') if video['desc'] else "Свежие новости с орбиты."
     
     caption = (
-        f"🎬 <b>КОСМИЧЕСКИЙ КИНОТЕАТР {rand_emoji}</b>\n"
+        f"🎬 <b>КОСМИЧЕСКИЙ КИНОТЕАТР {random.choice(EMOJIS)}</b>\n"
         f"🌟 <b>{t_ru.upper()}</b>\n"
         f"─────────────────────\n\n"
         f"🛰 <b>ОБЪЕКТ:</b> {video['source']}\n"
@@ -151,13 +140,14 @@ def main():
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    # Отправка в Telegram
     with open(processed_path, 'rb') as v:
         r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
                           files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True})
         
         if r.status_code == 200:
             open(DB_FILE, 'a').write(f"\n{video['url']}")
-            print("🎉 Видео успешно отправлено в канал!")
+            print("🎉 [SUCCESS] Сообщение отправлено в Telegram!")
+        else:
+            print(f"❌ [TELEGRAM ERROR] Код: {r.status_code}, Ответ: {r.text}")
 
 if __name__ == '__main__': main()
