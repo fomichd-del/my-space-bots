@@ -1,39 +1,41 @@
-name: Bot Video Notifier
+name: Bot Video Cinema (Poster Edition)
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Проверка каждые 30 минут (оптимально для NASA)
-  workflow_dispatch:      # Кнопка для ручного запуска
+    # Запуск каждый час. Можно настроить под себя.
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    # Кнопка для ручного запуска в меню Actions
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
+    # Даем права на запись, чтобы бот мог сохранять дату/ссылку в репозиторий
     permissions:
-      contents: write # Даем права на запись в репозиторий
+      contents: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Install dependencies
         run: |
-          pip install requests deep_translator
+          pip install requests deep_translator Pillow
 
-      - name: Run Bot Video
+      - name: Run Video Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
-          CHANNEL_NAME: "@vladislav_space"
-        run: python bot_video.py # ИСПОЛЬЗУЕМ НОВОЕ ИМЯ
+        run: python bot_video.py
 
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🤖 Память видео обновлена: db_video.txt"
-          file_pattern: 'last_video_date.txt' # СОХРАНЯЕМ НОВЫЙ ФАЙЛ ПАМЯТИ
+          commit_message: "🤖 Кинотеатр: память обновлена (last_video_date.txt)"
+          file_pattern: 'last_video_date.txt'
