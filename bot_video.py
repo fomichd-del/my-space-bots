@@ -20,73 +20,73 @@ DB_FILE        = "last_video_date.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-SEARCH_KEYWORDS = ['Mars Rover', 'ISS Tour', 'Saturn Rings', 'SpaceX Starship', 'Black Hole', 'Earth']
+SEARCH_KEYWORDS = ['Mars Rover', 'ISS Tour', 'Saturn Rings', 'SpaceX Launch', 'Galaxy', 'Jupiter']
 
 # ============================================================
-# 📝 МОДУЛЬ СУБТИТРОВ И ОБРАБОТКИ
+# 📝 МОДУЛЬ "ВШИВАНИЯ" СУБТИТРОВ (HARD-SUB)
 # ============================================================
 
 def create_srt(text):
-    """Создает файл субтитров .srt"""
-    # Разбиваем длинный текст на фразы по 35 символов
+    """Создает временный файл субтитров"""
     words = text.split()
     lines = []
-    current_line = []
-    for word in words:
-        current_line.append(word)
-        if len(' '.join(current_line)) > 35:
-            lines.append(' '.join(current_line))
-            current_line = []
-    if current_line: lines.append(' '.join(current_line))
+    curr = []
+    for w in words:
+        curr.append(w)
+        if len(' '.join(curr)) > 30:
+            lines.append(' '.join(curr))
+            curr = []
+    if curr: lines.append(' '.join(curr))
     
-    # Формируем блоки по 2 строки (для удобства чтения)
+    # Формируем блоки по 2 строки, которые будут сменять друг друга
     srt_content = ""
     for i in range(0, len(lines), 2):
         chunk = "\n".join(lines[i:i+2])
-        start_sec = i * 3
-        end_sec = start_sec + 5
-        srt_content += f"{(i//2)+1}\n00:00:{start_sec:02d},000 --> 00:00:{end_sec:02d},000\n{chunk}\n\n"
+        start = i * 2
+        end = start + 4
+        srt_content += f"{(i//2)+1}\n00:00:{start:02d},000 --> 00:00:{end:02d},000\n{chunk}\n\n"
     
     with open("subs.srt", "w", encoding="utf-8") as f:
         f.write(srt_content)
     return "subs.srt"
 
-def embed_subtitles(video_url, translated_text):
-    """Скачивает видео и вшивает субтитры через ffmpeg"""
+def burn_subtitles(video_url, translated_text):
+    """Вшивает субтитры прямо в видеопоток (Hardsub)"""
     try:
-        print("📥 Загрузка видео...")
+        print("📥 Загрузка видео для обработки...")
         r = requests.get(video_url, stream=True, timeout=60)
         with open("input.mp4", "wb") as f:
             for chunk in r.iter_content(chunk_size=8192): f.write(chunk)
         
         create_srt(translated_text)
-        print("🎞 Вшивка субтитров...")
-        # Используем кодек mov_text для MP4 субтитров (понимается Телеграмом)
+        
+        print("🔥 Впекаю субтитры в видео (это займет немного времени)...")
+        # Используем фильтр 'subtitles'. 
+        # force_style настраивает внешний вид: крупный шрифт, желтый цвет для заметности
+        style = "FontSize=20,PrimaryColour=&H00FFFF,OutlineColour=&H000000,BorderStyle=1,Outline=2"
         cmd = [
-            'ffmpeg', '-y', '-i', 'input.mp4', '-i', 'subs.srt',
-            '-c', 'copy', '-c:s', 'mov_text', '-metadata:s:s:0', 'language=rus', 'output.mp4'
+            'ffmpeg', '-y', '-i', 'input.mp4', 
+            '-vf', f"subtitles=subs.srt:force_style='{style}'", 
+            '-c:a', 'copy', '-preset', 'ultrafast', 'output.mp4'
         ]
         subprocess.run(cmd, check=True)
         return "output.mp4"
     except Exception as e:
-        print(f"⚠️ Ошибка обработки: {e}")
+        print(f"⚠️ Ошибка впекания: {e}")
         return "input.mp4"
 
 # ============================================================
-# 🖌 МОДУЛЬ АФИШ (Обложка)
+# 🖌 МОДУЛЬ ОБЛОЖКИ (АФИША)
 # ============================================================
 
 def create_poster(img_url):
     try:
         res = requests.get(img_url, timeout=20)
         img = Image.open(io.BytesIO(res.content)).convert('RGB')
-        img.thumbnail((320, 320))
+        img.thumbnail((400, 400))
         draw = ImageDraw.Draw(img, 'RGBA')
-        text = "🚀 КИНОТЕАТР"
-        # Рисуем простую подпись
-        draw.rectangle([(0, img.height-40), (img.width, img.height)], fill=(0,0,0,180))
-        draw.text((10, img.height-30), text, fill="white")
-        
+        draw.rectangle([(0, img.height-50), (img.width, img.height)], fill=(0,0,0,160))
+        draw.text((20, img.height-35), "🚀 КИНОТЕАТР ПРЕДСТАВЛЯЕТ", fill="white")
         buf = io.BytesIO()
         img.save(buf, format='JPEG')
         buf.seek(0)
@@ -94,16 +94,16 @@ def create_poster(img_url):
     except: return None
 
 # ============================================================
-# 🛰️ ПОИСК (NASA Library)
+# 🛰️ ПОИСК
 # ============================================================
 
-def get_video():
+def get_nasa_video():
     kw = random.choice(SEARCH_KEYWORDS)
     try:
         url = f"https://images-api.nasa.gov/search?q={kw}&media_type=video"
         res = requests.get(url, timeout=30).json()
         items = res['collection']['items']
-        for item in items[:10]:
+        for item in items[:15]:
             nasa_id = item['data'][0]['nasa_id']
             assets = requests.get(f"https://images-api.nasa.gov/asset/{nasa_id}").json()
             links = [a['href'] for a in assets['collection']['items']]
@@ -114,11 +114,11 @@ def get_video():
     except: return None
 
 # ============================================================
-# 🎬 ЗАПУСК
+# 🎬 ГЛАВНЫЙ ЗАПУСК
 # ============================================================
 
 def main():
-    video = get_video()
+    video = get_nasa_video()
     if not video: return
     
     db = ""
@@ -126,17 +126,18 @@ def main():
         with open(DB_FILE, 'r') as f: db = f.read()
     if video['url'] in db: return
 
-    print(f"✅ Найдено: {video['title']}")
+    print(f"🎬 Работаю над выпуском: {video['title']}")
+    
+    # Перевод
     t_ru = translator.translate(video['title'])
     d_ru = translator.translate('. '.join(video['desc'].split('.')[:3]) + '.')
     
-    # Обработка
-    processed_path = embed_subtitles(video['url'], d_ru)
+    # Вшиваем субтитры (теперь они будут всегда на экране)
+    processed_path = burn_subtitles(video['url'], d_ru)
     poster = create_poster(video['img'])
     
-    caption = (f"🎬 <b>КИНОТЕАТР: {t_ru.upper()}</b>\n\n"
-               f"📖 <b>О ЧЕМ:</b> {d_ru}\n\n"
-               f"💬 <i>(Включите субтитры в плеере)</i>\n\n"
+    caption = (f"🎬 <b>{t_ru.upper()}</b>\n\n"
+               f"📖 {d_ru}\n\n"
                f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
 
     with open(processed_path, 'rb') as v:
@@ -148,7 +149,7 @@ def main():
         
         if r.status_code == 200:
             with open(DB_FILE, 'a') as f: f.write(f"\n{video['url']}")
-            print("🎉 Видео с субтитрами отправлено!")
+            print("🎉 Видео с автоматическим переводом отправлено!")
 
 if __name__ == '__main__':
     main()
