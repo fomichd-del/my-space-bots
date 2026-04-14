@@ -15,7 +15,7 @@ DB_FILE        = "db_launch.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 
 # ============================================================
-# 🐩 ВСЕ 50 КОСМИЧЕСКИХ СЕКРЕТОВ ОТ МАРТИ
+# 🐩 ВСЕ КОСМИЧЕСКИЕ СЕКРЕТЫ ОТ МАРТИ (ПОЛНЫЙ СПИСОК)
 # ============================================================
 MARTI_FACTS = [
     "В космосе абсолютная тишина, потому что там нет воздуха, чтобы передавать звуки.",
@@ -72,6 +72,7 @@ MARTI_FACTS = [
 ]
 
 def get_launch_data():
+    """Получает данные о 5 ближайших пусках"""
     url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=5"
     try:
         res = requests.get(url, timeout=30)
@@ -95,6 +96,7 @@ def main():
         net = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
         diff = (net - now).total_seconds() / 60
         
+        # Окно уведомления: от 0 до 24 часов
         if 0 < diff < 1450:
             memory_key = f"{l_id}_{'final' if diff < 70 else 'early'}"
             if memory_key in sent_ids: continue
@@ -102,9 +104,22 @@ def main():
             status = "ГОТОВНОСТЬ 24 ЧАСА" if diff > 120 else "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)"
             desc_ru = translator.translate(launch.get('mission', {}).get('description', 'Научная миссия.'))
             
-            # ИСПРАВЛЕННАЯ ЛОГИКА ССЫЛОК (без слэшей внутри {})
-            video_url = launch['vidURLs'][0]['url'] if launch.get('vidURLs') else None
-            video_line = f"\n🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>" if video_url else ""
+            # --- УМНЫЙ ПОИСК ТРАНСЛЯЦИИ (ЧТОБЫ КНОПКА БЫЛА ВСЕГДА) ---
+            video_url = None
+            if launch.get('vidURLs'):
+                video_url = launch['vidURLs'][0]['url']
+            
+            # Резервные ссылки, если основной трансляции еще нет в API
+            if not video_url:
+                if "SpaceX" in name:
+                    video_url = "https://www.youtube.com/@SpaceX/streams"
+                elif "NASA" in name:
+                    video_url = "https://www.nasa.gov/nasatv/"
+                else:
+                    # Самый надежный запасной вариант: монитор МКС
+                    video_url = "https://www.n2yo.com/space-station/"
+
+            video_line = f"\n🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>"
             img_url = launch.get('image')
 
             caption = (
@@ -128,10 +143,11 @@ def main():
                 }
             }
             
-            if requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload).status_code == 200:
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
+            if r.status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{memory_key}\n")
                 print(f"✅ Успешно отправлено: {name}")
-                break 
+                break # Отправляем только одну актуальную ракету
 
 if __name__ == '__main__':
     main()
