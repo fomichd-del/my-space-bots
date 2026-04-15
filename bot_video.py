@@ -14,7 +14,7 @@ import shutil
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ
+# ⚙️ НАСТРОЙКИ ЦУП
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
@@ -28,17 +28,15 @@ VOICE = "ru-RU-SvetlanaNeural"
 VOICE_RATE = "-10%" 
 VOICE_LIMIT = 540 
 
-# РАСШИРЕННЫЙ СПИСОК ИСТОЧНИКОВ С YOUTUBE
 SOURCES = [
     {'n': 'SpaceX (Запуски)', 't': 'yt', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA'},
     {'n': 'VideoFromSpace (Клипы)', 't': 'yt', 'id': 'UC6_OitvS-L0m_uVndA-K8lA'},
-    {'n': 'NASA JPL (Технологии)', 't': 'yt', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw'},
+    {'n': 'NASA JPL (Марсоходы)', 't': 'yt', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw'},
     {'n': 'Space.com (Новости)', 't': 'rss', 'u': 'https://www.space.com/feeds/all'},
     {'n': 'Phys.org (Астрономия)', 't': 'rss', 'u': 'https://phys.org/rss-feed/space-news/'},
     {'n': 'ESO (Европа)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
     {'n': 'ESA (Открытия)', 't': 'rss', 'u': 'https://www.esa.int/rssfeed/Videos'},
     {'n': 'JAXA (Япония)', 't': 'yt', 'id': 'UC1S_S6G_9A440VUM_KOn6Zg'},
-    {'n': 'ISRO (Индия)', 't': 'yt', 'id': 'UC16vrn4PmwzOm_8atGYU8YQ'},
     {'n': 'NASA (Архив)', 't': 'nasa_api'}
 ]
 
@@ -48,9 +46,7 @@ SOURCES = [
 
 def safe_translate(text):
     if not text or len(str(text)) < 3: return text
-    try:
-        res = translator.translate(str(text))
-        return res if res else text
+    try: return translator.translate(str(text))
     except: return text
 
 def super_clean(text):
@@ -68,20 +64,16 @@ async def build_voice_track(segments, total_duration):
     inputs = []; filter_parts = []; valid_count = 0
     subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(total_duration + 5), "silent_base.mp3"], capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
-    
     for i, seg in enumerate(segments[:40]):
         try:
-            phrase = seg.get('text', '').strip()
-            if len(phrase) < 5: continue
             path = f"voice/v_{valid_count}.mp3"
-            await edge_tts.Communicate(safe_translate(phrase), VOICE, rate=VOICE_RATE).save(path)
+            await edge_tts.Communicate(safe_translate(seg.get('text', '')), VOICE, rate=VOICE_RATE).save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
                 start_ms = int(seg['start'] * 1000) + 50
                 inputs.extend(["-i", path])
                 filter_parts.append(f"[{valid_count+1}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
                 valid_count += 1
         except: continue
-    
     if valid_count < 1: return None
     labels = "".join([f"[a{i}]" for i in range(valid_count)])
     amix_filter = f"[0:a]{labels}amix=inputs={valid_count+1}:duration=longest[out]"
@@ -105,7 +97,6 @@ async def process_video_async(video_url, is_yt):
         dur = float(dur_out.decode().strip())
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
-        
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
@@ -120,12 +111,10 @@ async def process_video_async(video_url, is_yt):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v30.0 'Deep Space Network' запущен...")
+    print("🎬 [ЦУП] v31.0 'Nebula Guard' запущен...")
     
-    # Умная чистка истории
     if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r') as f:
-            lines = [l.strip() for l in f.readlines() if l.strip()]
+        with open(DB_FILE, 'r') as f: lines = [l.strip() for l in f.readlines() if l.strip()]
         if len(lines) > 100:
             with open(DB_FILE, 'w') as f: f.write("\n".join(lines[-70:]))
 
@@ -139,11 +128,9 @@ async def main():
     for s in pool:
         try:
             print(f"📡 Сектор: {s['n']}...")
-            if s['t'] == 'nasa_api' and db.strip().split('\n')[-1].startswith("nasa_"):
-                if len(pool) > 1: continue
-
             video_list = []
             if s['t'] == 'nasa_api':
+                if db.strip().split('\n')[-1].startswith("nasa_"): continue
                 nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=space&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
@@ -156,46 +143,44 @@ async def main():
                 url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
                 res = requests.get(url_f, headers=HEADERS, timeout=25)
                 if res.status_code != 200: continue
-                try:
-                    root = ET.fromstring(res.content)
-                    items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
-                    for item in items[:5]:
-                        link = ""
+                
+                root = ET.fromstring(res.content)
+                # Универсальный поиск элементов (RSS и Atom)
+                items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
+                for item in items[:5]:
+                    # Ищем ссылку
+                    link_node = item.find('link')
+                    link = link_node.text if link_node is not None and link_node.text else link_node.get('href') if link_node is not None else ""
+                    if not link:
                         enc = item.find('.//enclosure')
-                        if enc is not None: link = enc.get('url')
-                        else:
-                            l_node = item.find('link')
-                            link = l_node.text if l_node is not None else l_node.get('href', '') if l_node is not None else ""
-                        
-                        if not link: continue
-                        v_obj = {'url': link, 'title': item.find('title').text, 'is_yt': 'youtube' in link, 'desc': (item.find('description').text if item.find('description') is not None else ""), 'id': link, 'src': s['n']}
-                        if link not in db: video_list.append(v_obj); break
-                        elif not emergency_fallback or emergency_fallback['src'] == 'NASA (Архив)': emergency_fallback = v_obj
-                except: continue
+                        link = enc.get('url') if enc is not None else ""
+                    
+                    if not link: continue
+                    if link in db: continue
+                    
+                    # Ищем заголовок (с учетом пространства имен Atom)
+                    title_node = item.find('title') or item.find('{http://www.w3.org/2005/Atom}title')
+                    title = title_node.text if title_node is not None else "КОСМИЧЕСКОЕ СОБЫТИЕ"
+                    
+                    # Ищем описание
+                    desc_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
+                    desc = desc_node.text if desc_node is not None else ""
+                    
+                    v_obj = {'url': link, 'title': title, 'is_yt': 'youtube' in link or 'youtu.be' in link, 'desc': desc, 'id': link, 'src': s['n']}
+                    video_list.append(v_obj); break
 
             for v in video_list:
                 path, mode = await process_video_async(v['url'], v['is_yt'])
                 if not path: continue
-                
-                t_ru = super_clean(safe_translate(v['title']).upper())
-                d_ru = super_clean(safe_translate(v['desc'][:600]))
-                status_audio = "Видео с переводом" if mode == "voice" else "Оригинал"
-
-                caption = (
-                    f"⭐ <b>{t_ru}</b>\n\n"
-                    f"🛰 <b>ОБЪЕКТ:</b> {v['src']}\n"
-                    f"🔊 <b>ЗВУК:</b> {status_audio}\n"
-                    f"─────────────────────\n"
-                    f"📖 <b>СЮЖЕТ:</b> {d_ru[:380]}...\n\n"
-                    f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-                )
-
+                caption = (f"⭐ <b>{super_clean(safe_translate(v['title'])).upper()}</b>\n\n🪐 <b>ОБЪЕКТ:</b> {v['src']}\n🔊 <b>ЗВУК:</b> {('Перевод' if mode=='voice' else 'Оригинал')}\n─────────────────────\n📖 <b>СЮЖЕТ:</b> {super_clean(safe_translate(v['desc'][:380]))}...\n\n🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
                 with open(path, 'rb') as f_v:
                     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": f_v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=180)
                 if r.status_code == 200:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                     print("🎉 Опубликовано!"); return
-        except: continue
+        except Exception as e:
+            print(f"⚠️ Сбой в секторе {s['n']}: {e}")
+            continue
 
     if emergency_fallback:
         path, mode = await process_video_async(emergency_fallback['url'], emergency_fallback['is_yt'])
