@@ -14,7 +14,7 @@ import shutil
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ ЦУП
+# ⚙️ НАСТРОЙКИ
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
@@ -28,12 +28,15 @@ VOICE = "ru-RU-SvetlanaNeural"
 VOICE_RATE = "-10%" 
 VOICE_LIMIT = 540 
 
+# РАСШИРЕННЫЙ СПИСОК ИСТОЧНИКОВ С YOUTUBE
 SOURCES = [
+    {'n': 'SpaceX (Запуски)', 't': 'yt', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA'},
+    {'n': 'VideoFromSpace (Клипы)', 't': 'yt', 'id': 'UC6_OitvS-L0m_uVndA-K8lA'},
+    {'n': 'NASA JPL (Технологии)', 't': 'yt', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw'},
     {'n': 'Space.com (Новости)', 't': 'rss', 'u': 'https://www.space.com/feeds/all'},
     {'n': 'Phys.org (Астрономия)', 't': 'rss', 'u': 'https://phys.org/rss-feed/space-news/'},
     {'n': 'ESO (Европа)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
     {'n': 'ESA (Открытия)', 't': 'rss', 'u': 'https://www.esa.int/rssfeed/Videos'},
-    {'n': 'Universe Today', 't': 'rss', 'u': 'https://www.universetoday.com/feed/'},
     {'n': 'JAXA (Япония)', 't': 'yt', 'id': 'UC1S_S6G_9A440VUM_KOn6Zg'},
     {'n': 'ISRO (Индия)', 't': 'yt', 'id': 'UC16vrn4PmwzOm_8atGYU8YQ'},
     {'n': 'NASA (Архив)', 't': 'nasa_api'}
@@ -45,7 +48,9 @@ SOURCES = [
 
 def safe_translate(text):
     if not text or len(str(text)) < 3: return text
-    try: return translator.translate(str(text))
+    try:
+        res = translator.translate(str(text))
+        return res if res else text
     except: return text
 
 def super_clean(text):
@@ -63,16 +68,20 @@ async def build_voice_track(segments, total_duration):
     inputs = []; filter_parts = []; valid_count = 0
     subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(total_duration + 5), "silent_base.mp3"], capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
+    
     for i, seg in enumerate(segments[:40]):
         try:
+            phrase = seg.get('text', '').strip()
+            if len(phrase) < 5: continue
             path = f"voice/v_{valid_count}.mp3"
-            await edge_tts.Communicate(safe_translate(seg['text']), VOICE, rate=VOICE_RATE).save(path)
+            await edge_tts.Communicate(safe_translate(phrase), VOICE, rate=VOICE_RATE).save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
                 start_ms = int(seg['start'] * 1000) + 50
                 inputs.extend(["-i", path])
                 filter_parts.append(f"[{valid_count+1}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
                 valid_count += 1
         except: continue
+    
     if valid_count < 1: return None
     labels = "".join([f"[a{i}]" for i in range(valid_count)])
     amix_filter = f"[0:a]{labels}amix=inputs={valid_count+1}:duration=longest[out]"
@@ -84,8 +93,8 @@ async def process_video_async(video_url, is_yt):
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
-        ydl_opts = {'format': 'best[height<=720][ext=mp4]', 'outtmpl': f_in, 'quiet': True}
-        if is_yt:
+        ydl_opts = {'format': 'best[height<=720][ext=mp4]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
+        if is_yt or "youtube" in video_url:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([video_url])
         else:
             r = requests.get(video_url, headers=HEADERS, timeout=60)
@@ -96,10 +105,11 @@ async def process_video_async(video_url, is_yt):
         dur = float(dur_out.decode().strip())
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
+        
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
-                cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.12[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
+                cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.1[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
                 subprocess.run(cmd, check=True)
                 return f_out, "voice"
         return f_in, "original"
@@ -110,20 +120,21 @@ async def process_video_async(video_url, is_yt):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v28.0 'Supernova' запущен...")
+    print("🎬 [ЦУП] v30.0 'Deep Space Network' запущен...")
     
-    # УМНАЯ ПАМЯТЬ
+    # Умная чистка истории
     if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r') as f: lines = [l.strip() for l in f.readlines() if l.strip()]
+        with open(DB_FILE, 'r') as f:
+            lines = [l.strip() for l in f.readlines() if l.strip()]
         if len(lines) > 100:
             with open(DB_FILE, 'w') as f: f.write("\n".join(lines[-70:]))
-    
+
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
     pool.sort(key=lambda x: x['t'] == 'nasa_api')
 
-    emergency_fallback = None # Для режима "Паника"
+    emergency_fallback = None
 
     for s in pool:
         try:
@@ -139,29 +150,46 @@ async def main():
                     v_url_data = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
                     v_url = next(a['href'] for a in v_url_data['collection']['items'] if '~medium.mp4' in a['href'])
                     v_obj = {'url': v_url, 'title': item['data'][0]['title'], 'is_yt': False, 'desc': item['data'][0].get('description', ''), 'id': f"nasa_{v_id}", 'src': s['n']}
-                    if f"nasa_{v_id}" not in db:
-                        video_list.append(v_obj); break
+                    if f"nasa_{v_id}" not in db: video_list.append(v_obj); break
                     elif not emergency_fallback: emergency_fallback = v_obj
             else:
                 url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
                 res = requests.get(url_f, headers=HEADERS, timeout=25)
                 if res.status_code != 200: continue
-                root = ET.fromstring(res.content)
-                items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
-                for item in items[:5]:
-                    enc = item.find('.//enclosure')
-                    link = enc.get('url') if enc is not None else (item.find('link').text if item.find('link') is not None else "")
-                    if not link: continue
-                    v_obj = {'url': link, 'title': item.find('title').text, 'is_yt': 'youtube' in link, 'desc': (item.find('description').text if item.find('description') is not None else ""), 'id': link, 'src': s['n']}
-                    if link not in db:
-                        video_list.append(v_obj); break
-                    elif not emergency_fallback or emergency_fallback['src'] == 'NASA (Архив)':
-                        emergency_fallback = v_obj
+                try:
+                    root = ET.fromstring(res.content)
+                    items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
+                    for item in items[:5]:
+                        link = ""
+                        enc = item.find('.//enclosure')
+                        if enc is not None: link = enc.get('url')
+                        else:
+                            l_node = item.find('link')
+                            link = l_node.text if l_node is not None else l_node.get('href', '') if l_node is not None else ""
+                        
+                        if not link: continue
+                        v_obj = {'url': link, 'title': item.find('title').text, 'is_yt': 'youtube' in link, 'desc': (item.find('description').text if item.find('description') is not None else ""), 'id': link, 'src': s['n']}
+                        if link not in db: video_list.append(v_obj); break
+                        elif not emergency_fallback or emergency_fallback['src'] == 'NASA (Архив)': emergency_fallback = v_obj
+                except: continue
 
             for v in video_list:
                 path, mode = await process_video_async(v['url'], v['is_yt'])
                 if not path: continue
-                caption = (f"⭐ <b>{super_clean(safe_translate(v['title'])).upper()}</b>\n\n🪐 <b>ИСТОЧНИК:</b> {v['src']}\n🔊 <b>ЗВУК:</b> {('Перевод' if mode=='voice' else 'Оригинал')}\n─────────────────────\n📖 <b>СЮЖЕТ:</b> {super_clean(safe_translate(v['desc'][:380]))}...\n\n🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
+                
+                t_ru = super_clean(safe_translate(v['title']).upper())
+                d_ru = super_clean(safe_translate(v['desc'][:600]))
+                status_audio = "Видео с переводом" if mode == "voice" else "Оригинал"
+
+                caption = (
+                    f"⭐ <b>{t_ru}</b>\n\n"
+                    f"🛰 <b>ОБЪЕКТ:</b> {v['src']}\n"
+                    f"🔊 <b>ЗВУК:</b> {status_audio}\n"
+                    f"─────────────────────\n"
+                    f"📖 <b>СЮЖЕТ:</b> {d_ru[:380]}...\n\n"
+                    f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+                )
+
                 with open(path, 'rb') as f_v:
                     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": f_v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=180)
                 if r.status_code == 200:
@@ -169,9 +197,7 @@ async def main():
                     print("🎉 Опубликовано!"); return
         except: continue
 
-    # РЕЖИМ ПАНИКА (Если ничего нового не нашли)
     if emergency_fallback:
-        print(f"🚨 [ПАНИКА] Новых видео нет. Беру лучшее из архива: {emergency_fallback['title']}")
         path, mode = await process_video_async(emergency_fallback['url'], emergency_fallback['is_yt'])
         if path:
             caption = (f"🛰 <b>АРХИВНЫЙ ВЫПУСК: {super_clean(safe_translate(emergency_fallback['title'])).upper()}</b>\n\n🪐 <b>ИСТОЧНИК:</b> {emergency_fallback['src']}\n🔊 <b>ЗВУК:</b> {('Перевод' if mode=='voice' else 'Оригинал')}\n─────────────────────\n📖 <b>СЮЖЕТ:</b> {super_clean(safe_translate(emergency_fallback['desc'][:380]))}...\n\n🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
