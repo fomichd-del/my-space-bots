@@ -37,7 +37,7 @@ SOURCES = [
 ]
 
 # ============================================================
-# 🛠 УЛЬТРА-ОЧИСТКА И ПАРСИНГ
+# 🛠 УТИЛИТЫ
 # ============================================================
 
 def super_clean(text):
@@ -48,7 +48,6 @@ def super_clean(text):
     return html.escape(html.unescape(text)).strip()
 
 def find_tag_text(element, tags, default=""):
-    """Ищет текст в списке возможных тегов (для RSS/Atom)"""
     if element is None: return default
     for tag in tags:
         found = element.find(tag)
@@ -67,30 +66,25 @@ def clear_workspace():
     os.makedirs("voice", exist_ok=True)
 
 # ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ (v10.0 - ФИНАЛ)
+# 🎙 МОДУЛЬ ОЗВУЧКИ
 # ============================================================
 
 async def build_voice_track(segments, total_duration):
-    print(f"🎙 Светлана готовит отчет...")
     inputs = []; filter_parts = []; valid_count = 0
     
-    # База тишины
+    # 1. База тишины (чистый список без .split())
     subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(total_duration + 5), "-ar", "44100", "silent_base.mp3"], capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
     
-    # Берем до 30 ключевых фраз
+    # 2. Фразы
     for i, seg in enumerate(segments[:30]):
         try:
             phrase = seg['text'].strip()
             if len(phrase) < 4: continue
             
-            # Перевод с защитой от None
-            raw_translated = translator.translate(phrase)
-            t_text = raw_translated if raw_translated else phrase
-            
+            t_text = translator.translate(phrase)
             path = f"voice/v_{valid_count}.mp3"
-            communicate = edge_tts.Communicate(t_text, VOICE)
-            await communicate.save(path)
+            await edge_tts.Communicate(t_text, VOICE).save(path)
             
             if os.path.exists(path) and os.path.getsize(path) > 100:
                 start_ms = int(seg['start'] * 1000)
@@ -124,9 +118,8 @@ async def process_video_async(video_url, is_yt):
             dur_out = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", f_in])
             dur = float(dur_out.decode().strip())
 
-        has_audio = False
         audio_check = subprocess.run(["ffprobe", "-i", f_in, "-show_streams", "-select_streams", "a", "-loglevel", "error"], capture_output=True)
-        if audio_check.stdout: has_audio = True
+        has_audio = True if audio_check.stdout else False
 
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
@@ -134,7 +127,7 @@ async def process_video_async(video_url, is_yt):
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments, dur)
             if voice_file and os.path.exists(voice_file):
-                print(f"🎬 Сведение... (Звук оригинала: {has_audio})")
+                print(f"🎬 Монтаж (Звук: {has_audio})")
                 if has_audio:
                     cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
                            "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first:async=1[outa]", 
@@ -142,17 +135,17 @@ async def process_video_async(video_url, is_yt):
                 else:
                     cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
                            "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-ignore_unknown", f_out]
-                subprocess.run(cmd, check=True)
+                subprocess.run(cmd, check=True) # БЕЗ .split()
                 return f_out, "voice"
         return f_in, "original"
     except: return None, None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ ( v10.0 )
+# 🎬 ГЛАВНЫЙ ЦИКЛ
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v10.0 'Supernova-Ultimate' запущен...")
+    print("🎬 [ЦУП] v10.1 'Nova-Prime' запущен...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
@@ -177,8 +170,8 @@ async def main():
                     if v_node is not None: link = f"https://www.youtube.com/watch?v={v_node.text}"
                 
                 if link and link not in db:
-                    title = find_tag_text(item, ['title', '{http://www.w3.org/2005/Atom}title'], "Космический отчет")
-                    desc = find_tag_text(item, ['description', '{http://www.w3.org/2005/Atom}summary', '{http://www.w3.org/2005/Atom}content'], "")
+                    title = find_tag_text(item, ['title', '{http://www.w3.org/2005/Atom}title'], "Космос сегодня")
+                    desc = find_tag_text(item, ['description', '{http://www.w3.org/2005/Atom}summary'], "")
                     
                     path, mode = await process_video_async(link, 'youtube' in link)
                     if not path: continue
