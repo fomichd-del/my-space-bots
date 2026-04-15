@@ -20,10 +20,9 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 
-# Имитация реального браузера для обхода блокировок
+# Имитация браузера для обхода блокировок
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
 }
 
 translator = GoogleTranslator(source='auto', target='ru')
@@ -42,6 +41,25 @@ SOURCES = [
     {'n': 'Hubble (Открытия)', 't': 'rss', 'u': 'https://hubblesite.org/rss/news'},
     {'n': 'NASA (Архив)', 't': 'nasa_api'}
 ]
+
+# ============================================================
+# 🛠 СИСТЕМА УПРАВЛЕНИЯ ПАМЯТЬЮ (НОВОЕ)
+# ============================================================
+
+def auto_manage_db():
+    """Очищает базу данных, если она переполнена, чтобы избежать 'пропусков'"""
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, 'r') as f:
+            lines = f.readlines()
+        
+        # Если в базе больше 100 видео, обнуляем её
+        if len(lines) > 100:
+            print(f"🧹 [ПАМЯТЬ] База переполнена ({len(lines)} записей). Полная очистка...")
+            with open(DB_FILE, 'w') as f: f.write("")
+        else:
+            print(f"📊 [ПАМЯТЬ] В базе {len(lines)} записей. Работаем штатно.")
+    else:
+        with open(DB_FILE, 'w') as f: f.write("")
 
 # ============================================================
 # 🛠 ТЕХНИЧЕСКИЙ ОТСЕК
@@ -65,10 +83,6 @@ def clear_workspace():
     if os.path.exists("voice"): shutil.rmtree("voice")
     os.makedirs("voice", exist_ok=True)
 
-# ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ
-# ============================================================
-
 async def build_voice_track(segments, total_duration):
     inputs = []; filter_parts = []; valid_count = 0
     subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(total_duration + 5), "silent_base.mp3"], capture_output=True)
@@ -77,8 +91,7 @@ async def build_voice_track(segments, total_duration):
     for i, seg in enumerate(segments[:40]):
         try:
             path = f"voice/v_{valid_count}.mp3"
-            communicate = edge_tts.Communicate(safe_translate(seg['text']), VOICE, rate=VOICE_RATE)
-            await communicate.save(path)
+            await edge_tts.Communicate(safe_translate(seg['text']), VOICE, rate=VOICE_RATE).save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
                 start_ms = int(seg['start'] * 1000) + 150
                 inputs.extend(["-i", path])
@@ -127,9 +140,12 @@ async def process_video_async(video_url, is_yt):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v23.0 'Stellar Phoenix' запущен...")
-    db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
+    print("🎬 [ЦУП] v24.0 'Sentinel' запущен...")
     
+    # АВТО-МЕНЕДЖМЕНТ БАЗЫ
+    auto_manage_db()
+    
+    db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
     pool.sort(key=lambda x: x['t'] == 'nasa_api')
@@ -140,12 +156,12 @@ async def main():
             
             # АНТИ-NASA ПРОВЕРКА
             if s['t'] == 'nasa_api' and db.strip().split('\n')[-1].startswith("nasa_"):
-                print("⏭ NASA была последней, пропускаю для разнообразия.")
+                print("⏭ NASA была последней, пропускаю.")
                 continue
 
             video_list = []
             if s['t'] == 'nasa_api':
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=astronomy&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=space&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" not in db:
@@ -156,9 +172,7 @@ async def main():
             else:
                 url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
                 res = requests.get(url_f, headers=HEADERS, timeout=20)
-                if res.status_code != 200: 
-                    print(f"❌ Доступ к {s['n']} закрыт (Ошибка {res.status_code})")
-                    continue
+                if res.status_code != 200: continue
                 
                 try:
                     root = ET.fromstring(res.content)
@@ -171,9 +185,7 @@ async def main():
                             desc = item.find('description').text if item.find('description') is not None else ""
                             video_list.append({'url': link, 'title': title, 'is_yt': 'youtube' in link, 'desc': desc, 'id': link})
                             break
-                except: 
-                    print(f"⚠️ Ошибка парсинга {s['n']}. Иду дальше.")
-                    continue
+                except: continue
 
             for v in video_list:
                 path, mode = await process_video_async(v['url'], v['is_yt'])
@@ -181,7 +193,6 @@ async def main():
                 
                 t_ru = super_clean(safe_translate(v['title']).upper())
                 d_ru = super_clean(safe_translate(v['desc'][:600]))
-                
                 status_audio = "Видео с переводом" if mode == "voice" else "Оригинал"
 
                 caption = (
@@ -190,7 +201,7 @@ async def main():
                     f"🔊 <b>ЗВУК:</b> {status_audio}\n"
                     f"─────────────────────\n"
                     f"📖 <b>СЮЖЕТ:</b> {d_ru[:400]}...\n\n"
-                    f"🌌 <i>Изучай космос вместе с нами!</i>\n"
+                    f"🌌 <i>Изучай Вселенную вместе с нами!</i>\n"
                     f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
 
@@ -202,6 +213,5 @@ async def main():
         except: continue
 
 if __name__ == '__main__':
-    # Используем проверенный loop из v15
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
