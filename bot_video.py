@@ -23,8 +23,8 @@ DB_FILE        = "last_video_date.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_RATE = "-12%" # Чуть медленнее для идеального тайминга
-VOICE_LIMIT = 540 # До 9 минут
+VOICE_RATE = "-12%" 
+VOICE_LIMIT = 540 
 
 SOURCES = [
     {'n': 'ESO (Наука Европы)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
@@ -131,29 +131,32 @@ async def process_video_async(video_url, is_yt):
         segments = res.get('segments', [])
         
         if segments and dur <= VOICE_LIMIT:
-            # Длинное видео или много мелких фраз -> Субтитры
+            # Длинное видео -> Субтитры
             if dur > 300 or len(segments) > 45:
                 srt_file = create_srt(segments)
                 if srt_file:
-                    print("📝 Накладываю субтитры...")
                     subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt", "-c:a", "copy", f_out], check=True)
                     return f_out, "subs"
 
-            # Короткое видео -> Голос Светланы
+            # Короткое видео -> Громкий голос Светланы
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
-                subprocess.run(["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.25[bg];[bg][1:a]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out], check=True)
+                # УСИЛЕНИЕ ГОЛОСА И ПОДАВЛЕНИЕ ФОНА (v15.1)
+                cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
+                       "-filter_complex", "[0:a]volume=0.07[bg];[1:a]volume=2.5[v];[bg][v]amix=inputs=2:duration=first[outa]", 
+                       "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
+                subprocess.run(cmd, check=True)
                 return f_out, "voice"
         
         return f_in, "original"
     except: return (f_in if os.path.exists(f_in) else None), "original"
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ ( v15.0 )
+# 🎬 ГЛАВНЫЙ ЦИКЛ ( v15.1 )
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v15.0 'Omega' запущен...")
+    print("🎬 [ЦУП] v15.1 'Acoustic Shield' запущен...")
     db_content = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     
     pool = SOURCES.copy()
@@ -167,7 +170,7 @@ async def main():
             
             if s['t'] == 'nasa_api':
                 if db_content.split('\n')[-1].startswith("nasa_"): continue
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=space&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=universe&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" not in db_content:
@@ -193,7 +196,7 @@ async def main():
                 if not path or not os.path.exists(path): continue
                 
                 t_ru = super_clean(safe_translate(v['title']).upper())
-                raw_desc = v['desc'] if v['desc'] else "Уникальные кадры, запечатленные телескопами и зондами в самых отдаленных уголках нашей галактики."
+                raw_desc = v['desc'] if v['desc'] else "Завораживающие кадры глубокого космоса, передающие масштаб и величие нашей Вселенной."
                 d_ru = super_clean(safe_translate(raw_desc[:600]))
                 
                 status_audio = "Видео с переводом" if mode == "voice" else ("Видео с субтитрами" if mode == "subs" else "Оригинал")
@@ -213,7 +216,7 @@ async def main():
                 
                 if r.status_code == 200:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                    print(f"🎉 Миссия выполнена: {v['title']}"); return
+                    print(f"🎉 Готово: {v['title']}"); return
         except: continue
 
 if __name__ == '__main__':
