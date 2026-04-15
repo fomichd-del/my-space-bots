@@ -37,8 +37,16 @@ SOURCES = [
 ]
 
 # ============================================================
-# 🛠 УТИЛИТЫ КРАСОТЫ И ПАРСИНГА
+# 🛠 БРОНИРОВАННЫЕ УТИЛИТЫ
 # ============================================================
+
+def safe_translate(text):
+    if not text or len(text.strip()) < 2: return text
+    try:
+        translated = translator.translate(text)
+        return translated if translated else text
+    except:
+        return text
 
 def super_clean(text):
     if not text: return ""
@@ -69,15 +77,12 @@ def clear_workspace():
 # ============================================================
 
 def create_srt(segments):
-    """Создает файл субтитров SRT"""
     if not segments: return None
     srt_content = ""
-    for i, seg in enumerate(segments):
+    for i, seg in enumerate(segments[:40]):
         start = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
         end = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
-        try:
-            text_ru = translator.translate(seg['text'].strip())
-        except: text_ru = seg['text'].strip()
+        text_ru = safe_translate(seg['text'].strip())
         srt_content += f"{i+1}\n{start} --> {end}\n{text_ru}\n\n"
     
     with open("subs.srt", "w", encoding="utf-8") as f:
@@ -97,7 +102,7 @@ async def build_voice_track(segments, total_duration):
         try:
             phrase = seg['text'].strip()
             if len(phrase) < 5: continue
-            t_text = translator.translate(phrase)
+            t_text = safe_translate(phrase)
             path = f"voice/v_{valid_count}.mp3"
             await edge_tts.Communicate(t_text, VOICE).save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
@@ -138,7 +143,7 @@ async def process_video_async(video_url, is_yt):
         segments = res.get('segments', [])
         
         if segments and dur <= VOICE_LIMIT:
-            # ПРОБУЕМ ГОЛОС
+            # 1. ПРОБУЕМ ГОЛОС
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
                 print("🎙 Монтаж: Голос Светланы")
@@ -147,83 +152,89 @@ async def process_video_async(video_url, is_yt):
                        "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
                 subprocess.run(cmd, check=True)
                 return f_out, "voice"
-            else:
-                # ПЛАН Б: СУБТИТРЫ
-                srt_file = create_srt(segments)
-                if srt_file:
-                    print("📝 Монтаж: Русские субтитры")
-                    cmd = ["ffmpeg", "-y", "-i", f_in, "-vf", f"subtitles={srt_file}", "-c:a", "copy", f_out]
-                    subprocess.run(cmd, check=True)
-                    return f_out, "subs"
+            
+            # 2. ПЛАН Б: СУБТИТРЫ
+            srt_file = create_srt(segments)
+            if srt_file:
+                print("📝 Монтаж: Русские субтитры")
+                # Специальный синтаксис для путей в субтитрах
+                cmd = ["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt", "-c:a", "copy", f_out]
+                subprocess.run(cmd, check=True)
+                return f_out, "subs"
         
         return f_in, "original"
     except Exception as e:
-        print(f"❌ Ошибка конвейера: {e}")
+        print(f"⚠️ Ошибка конвейера: {e}")
         return (f_in if os.path.exists(f_in) else None), "original"
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ ( v12.0 )
+# 🎬 ГЛАВНЫЙ ЦИКЛ ( v13.0 )
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v12.0 'Subtitles Edition' запущен...")
+    print("🎬 [ЦУП] v13.0 'Super-Titan' запущен...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
 
     for s in pool:
         try:
+            print(f"📡 Сектор: {s['n']}...")
             url_f = s['u'] if 'u' in s else (f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}" if 'id' in s else None)
             if not url_f and s['t'] != 'nasa_api': continue
             
-            res = requests.get(url_f, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20) if url_f else None
             video_list = []
-            
             if s['t'] == 'nasa_api':
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=astronomy&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=universe&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if v_id not in db:
                         assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
                         v_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
                         video_list.append({'url': v_url, 'title': item['data'][0]['title'], 'is_yt': False, 'desc': item['data'][0].get('description', ''), 'id': v_id})
-            elif res:
-                root = ET.fromstring(res.content)
-                items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
-                for item in items[:3]:
-                    link = find_tag_text(item, ['link', '{http://www.w3.org/2005/Atom}link'])
-                    if s['t'] == 'rss' and item.find('.//enclosure') is not None: link = item.find('.//enclosure').get('url')
-                    if link and link not in db:
-                        video_list.append({'url': link, 'title': find_tag_text(item, ['title', '{http://www.w3.org/2005/Atom}title']), 'is_yt': 'youtube' in link, 'desc': find_tag_text(item, ['description', '{http://www.w3.org/2005/Atom}summary']), 'id': link})
+            else:
+                res = requests.get(url_f, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
+                if res and "<?xml" in res.text[:100]:
+                    root = ET.fromstring(res.content)
+                    items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
+                    for item in items[:3]:
+                        link = find_tag_text(item, ['link', '{http://www.w3.org/2005/Atom}link'])
+                        if s['t'] == 'rss' and item.find('.//enclosure') is not None: link = item.find('.//enclosure').get('url')
+                        if link and link not in db:
+                            video_list.append({'url': link, 'title': find_tag_text(item, ['title', '{http://www.w3.org/2005/Atom}title']), 'is_yt': 'youtube' in link, 'desc': find_tag_text(item, ['description', '{http://www.w3.org/2005/Atom}summary']), 'id': link})
 
             for v in video_list:
-                path, mode = await process_video_async(v['url'], v['is_yt'])
-                if not path: continue
-                
-                t_ru = super_clean(translator.translate(v['title']).upper())
-                raw_desc = v['desc'] if v['desc'] else "Эксклюзивные кадры из глубин космоса, открывающие тайны рождения звезд и галактик."
-                d_ru = super_clean(translator.translate(raw_desc[:400]))
-                
-                # СТАТУС ЗВУКА
-                status_audio = "Видео с переводом" if mode == "voice" else ("Видео с субтитрами" if mode == "subs" else "Оригинал")
+                try:
+                    path, mode = await process_video_async(v['url'], v['is_yt'])
+                    if not path or not os.path.exists(path): continue
+                    
+                    t_ru = super_clean(safe_translate(v['title']).upper())
+                    raw_desc = v['desc'] if v['desc'] else "Эксклюзивные кадры из глубин космоса, открывающие тайны нашей Вселенной."
+                    d_ru = super_clean(safe_translate(raw_desc[:450]))
+                    
+                    # СТАТУС ЗВУКА
+                    status_audio = "Видео с переводом" if mode == "voice" else ("Видео с субтитрами" if mode == "subs" else "Оригинал")
 
-                # КРАСИВОЕ ОФОРМЛЕНИЕ
-                caption = (
-                    f"🚀 <b>{t_ru}</b>\n\n"
-                    f"🪐 <b>ИСТОЧНИК:</b> {s['n']}\n"
-                    f"🔊 <b>ЗВУК:</b> {status_audio}\n"
-                    f"─────────────────────\n"
-                    f"📖 <b>О ЧЕМ ВИДЕО:</b> {d_ru[:280]}...\n\n"
-                    f"✨ <i>Смотри и изучай Вселенную вместе с нами!</i>\n"
-                    f"🛰 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-                )
+                    # ЯРКОЕ ОФОРМЛЕНИЕ
+                    caption = (
+                        f"🚀 <b>{t_ru}</b>\n\n"
+                        f"🪐 <b>ИСТОЧНИК:</b> {s['n']}\n"
+                        f"🔊 <b>ЗВУК:</b> {status_audio}\n"
+                        f"─────────────────────\n"
+                        f"📖 <b>СЮЖЕТ:</b> {d_ru[:320]}...\n\n"
+                        f"✨ <i>Погрузитесь в тайны звездного неба!</i>\n"
+                        f"🛰 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+                    )
 
-                with open(path, 'rb') as video_file:
-                    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": video_file}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True}, timeout=150)
-                
-                if r.status_code == 200:
-                    open(DB_FILE, 'a').write(f"\n{v['id']}"); print("🎉 УСПЕХ!"); return
-        except: continue
+                    with open(path, 'rb') as video_file:
+                        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": video_file}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True}, timeout=150)
+                    
+                    if r.status_code == 200:
+                        open(DB_FILE, 'a').write(f"\n{v['id']}"); print(f"🎉 Опубликовано: {v['title']}"); return
+                except Exception as e:
+                    print(f"⚠️ Пропуск видео {v['title']}: {e}"); continue
+        except Exception as e:
+            print(f"⚠️ Сбой сектора {s['n']}: {e}"); continue
 
 if __name__ == '__main__':
     loop = asyncio.new_event_loop()
