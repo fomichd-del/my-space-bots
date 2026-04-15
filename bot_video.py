@@ -71,7 +71,9 @@ async def build_voice_track(segments, total_duration):
     for i, seg in enumerate(segments[:40]):
         try:
             path = f"voice/v_{valid_count}.mp3"
-            await edge_tts.Communicate(safe_translate(seg.get('text', '')), VOICE, rate=VOICE_RATE).save(path)
+            phrase = seg.get('text', '').strip()
+            if len(phrase) < 4: continue
+            await edge_tts.Communicate(safe_translate(phrase), VOICE, rate=VOICE_RATE).save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
                 start_ms = int(seg['start'] * 1000) + 50
                 inputs.extend(["-i", path])
@@ -86,7 +88,7 @@ async def build_voice_track(segments, total_duration):
     return "voice_final.mp3"
 
 async def process_video_async(video_url):
-    print(f"🎬 [ЦУП] Попытка извлечь видео: {video_url}")
+    print(f"🎬 [ЦУП] Анализ объекта: {video_url}")
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
@@ -95,21 +97,21 @@ async def process_video_async(video_url):
             'outtmpl': f_in, 
             'quiet': True, 
             'noplaylist': True,
-            'fixup': 'warn'
+            'ignoreerrors': True,
+            'no_warnings': True
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                info = ydl.extract_info(video_url, download=True)
-                if info is None: # ЗАЩИТА ОТ NoneType
-                    print("❌ [ОШИБКА] yt-dlp вернул пустой результат (None).")
-                    return None, "error"
-                dur = info.get('duration', 0)
-            except Exception as e:
-                print(f"❌ [ОШИБКА] yt-dlp не справился: {e}")
+            info = ydl.extract_info(video_url, download=True)
+            
+            # ЖЕСТКАЯ ПРОВЕРКА НА NoneType (v35.0)
+            if info is None or not isinstance(info, dict):
+                print("❌ [ОТКАЗ] yt-dlp не смог извлечь данные видео.")
                 return None, "error"
+                
+            dur = info.get('duration', 0)
 
-        if not os.path.exists(f_in) or os.path.getsize(f_in) < 5000: 
+        if not os.path.exists(f_in) or os.path.getsize(f_in) < 10000: 
             return None, "error"
             
         if dur == 0:
@@ -118,11 +120,11 @@ async def process_video_async(video_url):
                 dur = float(dur_out.decode().strip()) if dur_out else 0
             except: dur = 0
 
-        if dur == 0: return None, "corrupted"
+        if dur == 0 or dur > VOICE_LIMIT + 60: return None, "too_long"
 
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
-        if segments and dur <= VOICE_LIMIT:
+        if segments:
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
                 cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.1[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
@@ -130,7 +132,7 @@ async def process_video_async(video_url):
                 return f_out, "voice"
         return f_in, "original"
     except Exception as e:
-        print(f"⚠️ Ошибка монтажа: {e}")
+        print(f"⚠️ Ошибка в отсеке монтажа: {e}")
         return None, "error"
 
 # ============================================================
@@ -138,12 +140,12 @@ async def process_video_async(video_url):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v34.0 'Black Hole Shield' запущен...")
+    print("🎬 [ЦУП] v35.0 'Galaxy Guard' запущен...")
     
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f: lines = [l.strip() for l in f.readlines() if l.strip()]
         if len(lines) > 100:
-            with open(DB_FILE, 'w') as f: f.write("\n".join(lines[-70:]))
+            with open(DB_FILE, 'w') as f: f.write("\n".join(lines[-75:]))
 
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
@@ -153,18 +155,21 @@ async def main():
     for s in pool:
         try:
             print(f"📡 Сектор: {s['n']}...")
-            video_list = []
             
+            # NASA Карантин: Берем NASA только если это последний шанс
+            if s['t'] == 'nasa_api' and "nasa_" in db.strip().split('\n')[-1]:
+                if len(pool) > 1: continue
+
+            video_list = []
             if s['t'] == 'nasa_api':
-                if db.strip().split('\n')[-1].startswith("nasa_"): continue
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=astronomy&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=nebula&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" in db: continue
                     v_url_data = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
                     v_url = next(a['href'] for a in v_url_data['collection']['items'] if '~medium.mp4' in a['href'])
-                    v_obj = {'url': v_url, 'title': item['data'][0]['title'], 'desc': item['data'][0].get('description', ''), 'id': f"nasa_{v_id}", 'src': s['n']}
-                    video_list.append(v_obj); break
+                    video_list.append({'url': v_url, 'title': item['data'][0]['title'], 'desc': item['data'][0].get('description', ''), 'id': f"nasa_{v_id}", 'src': s['n']})
+                    break
             else:
                 url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
                 res = requests.get(url_f, headers=HEADERS, timeout=25)
@@ -178,7 +183,7 @@ async def main():
                     if not link or link in db: continue
                     
                     title_node = item.find('title') or item.find('{http://www.w3.org/2005/Atom}title')
-                    title = title_node.text if title_node is not None else "Space Event"
+                    title = title_node.text if title_node is not None else "Space Discovery"
                     desc_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
                     desc = desc_node.text if desc_node is not None else ""
                     
@@ -188,8 +193,8 @@ async def main():
             for v in video_list:
                 path, mode = await process_video_async(v['url'])
                 
-                # Если файл битый или ошибка загрузки — помечаем в базе, чтобы не пытаться снова
-                if mode in ["corrupted", "error"]:
+                # Если ошибка — записываем в базу, чтобы не долбиться в закрытую дверь
+                if mode in ["error", "too_long", "corrupted"]:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                     continue
 
@@ -201,9 +206,9 @@ async def main():
                 
                 if r.status_code == 200:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                    print("🎉 Опубликовано!"); return
+                    print("🎉 Миссия выполнена!"); return
         except Exception as e:
-            print(f"⚠️ Сбой сектора: {e}")
+            print(f"⚠️ Сбой сектора {s['n']}: {e}")
             continue
 
 if __name__ == '__main__':
