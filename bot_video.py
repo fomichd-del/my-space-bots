@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v113.0
+# ⚙️ КОНФИГУРАЦИЯ v115.0
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY')
@@ -27,14 +27,13 @@ except:
     model = None
 
 # ============================================================
-# 🛠 ТЕХНИЧЕСКИЙ ОТСЕК
+# 🛠 ТЕХНИЧЕСКИЙ ОТСЕК (СЖАТИЕ И ОБРАБОТКА)
 # ============================================================
 
 def safe_translate(text):
     if not text or len(str(text)) < 5: return str(text) if text else ""
     try:
-        # Разбиваем длинный текст на части для переводчика
-        if len(text) > 4500: text = text[:4500]
+        if len(text) > 4000: text = text[:4000]
         return translator.translate(text)
     except: return text
 
@@ -44,7 +43,7 @@ def super_clean(text):
     text = re.sub(r'<[^>]+>', '', text)      
     return html.escape(html.unescape(text)).strip()
 
-def compress_video_safe(input_path, output_path, target_size_mb=45):
+def compress_video_safe(input_path, output_path, target_size_mb=46):
     try:
         prob = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', input_path])
         duration = float(prob)
@@ -60,10 +59,10 @@ def compress_video_safe(input_path, output_path, target_size_mb=45):
     except: return False
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ПРОЦЕССОР
+# 🎬 ГЛАВНЫЙ ПРОЦЕССОР (v115.0)
 # ============================================================
 
-async def process_mission_v113(v_url, title, desc, source_name):
+async def process_mission_v115(v_url, title, desc, source_name):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -83,23 +82,24 @@ async def process_mission_v113(v_url, title, desc, source_name):
 
         mode_text = "🔊 Оригинальный звук"
         if model:
-            print("🎙 Whisper: Расшифровка...")
+            print("🎙 Whisper: Анализ аудио...")
             res = model.transcribe(f_raw)
             if res.get('segments'):
                 srt = ""
                 for i, seg in enumerate(res['segments']):
-                    s = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
-                    e = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
-                    txt = safe_translate(seg['text'])
-                    srt += f"{i+1}\n{s} --> {e}\n{txt}\n\n"
-                with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
-                mode_text = "🎥 Русские субтитры"
+                    s = time.strftime('%H:%M:%S,000', time.gmtime(seg.get('start', 0)))
+                    e = time.strftime('%H:%M:%S,000', time.gmtime(seg.get('end', 0)))
+                    txt = safe_translate(seg.get('text', ''))
+                    if len(txt) > 2: srt += f"{i+1}\n{s} --> {e}\n{txt}\n\n"
+                
+                if srt:
+                    with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
+                    mode_text = "🎥 Русские субтитры"
 
         # Сжатие и сборка
         raw_size = os.path.getsize(f_raw) / (1024*1024)
         if raw_size > 48 or os.path.exists("subs.srt"):
             vf = "subtitles=subs.srt" if os.path.exists("subs.srt") else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
-            print(f"🛠 Финальный монтаж...")
             if raw_size > 48:
                 compress_video_safe(f_raw, f_final)
             else:
@@ -108,13 +108,16 @@ async def process_mission_v113(v_url, title, desc, source_name):
         else:
             path_to_send = f_raw
 
-        # Оформление заголовка и фактов
+        # УЛУЧШЕННОЕ ОПИСАНИЕ
         clean_title = super_clean(safe_translate(title).upper())
         clean_desc = super_clean(safe_translate(desc))
         
-        # Выделяем первые два предложения как "Главный факт"
-        facts = clean_desc.split('. ')
-        main_fact = facts[0] + ('. ' + facts[1] if len(facts) > 1 else '')
+        # Интеллектуальное заполнение фактов
+        if len(clean_desc) < 30:
+            fact_block = f"🔹 Это уникальные кадры события: {clean_title.lower()}."
+        else:
+            facts = clean_desc.split('. ')
+            fact_block = "🔹 " + facts[0] + ('. ' + facts[1] if len(facts) > 1 else '') + "."
 
         caption = (
             f"🚀 <b>{clean_title}</b>\n\n"
@@ -122,12 +125,11 @@ async def process_mission_v113(v_url, title, desc, source_name):
             f"📡 <b>СТАТУС:</b> {mode_text}\n"
             f"─────────────────────\n"
             f"🪐 <b>ГЛАВНЫЕ ФАКТЫ:</b>\n\n"
-            f"🔹 {main_fact}.\n\n"
+            f"{fact_block}\n\n"
             f"✨ <i>Космос становится ближе с каждым кадром!</i>\n"
             f"🔭 <a href='https://t.me/vladislav_space'>Подписаться на Дневник</a>"
         )
 
-        print("📤 Отправка в Telegram...")
         with open(path_to_send, 'rb') as v:
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
                           files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=300)
@@ -135,50 +137,52 @@ async def process_mission_v113(v_url, title, desc, source_name):
     except: return False
 
 # ============================================================
-# 🛰 СКАНЕР
+# 🛰 СКАНЕР (ОТ 2020 ГОДА)
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v113.0 'Galactic Polish' запущена...")
+    print("🎬 [ЦУП] v115.0 'Cosmic Fact-Checker' активирована...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     db = open(DB_FILE, 'r').read()
 
     SOURCES = [
         {'n': 'Роскосмос (РФ)', 'id': 'UCOm4M6L_L7xOovvS_I-k__A', 't': 'yt'},
         {'n': 'SpaceX (Elon Musk)', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt'},
-        {'n': 'ESA (Европа)', 'u': 'https://www.esa.int/rssfeed/Videos', 't': 'rss'},
-        {'n': 'ESO (Наука)', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss'},
-        {'n': 'NASA JPL', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw', 't': 'yt'}
+        {'n': 'Phys.org (Научные факты)', 'u': 'https://phys.org/rss-feed/space-news/', 't': 'rss'},
+        {'n': 'Universe Today (Доказательства)', 'u': 'https://www.universetoday.com/feed/', 't': 'rss'},
+        {'n': 'NASA JPL', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw', 't': 'yt'},
+        {'n': 'ESO (Чили)', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss'}
     ]
 
     random.shuffle(SOURCES)
-    date_limit = "2024-01-01T00:00:00Z"
+    # Сдвигаем время на 2020 год
+    date_limit = "2020-01-01T00:00:00Z"
 
     for s in SOURCES:
         try:
             print(f"📡 Сектор: {s['n']}...")
             if s['t'] == 'yt' and YOUTUBE_API_KEY:
-                url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['id']}&part=snippet,id&order=date&publishedAfter={date_limit}&maxResults=5&type=video"
+                url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['id']}&part=snippet,id&order=date&publishedAfter={date_limit}&maxResults=10&type=video"
                 items = requests.get(url).json().get('items', [])
                 for item in items:
                     v_id = item['id']['videoId']
                     if v_id not in db:
-                        if await process_mission_v113(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n']):
+                        if await process_mission_v115(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n']):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
-                            print("🎉 Миссия выполнена!"); return
+                            print("🎉 Готово!"); return
             
             elif s['t'] == 'rss':
                 try:
                     res = requests.get(s['u'], timeout=20)
                     root = ET.fromstring(res.content)
-                    for item in root.findall('.//item')[:10]:
+                    for item in root.findall('.//item')[:15]:
                         link = item.find('link').text
                         encl = item.find('enclosure')
                         v_url = encl.get('url') if encl is not None else link
                         if link not in db:
-                            if await process_mission_v113(v_url, item.find('title').text, item.find('description').text, s['n']):
+                            if await process_mission_v115(v_url, item.find('title').text, item.find('description').text, s['n']):
                                 with open(DB_FILE, 'a') as f: f.write(f"\n{link}")
-                                print("🎉 Миссия выполнена!"); return
+                                print("🎉 Готово!"); return
                 except: continue
         except: continue
 
