@@ -1,42 +1,48 @@
-name: Space Bot Final Release
+name: Space Bot v90 Prime Release
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
+    - cron: '0 */6 * * *' # Запуск каждые 6 часов
+  workflow_dispatch:      # Кнопка для ручного запуска в любое время
 
 permissions:
-  contents: write
+  contents: write         # Разрешение боту записывать ID видео в базу данных
 
 jobs:
-  run-bot:
+  mission-launch:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: 🐍 Setup Python
+    - name: 🛰 Копирование систем (Checkout)
+      uses: actions/checkout@v4
+
+    - name: 🐍 Подготовка Python 3.10
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-        
-    - name: 🛠 System Setup (FFmpeg)
+        cache: 'pip'
+
+    - name: 🛠 Установка FFmpeg (для субтитров)
       run: |
         sudo apt-get update
         sudo apt-get install -y ffmpeg
-        
-    - name: 📦 Pip Install
+
+    - name: 📦 Установка оборудования (библиотеки)
       run: |
+        python -m pip install --upgrade pip
         pip install requests yt-dlp openai-whisper deep-translator
-        
-    - name: 🚀 Launch Bot
+
+    - name: 🚀 Запуск Космического Бота
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+        YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
       run: python bot_video.py
-      
-    - name: 💾 Git Save (Memory)
+
+    - name: 💾 Сохранение бортового журнала (Git Push)
       run: |
-        git config --global user.name "Space-Bot"
+        git config --global user.name "Space-Bot-Actions"
         git config --global user.email "bot@vladislav.space"
         git add last_video_date.txt
-        git commit -m "📊 Update DB" || echo "No changes"
+        git commit -m "📊 Обновление реестра видео [v90.0]" || echo "Нет новых данных"
         git push
