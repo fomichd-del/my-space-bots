@@ -20,15 +20,13 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 
-# Имитация браузера для обхода блокировок
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-}
+# Имитация браузера
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
 
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_RATE = "-15%" 
+VOICE_RATE = "-10%" # Оптимальная скорость для попадания в тайминг
 VOICE_LIMIT = 540 
 
 SOURCES = [
@@ -43,21 +41,19 @@ SOURCES = [
 ]
 
 # ============================================================
-# 🛠 СИСТЕМА УПРАВЛЕНИЯ ПАМЯТЬЮ (НОВОЕ)
+# 🛠 СИСТЕМА УМНОЙ ПАМЯТИ
 # ============================================================
 
-def auto_manage_db():
-    """Очищает базу данных, если она переполнена, чтобы избежать 'пропусков'"""
+def smart_manage_db():
+    """Оставляет последние 70 записей в базе, чтобы не было повторов"""
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
-            lines = f.readlines()
+            lines = [l.strip() for l in f.readlines() if l.strip()]
         
-        # Если в базе больше 100 видео, обнуляем её
         if len(lines) > 100:
-            print(f"🧹 [ПАМЯТЬ] База переполнена ({len(lines)} записей). Полная очистка...")
-            with open(DB_FILE, 'w') as f: f.write("")
-        else:
-            print(f"📊 [ПАМЯТЬ] В базе {len(lines)} записей. Работаем штатно.")
+            print(f"🧹 [ПАМЯТЬ] Чистка истории. Оставляю 70 последних записей.")
+            with open(DB_FILE, 'w') as f:
+                f.write("\n".join(lines[-70:]))
     else:
         with open(DB_FILE, 'w') as f: f.write("")
 
@@ -90,10 +86,14 @@ async def build_voice_track(segments, total_duration):
     
     for i, seg in enumerate(segments[:40]):
         try:
+            phrase = seg['text'].strip()
+            if len(phrase) < 4: continue
             path = f"voice/v_{valid_count}.mp3"
-            await edge_tts.Communicate(safe_translate(seg['text']), VOICE, rate=VOICE_RATE).save(path)
+            communicate = edge_tts.Communicate(safe_translate(phrase), VOICE, rate=VOICE_RATE)
+            await communicate.save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
-                start_ms = int(seg['start'] * 1000) + 150
+                # Минимальная задержка 50мс для синхрона
+                start_ms = int(seg['start'] * 1000) + 50
                 inputs.extend(["-i", path])
                 filter_parts.append(f"[{valid_count+1}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
                 valid_count += 1
@@ -128,8 +128,8 @@ async def process_video_async(video_url, is_yt):
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
-                # ГРОМКОСТЬ: Голос x3.0, Фон x0.1
-                cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.1[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
+                # v25.0: Голос 3.0x, Фон 0.12x
+                cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.12[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
                 subprocess.run(cmd, check=True)
                 return f_out, "voice"
         return f_in, "original"
@@ -140,10 +140,9 @@ async def process_video_async(video_url, is_yt):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v24.0 'Sentinel' запущен...")
+    print("🎬 [ЦУП] v25.0 'Chronos' запущен...")
     
-    # АВТО-МЕНЕДЖМЕНТ БАЗЫ
-    auto_manage_db()
+    smart_manage_db()
     
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
@@ -154,14 +153,13 @@ async def main():
         try:
             print(f"📡 Сектор: {s['n']}...")
             
-            # АНТИ-NASA ПРОВЕРКА
             if s['t'] == 'nasa_api' and db.strip().split('\n')[-1].startswith("nasa_"):
-                print("⏭ NASA была последней, пропускаю.")
+                print("⏭ NASA уже была, ищем альтернативу.")
                 continue
 
             video_list = []
             if s['t'] == 'nasa_api':
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=space&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=astronomy&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" not in db:
@@ -197,11 +195,11 @@ async def main():
 
                 caption = (
                     f"⭐ <b>{t_ru}</b>\n\n"
-                    f"🛰 <b>ИСТОЧНИК:</b> {s['n']}\n"
+                    f"🛰 <b>ОБЪЕКТ:</b> {s['n']}\n"
                     f"🔊 <b>ЗВУК:</b> {status_audio}\n"
                     f"─────────────────────\n"
-                    f"📖 <b>СЮЖЕТ:</b> {d_ru[:400]}...\n\n"
-                    f"🌌 <i>Изучай Вселенную вместе с нами!</i>\n"
+                    f"📖 <b>СЮЖЕТ:</b> {d_ru[:380]}...\n\n"
+                    f"🌌 <i>Тайны звездного неба раскрываются здесь!</i>\n"
                     f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
 
