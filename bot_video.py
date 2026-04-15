@@ -71,13 +71,11 @@ def clear_workspace():
 
 async def build_voice_track(segments, total_duration):
     inputs = []; filter_parts = []; valid_count = 0
-    
-    # 1. База тишины (чистый список без .split())
+    # Создаем базу тишины
     subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(total_duration + 5), "-ar", "44100", "silent_base.mp3"], capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
     
-    # 2. Фразы
-    for i, seg in enumerate(segments[:30]):
+    for i, seg in enumerate(segments[:35]): # Ограничим до 35 для 100% успеха
         try:
             phrase = seg['text'].strip()
             if len(phrase) < 4: continue
@@ -127,25 +125,28 @@ async def process_video_async(video_url, is_yt):
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments, dur)
             if voice_file and os.path.exists(voice_file):
-                print(f"🎬 Монтаж (Звук: {has_audio})")
+                print(f"🎬 Финальное сведение... (Аудио в оригинале: {has_audio})")
                 if has_audio:
-                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
-                           "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first:async=1[outa]", 
+                    # Удалили :async=1 из amix, добавили глобальный -async 1
+                    cmd = ["ffmpeg", "-y", "-async", "1", "-i", f_in, "-i", voice_file, 
+                           "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first[outa]", 
                            "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", "-ignore_unknown", f_out]
                 else:
                     cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
                            "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-ignore_unknown", f_out]
-                subprocess.run(cmd, check=True) # БЕЗ .split()
+                subprocess.run(cmd, check=True)
                 return f_out, "voice"
         return f_in, "original"
-    except: return None, None
+    except Exception as e:
+        print(f"⚠️ Ошибка на этапе монтажа: {e}")
+        return f_in if os.path.exists(f_in) else None, "original"
 
 # ============================================================
 # 🎬 ГЛАВНЫЙ ЦИКЛ
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v10.1 'Nova-Prime' запущен...")
+    print("🎬 [ЦУП] v10.2 'Nova-Final' запущен...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
@@ -170,11 +171,11 @@ async def main():
                     if v_node is not None: link = f"https://www.youtube.com/watch?v={v_node.text}"
                 
                 if link and link not in db:
-                    title = find_tag_text(item, ['title', '{http://www.w3.org/2005/Atom}title'], "Космос сегодня")
+                    title = find_tag_text(item, ['title', '{http://www.w3.org/2005/Atom}title'], "Космический вестник")
                     desc = find_tag_text(item, ['description', '{http://www.w3.org/2005/Atom}summary'], "")
                     
                     path, mode = await process_video_async(link, 'youtube' in link)
-                    if not path: continue
+                    if not path or not os.path.exists(path): continue
                     
                     t_ru = super_clean(translator.translate(title).upper())
                     d_ru = super_clean(translator.translate(desc[:250])) if desc else "Свежий репортаж из Вселенной."
