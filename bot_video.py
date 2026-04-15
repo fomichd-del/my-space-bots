@@ -20,42 +20,26 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 
-# Имитация браузера
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}
+HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
 
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_RATE = "-10%" # Оптимальная скорость для попадания в тайминг
+VOICE_RATE = "-10%" 
 VOICE_LIMIT = 540 
 
+# РАСШИРЕННЫЙ СПИСОК ИСТОЧНИКОВ
 SOURCES = [
+    {'n': 'Space.com (Новости космоса)', 't': 'rss', 'u': 'https://www.space.com/feeds/all'},
+    {'n': 'Phys.org (Астрономия)', 't': 'rss', 'u': 'https://phys.org/rss-feed/space-news/'},
     {'n': 'ESO (Наука Европы)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
     {'n': 'ESA (Открытия Европы)', 't': 'rss', 'u': 'https://www.esa.int/rssfeed/Videos'},
-    {'n': 'JAXA (Космос Японии)', 't': 'yt', 'id': 'UC1S_S6G_9A440VUM_KOn6Zg'},
-    {'n': 'ISRO (Миссии Индии)', 't': 'yt', 'id': 'UC16vrn4PmwzOm_8atGYU8YQ'},
+    {'n': 'Universe Today', 't': 'rss', 'u': 'https://www.universetoday.com/feed/'},
+    {'n': 'JAXA (Япония)', 't': 'yt', 'id': 'UC1S_S6G_9A440VUM_KOn6Zg'},
+    {'n': 'ISRO (Индия)', 't': 'yt', 'id': 'UC16vrn4PmwzOm_8atGYU8YQ'},
     {'n': 'Роскосмос (Россия)', 't': 'yt', 'id': 'UCp7fGZ8Z9zX_lZpY_l475_g'},
-    {'n': 'SciNews (Мировые факты)', 't': 'yt', 'id': 'UCu3WicZMcXpUksat9yU859g'},
-    {'n': 'Hubble (Открытия)', 't': 'rss', 'u': 'https://hubblesite.org/rss/news'},
     {'n': 'NASA (Архив)', 't': 'nasa_api'}
 ]
-
-# ============================================================
-# 🛠 СИСТЕМА УМНОЙ ПАМЯТИ
-# ============================================================
-
-def smart_manage_db():
-    """Оставляет последние 70 записей в базе, чтобы не было повторов"""
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r') as f:
-            lines = [l.strip() for l in f.readlines() if l.strip()]
-        
-        if len(lines) > 100:
-            print(f"🧹 [ПАМЯТЬ] Чистка истории. Оставляю 70 последних записей.")
-            with open(DB_FILE, 'w') as f:
-                f.write("\n".join(lines[-70:]))
-    else:
-        with open(DB_FILE, 'w') as f: f.write("")
 
 # ============================================================
 # 🛠 ТЕХНИЧЕСКИЙ ОТСЕК
@@ -86,13 +70,9 @@ async def build_voice_track(segments, total_duration):
     
     for i, seg in enumerate(segments[:40]):
         try:
-            phrase = seg['text'].strip()
-            if len(phrase) < 4: continue
             path = f"voice/v_{valid_count}.mp3"
-            communicate = edge_tts.Communicate(safe_translate(phrase), VOICE, rate=VOICE_RATE)
-            await communicate.save(path)
+            await edge_tts.Communicate(safe_translate(seg['text']), VOICE, rate=VOICE_RATE).save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
-                # Минимальная задержка 50мс для синхрона
                 start_ms = int(seg['start'] * 1000) + 50
                 inputs.extend(["-i", path])
                 filter_parts.append(f"[{valid_count+1}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
@@ -118,17 +98,14 @@ async def process_video_async(video_url, is_yt):
             with open(f_in, "wb") as f: f.write(r.content)
         
         if not os.path.exists(f_in) or os.path.getsize(f_in) < 1000: return None, None
-
         dur_out = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", f_in])
         dur = float(dur_out.decode().strip())
-
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
         
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
-                # v25.0: Голос 3.0x, Фон 0.12x
                 cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.12[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
                 subprocess.run(cmd, check=True)
                 return f_out, "voice"
@@ -136,30 +113,38 @@ async def process_video_async(video_url, is_yt):
     except: return None, None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ
+# 🎬 ГЛАВНЫЙ ЦИКЛ ( v26.0 )
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v25.0 'Chronos' запущен...")
+    print("🎬 [ЦУП] v26.0 'Deep Space Explorer' запущен...")
     
-    smart_manage_db()
-    
+    # УМНАЯ ЧИСТКА БАЗЫ (оставляем последние 80)
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, 'r') as f:
+            lines = [l.strip() for l in f.readlines() if l.strip()]
+        if len(lines) > 100:
+            with open(DB_FILE, 'w') as f: f.write("\n".join(lines[-80:]))
+
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
+    
+    # NASA В САМЫЙ КОНЕЦ И ТОЛЬКО ЕСЛИ НЕТ ДРУГИХ
     pool.sort(key=lambda x: x['t'] == 'nasa_api')
 
     for s in pool:
         try:
             print(f"📡 Сектор: {s['n']}...")
             
-            if s['t'] == 'nasa_api' and db.strip().split('\n')[-1].startswith("nasa_"):
-                print("⏭ NASA уже была, ищем альтернативу.")
+            # ЖЕСТКИЙ БЛОК NASA ЕСЛИ БЫЛА НЕДАВНО
+            if s['t'] == 'nasa_api' and "nasa_" in db.strip().split('\n')[-1]:
+                print("⏭ NASA под карантином. Ищем в других секторах.")
                 continue
 
             video_list = []
             if s['t'] == 'nasa_api':
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=astronomy&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=nebula&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" not in db:
@@ -169,21 +154,27 @@ async def main():
                         break
             else:
                 url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
-                res = requests.get(url_f, headers=HEADERS, timeout=20)
+                res = requests.get(url_f, headers=HEADERS, timeout=25)
                 if res.status_code != 200: continue
                 
-                try:
-                    root = ET.fromstring(res.content)
-                    items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
-                    for item in items[:3]:
-                        link = item.find('link').text if item.find('link') is not None else ""
-                        if s['t'] == 'rss' and item.find('.//enclosure') is not None: link = item.find('.//enclosure').get('url')
-                        if link and link not in db:
-                            title = item.find('title').text
-                            desc = item.find('description').text if item.find('description') is not None else ""
-                            video_list.append({'url': link, 'title': title, 'is_yt': 'youtube' in link, 'desc': desc, 'id': link})
-                            break
-                except: continue
+                root = ET.fromstring(res.content)
+                # Поиск во всех возможных тегах (RSS/Atom/Media)
+                items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
+                for item in items[:5]:
+                    link = ""
+                    # Пытаемся найти ссылку в enclosure или стандартном link
+                    enc = item.find('.//enclosure')
+                    if enc is not None: link = enc.get('url')
+                    else:
+                        l_node = item.find('link')
+                        link = l_node.text if l_node is not None else l_node.get('href', '') if l_node is not None else ""
+                    
+                    if link and link not in db:
+                        title = item.find('title').text
+                        desc_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
+                        desc = desc_node.text if desc_node is not None else ""
+                        video_list.append({'url': link, 'title': title, 'is_yt': 'youtube' in link, 'desc': desc, 'id': link})
+                        break
 
             for v in video_list:
                 path, mode = await process_video_async(v['url'], v['is_yt'])
@@ -195,11 +186,11 @@ async def main():
 
                 caption = (
                     f"⭐ <b>{t_ru}</b>\n\n"
-                    f"🛰 <b>ОБЪЕКТ:</b> {s['n']}\n"
+                    f"📡 <b>ИСТОЧНИК:</b> {s['n']}\n"
                     f"🔊 <b>ЗВУК:</b> {status_audio}\n"
                     f"─────────────────────\n"
                     f"📖 <b>СЮЖЕТ:</b> {d_ru[:380]}...\n\n"
-                    f"🌌 <i>Тайны звездного неба раскрываются здесь!</i>\n"
+                    f"🌌 <i>Тайны Вселенной в каждом кадре!</i>\n"
                     f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
 
@@ -207,9 +198,8 @@ async def main():
                     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": f_v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=180)
                 if r.status_code == 200:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                    print("🎉 Опубликовано!"); return
+                    print(f"🎉 Опубликовано: {v['title']}"); return
         except: continue
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())
