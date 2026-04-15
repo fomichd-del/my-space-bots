@@ -23,8 +23,8 @@ DB_FILE        = "last_video_date.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_RATE = "-10%" # Замедляем на 10% для попадания в тайминг
-VOICE_LIMIT = 500 # Лимит 8.3 минуты
+VOICE_RATE = "-12%" # Чуть медленнее для идеального тайминга
+VOICE_LIMIT = 540 # До 9 минут
 
 SOURCES = [
     {'n': 'ESO (Наука Европы)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
@@ -42,7 +42,7 @@ SOURCES = [
 # ============================================================
 
 def safe_translate(text):
-    if not text or len(str(text)) < 2: return text
+    if not text or len(str(text)) < 3: return text
     try:
         res = translator.translate(str(text))
         return res if res else text
@@ -66,13 +66,13 @@ def clear_workspace():
     os.makedirs("voice", exist_ok=True)
 
 # ============================================================
-# 📝 МОДУЛЬ СУБТИТРОВ (v14.0)
+# 📝 МОДУЛЬ СУБТИТРОВ
 # ============================================================
 
 def create_srt(segments):
     if not segments: return None
     srt_content = ""
-    for i, seg in enumerate(segments[:50]):
+    for i, seg in enumerate(segments[:60]):
         start = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
         end = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
         text_ru = safe_translate(seg['text'].strip())
@@ -83,28 +83,23 @@ def create_srt(segments):
     return "subs.srt"
 
 # ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ (v14.0 - СИНХРОННЫЙ)
+# 🎙 МОДУЛЬ ОЗВУЧКИ
 # ============================================================
 
 async def build_voice_track(segments, total_duration):
     inputs = []; filter_parts = []; valid_count = 0
-    # База тишины
     subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(total_duration + 5), "silent_base.mp3"], capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
     
-    for i, seg in enumerate(segments[:35]):
+    for i, seg in enumerate(segments[:40]):
         try:
             phrase = seg['text'].strip()
             if len(phrase) < 5: continue
-            
             path = f"voice/v_{valid_count}.mp3"
-            # Применяем VOICE_RATE для замедления речи
             communicate = edge_tts.Communicate(safe_translate(phrase), VOICE, rate=VOICE_RATE)
             await communicate.save(path)
-            
             if os.path.exists(path) and os.path.getsize(path) > 100:
-                # Добавляем микро-паузу (50мс) для естественности
-                start_ms = int(seg['start'] * 1000) + 50
+                start_ms = int(seg['start'] * 1000) + 100
                 inputs.extend(["-i", path])
                 filter_parts.append(f"[{valid_count+1}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
                 valid_count += 1
@@ -136,40 +131,33 @@ async def process_video_async(video_url, is_yt):
         segments = res.get('segments', [])
         
         if segments and dur <= VOICE_LIMIT:
-            # Если видео длинное (>4 мин), отдаем приоритет субтитрам для стабильности
-            if dur > 240:
+            # Длинное видео или много мелких фраз -> Субтитры
+            if dur > 300 or len(segments) > 45:
                 srt_file = create_srt(segments)
                 if srt_file:
-                    print("📝 Длинное видео: накладываю субтитры")
+                    print("📝 Накладываю субтитры...")
                     subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt", "-c:a", "copy", f_out], check=True)
                     return f_out, "subs"
 
-            # Пробуем голос для коротких роликов
+            # Короткое видео -> Голос Светланы
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
-                subprocess.run(["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out], check=True)
+                subprocess.run(["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.25[bg];[bg][1:a]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out], check=True)
                 return f_out, "voice"
-            
-            # Фоллбек на субтитры если голос не вышел
-            srt_file = create_srt(segments)
-            if srt_file:
-                subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt", "-c:a", "copy", f_out], check=True)
-                return f_out, "subs"
-
+        
         return f_in, "original"
     except: return (f_in if os.path.exists(f_in) else None), "original"
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ ( v14.0 )
+# 🎬 ГЛАВНЫЙ ЦИКЛ ( v15.0 )
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v14.0 'Universal Shield' запущен...")
+    print("🎬 [ЦУП] v15.0 'Omega' запущен...")
     db_content = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     
     pool = SOURCES.copy()
     random.shuffle(pool)
-    # NASA всегда в самом конце
     pool.sort(key=lambda x: x['t'] == 'nasa_api')
 
     for s in pool:
@@ -178,19 +166,15 @@ async def main():
             video_list = []
             
             if s['t'] == 'nasa_api':
-                # Проверка: если в последних 3 записях была NASA, пропускаем ее (для разнообразия)
-                last_entries = db_content.split('\n')[-3:]
-                if any("nasa" in entry.lower() for entry in last_entries):
-                    print("⏭ NASA уже была недавно, ищем дальше...")
-                    continue
-
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=galaxy&media_type=video").json()
+                if db_content.split('\n')[-1].startswith("nasa_"): continue
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=space&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
-                    if v_id not in db_content:
+                    if f"nasa_{v_id}" not in db_content:
                         assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
                         v_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
                         video_list.append({'url': v_url, 'title': item['data'][0]['title'], 'is_yt': False, 'desc': item['data'][0].get('description', ''), 'id': f"nasa_{v_id}"})
+                        break
             else:
                 url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
                 res = requests.get(url_f, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
@@ -201,27 +185,27 @@ async def main():
                         link = item.find('link').text if item.find('link') is not None else ""
                         if s['t'] == 'rss' and item.find('.//enclosure') is not None: link = item.find('.//enclosure').get('url')
                         if link and link not in db_content:
-                            title = item.find('title').text if item.find('title') is not None else "Космос"
-                            desc = item.find('description').text if item.find('description') is not None else ""
-                            video_list.append({'url': link, 'title': title, 'is_yt': 'youtube' in link, 'desc': desc, 'id': link})
+                            video_list.append({'url': link, 'title': item.find('title').text, 'is_yt': 'youtube' in link, 'desc': item.find('description').text if item.find('description') is not None else "", 'id': link})
+                            break
 
             for v in video_list:
                 path, mode = await process_video_async(v['url'], v['is_yt'])
                 if not path or not os.path.exists(path): continue
                 
                 t_ru = super_clean(safe_translate(v['title']).upper())
-                d_ru = super_clean(safe_translate(v['desc'][:500]))
+                raw_desc = v['desc'] if v['desc'] else "Уникальные кадры, запечатленные телескопами и зондами в самых отдаленных уголках нашей галактики."
+                d_ru = super_clean(safe_translate(raw_desc[:600]))
                 
                 status_audio = "Видео с переводом" if mode == "voice" else ("Видео с субтитрами" if mode == "subs" else "Оригинал")
 
                 caption = (
-                    f"✨ <b>{t_ru}</b>\n\n"
-                    f"📡 <b>ИСТОЧНИК:</b> {s['n']}\n"
+                    f"⭐ <b>{t_ru}</b>\n\n"
+                    f"🛰 <b>ОБЪЕКТ:</b> {s['n']}\n"
                     f"🔊 <b>ЗВУК:</b> {status_audio}\n"
                     f"─────────────────────\n"
-                    f"📖 <b>СЮЖЕТ:</b> {d_ru[:350]}...\n\n"
-                    f"🌌 <i>Присоединяйтесь к нашему полету!</i>\n"
-                    f"🛰 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+                    f"📖 <b>СЮЖЕТ:</b> {d_ru[:400]}...\n\n"
+                    f"🌌 <i>Тайны Вселенной раскрываются здесь!</i>\n"
+                    f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
 
                 with open(path, 'rb') as video_file:
@@ -229,9 +213,8 @@ async def main():
                 
                 if r.status_code == 200:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                    print(f"🎉 Готово: {v['title']}"); return
-        except Exception as e:
-            print(f"⚠️ Сбой: {e}"); continue
+                    print(f"🎉 Миссия выполнена: {v['title']}"); return
+        except: continue
 
 if __name__ == '__main__':
     loop = asyncio.new_event_loop()
