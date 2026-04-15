@@ -1,4 +1,4 @@
-name: Space Bot v60 Final
+name: Space Bot Final Release
 
 on:
   schedule:
@@ -9,25 +9,34 @@ permissions:
   contents: write
 
 jobs:
-  start:
+  run-bot:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
+    
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    - name: 🛠 FFmpeg Setup
-      run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        
+    - name: 🛠 System Setup (FFmpeg)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+        
     - name: 📦 Pip Install
-      run: pip install requests yt-dlp openai-whisper deep-translator
-    - name: 🚀 Run Bot
+      run: |
+        pip install requests yt-dlp openai-whisper deep-translator
+        
+    - name: 🚀 Launch Bot
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       run: python bot_video.py
-    - name: 💾 Git Save
+      
+    - name: 💾 Git Save (Memory)
       run: |
         git config --global user.name "Space-Bot"
-        git config --global user.email "bot@space.com"
+        git config --global user.email "bot@vladislav.space"
         git add last_video_date.txt
-        git commit -m "📊 DB Update" || echo "No changes"
+        git commit -m "📊 Update DB" || echo "No changes"
         git push
