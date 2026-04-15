@@ -37,7 +37,7 @@ SOURCES = [
 ]
 
 # ============================================================
-# 🛠 БРОНИРОВАННЫЕ УТИЛИТЫ
+# 🛠 УТИЛИТЫ
 # ============================================================
 
 def super_clean(text):
@@ -48,7 +48,6 @@ def super_clean(text):
     return html.escape(html.unescape(text)).strip()
 
 def get_xml_text(element, path, default=""):
-    """Безопасное извлечение текста из XML"""
     if element is None: return default
     found = element.find(path)
     return found.text if found is not None and found.text else default
@@ -70,7 +69,7 @@ def clear_workspace():
 async def build_voice_track(segments, total_duration):
     inputs = []; filter_parts = []; valid_count = 0
     # Создаем базу тишины
-    subprocess.run(f"ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t {total_duration + 5} -ar 44100 silent_base.mp3", shell=True, capture_output=True)
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo", "-t", str(total_duration + 5), "-ar", "44100", "silent_base.mp3"], capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
     
     for i, seg in enumerate(segments[:40]):
@@ -108,11 +107,12 @@ async def process_video_async(video_url, is_yt):
         else:
             r = requests.get(video_url, timeout=120)
             with open(f_in, "wb") as f: f.write(r.content)
-            dur = float(subprocess.check_output(f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {f_in}", shell=True))
+            dur = float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", f_in]).decode().strip())
 
         has_audio = False
         try:
-            if subprocess.check_output(f"ffprobe -i {f_in} -show_streams -select_streams a -loglevel error", shell=True): has_audio = True
+            audio_check = subprocess.run(["ffprobe", "-i", f_in, "-show_streams", "-select_streams", "a", "-loglevel", "error"], capture_output=True)
+            if audio_check.stdout: has_audio = True
         except: has_audio = False
 
         res = model.transcribe(f_in)
@@ -123,10 +123,13 @@ async def process_video_async(video_url, is_yt):
             if voice_file and os.path.exists(voice_file):
                 print(f"🎬 Монтаж (Звук в оригинале: {has_audio})")
                 if has_audio:
-                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first:async=1[outa]", "-map 0:v -map [outa] -c:v copy -c:a aac -ignore_unknown", f_out]
+                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
+                           "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first:async=1[outa]", 
+                           "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", "-ignore_unknown", f_out]
                 else:
-                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-map 0:v -map 1:a -c:v copy -c:a aac -ignore_unknown", f_out]
-                subprocess.run(cmd.split(), check=True)
+                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
+                           "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-ignore_unknown", f_out]
+                subprocess.run(cmd, check=True)
                 return f_out, "voice"
         return f_in, "original"
     except Exception as e:
@@ -137,7 +140,7 @@ async def process_video_async(video_url, is_yt):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v9.5 'Singularity' запущен...")
+    print("🎬 [ЦУП] v9.6 'Super-Nova' запущен...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
@@ -172,7 +175,7 @@ async def main():
                     t_ru = super_clean(translator.translate(title).upper())
                     d_ru = super_clean(translator.translate(desc[:250])) if desc else "Свежий репортаж из Вселенной."
                     
-                    caption = (f"🎬 <b>{t_ru}</b>\n─────────────────────\n🪐 <b>ОБЪЕКТ:</b> {s['n']}\n🔊 <b>ЗВУК:</b> {('Голос Светланы' if mode=='voice' else 'Оригинал')}\n─────────────────────\n📖 {d_ru[:160]}...\n\n🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
+                    caption = (f"🎬 <b>{t_ru}</b>\n─────────────────────\n🪐 <b>ОБЪЕКТ:</b> {s['n']}\n🔊 <b>ЗВУК:</b> {('Русский перевод' if mode=='voice' else 'Оригинал')}\n─────────────────────\n📖 {d_ru[:160]}...\n\n🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
 
                     with open(path, 'rb') as v:
                         r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True}, timeout=150)
@@ -185,7 +188,6 @@ async def main():
         except: continue
 
 if __name__ == '__main__':
-    # Финальная защита от конфликтов event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(main())
