@@ -8,10 +8,11 @@ import asyncio
 import html
 import re
 import requests
+import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ ЦУП
+# ⚙️ НАСТРОЙКИ
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
@@ -19,14 +20,13 @@ DB_FILE        = "last_video_date.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Загрузка нейросети (Tiny - баланс скорости и качества)
 try:
     model = whisper.load_model("tiny")
 except:
     model = None
 
 # ============================================================
-# 🛠 ВСПОМОГАТЕЛЬНЫЕ СИСТЕМЫ
+# 🛠 СИСТЕМЫ ЖИЗНЕОБЕСПЕЧЕНИЯ
 # ============================================================
 
 def safe_translate(text):
@@ -36,37 +36,40 @@ def safe_translate(text):
 
 def super_clean(text):
     if not text: return ""
-    text = re.sub(r'http\S+', '', str(text)) # Убираем ссылки из текста
-    text = re.sub(r'<[^>]+>', '', text)      # Убираем HTML
+    text = re.sub(r'http\S+', '', str(text)) 
+    text = re.sub(r'<[^>]+>', '', text)      
     try: text = html.unescape(text)
     except: pass
     return html.escape(text).strip()
 
 # ============================================================
-# 🎬 ЛАБОРАТОРИЯ МОНТАЖА (Субтитры + Видео)
+# 🎬 МОНТАЖНЫЙ ЦЕХ (v85.0 - ГИБКАЯ ЗАГРУЗКА)
 # ============================================================
 
 async def process_video(video_url):
+    print(f"🎬 [МОНТАЖ] Захват цели: {video_url}")
     f_in, f_out = "input.mp4", "output.mp4"
     for f in [f_in, f_out, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
 
     try:
-        # v70.0 использует "умную" загрузку
+        # Настройки для обхода блокировок YouTube на Actions
         ydl_opts = {
             'format': 'best[height<=720][ext=mp4]', 
             'outtmpl': f_in, 
             'quiet': True, 
             'noplaylist': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+            'nocheckcertificate': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
         }
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
         
         if not os.path.exists(f_in) or os.path.getsize(f_in) < 20000: return None, "error"
 
         if model:
-            print("🎙 Whisper: Генерирую субтитры...")
+            print("🎙 Генерирую русские субтитры...")
             res = model.transcribe(f_in)
             segments = res.get('segments', [])
             if segments:
@@ -79,99 +82,103 @@ async def process_video(video_url):
                 
                 if srt_data:
                     with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt_data)
-                    # Вшиваем субтитры (белый текст, черная обводка)
                     subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt:force_style='FontSize=18,OutlineColour=&H000000,BorderStyle=1'", "-c:a", "copy", f_out], capture_output=True)
                     if os.path.exists(f_out): return f_out, "subs"
         
         return f_in, "original"
     except Exception as e:
-        print(f"⚠️ Ошибка в лаборатории: {e}")
-        return (f_in if os.path.exists(f_in) else None), "original"
+        print(f"⚠️ Ошибка загрузки: {e}")
+        return None, "error"
 
 # ============================================================
-# 🛰 ГЛАВНЫЙ ЦИКЛ ( v70.0 )
+# 🛰 ГЛАВНЫЙ ЦИКЛ (ГИБРИДНЫЙ ПОИСК)
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v70.0 'Final Frontier' активирована...")
-    
+    print("🚀 [ЦУП] v85.0 'Cosmic Hybrid' запущен...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     db = open(DB_FILE, 'r').read()
 
-    # Список каналов YouTube (самый надежный источник сейчас)
-    CHANNELS = [
-        {'n': 'SpaceX', 'url': 'https://www.youtube.com/@SpaceX/videos'},
-        {'n': 'NASA', 'url': 'https://www.youtube.com/@NASA/videos'},
-        {'n': 'JPL', 'url': 'https://www.youtube.com/@nasajpl/videos'},
-        {'n': 'VideoFromSpace', 'url': 'https://www.youtube.com/@VideoFromSpace/videos'},
-        {'n': 'ESA', 'url': 'https://www.youtube.com/@EuropeanSpaceAgency/videos'}
+    # Смешанные источники: YouTube + Прямые ленты
+    SOURCES = [
+        {'n': 'SpaceX (YouTube)', 'u': 'https://www.youtube.com/feeds/videos.xml?channel_id=UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt'},
+        {'n': 'ESA Multimedia', 'u': 'https://www.esa.int/rssfeed/Videos', 't': 'rss_video'},
+        {'n': 'NASA JPL (YouTube)', 'u': 'https://www.youtube.com/feeds/videos.xml?channel_id=UC99RW7X_XzM_C6P6z_pXlAw', 't': 'yt'},
+        {'n': 'ESO Science (Direct)', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss_video'},
+        {'n': 'NASA Image (API)', 'u': 'nasa_api', 't': 'api'}
     ]
 
-    random.shuffle(CHANNELS)
+    random.shuffle(SOURCES)
 
-    for ch in CHANNELS:
+    for s in SOURCES:
         try:
-            print(f"📡 Сканирую канал: {ch['n']}...")
-            
-            # v70.0 использует yt-dlp для получения списка видео (минуя XML)
-            ydl_opts_list = {
-                'extract_flat': True, 
-                'quiet': True, 
-                'playlist_items': '1,2,3', # Берем только 3 последних видео
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-            }
-            
-            with yt_dlp.YoutubeDL(ydl_opts_list) as ydl:
-                result = ydl.extract_info(ch['url'], download=False)
-                if 'entries' not in result: continue
+            print(f"📡 Сектор: {s['n']}...")
+            video_list = []
+
+            if s['t'] == 'api':
+                res = requests.get(f"https://images-api.nasa.gov/search?q=mars&media_type=video").json()
+                item = random.choice(res['collection']['items'][:5])
+                v_id = item['data'][0]['nasa_id']
+                if v_id not in db:
+                    assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
+                    v_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
+                    video_list.append({'url': v_url, 'title': item['data'][0]['title'], 'desc': item['data'][0].get('description', ''), 'id': v_id})
+
+            else:
+                res = requests.get(s['u'], timeout=30)
+                root = ET.fromstring(res.content)
+                items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
                 
-                for entry in result['entries']:
-                    v_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
-                    v_id = entry.get('id')
+                for item in items[:3]:
+                    link = ""
+                    # Пытаемся найти ссылку для YouTube (Atom) или RSS
+                    l_node = item.find('{http://www.w3.org/2005/Atom}link')
+                    link = l_node.get('href', '') if l_node is not None else (item.find('link').text if item.find('link') is not None else "")
                     
-                    if not v_id or v_id in db: continue
+                    if not link or link in db: continue
 
-                    print(f"🎯 Найдено видео: {entry.get('title')}")
+                    title = (item.find('title') or item.find('{http://www.w3.org/2005/Atom}title')).text
+                    desc_node = (item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary'))
+                    desc = desc_node.text if desc_node is not None else ""
 
-                    # ОБРАБОТКА
-                    path, mode = await process_video(v_url)
-                    if not path:
-                        with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
-                        continue
+                    # Для RSS проверяем наличие прямой ссылки на видео
+                    if s['t'] == 'rss_video':
+                        encl = item.find('enclosure')
+                        if encl is not None: link = encl.get('url')
 
-                    # ПЕРЕВОД И ОФОРМЛЕНИЕ
-                    t_ru = super_clean(safe_translate(entry.get('title', 'Космическое событие')).upper())
-                    d_ru = super_clean(safe_translate(entry.get('description', '')[:1000]))
-                    status = "🎬 С русскими субтитрами" if mode == "subs" else "🔊 Оригинальный звук"
+                    video_list.append({'url': link, 'title': title, 'desc': desc, 'id': link})
+                    break
 
-                    caption = (
-                        f"⭐ <b>{t_ru}</b>\n\n"
-                        f"🛰 <b>ИСТОЧНИК:</b> {ch['n']}\n"
-                        f"📝 <b>СТАТУС:</b> {status}\n"
-                        f"─────────────────────\n"
-                        f"🪐 <b>ИНФОРМАЦИЯ:</b>\n\n"
-                        f"{d_ru[:500]}...\n\n"
-                        f"✨ <i>Космос становится ближе с каждым кадром!</i>\n"
-                        f"🔭 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-                    )
+            for v in video_list:
+                path, mode = await process_video(v['url'])
+                if not path: continue
 
-                    # ОТПРАВКА
-                    with open(path, 'rb') as f_v:
-                        r = requests.post(
-                            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo",
-                            files={"video": f_v},
-                            data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"},
-                            timeout=300
-                        )
-                    
-                    if r.status_code == 200:
-                        with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
-                        print("🎉 УСПЕХ! Полет нормальный."); return
-                    else:
-                        print(f"❌ Ошибка Telegram: {r.text}")
+                t_ru = super_clean(safe_translate(v['title']).upper())
+                d_ru = super_clean(safe_translate(v['desc'][:1200]))
+                status = "🎬 Видео с субтитрами" if mode == "subs" else "🔊 Оригинальный звук"
+
+                caption = (
+                    f"⭐ <b>{t_ru}</b>\n\n"
+                    f"🛰 <b>МИССИЯ:</b> {s['n']}\n"
+                    f"📝 <b>ФОРМАТ:</b> {status}\n"
+                    f"─────────────────────\n"
+                    f"🪐 <b>ИНФОРМАЦИЯ:</b>\n\n"
+                    f"{d_ru[:550]}...\n\n"
+                    f"✨ <i>Границы Вселенной расширяются прямо сейчас!</i>\n"
+                    f"🔭 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+                )
+
+                with open(path, 'rb') as f_v:
+                    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                                    files={"video": f_v}, 
+                                    data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=300)
+                
+                if r.status_code == 200:
+                    with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
+                    print("🎉 УСПЕХ! Пост опубликован."); return
 
         except Exception as e:
-            print(f"⚠️ Сбой канала {ch['n']}: {e}")
+            print(f"⚠️ Сбой: {e}")
             continue
 
 if __name__ == '__main__':
