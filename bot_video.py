@@ -27,7 +27,7 @@ except:
     model = None
 
 # ============================================================
-# 🛠 СЛУЖЕБНЫЕ СИСТЕМЫ
+# 🛠 ТЕХНИЧЕСКИЙ ОТСЕК
 # ============================================================
 
 def safe_translate(text):
@@ -44,19 +44,31 @@ def super_clean(text):
     return html.escape(text).strip()
 
 async def process_video(video_url):
-    video_url = video_url.replace(" ", "%20")
+    # Очистка ссылки от пробелов (важно для NASA)
+    video_url = video_url.strip().replace(" ", "%20")
+    print(f"🎬 [МОНТАЖ] Попытка захвата: {video_url}")
+    
     f_in, f_out = "input.mp4", "output.mp4"
     for f in [f_in, f_out, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
 
     try:
-        ydl_opts = {'format': 'best[height<=720][ext=mp4]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
+        ydl_opts = {
+            'format': 'best[height<=720][ext=mp4]', 
+            'outtmpl': f_in, 
+            'quiet': True, 
+            'noplaylist': True,
+            'merge_output_format': 'mp4'
+        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
         
-        if not os.path.exists(f_in) or os.path.getsize(f_in) < 20000: return None, "error"
+        if not os.path.exists(f_in) or os.path.getsize(f_in) < 20000:
+            print("❌ Файл слишком мал или не скачался.")
+            return None, "error"
 
         if model:
+            print("🎙 Генерирую субтитры...")
             res = model.transcribe(f_in)
             segments = res.get('segments', [])
             if segments:
@@ -66,42 +78,43 @@ async def process_video(video_url):
                     e = time.strftime('%H:%M:%S,000', time.gmtime(seg.get('end', 0)))
                     txt = safe_translate(seg.get('text', ''))
                     if txt: srt_data += f"{i+1}\n{s} --> {e}\n{txt}\n\n"
+                
                 if srt_data:
                     with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt_data)
-                    subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt:force_style='FontSize=18,OutlineColour=&H000000,BorderStyle=1'", "-c:a", "copy", f_out], capture_output=True)
+                    subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt:force_style='FontSize=16,OutlineColour=&H000000,BorderStyle=1'", "-c:a", "copy", f_out], capture_output=True)
                     if os.path.exists(f_out): return f_out, "subs"
+        
         return f_in, "original"
-    except: return None, "error"
+    except Exception as e:
+        print(f"⚠️ Сбой в лаборатории: {e}")
+        return None, "error"
 
 # ============================================================
-# 🛰 ГЛОБАЛЬНЫЙ СКАНЕР (v95.0 - ВСЕ СЕРВИСЫ)
+# 🛰 ГЛОБАЛЬНЫЙ СКАНЕР (v96.0 - ВСЕ СЕРВИСЫ)
 # ============================================================
 
 async def main():
-    print("🚀 [ЦУП] v95.0 'Universal Hub' активирована...")
+    print("🚀 [ЦУП] v96.0 'Universal Hub' активирована...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     db = open(DB_FILE, 'r').read()
 
-    # Глобальный список источников
     SOURCES = [
-        # ЮТУБ КАНАЛЫ (Через API)
-        {'n': 'SpaceX (США)', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt'},
         {'n': 'Роскосмос (РФ)', 'id': 'UCOm4M6L_L7xOovvS_I-k__A', 't': 'yt'},
-        {'n': 'NASA JPL (США)', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw', 't': 'yt'},
-        {'n': 'ISRO (Индия)', 'id': 'UC_3S8_D0yV9M2E7c4p5zUQA', 't': 'yt'},
-        # ПРЯМЫЕ ЛЕНТЫ (Без блокировок)
-        {'n': 'ESA (Европа)', 'u': 'https://www.esa.int/rssfeed/Videos', 't': 'rss'},
-        {'n': 'ESO (Наука)', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss'},
-        {'n': 'NASA Archive', 'u': 'nasa_api', 't': 'api'}
+        {'n': 'SpaceX (США)', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt'},
+        {'n': 'NASA TV', 'id': 'UCOpNcN46zbL++h_Z270F9iQ', 't': 'yt'},
+        {'n': 'ESA (Европа)', 'u': 'https://www.esa.int/rssfeed/Videos', 't': 'rss_direct'},
+        {'n': 'ESO (Наука)', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss_direct'},
+        {'n': 'NASA Image (API)', 'u': 'nasa_api', 't': 'api'}
     ]
 
     random.shuffle(SOURCES)
 
     for s in SOURCES:
         try:
-            print(f"📡 Сканирую: {s['n']}...")
+            print(f"📡 Сектор: {s['n']}...")
             v_list = []
 
+            # 1. YouTube через API
             if s['t'] == 'yt' and YOUTUBE_API_KEY:
                 url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['id']}&part=snippet,id&order=date&maxResults=3&type=video"
                 r = requests.get(url).json()
@@ -110,40 +123,70 @@ async def main():
                     if v_id not in db:
                         v_list.append({'url': f"https://www.youtube.com/watch?v={v_id}", 'title': item['snippet']['title'], 'desc': item['snippet']['description'], 'id': v_id})
 
-            elif s['t'] == 'rss':
+            # 2. Прямые RSS (ESA/ESO) - ищем enclosure mp4
+            elif s['t'] == 'rss_direct':
                 res = requests.get(s['u'], timeout=30)
                 root = ET.fromstring(res.content)
-                for item in root.findall('.//item')[:3]:
+                for item in root.findall('.//item')[:5]:
+                    v_url = ""
+                    encl = item.find('enclosure')
+                    if encl is not None and 'video' in encl.get('type', ''):
+                        v_url = encl.get('url')
+                    
                     link = item.find('link').text
-                    if link not in db:
-                        v_list.append({'url': link, 'title': item.find('title').text, 'desc': item.find('description').text if item.find('description') is not None else "", 'id': link})
+                    if v_url and link not in db:
+                        v_list.append({'url': v_url, 'title': item.find('title').text, 'desc': item.find('description').text if item.find('description') is not None else "", 'id': link})
 
+            # 3. NASA API
             elif s['t'] == 'api' and NASA_API_KEY:
-                res = requests.get(f"https://images-api.nasa.gov/search?media_type=video&q=galaxy&api_key={NASA_API_KEY}").json()
-                item = random.choice(res['collection']['items'][:5])
-                v_id = item['data'][0]['nasa_id']
-                if v_id not in db:
-                    assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
-                    v_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
-                    v_list.append({'url': v_url, 'title': item['data'][0]['title'], 'desc': item['data'][0].get('description', ''), 'id': v_id})
+                res = requests.get(f"https://images-api.nasa.gov/search?media_type=video&q=mars&api_key={NASA_API_KEY}").json()
+                items = res.get('collection', {}).get('items', [])
+                if items:
+                    target = random.choice(items[:5])
+                    v_id = target['data'][0]['nasa_id']
+                    if v_id not in db:
+                        assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
+                        v_url = next((a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href']), None)
+                        if v_url:
+                            v_list.append({'url': v_url, 'title': target['data'][0]['title'], 'desc': target['data'][0].get('description', ''), 'id': v_id})
 
+            # Обработка найденных целей
             for v in v_list:
                 path, mode = await process_video(v['url'])
-                if not path: continue
+                if not path:
+                    # Если скачать не удалось, помечаем ID, чтобы не мучить его
+                    with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
+                    continue
 
-                caption = (f"⭐ <b>{super_clean(safe_translate(v['title'])).upper()}</b>\n\n"
-                           f"🛰 <b>ОБЪЕКТ:</b> {s['n']}\n"
-                           f"🎬 <b>ЗВУК:</b> {'Русские субтитры' if mode=='subs' else 'Оригинал'}\n"
-                           f"─────────────────────\n"
-                           f"🪐 <b>ИНФОРМАЦИЯ:</b>\n{super_clean(safe_translate(v['desc'][:500]))}...\n\n"
-                           f"🔭 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
+                t_ru = super_clean(safe_translate(v['title']).upper())
+                d_ru = super_clean(safe_translate(v['desc'][:1000]))
+                status = "🎬 С переводом (субтитры)" if mode == "subs" else "🔊 Оригинальный звук"
+
+                caption = (
+                    f"⭐ <b>{t_ru}</b>\n\n"
+                    f"🛰 <b>МИССИЯ:</b> {s['n']}\n"
+                    f"📝 <b>СТАТУС:</b> {status}\n"
+                    f"─────────────────────\n"
+                    f"🪐 <b>ИНФОРМАЦИЯ:</b>\n\n"
+                    f"{d_ru[:500]}...\n\n"
+                    f"✨ <i>Космос ждет своих героев!</i>\n"
+                    f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+                )
 
                 with open(path, 'rb') as f_v:
-                    requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": f_v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"})
+                    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                                    files={"video": f_v}, 
+                                    data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=300)
                 
-                with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                print(f"🎉 Готово!"); return
-        except: continue
+                if r.status_code == 200:
+                    with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
+                    print(f"🎉 УСПЕХ! Видео отправлено."); return
+                else:
+                    print(f"❌ Ошибка Telegram: {r.text}")
+
+        except Exception as e:
+            print(f"⚠️ Сбой в секторе {s['n']}: {e}")
+            continue
 
 if __name__ == '__main__':
     asyncio.run(main())
