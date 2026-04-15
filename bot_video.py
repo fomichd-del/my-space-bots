@@ -28,16 +28,14 @@ VOICE = "ru-RU-SvetlanaNeural"
 VOICE_RATE = "-10%" 
 VOICE_LIMIT = 540 
 
-# РАСШИРЕННЫЙ СПИСОК ИСТОЧНИКОВ
 SOURCES = [
-    {'n': 'Space.com (Новости космоса)', 't': 'rss', 'u': 'https://www.space.com/feeds/all'},
+    {'n': 'Space.com (Новости)', 't': 'rss', 'u': 'https://www.space.com/feeds/all'},
     {'n': 'Phys.org (Астрономия)', 't': 'rss', 'u': 'https://phys.org/rss-feed/space-news/'},
-    {'n': 'ESO (Наука Европы)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
-    {'n': 'ESA (Открытия Европы)', 't': 'rss', 'u': 'https://www.esa.int/rssfeed/Videos'},
+    {'n': 'ESO (Европа)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
+    {'n': 'ESA (Открытия)', 't': 'rss', 'u': 'https://www.esa.int/rssfeed/Videos'},
     {'n': 'Universe Today', 't': 'rss', 'u': 'https://www.universetoday.com/feed/'},
     {'n': 'JAXA (Япония)', 't': 'yt', 'id': 'UC1S_S6G_9A440VUM_KOn6Zg'},
     {'n': 'ISRO (Индия)', 't': 'yt', 'id': 'UC16vrn4PmwzOm_8atGYU8YQ'},
-    {'n': 'Роскосмос (Россия)', 't': 'yt', 'id': 'UCp7fGZ8Z9zX_lZpY_l475_g'},
     {'n': 'NASA (Архив)', 't': 'nasa_api'}
 ]
 
@@ -106,6 +104,7 @@ async def process_video_async(video_url, is_yt):
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
+                # Громкий голос и тихий фон
                 cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.12[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
                 subprocess.run(cmd, check=True)
                 return f_out, "voice"
@@ -113,13 +112,12 @@ async def process_video_async(video_url, is_yt):
     except: return None, None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ ( v26.0 )
+# 🎬 ГЛАВНЫЙ ЦИКЛ ( v27.0 )
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v26.0 'Deep Space Explorer' запущен...")
+    print("🎬 [ЦУП] v27.0 'Cosmic Rescuer' запущен...")
     
-    # УМНАЯ ЧИСТКА БАЗЫ (оставляем последние 80)
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
             lines = [l.strip() for l in f.readlines() if l.strip()]
@@ -130,21 +128,23 @@ async def main():
     pool = SOURCES.copy()
     random.shuffle(pool)
     
-    # NASA В САМЫЙ КОНЕЦ И ТОЛЬКО ЕСЛИ НЕТ ДРУГИХ
+    # NASA в самый конец
     pool.sort(key=lambda x: x['t'] == 'nasa_api')
 
     for s in pool:
         try:
             print(f"📡 Сектор: {s['n']}...")
             
-            # ЖЕСТКИЙ БЛОК NASA ЕСЛИ БЫЛА НЕДАВНО
-            if s['t'] == 'nasa_api' and "nasa_" in db.strip().split('\n')[-1]:
-                print("⏭ NASA под карантином. Ищем в других секторах.")
-                continue
+            # ГИБКИЙ БЛОК NASA: Пропускаем только если NASA была самой последней
+            if s['t'] == 'nasa_api' and db.strip().split('\n')[-1].startswith("nasa_"):
+                # Но если это единственный источник в пуле, даем шанс (fallback)
+                if len(pool) > 1:
+                    print("⏭ NASA на карантине. Пробую другие источники...")
+                    continue
 
             video_list = []
             if s['t'] == 'nasa_api':
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=nebula&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=space&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" not in db:
@@ -158,18 +158,20 @@ async def main():
                 if res.status_code != 200: continue
                 
                 root = ET.fromstring(res.content)
-                # Поиск во всех возможных тегах (RSS/Atom/Media)
                 items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
-                for item in items[:5]:
+                for item in items[:8]: # Проверяем больше объектов
                     link = ""
-                    # Пытаемся найти ссылку в enclosure или стандартном link
                     enc = item.find('.//enclosure')
                     if enc is not None: link = enc.get('url')
                     else:
                         l_node = item.find('link')
                         link = l_node.text if l_node is not None else l_node.get('href', '') if l_node is not None else ""
                     
-                    if link and link not in db:
+                    if link:
+                        if link in db:
+                            print(f"   --- Видео уже в базе: {link[:40]}")
+                            continue
+                        
                         title = item.find('title').text
                         desc_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
                         desc = desc_node.text if desc_node is not None else ""
