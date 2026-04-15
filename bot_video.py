@@ -23,7 +23,7 @@ DB_FILE        = "last_video_date.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_LIMIT = 480 
+VOICE_LIMIT = 450 
 
 SOURCES = [
     {'n': 'ESO (Европа - Наука)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
@@ -57,51 +57,40 @@ def clear_workspace():
     os.makedirs("voice", exist_ok=True)
 
 # ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ (v9.1 - ОПТИМИЗИРОВАННЫЙ)
+# 🎙 МОДУЛЬ ОЗВУЧКИ (v9.2 - СВЕРХСТАБИЛЬНЫЙ)
 # ============================================================
 
 async def build_voice_track(segments, total_duration):
-    print(f"🎙 Собираю аудио-стек Nebula...")
-    inputs = []
-    filter_parts = []
-    valid_count = 0
+    inputs = []; filter_parts = []; valid_count = 0
     
-    # 1. Тихий фон (база)
-    subprocess.run(f"ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t {total_duration + 5} -ar 44100 silent_base.mp3", shell=True, check=True)
+    # 1. Тихая база
+    subprocess.run(f"ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t {total_duration + 5} -ar 44100 silent_base.mp3", shell=True, capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
     
-    # 2. Обработка фраз (лимит 40 для стабильности памяти)
-    for i, seg in enumerate(segments[:40]):
+    # 2. Фразы (Лимит 30 для 100% стабильности)
+    for i, seg in enumerate(segments[:30]):
         try:
             phrase = seg['text'].strip()
-            if len(phrase) < 3: continue
+            if len(phrase) < 4: continue
             
             path = f"voice/v_{valid_count}.mp3"
-            t_text = translator.translate(phrase)
+            await edge_tts.Communicate(translator.translate(phrase), VOICE).save(path)
             
-            communicate = edge_tts.Communicate(t_text, VOICE)
-            await communicate.save(path)
-            
-            # Проверка, что файл создался и он не пустой
             if os.path.exists(path) and os.path.getsize(path) > 100:
                 start_ms = int(seg['start'] * 1000)
-                # Нормализуем звук сегмента до 44100Гц, чтобы FFmpeg не ругался
-                path_norm = f"voice/vn_{valid_count}.mp3"
-                subprocess.run(f"ffmpeg -y -i {path} -ar 44100 {path_norm}", shell=True, capture_output=True)
-                
-                inputs.extend(["-i", path_norm])
-                filter_parts.append(f"[{valid_count+1}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
+                inputs.extend(["-i", path])
+                # Используем aresample=44100 прямо в фильтре, чтобы не плодить файлы
+                filter_parts.append(f"[{valid_count+1}:a]aresample=44100,adelay={start_ms}|{start_ms}[a{valid_count}]")
                 valid_count += 1
         except: continue
     
     if valid_count == 0: return None
     
-    # 3. Микширование
     labels = "".join([f"[a{i}]" for i in range(valid_count)])
     amix_filter = f"[0:a]{labels}amix=inputs={valid_count+1}:duration=longest:dropout_transition=0[out]"
     
-    cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", amix_filter, "-map", "[out]", "-c:a", "libmp3lame", "-b:a", "128k", "voice_final.mp3"]
-    subprocess.run(cmd, check=True)
+    cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", f"{';'.join(filter_parts)};{amix_filter}", "-map", "[out]", "-c:a", "libmp3lame", "voice_final.mp3"]
+    subprocess.run(cmd, check=True, capture_output=True)
     return "voice_final.mp3"
 
 async def process_video_async(video_url, is_yt):
@@ -132,84 +121,65 @@ async def process_video_async(video_url, is_yt):
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments, dur)
             if voice_file and os.path.exists(voice_file):
-                print(f"🎬 Финальный монтаж Nebula...")
                 if has_audio:
-                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
-                           "-filter_complex", "[0:a]volume=0.25[bg];[bg][1:a]amix=inputs=2:duration=first[outa]", 
-                           "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
+                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
                 else:
                     cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", f_out]
                 subprocess.run(cmd, check=True)
                 return f_out, "voice"
         return f_in, "original"
-    except Exception as e:
-        print(f"❌ Сбой монтажа: {e}"); return None, None
+    except: return None, None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ
+# 🎬 ГЛАВНЫЙ ЦИКЛ (С ЗАЩИТОЙ ОТ NONE)
 # ============================================================
 
 def main():
-    print("🎬 [ЦУП] v9.1 'Nebula' запущен...")
+    print("🎬 [ЦУП] v9.2 'Supernova-X' запущен...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
-    # Гарантируем, что NASA не блокирует поиск
     pool.sort(key=lambda x: x['t'] == 'nasa_api')
 
     for s in pool:
         try:
             video = None
-            if s['t'] == 'nasa_api':
-                res = requests.get(f"https://images-api.nasa.gov/search?q=astronomy&media_type=video").json()
-                items = res['collection']['items']
-                random.shuffle(items)
-                for item in items[:5]:
-                    v_id = item['data'][0]['nasa_id']
-                    if v_id not in db:
-                        assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
-                        v_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
-                        video = {'url': v_url, 'title': item['data'][0]['title'], 'is_yt': False, 'desc': item['data'][0].get('description', ''), 'db_id': v_id}
-                        break
-            else:
-                url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
-                res = requests.get(url_f, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
-                if "<?xml" not in res.text[:100]: continue
-                root = ET.fromstring(res.content)
-                items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
-                for item in items[:3]:
-                    link = ""
-                    if s['t'] == 'rss':
-                        lt = item.find('.//enclosure'); link = lt.get('url') if lt is not None else item.find('link').text
-                    else:
-                        v_node = item.find('{http://www.youtube.com/xml/schemas/2009}videoId')
-                        if v_node is not None: link = f"https://www.youtube.com/watch?v={v_node.text}"
-                    
-                    if link and link not in db:
-                        t_node = item.find('title')
-                        d_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
-                        video = {'url': link, 'title': t_node.text if t_node is not None else "Космос", 'is_yt': 'youtube' in link, 'desc': d_node.text if d_node is not None else "", 'db_id': link}
-                        break
+            url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
+            res = requests.get(url_f, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
+            if "<?xml" not in res.text[:100]: continue
+            
+            root = ET.fromstring(res.content)
+            items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
+            
+            for item in items[:3]:
+                if item is None: continue
+                link = ""
+                if s['t'] == 'rss':
+                    lt = item.find('.//enclosure')
+                    link = lt.get('url') if lt is not None else (item.find('link').text if item.find('link') is not None else "")
+                else:
+                    v_node = item.find('{http://www.youtube.com/xml/schemas/2009}videoId')
+                    if v_node is not None: link = f"https://www.youtube.com/watch?v={v_node.text}"
+                
+                if link and link not in db:
+                    t_node = item.find('title')
+                    d_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
+                    video = {'url': link, 'title': t_node.text if t_node is not None else "Космос", 'desc': d_node.text if d_node is not None else "", 'source': s['n']}
+                    break
 
             if video:
-                path, mode = asyncio.run(process_video_async(video['url'], video['is_yt']))
+                path, mode = asyncio.run(process_video_async(video['url'], 'youtube' in video['url']))
                 if not path: continue
                 
                 t_ru = super_clean(translator.translate(video['title']).upper())
-                d_ru = super_clean(translator.translate(video['desc'][:300])) if video['desc'] else "Новый репортаж из Вселенной."
-                if len(d_ru) > 170: d_ru = d_ru[:170] + "..."
+                d_ru = super_clean(translator.translate(video['desc'][:250])) if video['desc'] else "Новый репортаж из Вселенной."
                 
-                caption = (f"🎬 <b>{t_ru}</b>\n\n🪐 <b>ОБЪЕКТ:</b> {super_clean(s['n'])}\n"
-                           f"🔊 <b>ЗВУК:</b> {('Русский перевод' if mode=='voice' else 'Оригинал')}\n\n"
-                           f"📖 {d_ru}\n\n"
-                           f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
+                caption = (f"🎬 <b>{t_ru}</b>\n─────────────────────\n🪐 <b>ОБЪЕКТ:</b> {video['source']}\n🔊 <b>ЗВУК:</b> {('Голос Светланы' if mode=='voice' else 'Оригинал')}\n─────────────────────\n📖 {d_ru[:160]}...\n\n🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
 
                 with open(path, 'rb') as v:
-                    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                                      files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True}, timeout=150)
-                
+                    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True}, timeout=150)
                 if r.status_code == 200:
-                    open(DB_FILE, 'a').write(f"\n{video['db_id']}"); print("🎉 УСПЕХ!"); return
+                    open(DB_FILE, 'a').write(f"\n{video['url']}"); return
         except: continue
 
 if __name__ == '__main__': main()
