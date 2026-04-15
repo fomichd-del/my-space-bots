@@ -85,36 +85,36 @@ async def build_voice_track(segments, total_duration):
     subprocess.run(cmd, check=True, capture_output=True)
     return "voice_final.mp3"
 
-async def process_video_async(video_url, is_yt):
+async def process_video_async(video_url):
+    print(f"🎬 [МОНТАЖ] Запуск yt-dlp для: {video_url}")
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
-        # УЛУЧШЕННЫЕ НАСТРОЙКИ ЗАГРУЗКИ (v32.0)
+        # v33.0 Универсальная загрузка через yt-dlp (вытягивает видео даже из статей)
         ydl_opts = {
             'format': 'best[height<=720][ext=mp4]', 
             'outtmpl': f_in, 
             'quiet': True, 
             'noplaylist': True,
-            'fixup': 'warn' # Пытаемся чинить moov atom
+            'fixup': 'warn'
         }
         
-        if is_yt or "youtube" in video_url:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([video_url])
-        else:
-            r = requests.get(video_url, headers=HEADERS, timeout=60)
-            with open(f_in, "wb") as f: f.write(r.content)
-        
-        if not os.path.exists(f_in) or os.path.getsize(f_in) < 1000: 
-            print("❌ Файл не скачался или слишком мал.")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=True)
+            if not info: return None, "error"
+            dur = info.get('duration', 0)
+
+        if not os.path.exists(f_in) or os.path.getsize(f_in) < 5000: 
             return None, "error"
             
-        # ПРОВЕРКА ЦЕЛОСТНОСТИ ФАЙЛА
-        try:
-            dur_out = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", f_in])
-            dur = float(dur_out.decode().strip())
-        except Exception as e:
-            print(f"❌ FFPROBE не смог прочитать файл (битый moov atom): {e}")
-            return None, "corrupted"
+        # БЕЗОПАСНОЕ ПРОВЕРКА ДЛИТЕЛЬНОСТИ
+        if dur == 0:
+            try:
+                dur_out = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", f_in])
+                dur = float(dur_out.decode().strip()) if dur_out else 0
+            except: dur = 0
+
+        if dur == 0: return None, "corrupted"
 
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
@@ -126,7 +126,7 @@ async def process_video_async(video_url, is_yt):
                 return f_out, "voice"
         return f_in, "original"
     except Exception as e:
-        print(f"⚠️ Ошибка в process_video_async: {e}")
+        print(f"⚠️ Ошибка монтажа: {e}")
         return None, "error"
 
 # ============================================================
@@ -134,7 +134,7 @@ async def process_video_async(video_url, is_yt):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v32.0 'Event Horizon Pro' запущен...")
+    print("🎬 [ЦУП] v33.0 'Singularity' запущен...")
     
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f: lines = [l.strip() for l in f.readlines() if l.strip()]
@@ -155,13 +155,13 @@ async def main():
             
             if s['t'] == 'nasa_api':
                 if db.strip().split('\n')[-1].startswith("nasa_"): continue
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=mars&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=universe&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" in db: continue
                     v_url_data = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
                     v_url = next(a['href'] for a in v_url_data['collection']['items'] if '~medium.mp4' in a['href'])
-                    v_obj = {'url': v_url, 'title': item['data'][0]['title'], 'is_yt': False, 'desc': item['data'][0].get('description', ''), 'id': f"nasa_{v_id}", 'src': s['n']}
+                    v_obj = {'url': v_url, 'title': item['data'][0]['title'], 'desc': item['data'][0].get('description', ''), 'id': f"nasa_{v_id}", 'src': s['n']}
                     video_list.append(v_obj); break
             else:
                 url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
@@ -180,16 +180,14 @@ async def main():
                     desc_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
                     desc = desc_node.text if desc_node is not None else ""
                     
-                    video_list.append({'url': link, 'title': title, 'is_yt': 'youtube' in link or 'youtu.be' in link, 'desc': desc, 'id': link, 'src': s['n']})
+                    video_list.append({'url': link, 'title': title, 'desc': desc, 'id': link, 'src': s['n']})
                     break
 
             for v in video_list:
-                path, mode = await process_video_async(v['url'], v['is_yt'])
+                path, mode = await process_video_async(v['url'])
                 
-                # Если файл битый (corrupted), заносим его в базу, чтобы не мучиться с ним больше
                 if mode == "corrupted":
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                    print(f"🚽 Видео {v['id'][:20]} битое. Отправлено в утиль.")
                     continue
 
                 if not path: continue
@@ -202,7 +200,7 @@ async def main():
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                     print("🎉 Опубликовано!"); return
         except Exception as e:
-            print(f"⚠️ Ошибка в секторе {s['n']}: {e}")
+            print(f"⚠️ Сбой сектора: {e}")
             continue
 
 if __name__ == '__main__':
