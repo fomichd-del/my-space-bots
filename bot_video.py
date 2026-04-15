@@ -37,16 +37,21 @@ SOURCES = [
 ]
 
 # ============================================================
-# 🛠 УТИЛИТЫ
+# 🛠 БРОНИРОВАННЫЕ УТИЛИТЫ
 # ============================================================
 
 def super_clean(text):
     if not text: return ""
     text = re.sub(r'<[^>]+>', '', str(text))
     text = re.sub(r'http\S+', '', text)
-    # Замена зарезервированных символов, которые бесят Telegram
     text = text.replace('—', '-').replace('–', '-').replace('«', '"').replace('»', '"')
     return html.escape(html.unescape(text)).strip()
+
+def get_xml_text(element, path, default=""):
+    """Безопасное извлечение текста из XML"""
+    if element is None: return default
+    found = element.find(path)
+    return found.text if found is not None and found.text else default
 
 def clear_workspace():
     for f in ["input.mp4", "output.mp4", "voice_final.mp3", "silent_base.mp3"]:
@@ -59,16 +64,16 @@ def clear_workspace():
     os.makedirs("voice", exist_ok=True)
 
 # ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ (v9.4 - СВЕРХНАДЕЖНЫЙ)
+# 🎙 МОДУЛЬ ОЗВУЧКИ
 # ============================================================
 
 async def build_voice_track(segments, total_duration):
     inputs = []; filter_parts = []; valid_count = 0
-    # 1. Создаем базу тишины
+    # Создаем базу тишины
     subprocess.run(f"ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo -t {total_duration + 5} -ar 44100 silent_base.mp3", shell=True, capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
     
-    for i, seg in enumerate(segments[:45]): # Оптимально 45 фраз
+    for i, seg in enumerate(segments[:40]):
         try:
             phrase = seg['text'].strip()
             if len(phrase) < 3: continue
@@ -93,13 +98,12 @@ async def process_video_async(video_url, is_yt):
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
-        # ЗАГРУЗКА С ПРОВЕРКОЙ
         ydl_opts = {'format': 'best[height<=720][ext=mp4]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
         dur = 0
         if is_yt:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=True)
-                if not info: return None, None # ПРОВЕРКА NoneType
+                if not info: return None, None
                 dur = info.get('duration', 0)
         else:
             r = requests.get(video_url, timeout=120)
@@ -119,21 +123,21 @@ async def process_video_async(video_url, is_yt):
             if voice_file and os.path.exists(voice_file):
                 print(f"🎬 Монтаж (Звук в оригинале: {has_audio})")
                 if has_audio:
-                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first:async=1[outa]", "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
+                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first:async=1[outa]", "-map 0:v -map [outa] -c:v copy -c:a aac -ignore_unknown", f_out]
                 else:
-                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", f_out]
-                subprocess.run(cmd, check=True)
+                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, "-map 0:v -map 1:a -c:v copy -c:a aac -ignore_unknown", f_out]
+                subprocess.run(cmd.split(), check=True)
                 return f_out, "voice"
         return f_in, "original"
     except Exception as e:
         print(f"❌ Сбой: {e}"); return None, None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ АСИНХРОННЫЙ ЦИКЛ (v9.4)
+# 🎬 ГЛАВНЫЙ ЦИКЛ
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v9.4 'Void Runner' запущен...")
+    print("🎬 [ЦУП] v9.5 'Singularity' запущен...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     pool = SOURCES.copy()
     random.shuffle(pool)
@@ -151,16 +155,16 @@ async def main():
             for item in items[:3]:
                 link = ""
                 if s['t'] == 'rss':
-                    lt = item.find('.//enclosure'); link = lt.get('url') if lt is not None else item.find('link').text
+                    lt = item.find('.//enclosure')
+                    link = lt.get('url') if lt is not None else get_xml_text(item, 'link')
                 else:
                     v_node = item.find('{http://www.youtube.com/xml/schemas/2009}videoId')
                     if v_node is not None: link = f"https://www.youtube.com/watch?v={v_node.text}"
                 
                 if link and link not in db:
-                    t_n = item.find('title')
-                    d_n = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
-                    title = t_n.text if t_n is not None else "Событие"
-                    desc = d_n.text if d_n is not None else ""
+                    title = get_xml_text(item, 'title', "Космическая новость")
+                    summary_tag = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
+                    desc = summary_tag.text if summary_tag is not None else ""
                     
                     path, mode = await process_video_async(link, 'youtube' in link)
                     if not path: continue
@@ -175,19 +179,13 @@ async def main():
                     if r.status_code == 200:
                         open(DB_FILE, 'a').write(f"\n{link}"); return
                     else:
-                        # План Б: отправка без HTML если ТГ ругается
                         with open(path, 'rb') as v:
                             requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": f"🎥 {t_ru}\n\n{link}"})
                         open(DB_FILE, 'a').write(f"\n{link}"); return
         except: continue
 
 if __name__ == '__main__':
-    # Бронированный запуск цикла
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.create_task(main())
-        else:
-            loop.run_until_complete(main())
-    except:
-        asyncio.run(main())
+    # Финальная защита от конфликтов event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main())
