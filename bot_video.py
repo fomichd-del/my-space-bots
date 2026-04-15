@@ -18,27 +18,30 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+# Обновленный "стелс-заголовок"
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Accept': 'application/xml,text/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8'
+}
 
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE_LIMIT = 600 
 
 SOURCES = [
-    {'n': 'SpaceX (Маск)', 't': 'yt', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA'},
-    {'n': 'VideoFromSpace', 't': 'yt', 'id': 'UC6_OitvS-L0m_uVndA-K8lA'},
-    {'n': 'NASA JPL', 't': 'yt', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw'},
-    {'n': 'Cosmos News', 't': 'yt', 'id': 'UCvWf7MIdV_9X9_pG_Q8Xzog'},
-    {'n': 'Space.com', 't': 'rss', 'u': 'https://www.space.com/feeds/all'},
-    {'n': 'Phys.org', 't': 'rss', 'u': 'https://phys.org/rss-feed/space-news/'},
+    {'n': 'SpaceX (Запуски Илона)', 't': 'yt', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA'},
+    {'n': 'VideoFromSpace (Клипы)', 't': 'yt', 'id': 'UC6_OitvS-L0m_uVndA-K8lA'},
+    {'n': 'NASA JPL (Технологии)', 't': 'yt', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw'},
+    {'n': 'Cosmos News (Дайджест)', 't': 'yt', 'id': 'UCvWf7MIdV_9X9_pG_Q8Xzog'},
+    {'n': 'Space.com (Репортажи)', 't': 'rss', 'u': 'https://www.space.com/feeds/all'},
+    {'n': 'Phys.org (Астрофизика)', 't': 'rss', 'u': 'https://phys.org/rss-feed/space-news/'},
     {'n': 'ESO (Европа)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
     {'n': 'Hubble (Хаббл)', 't': 'rss', 'u': 'https://hubblesite.org/rss/news'},
-    {'n': 'Universe Today', 't': 'rss', 'u': 'https://www.universetoday.com/feed/'},
     {'n': 'NASA (Архив)', 't': 'nasa_api'}
 ]
 
 # ============================================================
-# 🛠 МОДУЛЬ БЕЗОПАСНОСТИ
+# 🛠 ТЕХНИЧЕСКИЙ ОТСЕК
 # ============================================================
 
 def safe_translate(text):
@@ -51,14 +54,6 @@ def super_clean(text):
     text = re.sub(r'<[^>]+>', '', str(text)).replace('&', 'и')
     return html.escape(html.unescape(text)).strip()
 
-def get_node_text(item, tags, default="Без названия"):
-    """Безопасно ищет текст в XML узлах"""
-    for tag in tags:
-        node = item.find(tag)
-        if node is not None and (node.text or node.get('href')):
-            return node.text if node.text else node.get('href')
-    return default
-
 def clear_workspace():
     for f in ["input.mp4", "output.mp4", "subs.srt"]:
         if os.path.exists(f): 
@@ -66,10 +61,10 @@ def clear_workspace():
             except: pass
 
 # ============================================================
-# 🎬 ОБРАБОТКА ВИДЕО ( v43.0 )
+# 🎬 ОБРАБОТКА ( v44.0 )
 # ============================================================
 
-async def process_video_v43(video_url):
+async def process_video_v44(video_url):
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
@@ -78,12 +73,11 @@ async def process_video_v43(video_url):
             info = ydl.extract_info(video_url, download=True)
             if not info: return None, "error"
         
-        # Генерация субтитров
+        # Субтитры через Whisper
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
         
         if segments:
-            # Создаем SRT
             srt_data = ""
             for i, seg in enumerate(segments):
                 s = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
@@ -93,7 +87,7 @@ async def process_video_v43(video_url):
             
             with open("subs.srt", "w", encoding="utf-8") as f: f.write(srt_data)
             
-            # Вшиваем субтитры (Белый текст, черная обводка)
+            # Вшиваем субтитры
             cmd = [
                 "ffmpeg", "-y", "-i", f_in, 
                 "-vf", "subtitles=subs.srt:force_style='FontSize=18,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,BorderStyle=1,Outline=1'", 
@@ -104,15 +98,15 @@ async def process_video_v43(video_url):
         
         return f_in, "original"
     except Exception as e:
-        print(f"⚠️ Ошибка обработки: {e}")
+        print(f"⚠️ Сбой монтажа: {e}")
         return None, "error"
 
 # ============================================================
-# 🛰 ГЛАВНЫЙ ЗАПУСК
+# 🛰 ГЛАВНЫЙ ЦИКЛ
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v43.0 'Nebula Nova' активирована...")
+    print("🎬 [ЦУП] v44.0 'Stellar Aegis' активирована...")
     
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f: lines = [l.strip() for l in f.readlines() if l.strip()]
@@ -125,38 +119,48 @@ async def main():
 
     for s in pool:
         try:
-            print(f"📡 Сектор: {s['n']}...")
+            print(f"📡 Сканирование сектора: {s['n']}...")
             video_list = []
             
             if s['t'] == 'nasa_api':
-                res = requests.get(f"https://images-api.nasa.gov/search?q=space&media_type=video").json()
-                items = res.get('collection', {}).get('items', [])
-                for item in items[:5]:
-                    data = item.get('data', [{}])[0]
-                    v_id = data.get('nasa_id')
-                    if not v_id or f"nasa_{v_id}" in db: continue
-                    assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
-                    v_url = next((a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href']), None)
-                    if v_url:
-                        video_list.append({'url': v_url, 'title': data.get('title', 'NASA News'), 'desc': data.get('description', ''), 'id': f"nasa_{v_id}"})
+                try:
+                    res = requests.get(f"https://images-api.nasa.gov/search?q=universe&media_type=video").json()
+                    for item in res['collection']['items'][:5]:
+                        v_id = item['data'][0]['nasa_id']
+                        if f"nasa_{v_id}" in db: continue
+                        assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
+                        v_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
+                        video_list.append({'url': v_url, 'title': item['data'][0]['title'], 'desc': item['data'][0].get('description', ''), 'id': f"nasa_{v_id}"})
                         break
+                except: continue
             else:
                 url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
                 res = requests.get(url_f, headers=HEADERS, timeout=25)
-                root = ET.fromstring(res.content)
+                
+                # 🛡️ ПУЛЕНЕПРОБИВАЕМЫЙ ПАРСИНГ XML (v44.0)
+                try:
+                    root = ET.fromstring(res.content)
+                except Exception as e:
+                    print(f"❌ Сектор {s['n']} прислал невалидный код. Пропуск.")
+                    continue
+
                 items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
                 for item in items[:5]:
-                    link = get_node_text(item, ['link', '{http://www.w3.org/2005/Atom}link'])
+                    link_node = item.find('link')
+                    link = link_node.text if link_node is not None and link_node.text else link_node.get('href')
                     if not link or link in db: continue
                     
-                    title = get_node_text(item, ['title', '{http://www.w3.org/2005/Atom}title'], "Космическое событие")
-                    desc = get_node_text(item, ['description', '{http://www.w3.org/2005/Atom}summary', '{http://www.w3.org/2005/Atom}content'], "")
+                    title_node = item.find('title') or item.find('{http://www.w3.org/2005/Atom}title')
+                    title = title_node.text if title_node is not None else "Космическая находка"
                     
-                    video_list.append({'url': link, 'title': title, 'desc': desc, 'id': link})
+                    desc_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
+                    desc_text = desc_node.text if desc_node is not None else ""
+                    
+                    video_list.append({'url': link, 'title': title, 'desc': desc_text, 'id': link})
                     break
 
             for v in video_list:
-                path, mode = await process_video_v43(v['url'])
+                path, mode = await process_video_v44(v['url'])
                 if not path or mode == "error":
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                     continue
@@ -164,16 +168,16 @@ async def main():
                 t_ru = super_clean(safe_translate(v['title']).upper())
                 d_ru = super_clean(safe_translate(v['desc'][:900]))
                 
-                # ЯРКОЕ И КАЧЕСТВЕННОЕ ОПИСАНИЕ (v43.0)
+                # ЯРКОЕ, СТРУКТУРИРОВАННОЕ ОПИСАНИЕ
                 caption = (
                     f"🚀 <b>{t_ru}</b>\n\n"
                     f"🛰 <b>Миссия:</b> {s['n']}\n"
-                    f"🎬 <b>Формат:</b> Видео с русскими субтитрами\n"
+                    f"📝 <b>Формат:</b> Видео с переводом (субтитры)\n"
                     f"─────────────────────\n"
-                    f"🪐 <b>ИНФОРМАЦИОННАЯ СВОДКА:</b>\n\n"
+                    f"🪐 <b>ИНФОРМАЦИОННЫЙ ДАЙДЖЕСТ:</b>\n\n"
                     f"{d_ru[:500]}...\n\n"
-                    f"✨ <i>Космос становится ближе с каждым кадром!</i>\n"
-                    f"🔭 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+                    f"✨ <i>Погрузись в тайны Вселенной вместе с нами!</i>\n"
+                    f"🔭 <a href='https://t.me/vladislav_space'>Подпишись на Дневник</a>"
                 )
 
                 with open(path, 'rb') as f_v:
@@ -181,9 +185,9 @@ async def main():
                 
                 if r.status_code == 200:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                    print(f"🎉 Готово: {v['title']}"); return
+                    print(f"🎉 Опубликовано: {v['title']}"); return
         except Exception as e:
-            print(f"⚠️ Ошибка сектора: {e}")
+            print(f"⚠️ Сбой сектора: {e}")
             continue
 
 if __name__ == '__main__':
