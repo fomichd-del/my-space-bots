@@ -28,27 +28,21 @@ VOICE_LIMIT = 450
 SOURCES = [
     {'n': 'ESO (Европа - Наука)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
     {'n': 'ESA (Наука Европы)', 't': 'rss', 'u': 'https://www.esa.int/rssfeed/Videos'},
-    {'n': 'JAXA (Япония)', 't': 'yt', 'id': 'UC1S_S6G_9A440VUM_KOn6Zg'},
-    {'n': 'ISRO (Индия)', 't': 'yt', 'id': 'UC16vrn4PmwzOm_8atGYU8YQ'},
+    {'n': 'JAXA (Космос Японии)', 't': 'yt', 'id': 'UC1S_S6G_9A440VUM_KOn6Zg'},
+    {'n': 'ISRO (Миссии Индии)', 't': 'yt', 'id': 'UC16vrn4PmwzOm_8atGYU8YQ'},
     {'n': 'Роскосмос (Россия)', 't': 'yt', 'id': 'UCp7fGZ8Z9zX_lZpY_l475_g'},
     {'n': 'SciNews (Мировые факты)', 't': 'yt', 'id': 'UCu3WicZMcXpUksat9yU859g'},
     {'n': 'Hubble (Открытия)', 't': 'rss', 'u': 'https://hubblesite.org/rss/news'},
     {'n': 'NASA (Архив)', 't': 'nasa_api'}
 ]
 
-# ============================================================
-# 🛠 БРОНИРОВАННЫЕ УТИЛИТЫ
-# ============================================================
-
 def super_clean(text, *args):
-    """Очистка текста от любого мусора"""
     if not text: return ""
     text = re.sub(r'<[^>]+>', '', str(text))
     text = re.sub(r'http\S+', '', text)
     return html.escape(html.unescape(text)).strip()
 
 def clear_workspace():
-    """Зачистка перед каждым циклом"""
     for f in ["input.mp4", "output.mp4", "voice_final.mp3", "subs.srt"]:
         if os.path.exists(f):
             try: os.remove(f)
@@ -59,162 +53,127 @@ def clear_workspace():
     os.makedirs("voice", exist_ok=True)
 
 # ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ (v8.8 - СВЕРХСТАБИЛЬНЫЙ)
+# 🎙 МОДУЛЬ ОЗВУЧКИ (v8.9 - ФИКС "ОДНОГО СЛОВА")
 # ============================================================
 
 async def build_voice_track(segments):
-    """Создает аудиодорожку перевода. Ограничено 60 фразами для стабильности."""
     inputs = []; filter_parts = []; valid_count = 0
-    for i, seg in enumerate(segments[:60]):
+    for i, seg in enumerate(segments[:65]):
         try:
             phrase = super_clean(seg['text'])
             if len(phrase) < 2: continue
-            
             path = f"voice/v_{valid_count}.mp3"
-            t_text = translator.translate(phrase)
-            
-            communicate = edge_tts.Communicate(t_text, VOICE)
-            await communicate.save(path)
-            
+            await edge_tts.Communicate(translator.translate(phrase), VOICE).save(path)
             start_ms = int(seg['start'] * 1000)
             inputs.extend(["-i", path])
-            # Формируем цепочку задержек
             filter_parts.append(f"[{valid_count}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
             valid_count += 1
         except: continue
     
     if valid_count == 0: return None
-    
     labels = "".join([f"[a{i}]" for i in range(valid_count)])
-    amix_filter = f"{';'.join(filter_parts)};{labels}amix=inputs={valid_count}:duration=first:dropout_transition=0[out]"
-    
-    # Собираем голос в один файл MP3
+    # ИСПОЛЬЗУЕМ duration=longest, ЧТОБЫ УСЛЫШАТЬ ВСЁ
+    amix_filter = f"{';'.join(filter_parts)};{labels}amix=inputs={valid_count}:duration=longest:dropout_transition=0[out]"
     cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", amix_filter, "-map", "[out]", "voice_final.mp3"]
     subprocess.run(cmd, check=True)
     return "voice_final.mp3"
 
 async def process_video_async(video_url, is_yt):
-    """Главный конвейер обработки видео"""
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
-        # 1. ЗАГРУЗКА И ПРОВЕРКА (Исправлен NoneType)
         ydl_opts = {'format': 'best[height<=720][ext=mp4]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
-        dur = 0
         if is_yt:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                try:
-                    info = ydl.extract_info(video_url, download=True)
-                    if info is None: return None, None
-                    dur = info.get('duration', 0)
-                except: return None, None
+                info = ydl.extract_info(video_url, download=True)
+                if not info: return None, None
+                dur = info.get('duration', 0)
         else:
             r = requests.get(video_url, timeout=120)
             with open(f_in, "wb") as f: f.write(r.content)
             dur = float(subprocess.check_output(f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {f_in}", shell=True))
 
-        # 2. ПРОВЕРКА АУДИО В ОРИГИНАЛЕ
         has_audio = False
         try:
-            check_cmd = f"ffprobe -i {f_in} -show_streams -select_streams a -loglevel error"
-            if subprocess.check_output(check_cmd, shell=True): has_audio = True
+            if subprocess.check_output(f"ffprobe -i {f_in} -show_streams -select_streams a -loglevel error", shell=True): has_audio = True
         except: has_audio = False
 
-        # 3. ТРАНСКРИБАЦИЯ WHISPER
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
         
-        # 4. СБОРКА ГОЛОСА
         if segments and dur <= VOICE_LIMIT:
             voice_file = await build_voice_track(segments)
             if voice_file and os.path.exists(voice_file):
-                print(f"🎬 Сведение звука (Оригинальное аудио: {has_audio})")
                 if has_audio:
-                    # Смешиваем голос Светланы с приглушенным оригиналом
                     cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
                            "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first[outa]", 
                            "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
                 else:
-                    # Просто накладываем голос на "немое" видео
                     cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
                            "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", f_out]
                 subprocess.run(cmd, check=True)
                 return f_out, "voice"
-        
         return f_in, "original"
-    except Exception as e:
-        print(f"❌ Ошибка конвейера: {e}"); return None, None
+    except: return None, None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ (МИРОВОЙ ПРИОРИТЕТ)
+# 🎬 ГЛАВНЫЙ ЦИКЛ (ИСПРАВЛЕН KeyError)
 # ============================================================
 
 def main():
-    print("🎬 [ЦУП] v8.8 'Quasar' запущен...")
+    print("🎬 [ЦУП] v8.9 'Pulsar' запущен...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
-    
-    # NASA уходит в конец очереди
     pool = SOURCES.copy()
     random.shuffle(pool)
-    pool.sort(key=lambda x: x['n'] == 'NASA (Архив)')
+    pool.sort(key=lambda x: x['t'] == 'nasa_api') # NASA в самый конец
+
+    headers = {'User-Agent': 'Mozilla/5.0'}
 
     for s in pool:
         try:
             print(f"📡 Сектор: {s['n']}...")
-            url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
-            res = requests.get(url_f, headers={'User-Agent': 'Mozilla/5.0'}, timeout=20)
-            if "<?xml" not in res.text[:100]: continue
+            video = None
             
-            root = ET.fromstring(res.content)
-            items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
-            
-            for item in items[:3]:
-                link = ""
-                if s['t'] == 'rss':
-                    lt = item.find('.//enclosure')
-                    link = lt.get('url') if lt is not None else item.find('link').text
-                else:
-                    v_node = item.find('{http://www.youtube.com/xml/schemas/2009}videoId')
-                    if v_node is not None: link = f"https://www.youtube.com/watch?v={v_node.text}"
-                
-                if link and link not in db:
-                    title_node = item.find('title')
-                    desc_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
+            # РАЗДЕЛЬНАЯ ЛОГИКА ДЛЯ ТИПОВ ИСТОЧНИКОВ
+            if s['t'] == 'nasa_api':
+                res = requests.get(f"https://images-api.nasa.gov/search?q=universe&media_type=video").json()
+                item = random.choice(res['collection']['items'][:5])
+                v_id = item['data'][0]['nasa_id']
+                if v_id not in db:
+                    assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
+                    v_url = next(a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href'])
+                    video = {'url': v_url, 'title': item['data'][0]['title'], 'is_yt': False, 'desc': item['data'][0].get('description', '')}
+            else:
+                url_f = s['u'] if 'u' in s else f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}"
+                res = requests.get(url_f, headers=headers, timeout=20)
+                if "<?xml" not in res.text[:100]: continue
+                root = ET.fromstring(res.content)
+                items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
+                for item in items[:3]:
+                    link = ""
+                    if s['t'] == 'rss':
+                        lt = item.find('.//enclosure'); link = lt.get('url') if lt is not None else item.find('link').text
+                    else:
+                        v_node = item.find('{http://www.youtube.com/xml/schemas/2009}videoId')
+                        if v_node is not None: link = f"https://www.youtube.com/watch?v={v_node.text}"
                     
-                    title = title_node.text if title_node is not None else "Космос"
-                    desc = desc_node.text if desc_node is not None else ""
-                    
-                    # ЗАПУСК ОБРАБОТКИ
-                    path, mode = asyncio.run(process_video_async(link, 'youtube' in link))
-                    
-                    if not path: continue
+                    if link and link not in db:
+                        t_node = item.find('title')
+                        d_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
+                        video = {'url': link, 'title': t_node.text if t_node is not None else "Космос", 'is_yt': 'youtube' in link, 'desc': d_node.text if d_node is not None else ""}
+                        break
 
-                    t_ru = super_clean(translator.translate(title).upper())
-                    d_ru = super_clean(translator.translate(desc[:300])) if desc else "Свежий репортаж из глубин Вселенной."
-                    if len(d_ru) > 170: d_ru = d_ru[:170] + "..."
-
-                    caption = (
-                        f"🎬 <b>{t_ru}</b>\n"
-                        f"─────────────────────\n"
-                        f"🪐 <b>ОБЪЕКТ:</b> {super_clean(s['n'])}\n"
-                        f"🔊 <b>ЗВУК:</b> {('Голос Светланы' if mode=='voice' else 'Оригинал')}\n"
-                        f"─────────────────────\n"
-                        f"📖 {d_ru}\n\n"
-                        f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-                    )
-
-                    with open(path, 'rb') as v:
-                        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                                          files={"video": v}, 
-                                          data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True}, 
-                                          timeout=120)
-                    
-                    if r.status_code == 200:
-                        open(DB_FILE, 'a').write(f"\n{link}")
-                        print("🎉 ОПУБЛИКОВАНО!")
-                        return
-        except Exception as e:
-            print(f"⚠️ Сбой в {s['n']}: {e}")
-            continue
+            if video:
+                path, mode = asyncio.run(process_video_async(video['url'], video['is_yt']))
+                if not path: continue
+                t_ru = super_clean(translator.translate(video['title']).upper())
+                d_ru = super_clean(translator.translate(video['desc'][:300])) if video['desc'] else "Новый взгляд на Вселенную."
+                if len(d_ru) > 170: d_ru = d_ru[:170] + "..."
+                caption = (f"🎬 <b>{t_ru}</b>\n─────────────────────\n🪐 <b>ОБЪЕКТ:</b> {super_clean(s['n'])}\n🔊 <b>ЗВУК:</b> {('Голос Светланы' if mode=='voice' else 'Оригинал')}\n─────────────────────\n📖 {d_ru}\n\n🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
+                with open(path, 'rb') as v:
+                    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True}, timeout=120)
+                if r.status_code == 200:
+                    open(DB_FILE, 'a').write(f"\n{video['url']}"); print("🎉 УСПЕХ!"); return
+        except: continue
 
 if __name__ == '__main__': main()
