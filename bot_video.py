@@ -55,7 +55,7 @@ def check_real_audio(file_path):
 # 🎬 ПРОЦЕССОР v122.0
 # ============================================================
 
-async def process_mission_v122(v_url, title, desc, source_name):
+async def process_mission_v122(v_url, title, desc, source_name, is_russian=False):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -63,67 +63,63 @@ async def process_mission_v122(v_url, title, desc, source_name):
     try:
         print(f"📥 Захват объекта: {v_url}")
         
-        # 1. Загрузка (Ограничиваем 10 минутами для очень длинных видео)
+        # Загрузка (лимит 10 минут для очень длинных видео, чтобы не грузить сервер)
         ydl_opts = {
-            'format': 'best[height<=480]', # Сразу берем 480p для экономии
+            'format': 'best[height<=480]', 
             'outtmpl': f_raw, 
-            'quiet': True,
-            'download_ranges': lambda info, dict: [{'start_time': 0, 'end_time': 600}], # Берем первые 10 мин
-            'force_keyframes_at_cuts': True
+            'quiet': True, 
+            'no_warnings': True,
+            'download_ranges': lambda info, dict: [{'start_time': 0, 'end_time': 600}] # Первые 10 мин
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([v_url])
         
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([v_url])
         if not os.path.exists(f_raw) or os.path.getsize(f_raw) < 100000: return False
 
-        # --- АНАЛИЗ АУДИО И ЯЗЫКА ---
-        mode_label = "● 🛰 КОСМИЧЕСКАЯ ТИШИНА ●" 
+        # --- АНАЛИЗ АУДИО И СУБТИТРОВ ---
+        mode_label = "● 🛰 КОСМИЧЕСКАЯ ТИШИНА ●"
         has_subs = False
-        if model:
+        
+        if is_russian:
+            mode_label = "● 🔊 ОРИГИНАЛЬНАЯ ОЗВУЧКА ●"
+        elif model:
             print("🎙 Whisper: Анализ речи...")
-            # Определяем язык
-            audio_res = model.transcribe(f_raw)
-            detected_lang = audio_res.get('language', 'en')
-            segments = audio_res.get('segments', [])
+            res = model.transcribe(f_raw)
+            segments = res.get('segments', [])
+            srt_content = ""
+            counter = 1
+            for seg in segments:
+                txt = seg.get('text', '').strip()
+                if len(txt) > 2:
+                    txt_ru = safe_translate(txt)
+                    if txt_ru:
+                        start = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
+                        end = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
+                        srt_content += f"{counter}\n{start} --> {end}\n{txt_ru}\n\n"
+                        counter += 1
             
-            # Если язык НЕ русский, делаем субтитры
-            if detected_lang != 'ru' and segments:
-                srt_content = ""
-                counter = 1
-                for seg in segments:
-                    txt = seg.get('text', '').strip()
-                    if len(txt) > 2:
-                        txt_ru = safe_translate(txt)
-                        if txt_ru:
-                            start = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
-                            end = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
-                            srt_content += f"{counter}\n{start} --> {end}\n{txt_ru}\n\n"
-                            counter += 1
-                
-                if srt_content:
-                    with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt_content)
-                    mode_label = "● 📝 СУБТИТРЫ ПОДГОТОВЛЕНЫ ●"
-                    has_subs = True
-            elif detected_lang == 'ru':
-                mode_label = "● 🎙 РУССКАЯ ОЗВУЧКА ●"
+            if srt_content:
+                with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt_content)
+                mode_label = "● 📝 СУБТИТРЫ ПОДГОТОВЛЕНЫ ●"
+                has_subs = True
             elif check_real_audio(f_raw):
                 mode_label = "● 🎵 АТМОСФЕРНЫЙ ЗВУК ●"
 
-        # --- МОНТАЖ (СЖАТИЕ) ---
+        # --- МОНТАЖ ---
         prob = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', f_raw])
         duration = float(prob)
-        # Рассчитываем битрейт, чтобы влезть в 48 МБ
-        target_br = int((47 * 8 * 1024 * 1024) / duration) - 128000
-        if target_br < 100000: target_br = 100000 # Минимум 100kbps
-
-        vf = "subtitles=subs.srt:force_style='FontSize=16,Outline=1'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+        # Динамический битрейт: втискиваем в 48 МБ
+        target_br = int((48 * 8 * 1024 * 1024) / duration) - 128000
+        if target_br < 200000: target_br = 200000 # Минимум для 240p
         
-        print(f"🛠 Сжатие до {target_br//1000}kbps...")
+        # Настройка субтитров: жирный шрифт с обводкой поверх видео
+        vf = "subtitles=subs.srt:force_style='FontSize=18,Outline=2,PrimaryColour=&HFFFFFF,OutlineColour=&H000000'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+        
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(target_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', f_final], capture_output=True)
         
         # --- ПОСТ ---
-        clean_title = super_clean(safe_translate(title).upper())
-        clean_desc = super_clean(safe_translate(desc))
-        facts = clean_desc.split('. ')
+        clean_title = super_clean(safe_translate(title).upper() if not is_russian else title.upper())
+        raw_desc = super_clean(safe_translate(desc) if not is_russian else desc)
+        facts = raw_desc.split('. ')
         fact_block = "🔹 " + facts[0] + ('. ' + facts[1] if len(facts) > 1 else '...')
 
         caption = (
@@ -137,12 +133,12 @@ async def process_mission_v122(v_url, title, desc, source_name):
 
         with open(f_final if os.path.exists(f_final) else f_raw, 'rb') as v:
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                          files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=450)
+                          files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=400)
         return True
     except: return False
 
 # ============================================================
-# 🛰 СКАНЕР (ОБЪЕДИНЕННЫЙ ФЛОТ)
+# 🛰 СКАНЕР
 # ============================================================
 
 async def main():
@@ -153,31 +149,39 @@ async def main():
     db = open(DB_FILE, 'r').read()
     last_source = open(SOURCE_LOG, 'r').read().strip()
 
-    SOURCES = [
-        {'n': 'Роскосмос', 'id': 'UCOm4M6L_L7xOovvS_I-k__A', 't': 'yt'},
-        {'n': 'SpaceX News', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt'},
-        {'n': 'NASA JPL', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw', 't': 'yt'},
-        {'n': 'KOSMO', 'id': 'UC8M_itU9f_v7Yp7mQo-879A', 't': 'yt'},
-        {'n': 'AdMe Космос', 'id': 'UCB_S_1BIn3Y_t9Uf9Msn6Bw', 't': 'yt'},
-        {'n': '2081 / 208I', 'id': 'UCMZp-X_lYfN0-n_9n9_vXpw', 't': 'yt'},
-        {'n': 'Universe Today', 'u': 'https://www.universetoday.com/feed/', 't': 'rss'},
-        {'n': 'ESO Observatory', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss'}
+    # НОВЫЕ КАНАЛЫ ВСЕГДА ПЕРВЫМИ
+    PRIORITY_SOURCES = [
+        {'n': 'KOSMO', 'id': 'UC8M_itU9f_v7Yp7mQo-879A', 't': 'yt', 'ru': True},
+        {'n': 'AdMe Космос', 'id': 'UCB_S_1BIn3Y_t9Uf9Msn6Bw', 't': 'yt', 'ru': True},
+        {'n': '2081 / 208I', 'id': 'UCMZp-X_lYfN0-n_9n9_vXpw', 't': 'yt', 'ru': True}
+    ]
+    
+    OTHER_SOURCES = [
+        {'n': 'Роскосмос', 'id': 'UCOm4M6L_L7xOovvS_I-k__A', 't': 'yt', 'ru': True},
+        {'n': 'SpaceX News', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt', 'ru': False},
+        {'n': 'NASA JPL', 'id': 'UC99RW7X_XzM_C6P6z_pXlAw', 't': 'yt', 'ru': False},
+        {'n': 'ESO Observatory', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss', 'ru': False}
     ]
 
-    AVAILABLE = [s for s in SOURCES if s['n'] != last_source]
-    random.shuffle(AVAILABLE)
+    # Сначала проверяем приоритетные, если они не были последними
+    AVAILABLE_PRIO = [s for s in PRIORITY_SOURCES if s['n'] != last_source]
+    random.shuffle(AVAILABLE_PRIO)
+    
+    AVAILABLE_OTHER = [s for s in OTHER_SOURCES if s['n'] != last_source]
+    random.shuffle(AVAILABLE_OTHER)
 
-    for s in AVAILABLE:
+    ALL_TO_CHECK = AVAILABLE_PRIO + AVAILABLE_OTHER
+
+    for s in ALL_TO_CHECK:
         try:
-            print(f"📡 Сектор: {s['n']}...")
+            print(f"📡 Поиск в секторе: {s['n']}...")
             if s['t'] == 'yt' and YOUTUBE_API_KEY:
-                url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['id']}&part=snippet,id&order=date&maxResults=10&type=video"
+                url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['id']}&part=snippet,id&order=date&maxResults=5&type=video"
                 items = requests.get(url).json().get('items', [])
-                random.shuffle(items)
                 for item in items:
                     v_id = item['id']['videoId']
                     if v_id not in db:
-                        if await process_mission_v122(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n']):
+                        if await process_mission_v122(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n'], s.get('ru', False)):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
                             with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                             return
@@ -185,14 +189,12 @@ async def main():
             elif s['t'] == 'rss':
                 res = requests.get(s['u'], timeout=30)
                 root = ET.fromstring(res.content)
-                items = root.findall('.//item')
-                random.shuffle(items)
-                for item in items[:15]:
+                for item in root.findall('.//item')[:10]:
                     link = item.find('link').text
                     encl = item.find('enclosure')
                     v_url = encl.get('url') if encl is not None else link
                     if link not in db:
-                        if await process_mission_v122(v_url, item.find('title').text, item.find('description').text, s['n']):
+                        if await process_mission_v122(v_url, item.find('title').text, item.find('description').text, s['n'], s.get('ru', False)):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{link}")
                             with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                             return
