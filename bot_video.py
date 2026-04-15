@@ -86,11 +86,10 @@ async def build_voice_track(segments, total_duration):
     return "voice_final.mp3"
 
 async def process_video_async(video_url):
-    print(f"🎬 [МОНТАЖ] Запуск yt-dlp для: {video_url}")
+    print(f"🎬 [ЦУП] Попытка извлечь видео: {video_url}")
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
-        # v33.0 Универсальная загрузка через yt-dlp (вытягивает видео даже из статей)
         ydl_opts = {
             'format': 'best[height<=720][ext=mp4]', 
             'outtmpl': f_in, 
@@ -100,14 +99,19 @@ async def process_video_async(video_url):
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True)
-            if not info: return None, "error"
-            dur = info.get('duration', 0)
+            try:
+                info = ydl.extract_info(video_url, download=True)
+                if info is None: # ЗАЩИТА ОТ NoneType
+                    print("❌ [ОШИБКА] yt-dlp вернул пустой результат (None).")
+                    return None, "error"
+                dur = info.get('duration', 0)
+            except Exception as e:
+                print(f"❌ [ОШИБКА] yt-dlp не справился: {e}")
+                return None, "error"
 
         if not os.path.exists(f_in) or os.path.getsize(f_in) < 5000: 
             return None, "error"
             
-        # БЕЗОПАСНОЕ ПРОВЕРКА ДЛИТЕЛЬНОСТИ
         if dur == 0:
             try:
                 dur_out = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", f_in])
@@ -134,7 +138,7 @@ async def process_video_async(video_url):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v33.0 'Singularity' запущен...")
+    print("🎬 [ЦУП] v34.0 'Black Hole Shield' запущен...")
     
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f: lines = [l.strip() for l in f.readlines() if l.strip()]
@@ -146,8 +150,6 @@ async def main():
     random.shuffle(pool)
     pool.sort(key=lambda x: x['t'] == 'nasa_api')
 
-    emergency_fallback = None
-
     for s in pool:
         try:
             print(f"📡 Сектор: {s['n']}...")
@@ -155,7 +157,7 @@ async def main():
             
             if s['t'] == 'nasa_api':
                 if db.strip().split('\n')[-1].startswith("nasa_"): continue
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=universe&media_type=video").json()
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=astronomy&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" in db: continue
@@ -186,7 +188,8 @@ async def main():
             for v in video_list:
                 path, mode = await process_video_async(v['url'])
                 
-                if mode == "corrupted":
+                # Если файл битый или ошибка загрузки — помечаем в базе, чтобы не пытаться снова
+                if mode in ["corrupted", "error"]:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                     continue
 
