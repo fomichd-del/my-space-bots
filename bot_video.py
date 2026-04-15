@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v127.0
+# ⚙️ КОНФИГУРАЦИЯ v128.0
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY')
@@ -43,18 +43,18 @@ def super_clean(text):
     return html.escape(html.unescape(text)).strip()
 
 # ============================================================
-# 🎬 ПРОЦЕССОР v127.0
+# 🎬 ПРОЦЕССОР
 # ============================================================
 
-async def process_mission_v127(v_url, title, desc, source_name, is_russian=False):
+async def process_mission_v128(v_url, title, desc, source_name, is_russian=False):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
 
     try:
         print(f"📥 [ЦУП] Захват: {v_url}")
-        
         is_direct = any(v_url.lower().endswith(ext) for ext in ['.mp4', '.m4v', '.mov'])
+        
         if is_direct:
             r = requests.get(v_url, stream=True, timeout=120)
             with open(f_raw, 'wb') as f:
@@ -113,11 +113,11 @@ async def process_mission_v127(v_url, title, desc, source_name, is_russian=False
     except: return False
 
 # ============================================================
-# 🛰 СКАНЕР (ОТЛАЖЕННЫЙ SEARCH)
+# 🛰 СКАНЕР (ОБНОВЛЕННЫЙ МЕТОД ЗАХВАТА)
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v127.0 'Final Frontier' активирована...")
+    print("🎬 [ЦУП] v128.0 'Broad Spectrum' активирована...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     if not os.path.exists(SOURCE_LOG): open(SOURCE_LOG, 'w').write("None")
     db = open(DB_FILE, 'r').read()
@@ -133,42 +133,47 @@ async def main():
         {'n': 'ESO Observatory', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss', 'ru': False}
     ]
 
-    # Сначала проверяем приоритетные каналы
-    PRIO_NAMES = ['KOSMO', '2081 / 208I', 'AdMe Космос']
-    AVAILABLE = [s for s in SOURCES if s['n'] != last_source]
-    AVAILABLE.sort(key=lambda x: x['n'] not in PRIO_NAMES)
+    random.shuffle(SOURCES)
+    # Приоритет новым каналам
+    PRIO = ['KOSMO', '2081 / 208I', 'AdMe Космос']
+    SOURCES.sort(key=lambda x: x['n'] not in PRIO)
 
-    for s in AVAILABLE:
+    for s in SOURCES:
+        if s['n'] == last_source and len(SOURCES) > 1: continue
+        
         try:
             print(f"📡 Сектор: {s['n']}...")
             if s['t'] == 'yt':
-                # Используем стандартный channelId вместо проблемных плейлистов
-                url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['cid']}&part=snippet&order=date&maxResults=5&type=video"
+                # УБРАЛИ order=date и ДОБАВИЛИ q="" для обхода бага пустого списка
+                url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['cid']}&part=snippet&maxResults=50&type=video&q="
                 res = requests.get(url).json()
                 
                 items = res.get('items', [])
                 print(f"🔍 Найдено видео: {len(items)}")
                 
+                # Сортируем полученные 50 видео по дате вручную (на всякий случай)
+                items.sort(key=lambda x: x['snippet']['publishedAt'], reverse=True)
+
                 for item in items:
                     v_id = item['id']['videoId']
                     if v_id not in db:
-                        if await process_mission_v127(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n'], s['ru']):
+                        if await process_mission_v128(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n'], s['ru']):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
                             with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
-                            print(f"🎉 Успех: {s['n']}"); return
+                            print(f"🎉 Успех!"); return
             
             elif s['t'] == 'rss':
                 res = requests.get(s['u'], timeout=30)
                 root = ET.fromstring(res.content)
-                for item in root.findall('.//item')[:10]:
+                for item in root.findall('.//item')[:15]:
                     link = item.find('link').text
                     if link not in db:
                         encl = item.find('enclosure')
                         v_url = encl.get('url') if encl is not None else link
-                        if await process_mission_v127(v_url, item.find('title').text, item.find('description').text, s['n'], s['ru']):
+                        if await process_mission_v128(v_url, item.find('title').text, item.find('description').text, s['n'], s['ru']):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{link}")
                             with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
-                            print(f"🎉 Успех: {s['n']}"); return
+                            print(f"🎉 Успех!"); return
         except Exception as e:
             print(f"⚠️ Ошибка в {s['n']}: {e}")
             continue
