@@ -23,8 +23,8 @@ DB_FILE        = "last_video_date.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_RATE = "-15%" # Замедляем речь для идеального тайминга
-VOICE_LIMIT = 540 # До 9 минут контента
+VOICE_RATE = "-15%" 
+VOICE_LIMIT = 540 
 
 SOURCES = [
     {'n': 'ESO (Наука Европы)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
@@ -75,14 +75,14 @@ def create_srt(segments):
     for i, seg in enumerate(segments[:60]):
         start = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
         end = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
-        text_ru = safe_translate(seg['text'].strip())
+        text_ru = safe_translate(seg.get('text', '').strip())
         srt_content += f"{i+1}\n{start} --> {end}\n{text_ru}\n\n"
     with open("subs.srt", "w", encoding="utf-8") as f:
         f.write(srt_content)
     return "subs.srt"
 
 # ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ
+# 🎙 МОДУЛЬ ОЗВУЧКИ (v19.0 - ГРОМКИЙ)
 # ============================================================
 
 async def build_voice_track(segments, total_duration):
@@ -92,13 +92,13 @@ async def build_voice_track(segments, total_duration):
     
     for i, seg in enumerate(segments[:40]):
         try:
-            phrase = seg['text'].strip()
-            if len(phrase) < 5: continue
+            phrase = seg.get('text', '').strip()
+            if len(phrase) < 4: continue
             path = f"voice/v_{valid_count}.mp3"
             communicate = edge_tts.Communicate(safe_translate(phrase), VOICE, rate=VOICE_RATE)
             await communicate.save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
-                start_ms = int(seg['start'] * 1000) + 100
+                start_ms = int(seg['start'] * 1000) + 150
                 inputs.extend(["-i", path])
                 filter_parts.append(f"[{valid_count+1}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
                 valid_count += 1
@@ -119,7 +119,7 @@ async def process_video_async(video_url, is_yt):
         if is_yt:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=True)
-                if not info: return None, None
+                if not info: return None, "error"
                 dur = info.get('duration', 0)
         else:
             r = requests.get(video_url, timeout=120)
@@ -128,20 +128,20 @@ async def process_video_async(video_url, is_yt):
             dur = float(dur_out.decode().strip())
 
         res = model.transcribe(f_in)
+        if not res: return f_in, "original"
         segments = res.get('segments', [])
         
         if segments and dur <= VOICE_LIMIT:
-            # Длинное видео -> Субтитры
+            # Приоритет субтитрам для длинных видео
             if dur > 240:
                 srt_file = create_srt(segments)
                 if srt_file:
                     subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt", "-c:a", "copy", f_out], check=True)
                     return f_out, "subs"
 
-            # Короткое видео -> Громкий голос Светланы
+            # Озвучка (x3 громкость)
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
-                # ГРОМКОСТЬ: Голос 3.0, Фон 0.08
                 cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
                        "-filter_complex", "[0:a]volume=0.08[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", 
                        "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
@@ -149,14 +149,16 @@ async def process_video_async(video_url, is_yt):
                 return f_out, "voice"
         
         return f_in, "original"
-    except: return (f_in if os.path.exists(f_in) else None), "original"
+    except Exception as e:
+        print(f"⚠️ Сбой видео: {e}")
+        return (f_in if os.path.exists(f_in) else None), "original"
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ ( v18.0 )
+# 🎬 ГЛАВНЫЙ ЦИКЛ
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v18.0 'Supermassive Pro' запущен...")
+    print("🎬 [ЦУП] v19.0 'Supermassive Ultra' запущен...")
     db_content = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     
     pool = SOURCES.copy()
@@ -167,13 +169,9 @@ async def main():
         try:
             print(f"📡 Сектор: {s['n']}...")
             video_list = []
-            
             if s['t'] == 'nasa_api':
-                # Защита от NASA-повторов
-                last_line = db_content.split('\n')[-1] if db_content else ""
-                if "nasa_" in last_line: continue
-
-                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=nebula&media_type=video").json()
+                if db_content.split('\n')[-1].startswith("nasa_"): continue
+                nasa_res = requests.get(f"https://images-api.nasa.gov/search?q=astronomy&media_type=video").json()
                 for item in nasa_res['collection']['items'][:5]:
                     v_id = item['data'][0]['nasa_id']
                     if f"nasa_{v_id}" not in db_content:
@@ -199,18 +197,16 @@ async def main():
                 if not path or not os.path.exists(path): continue
                 
                 t_ru = super_clean(safe_translate(v['title']).upper())
-                raw_desc = v['desc'] if v['desc'] else "Эксклюзивные кадры Вселенной, запечатленные ведущими обсерваториями мира."
+                raw_desc = v['desc'] if v['desc'] else "Эксклюзивный репортаж из глубин нашей галактики."
                 d_ru = super_clean(safe_translate(raw_desc[:600]))
-                
                 status_audio = "Видео с переводом" if mode == "voice" else ("Видео с субтитрами" if mode == "subs" else "Оригинал")
 
                 caption = (
-                    f"⭐ <b>{t_ru}</b>\n\n"
+                    f"🌟 <b>{t_ru}</b>\n\n"
                     f"🛰 <b>ОБЪЕКТ:</b> {s['n']}\n"
                     f"🔊 <b>ЗВУК:</b> {status_audio}\n"
                     f"─────────────────────\n"
                     f"📖 <b>СЮЖЕТ:</b> {d_ru[:400]}...\n\n"
-                    f"🌌 <i>Смотри и изучай Вселенную вместе с нами!</i>\n"
                     f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
 
@@ -219,7 +215,7 @@ async def main():
                 
                 if r.status_code == 200:
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                    print(f"🎉 Миссия выполнена: {v['title']}"); return
+                    print(f"🎉 Успех: {v['title']}"); return
         except: continue
 
 if __name__ == '__main__':
