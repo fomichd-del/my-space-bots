@@ -23,8 +23,8 @@ DB_FILE        = "last_video_date.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_RATE = "-12%" 
-VOICE_LIMIT = 540 
+VOICE_RATE = "-15%" # Замедляем речь для идеального тайминга
+VOICE_LIMIT = 540 # Лимит 9 минут
 
 SOURCES = [
     {'n': 'ESO (Наука Европы)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
@@ -83,23 +83,24 @@ def create_srt(segments):
     return "subs.srt"
 
 # ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ
+# 🎙 МОДУЛЬ ОЗВУЧКИ (v16.0 - ГРОМКИЙ)
 # ============================================================
 
 async def build_voice_track(segments, total_duration):
     inputs = []; filter_parts = []; valid_count = 0
+    # Создаем базу тишины
     subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", str(total_duration + 5), "silent_base.mp3"], capture_output=True)
     inputs.extend(["-i", "silent_base.mp3"])
     
     for i, seg in enumerate(segments[:40]):
         try:
             phrase = seg['text'].strip()
-            if len(phrase) < 5: continue
+            if len(phrase) < 4: continue
             path = f"voice/v_{valid_count}.mp3"
             communicate = edge_tts.Communicate(safe_translate(phrase), VOICE, rate=VOICE_RATE)
             await communicate.save(path)
             if os.path.exists(path) and os.path.getsize(path) > 100:
-                start_ms = int(seg['start'] * 1000) + 100
+                start_ms = int(seg['start'] * 1000) + 150 # Смещение для синхронизации
                 inputs.extend(["-i", path])
                 filter_parts.append(f"[{valid_count+1}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
                 valid_count += 1
@@ -116,6 +117,7 @@ async def process_video_async(video_url, is_yt):
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
+        # Загрузка
         ydl_opts = {'format': 'best[height<=720][ext=mp4]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
         if is_yt:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -124,39 +126,56 @@ async def process_video_async(video_url, is_yt):
         else:
             r = requests.get(video_url, timeout=120)
             with open(f_in, "wb") as f: f.write(r.content)
-            dur_out = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", f_in])
-            dur = float(dur_out.decode().strip())
+            try:
+                dur_out = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", f_in])
+                dur = float(dur_out.decode().strip())
+            except: dur = 60 # Фоллбек если ffprobe барахлит
 
+        # Проверка аудио (мягкая)
+        has_audio = True
+        try:
+            audio_check = subprocess.run(["ffprobe", "-i", f_in, "-show_streams", "-select_streams", "a", "-loglevel", "error"], capture_output=True)
+            if not audio_check.stdout: has_audio = False
+        except: pass
+
+        # Транскрибация
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
         
         if segments and dur <= VOICE_LIMIT:
-            # Длинное видео -> Субтитры
-            if dur > 300 or len(segments) > 45:
+            # Приоритет субтитрам для длинных видео (>5 мин)
+            if dur > 300:
                 srt_file = create_srt(segments)
                 if srt_file:
                     subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt", "-c:a", "copy", f_out], check=True)
                     return f_out, "subs"
 
-            # Короткое видео -> Громкий голос Светланы
+            # Озвучка
             voice_file = await build_voice_track(segments, dur)
             if voice_file:
-                # УСИЛЕНИЕ ГОЛОСА И ПОДАВЛЕНИЕ ФОНА (v15.1)
-                cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
-                       "-filter_complex", "[0:a]volume=0.07[bg];[1:a]volume=2.5[v];[bg][v]amix=inputs=2:duration=first[outa]", 
-                       "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
+                print(f"🎬 Финальное сведение... (Звук: {has_audio})")
+                if has_audio:
+                    # УСИЛЕНИЕ ГОЛОСА В 3 РАЗА, ПРИГЛУШЕНИЕ ФОНА ДО 10%
+                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
+                           "-filter_complex", "[0:a]volume=0.1[bg];[1:a]volume=3.0[v];[bg][v]amix=inputs=2:duration=first[outa]", 
+                           "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", "-ignore_unknown", f_out]
+                else:
+                    cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
+                           "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-ignore_unknown", f_out]
                 subprocess.run(cmd, check=True)
                 return f_out, "voice"
         
         return f_in, "original"
-    except: return (f_in if os.path.exists(f_in) else None), "original"
+    except Exception as e:
+        print(f"⚠️ Ошибка: {e}")
+        return (f_in if os.path.exists(f_in) else None), "original"
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ ( v15.1 )
+# 🎬 ГЛАВНЫЙ ЦИКЛ ( v16.0 )
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v15.1 'Acoustic Shield' запущен...")
+    print("🎬 [ЦУП] v16.0 'Absolute Zero' запущен...")
     db_content = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     
     pool = SOURCES.copy()
@@ -196,9 +215,10 @@ async def main():
                 if not path or not os.path.exists(path): continue
                 
                 t_ru = super_clean(safe_translate(v['title']).upper())
-                raw_desc = v['desc'] if v['desc'] else "Завораживающие кадры глубокого космоса, передающие масштаб и величие нашей Вселенной."
+                raw_desc = v['desc'] if v['desc'] else "Эксклюзивные кадры из глубин космоса, передающие масштаб и величие нашей Вселенной."
                 d_ru = super_clean(safe_translate(raw_desc[:600]))
                 
+                # Статус по уставу
                 status_audio = "Видео с переводом" if mode == "voice" else ("Видео с субтитрами" if mode == "subs" else "Оригинал")
 
                 caption = (
