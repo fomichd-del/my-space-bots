@@ -21,30 +21,26 @@ DB_FILE        = "last_video_date.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_LIMIT = 420 # 7 минут
+VOICE_LIMIT = 420 
 
-# ПРИОРИТЕТНЫЕ МИРОВЫЕ ИСТОЧНИКИ
-SOURCES = [
+# МИРОВЫЕ ИСТОЧНИКИ (NASA вынесена в самый конец)
+WORLD_SOURCES = [
     {'n': 'ESO (Наука Европы)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
     {'n': 'ESA (Открытия Европы)', 't': 'rss', 'u': 'https://www.esa.int/rssfeed/Videos'},
     {'n': 'JAXA (Космос Японии)', 't': 'yt', 'id': 'UC1S_S6G_9A440VUM_KOn6Zg'},
     {'n': 'ISRO (Миссии Индии)', 't': 'yt', 'id': 'UC16vrn4PmwzOm_8atGYU8YQ'},
     {'n': 'Роскосмос (Россия)', 't': 'yt', 'id': 'UCp7fGZ8Z9zX_lZpY_l475_g'},
     {'n': 'SciNews (Мировые факты)', 't': 'yt', 'id': 'UCu3WicZMcXpUksat9yU859g'},
-    {'n': 'Hubble (Глубокий космос)', 't': 'rss', 'u': 'https://hubblesite.org/rss/news'},
-    {'n': 'NASA (Архив)', 't': 'nasa_api'}
+    {'n': 'Hubble (Глубокий космос)', 't': 'rss', 'u': 'https://hubblesite.org/rss/news'}
 ]
+NASA_SOURCE = {'n': 'NASA (Архив)', 't': 'nasa_api'}
 
 def clean_html(text):
     if not text: return ""
     return html.escape(text).replace('&lt;b&gt;', '<b>').replace('&lt;/b&gt;', '</b>')
 
-def format_time(seconds):
-    h = int(seconds // 3600); m = int((seconds % 3600) // 60); s = int(seconds % 60)
-    return f"{h:02d}:{m:02d}:{s:02d},000"
-
 # ============================================================
-# 🎙 МОДУЛЬ ГОЛОСА И СУБТИТРОВ
+# 🎙 МОДУЛЬ ОБРАБОТКИ
 # ============================================================
 
 async def build_voice(segments):
@@ -78,66 +74,74 @@ def process_video_master(video_url, is_yt):
         if not segments: return f_in, "original"
 
         if dur <= VOICE_LIMIT:
-            print("🎙 Озвучиваю...")
             voice_file = asyncio.run(build_voice(segments))
             if voice_file:
                 subprocess.run(f"ffmpeg -y -i {f_in} -i {voice_file} -filter_complex \"[0:a]volume=0.15[bg];[bg][1:a]amix=inputs=2:duration=first[out]\" -map 0:v -map \"[out]\" -c:v libx264 -crf 28 -preset ultrafast {f_out}", shell=True, check=True)
                 return f_out, "voice"
-
-        print("📝 Субтитры...")
-        srt = ""
-        for i, s in enumerate(segments):
-            srt += f"{i+1}\n{format_time(s['start'])} --> {format_time(s['end'])}\n{translator.translate(s['text'])}\n\n"
-        open("subs.srt", "w", encoding="utf-8").write(srt)
-        subprocess.run(f"ffmpeg -y -i {f_in} -vf \"subtitles=subs.srt\" -c:v libx264 -crf 28 -preset ultrafast {f_out}", shell=True, check=True)
-        return f_out, "subs"
-    except: return f_in, "original"
+        return f_in, "original"
+    except: return None, None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ
+# 🔭 ГЛОБАЛЬНЫЙ СКАНЕР (ВЕСЬ МИР)
 # ============================================================
+
+def get_world_content(db):
+    sources = WORLD_SOURCES.copy()
+    random.shuffle(sources)
+    sources.append(NASA_SOURCE) # NASA в самом хвосте
+
+    for s in sources:
+        try:
+            print(f"📡 Сектор: {s['n']}...")
+            if s['t'] == 'rss':
+                res = requests.get(s['u'], timeout=20); root = ET.fromstring(res.content)
+                items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
+                for item in items[:5]: # Проверяем последние 5
+                    link = item.find('.//enclosure').get('url') if item.find('.//enclosure') is not None else item.find('link').text
+                    if link not in db:
+                        return {'url': link, 'title': item.find('title').text, 'is_yt': 'youtube' in link, 'source': s['n'], 'desc': item.find('description').text if item.find('description') is not None else ''}
+            elif s['t'] == 'yt':
+                res = requests.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}", timeout=20)
+                entries = ET.fromstring(res.content).findall('{http://www.w3.org/2005/Atom}entry')
+                for entry in entries[:5]:
+                    link = f"https://www.youtube.com/watch?v={entry.find('{http://www.youtube.com/xml/schemas/2009}videoId').text}"
+                    if link not in db:
+                        return {'url': link, 'title': entry.find('{http://www.w3.org/2005/Atom}title').text, 'is_yt': True, 'source': s['n'], 'desc': ''}
+        except: continue
+    return None
 
 def main():
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
-    # Исключаем NASA из начала очереди
-    random.shuffle(SOURCES)
+    video = get_world_content(db)
     
-    for s in SOURCES:
-        try:
-            video = None
-            if s['t'] == 'rss':
-                res = requests.get(s['u'], timeout=20); root = ET.fromstring(res.content)
-                item = root.find('.//item') or root.find('{http://www.w3.org/2005/Atom}entry')
-                link = item.find('.//enclosure').get('url') if item.find('.//enclosure') is not None else item.find('link').text
-                video = {'url': link, 'title': item.find('title').text, 'is_yt': 'youtube' in link, 'source': s['n'], 'desc': item.find('description').text if item.find('description') is not None else ''}
-            elif s['t'] == 'yt':
-                res = requests.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={s['id']}", timeout=20)
-                entry = ET.fromstring(res.content).find('{http://www.w3.org/2005/Atom}entry')
-                video = {'url': f"https://www.youtube.com/watch?v={entry.find('{http://www.youtube.com/xml/schemas/2009}videoId').text}", 'title': entry.find('{http://www.w3.org/2005/Atom}title').text, 'is_yt': True, 'source': s['n'], 'desc': ''}
+    if not video:
+        print("🛑 Новых событий во всем мире не найдено.")
+        return
 
-            if video and video['url'] not in db:
-                print(f"✅ Найдено: {video['title']}")
-                path, mode = process_video_master(video['url'], video['is_yt'])
-                
-                t_ru = clean_html(translator.translate(video['title']).upper())
-                d_ru = clean_html(translator.translate('. '.join(video['desc'].split('.')[:2]) + '.')) if video['desc'] else "Увлекательное путешествие в глубины космоса."
-                mode_icon = "🔊" if mode == "voice" else "📝"
-                
-                caption = (
-                    f"🚀 <b>{t_ru}</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🌌 <b>ОБЪЕКТ:</b> {clean_html(s['n'])}\n"
-                    f"{mode_icon} <b>ПЕРЕВОД:</b> {('Голос' if mode=='voice' else 'Субтитры')}\n\n"
-                    f"📖 <b>СЮЖЕТ:</b> {d_ru}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🛰 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
-                )
+    path, mode = process_video_master(video['url'], video['is_yt'])
+    
+    t_ru = clean_html(translator.translate(video['title']).upper())
+    d_ru = clean_html(translator.translate('. '.join(video['desc'].split('.')[:2]) + '.')) if video['desc'] else "Уникальный репортаж о событиях в открытом космосе."
+    mode_icon = "🔊" if mode == "voice" else "📹"
+    
+    caption = (
+        f"🌌 <b>{t_ru}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🛰 <b>ОБЪЕКТ:</b> {clean_html(video['source'])}\n"
+        f"{mode_icon} <b>ПЕРЕВОД:</b> {('Голосовой' if mode=='voice' else 'Оригинал')}\n\n"
+        f"📖 <b>СЮЖЕТ:</b> {d_ru}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+    )
 
-                with open(path, 'rb') as v:
-                    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True})
-                    if r.status_code == 200:
-                        open(DB_FILE, 'a').write(f"\n{video['url']}")
-                        return
-        except: continue
+    if path:
+        with open(path, 'rb') as v:
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": True})
+    else:
+        # Fallback: Если видео не обработалось, шлем текст
+        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": CHANNEL_NAME, "text": f"🎥 <b>НОВОЕ ВИДЕО: {t_ru}</b>\n\n{caption}\n\n🔗 <a href='{video['url']}'>СМОТРЕТЬ</a>", "parse_mode": "HTML"})
+
+    if r.status_code == 200:
+        open(DB_FILE, 'a').write(f"\n{video['url']}")
 
 if __name__ == '__main__': main()
