@@ -27,54 +27,54 @@ except:
     model = None
 
 # ============================================================
-# 🛠 ВИДЕО-ИНЖЕНЕРИЯ (v111.0 - ПРОДВИНУТОЕ СЖАТИЕ)
+# 🛠 ВИДЕО-ИНЖЕНЕРИЯ
 # ============================================================
 
 def compress_video_safe(input_path, output_path, target_size_mb=45):
-    """Сжимает видео, чтобы оно гарантированно влезло в лимиты Telegram"""
-    print(f"📉 Начинаю компрессию файла: {input_path}")
     try:
         prob = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', input_path])
         duration = float(prob)
-        # Рассчитываем битрейт с запасом
         target_total_bitrate = int((target_size_mb * 8 * 1024 * 1024) / duration)
-        video_bitrate = target_total_bitrate - 128000 # Оставляем 128k на звук
+        video_bitrate = target_total_bitrate - 128000
         
-        print(f"⚙️ Расчетный битрейт: {video_bitrate // 1000} kbps для длительности {int(duration)} сек.")
-        
-        # Однопроходное быстрое сжатие для стабильности на GitHub Actions
         subprocess.run([
             'ffmpeg', '-y', '-i', input_path,
             '-c:v', 'libx264', '-b:v', str(video_bitrate),
             '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', output_path
         ], capture_output=True)
         return True
-    except Exception as e:
-        print(f"⚠️ Ошибка сжатия: {e}")
+    except:
         return False
 
 # ============================================================
-# 🛰 ГЛАВНЫЙ ЦИКЛ ОБРАБОТКИ
+# 🛰 ОБРАБОТКА МИССИИ
 # ============================================================
 
-async def process_mission_v111(v_url, title, desc, source_name):
+async def process_mission_v112(v_url, title, desc, source_name):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
 
     try:
         print(f"📥 Загрузка: {v_url}")
-        ydl_opts = {'format': 'best[height<=720]', 'outtmpl': f_raw, 'quiet': True}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([v_url])
+        # Проверяем, является ли ссылка прямой на видео
+        is_direct = any(v_url.lower().endswith(ext) for ext in ['.mp4', '.m4v', '.mov'])
         
-        raw_size = os.path.getsize(f_raw) / (1024*1024)
-        print(f"📦 Файл скачан. Размер: {raw_size:.1f} MB")
+        if is_direct:
+            r = requests.get(v_url, stream=True, timeout=120)
+            with open(f_raw, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024*1024): f.write(chunk)
+        else:
+            ydl_opts = {'format': 'best[height<=720]', 'outtmpl': f_raw, 'quiet': True, 'noplaylist': True}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([v_url])
+        
+        if not os.path.exists(f_raw) or os.path.getsize(f_raw) < 50000:
+            print("❌ Ошибка: Файл не скачался или пустой.")
+            return False
 
-        # Субтитры
         mode_text = "🔊 Оригинал"
         if model:
-            print("🎙 Whisper: Поиск речи...")
+            print("🎙 Whisper: Расшифровка...")
             res = model.transcribe(f_raw)
             if res.get('segments'):
                 srt = ""
@@ -85,33 +85,29 @@ async def process_mission_v111(v_url, title, desc, source_name):
                     srt += f"{i+1}\n{s} --> {e}\n{txt}\n\n"
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 mode_text = "🎥 С переводом"
-                print("📝 Субтитры готовы.")
 
-        # Решаем: сжимать или нет
-        needs_subs = os.path.exists("subs.srt")
-        if raw_size > 48 or needs_subs:
-            vf = "subtitles=subs.srt" if needs_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
-            print(f"🛠 Запуск FFmpeg (Сжатие/Субтитры)...")
-            # Если файл маленький, просто вшиваем субтитры без жесткого сжатия
-            if raw_size <= 48:
-                subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:a', 'copy', f_final], capture_output=True)
-            else:
+        # Сжатие
+        raw_size = os.path.getsize(f_raw) / (1024*1024)
+        if raw_size > 48 or os.path.exists("subs.srt"):
+            vf = "subtitles=subs.srt" if os.path.exists("subs.srt") else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+            print(f"🛠 Обработка видео (Сжатие/Титры)...")
+            if raw_size > 48:
                 compress_video_safe(f_raw, f_final)
+            else:
+                subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:a', 'copy', f_final], capture_output=True)
             path_to_send = f_final if os.path.exists(f_final) else f_raw
         else:
             path_to_send = f_raw
 
-        # Оформление
+        # Пост
         t_ru = translator.translate(title).upper()
-        # Извлекаем главные факты (первые предложения)
-        d_ru = translator.translate(desc[:600])
-        
+        d_ru = translator.translate(desc[:700])
         caption = (
             f"🚀 <b>{t_ru}</b>\n\n"
-            f"🛰 <b>МИССИЯ:</b> {source_name}\n"
+            f"🛰 <b>ИСТОЧНИК:</b> {source_name}\n"
             f"📡 <b>СТАТУС:</b> {mode_text}\n"
             f"─────────────────────\n"
-            f"🪐 <b>ИНФОРМАЦИОННАЯ СВОДКА:</b>\n\n"
+            f"🪐 <b>ИНФОРМАЦИЯ:</b>\n\n"
             f"{d_ru[:500]}...\n\n"
             f"🔭 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
@@ -122,11 +118,15 @@ async def process_mission_v111(v_url, title, desc, source_name):
                           files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=300)
         return True
     except Exception as e:
-        print(f"⚠️ Ошибка миссии: {e}")
+        print(f"⚠️ Ошибка обработки: {e}")
         return False
 
+# ============================================================
+# 🎬 ГЛАВНЫЙ ЦИКЛ
+# ============================================================
+
 async def main():
-    print("🎬 [ЦУП] v111.0 'Galactic Insight' активирована...")
+    print("🎬 [ЦУП] v112.0 'Deep Search' запущена...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     db = open(DB_FILE, 'r').read()
 
@@ -139,39 +139,37 @@ async def main():
     ]
 
     random.shuffle(SOURCES)
-    # Поиск с начала 2025 года
-    date_limit = "2025-01-01T00:00:00Z"
+    # Поиск с 2024 года
+    date_limit = "2024-01-01T00:00:00Z"
 
     for s in SOURCES:
         try:
-            print(f"📡 Сканирую сектор: {s['n']}...")
+            print(f"📡 Сектор: {s['n']}...")
             if s['t'] == 'yt' and YOUTUBE_API_KEY:
                 url = f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['id']}&part=snippet,id&order=date&publishedAfter={date_limit}&maxResults=5&type=video"
-                res = requests.get(url).json()
-                items = res.get('items', [])
-                print(f"🔍 Найдено видео: {len(items)}")
+                items = requests.get(url).json().get('items', [])
                 for item in items:
                     v_id = item['id']['videoId']
                     if v_id not in db:
-                        if await process_mission_v111(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n']):
+                        if await process_mission_v112(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n']):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
-                            print("🎉 Миссия успешно завершена."); return
+                            print("🎉 Готово!"); return
             
             elif s['t'] == 'rss':
-                res = requests.get(s['u'], timeout=20)
+                res = requests.get(s['u'], timeout=30)
                 root = ET.fromstring(res.content)
-                items = root.findall('.//item')
-                print(f"🔍 Найдено в ленте: {len(items)}")
-                for item in items[:5]:
+                for item in root.findall('.//item')[:10]:
                     link = item.find('link').text
+                    # Ищем прямую ссылку в enclosure (для ESO/ESA)
+                    encl = item.find('enclosure')
+                    v_url = encl.get('url') if encl is not None else link
+                    
                     if link not in db:
-                        title = item.find('title').text
-                        desc = item.find('description').text if item.find('description') is not None else ""
-                        if await process_mission_v111(link, title, desc, s['n']):
+                        if await process_mission_v112(v_url, item.find('title').text, item.find('description').text, s['n']):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{link}")
-                            print("🎉 Миссия успешно завершена."); return
+                            print("🎉 Готово!"); return
         except Exception as e:
-            print(f"⚠️ Сбой в секторе {s['n']}: {e}")
+            print(f"⚠️ Сбой сектора: {e}")
             continue
 
 if __name__ == '__main__':
