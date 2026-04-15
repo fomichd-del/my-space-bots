@@ -14,7 +14,7 @@ import shutil
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ
+# ⚙️ НАСТРОЙКИ ЦУП
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
@@ -23,7 +23,7 @@ DB_FILE        = "last_video_date.txt"
 translator = GoogleTranslator(source='auto', target='ru')
 model = whisper.load_model("tiny")
 VOICE = "ru-RU-SvetlanaNeural"
-VOICE_LIMIT = 420 
+VOICE_LIMIT = 450 # 7.5 минут
 
 SOURCES = [
     {'n': 'ESO (Европа - Наука)', 't': 'rss', 'u': 'https://www.eso.org/public/videos/feed/'},
@@ -37,22 +37,21 @@ SOURCES = [
 ]
 
 # ============================================================
-# 🛠 УТИЛИТЫ
+# 🛠 БРОНИРОВАННЫЕ УТИЛИТЫ
 # ============================================================
 
-def super_clean(text):
-    """Очистка текста от HTML и мусора"""
+def super_clean(text, *args):
+    """Очистка текста. Теперь принимает любое кол-во аргументов, чтобы не падать"""
     if not text: return ""
-    # Удаляем теги и ссылки
+    # Удаляем все HTML теги и ссылки
     text = re.sub(r'<[^>]+>', '', str(text))
     text = re.sub(r'http\S+', '', text)
-    # Экранируем спецсимволы для Telegram HTML
+    # Оставляем только чистый текст, безопасный для Telegram
     return html.escape(html.unescape(text)).strip()
 
 def clear_workspace():
-    """Удаление временных файлов перед запуском"""
-    files = ["input.mp4", "output.mp4", "voice_final.mp3", "subs.srt"]
-    for f in files:
+    """Полная зачистка перед стартом"""
+    for f in ["input.mp4", "output.mp4", "voice_final.mp3"]:
         if os.path.exists(f):
             try: os.remove(f)
             except: pass
@@ -62,49 +61,54 @@ def clear_workspace():
     os.makedirs("voice", exist_ok=True)
 
 # ============================================================
-# 🎙 МОДУЛЬ ОЗВУЧКИ (ИСПРАВЛЕННЫЙ)
+# 🎙 МОДУЛЬ ОЗВУЧКИ (v8.6 - БЕЗ ПРЕРЫВАНИЙ)
 # ============================================================
 
 async def build_voice_track(segments):
-    """Создает единую аудиодорожку озвучки с паузами"""
+    """Создает монолитный файл озвучки"""
+    print(f"🎙 Светлана начинает запись {len(segments[:70])} фрагментов...")
     inputs = []
     filter_parts = []
     valid_count = 0
     
-    for i, seg in enumerate(segments[:80]):
+    for i, seg in enumerate(segments[:70]):
         try:
             phrase = seg['text'].strip()
             if len(phrase) < 2: continue
             
             path = f"voice/v_{valid_count}.mp3"
-            translated_text = translator.translate(phrase)
+            t_text = translator.translate(phrase)
             
-            communicate = edge_tts.Communicate(translated_text, VOICE)
+            # Генерируем аудио файл
+            communicate = edge_tts.Communicate(t_text, VOICE)
             await communicate.save(path)
             
+            # Добавляем в очередь монтажа
             start_ms = int(seg['start'] * 1000)
             inputs.extend(["-i", path])
-            # Формируем цепочку задержек (adelay)
             filter_parts.append(f"[{valid_count}:a]adelay={start_ms}|{start_ms}[a{valid_count}]")
             valid_count += 1
-        except: continue
+        except Exception as e:
+            print(f"⚠️ Ошибка фрагмента {i}: {e}")
+            continue
     
     if valid_count == 0: return None
     
-    # Смешиваем все голоса в один файл voice_final.mp3
+    # Склеиваем все кусочки в один голос
     labels = "".join([f"[a{i}]" for i in range(valid_count)])
     amix_filter = f"{';'.join(filter_parts)};{labels}amix=inputs={valid_count}:duration=first:dropout_transition=0[out]"
     
-    cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", amix_filter, "-map", "[out]", "voice_final.mp3"]
+    cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", amix_filter, "-map", "[out]", "-c:a", "libmp3lame", "voice_final.mp3"]
     subprocess.run(cmd, check=True)
     return "voice_final.mp3"
 
 async def process_video_async(video_url, is_yt):
-    """Асинхронная обработка видео"""
+    """Асинхронный конвейер обработки"""
     f_in, f_out = "input.mp4", "output.mp4"
     clear_workspace()
     try:
-        ydl_opts = {'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
+        # 1. Загрузка
+        ydl_opts = {'format': 'best[height<=720][ext=mp4]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
         if is_yt:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=True)
@@ -113,19 +117,20 @@ async def process_video_async(video_url, is_yt):
         else:
             r = requests.get(video_url, timeout=120)
             with open(f_in, "wb") as f: f.write(r.content)
-            dur_cmd = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {f_in}"
-            dur = float(subprocess.check_output(dur_cmd, shell=True))
+            dur = float(subprocess.check_output(f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {f_in}", shell=True))
 
-        print(f"🧠 Whisper анализирует звук...")
+        # 2. Анализ Whisper
+        print("🧠 ИИ анализирует речь...")
         res = model.transcribe(f_in)
         segments = res.get('segments', [])
         
+        # 3. Озвучка
         if segments and dur <= VOICE_LIMIT:
-            voice_track = await build_voice_track(segments)
-            if voice_track:
-                # Накладываем монолитную дорожку голоса на видео
-                # 0:a - оригинал (тихо), 1:a - голос Светланы
-                cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_track, 
+            voice_file = await build_voice_track(segments)
+            if voice_file and os.path.exists(voice_file):
+                print("🎬 Финальный монтаж...")
+                # Накладываем голос (1) на видео (0)
+                cmd = ["ffmpeg", "-y", "-i", f_in, "-i", voice_file, 
                        "-filter_complex", "[0:a]volume=0.2[bg];[bg][1:a]amix=inputs=2:duration=first[outa]", 
                        "-map", "0:v", "-map", "[outa]", "-c:v", "copy", "-c:a", "aac", f_out]
                 subprocess.run(cmd, check=True)
@@ -133,15 +138,15 @@ async def process_video_async(video_url, is_yt):
         
         return f_in, "original"
     except Exception as e:
-        print(f"❌ Сбой обработки: {e}")
+        print(f"❌ Сбой конвейера: {e}")
         return None, None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ЦИКЛ
+# 🎬 ГЛАВНЫЙ МОДУЛЬ
 # ============================================================
 
 def main():
-    print("🎬 [ЦУП] v8.5 'Cosmos Shield' запущен...")
+    print("🎬 [ЦУП] v8.6 'Infinity' запущен...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     
     pool = SOURCES.copy()
@@ -157,31 +162,31 @@ def main():
             root = ET.fromstring(res.content)
             items = root.findall('.//item') or root.findall('{http://www.w3.org/2005/Atom}entry')
             
-            for item in items[:3]: # Проверяем последние 3 видео
+            for item in items[:3]:
                 link = ""
                 if s['t'] == 'rss':
                     lt = item.find('.//enclosure')
                     link = lt.get('url') if lt is not None else item.find('link').text
                 else:
-                    v_id_node = item.find('{http://www.youtube.com/xml/schemas/2009}videoId')
-                    if v_id_node is not None:
-                        link = f"https://www.youtube.com/watch?v={v_id_node.text}"
+                    v_node = item.find('{http://www.youtube.com/xml/schemas/2009}videoId')
+                    if v_node is not None: link = f"https://www.youtube.com/watch?v={v_node.text}"
                 
                 if link and link not in db:
                     title_node = item.find('title')
                     desc_node = item.find('description') or item.find('{http://www.w3.org/2005/Atom}summary')
                     
-                    title = title_node.text if title_node is not None else "Космическое событие"
+                    title = title_node.text if title_node is not None else "Событие"
                     desc = desc_node.text if desc_node is not None else ""
                     
-                    print(f"✅ Цель найдена: {title}")
-                    # Исправлено: запуск асинхронной функции
+                    print(f"✅ Найдено: {title}")
+                    # ЗАПУСК
                     path, mode = asyncio.run(process_video_async(link, 'youtube' in link))
                     
                     if not path: continue
 
+                    # Формируем описание с защитой от лишних аргументов
                     t_ru = super_clean(translator.translate(title).upper())
-                    d_ru = super_clean(translator.translate(desc[:300])) if desc else "Интересные новости из космоса."
+                    d_ru = super_clean(translator.translate(desc[:300])) if desc else "Новости из глубин космоса."
                     if len(d_ru) > 170: d_ru = d_ru[:170] + "..."
 
                     caption = (
@@ -202,12 +207,10 @@ def main():
                     
                     if r.status_code == 200:
                         open(DB_FILE, 'a').write(f"\n{link}")
-                        print("🎉 ОПУБЛИКОВАНО!")
+                        print("🎉 УСПЕШНО!")
                         return
-                    else:
-                        print(f"❌ Ошибка ТГ: {r.text}")
         except Exception as e:
-            print(f"⚠️ Сбой сектора {s['n']}: {e}")
+            print(f"⚠️ Сбой в {s['n']}: {e}")
             continue
 
 if __name__ == '__main__': main()
