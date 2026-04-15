@@ -9,16 +9,18 @@ import html
 import re
 import requests
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v101.0
+# ⚙️ КОНФИГУРАЦИЯ v105.0
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
+START_DATE     = "2026-01-01T00:00:00Z" # Наш временной барьер
 
 translator = GoogleTranslator(source='auto', target='ru')
 try:
@@ -27,11 +29,11 @@ except:
     model = None
 
 # ============================================================
-# 🛠 ИНСТРУМЕНТЫ
+# 🛠 ИНСТРУМЕНТЫ ОБРАБОТКИ
 # ============================================================
 
 def safe_translate(text):
-    if not text or len(str(text)) < 5: return str(text) if text else ""
+    if not text or len(str(text)) < 5: return ""
     try: return translator.translate(str(text))
     except: return str(text)
 
@@ -39,83 +41,62 @@ def super_clean(text):
     if not text: return ""
     text = re.sub(r'http\S+', '', str(text)) 
     text = re.sub(r'<[^>]+>', '', text)      
-    try: text = html.unescape(text)
-    except: pass
-    return html.escape(text).strip()
-
-async def download_direct(url, path):
-    """Прямая загрузка файла для обхода ограничений yt-dlp"""
-    try:
-        r = requests.get(url, stream=True, timeout=120)
-        if r.status_code == 200:
-            with open(path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=1024*1024): # 1MB chunks
-                    if chunk: f.write(chunk)
-            return True
-    except: return False
-    return False
+    return html.escape(html.unescape(text)).strip()
 
 async def process_video(video_url):
     video_url = video_url.strip().replace(" ", "%20")
-    print(f"🎬 [ЦУП] Захват объекта: {video_url}")
-    
     f_in, f_out = "input.mp4", "output.mp4"
     for f in [f_in, f_out, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
 
     try:
-        success = False
-        # Прямые ссылки на файлы
-        if any(video_url.lower().endswith(ext) for ext in ['.mp4', '.m4v', '.mov']):
-            success = await download_direct(video_url, f_in)
+        ydl_opts = {'format': 'best[height<=720]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            
+            # ❗ ЛОГИКА 50 МБ
+            filesize = info.get('filesize', 0) or info.get('filesize_approx', 0)
+            if filesize > 48 * 1024 * 1024:
+                print(f"📦 Файл слишком большой ({filesize // 1048576} MB). Переход в режим ссылки.")
+                return "link_mode", info
+            
+            ydl.download([video_url])
         
-        if not success:
-            ydl_opts = {'format': 'best[height<=720]', 'outtmpl': f_in, 'quiet': True, 'noplaylist': True}
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
-            success = os.path.exists(f_in)
-        
-        if not success or os.path.getsize(f_in) < 30000: return None, "error"
-
-        if model:
-            print("🎙 Расшифровка аудиоданных...")
+        if os.path.exists(f_in) and model:
             res = model.transcribe(f_in)
             segments = res.get('segments', [])
             if segments:
-                srt_data = ""
+                srt = ""
                 for i, seg in enumerate(segments):
                     s = time.strftime('%H:%M:%S,000', time.gmtime(seg.get('start', 0)))
                     e = time.strftime('%H:%M:%S,000', time.gmtime(seg.get('end', 0)))
                     txt = safe_translate(seg.get('text', ''))
-                    if txt: srt_data += f"{i+1}\n{s} --> {e}\n{txt}\n\n"
+                    if txt: srt += f"{i+1}\n{s} --> {e}\n{txt}\n\n"
                 
-                if srt_data:
-                    with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt_data)
-                    # Накладываем субтитры (с перекодировкой для стабильности)
-                    subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt:force_style='FontSize=16,Outline=1'", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "copy", f_out], capture_output=True)
-                    if os.path.exists(f_out): return f_out, "subs"
+                if srt:
+                    with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
+                    subprocess.run(["ffmpeg", "-y", "-i", f_in, "-vf", "subtitles=subs.srt", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "copy", f_out], capture_output=True)
+                    return (f_out if os.path.exists(f_out) else f_in), "video"
         
-        return f_in, "original"
-    except Exception as e:
-        print(f"⚠️ Ошибка процессора: {e}")
-        return None, "error"
+        return (f_in if os.path.exists(f_in) else None), "video"
+    except: return None, "error"
 
 # ============================================================
-# 🛰 ОСНОВНАЯ МИССИЯ
+# 🛰 ГЛАВНАЯ МИССИЯ
 # ============================================================
 
 async def main():
-    print("🚀 [ЦУП] v101.0 'Phoenix' активирована...")
+    print(f"🚀 [ЦУП] v105.0 активирована. Поиск с {START_DATE}")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     db = open(DB_FILE, 'r').read()
 
     SOURCES = [
-        {'n': 'Роскосмос (РФ)', 'id': 'UCOm4M6L_L7xOovvS_I-k__A', 't': 'yt'},
-        {'n': 'SpaceX (США)', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt'},
-        {'n': 'NASA TV', 'id': 'UCOpNcN46zbL++h_Z270F9iQ', 't': 'yt'},
+        {'n': 'SpaceX', 'id': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt'},
+        {'n': 'Роскосмос', 'id': 'UCOm4M6L_L7xOovvS_I-k__A', 't': 'yt'},
+        {'n': 'CNSA (Китай)', 'id': 'UCB_yD62_O7V9_W_A4GZ5fLw', 't': 'yt'},
         {'n': 'ESA (Европа)', 'u': 'https://www.esa.int/rssfeed/Videos', 't': 'rss'},
-        {'n': 'ESO (Наука)', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss'},
-        {'n': 'NASA Image API', 't': 'nasa'}
+        {'n': 'ESO Science', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss'},
+        {'n': 'NASA Archives', 't': 'nasa'}
     ]
 
     random.shuffle(SOURCES)
@@ -126,58 +107,57 @@ async def main():
             v_list = []
 
             if s['t'] == 'yt' and YOUTUBE_API_KEY:
-                r = requests.get(f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['id']}&part=snippet,id&order=date&maxResults=3&type=video").json()
-                if 'items' in r:
-                    for item in r['items']:
-                        v_id = item['id']['videoId']
-                        if v_id not in db:
-                            v_list.append({'url': f"https://www.youtube.com/watch?v={v_id}", 'title': item['snippet']['title'], 'desc': item['snippet']['description'], 'id': v_id})
-
-            elif s['t'] == 'rss':
-                try:
-                    res = requests.get(s['u'], timeout=20)
-                    root = ET.fromstring(res.content)
-                    for item in root.findall('.//item')[:3]:
-                        link = item.find('link').text
-                        if link not in db:
-                            v_url = link
-                            encl = item.find('enclosure')
-                            if encl is not None: v_url = encl.get('url')
-                            v_list.append({'url': v_url, 'title': item.find('title').text, 'desc': item.find('description').text if item.find('description') is not None else "", 'id': link})
-                except: continue
+                # Фильтр по дате в YouTube API: publishedAfter
+                r = requests.get(f"https://www.googleapis.com/youtube/v3/search?key={YOUTUBE_API_KEY}&channelId={s['id']}&part=snippet,id&order=date&publishedAfter={START_DATE}&maxResults=3&type=video").json()
+                for item in r.get('items', []):
+                    v_id = item['id']['videoId']
+                    if v_id not in db:
+                        v_list.append({'url': f"https://www.youtube.com/watch?v={v_id}", 'title': item['snippet']['title'], 'desc': item['snippet']['description'], 'id': v_id})
 
             elif s['t'] == 'nasa' and NASA_API_KEY:
-                r_nasa = requests.get(f"https://images-api.nasa.gov/search?media_type=video&q=galaxy&api_key={NASA_API_KEY}").json()
-                if 'collection' in r_nasa and 'items' in r_nasa['collection']:
-                    item = random.choice(r_nasa['collection']['items'][:10])
-                    v_id = item['data'][0]['nasa_id']
+                # Поиск в NASA с фильтром 2026
+                r_nasa = requests.get(f"https://images-api.nasa.gov/search?media_type=video&year_start=2026&api_key={NASA_API_KEY}").json()
+                items = r_nasa.get('collection', {}).get('items', [])
+                if items:
+                    target = items[0]
+                    v_id = target['data'][0]['nasa_id']
                     if v_id not in db:
                         assets = requests.get(f"https://images-api.nasa.gov/asset/{v_id}").json()
                         v_url = next((a['href'] for a in assets['collection']['items'] if '~medium.mp4' in a['href']), None)
-                        if v_url:
-                            v_list.append({'url': v_url, 'title': item['data'][0]['title'], 'desc': item['data'][0].get('description', ''), 'id': v_id})
+                        v_list.append({'url': v_url, 'title': target['data'][0]['title'], 'desc': target['data'][0].get('description', ''), 'id': v_id})
 
             for v in v_list:
-                path, mode = await process_video(v['url'])
-                if not path: continue
+                result, mode = await process_video(v['url'])
+                if not result: continue
 
                 t_ru = super_clean(safe_translate(v['title']).upper())
-                d_ru = super_clean(safe_translate(v['desc'][:800]))
+                d_ru = safe_translate(v['desc'])
                 
-                caption = (f"⭐ <b>{t_ru}</b>\n\n🛰 <b>ОТПРАВИТЕЛЬ:</b> {s['n']}\n"
-                           f"─────────────────────\n🪐 <b>ИНФОРМАЦИЯ:</b>\n{d_ru[:500]}...\n\n"
-                           f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>")
+                # 📝 КРАСОЧНОЕ ОФОРМЛЕНИЕ
+                caption = (
+                    f"🛰 <b>{t_ru}</b>\n\n"
+                    f"🌍 <b>МИССИЯ:</b> {s['n']}\n"
+                    f"📅 <b>ДАТА:</b> 2026\n"
+                    f"─────────────────────\n"
+                    f"🪐 <b>ГЛАВНЫЕ ФАКТЫ:</b>\n"
+                    f"{super_clean(d_ru[:450])}...\n\n"
+                    f"✨ <i>Посмотри на звезды — там наше будущее!</i>\n"
+                    f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+                )
 
-                with open(path, 'rb') as f_v:
-                    res_tg = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": f_v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=300)
+                if mode == "link_mode":
+                    # Режим ссылки (для тяжелых видео)
+                    caption = f"🎬 <b>БОЛЬШОЕ ВИДЕО:</b> {t_ru}\n\n" + caption + f"\n\n🔗 <b>СМОТРЕТЬ:</b> {v['url']}"
+                    requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": CHANNEL_NAME, "text": caption, "parse_mode": "HTML"})
+                else:
+                    # Режим видео
+                    with open(result, 'rb') as f_v:
+                        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": f_v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"})
                 
-                if res_tg.status_code == 200:
-                    with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                    print(f"🎉 Файл успешно доставлен в канал!"); return
+                with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
+                return
 
-        except Exception as e:
-            print(f"⚠️ Сектор временно недоступен: {e}")
-            continue
+        except: continue
 
 if __name__ == '__main__':
     asyncio.run(main())
