@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v119.5
+# ⚙️ КОНФИГУРАЦИЯ v120.0
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY')
@@ -41,11 +41,31 @@ def super_clean(text):
     text = re.sub(r'<[^>]+>', '', text)      
     return html.escape(html.unescape(text)).strip()
 
+def check_real_audio(file_path):
+    """Проверяет реальное наличие звука (не тишины) через детектор громкости ffmpeg"""
+    try:
+        # Анализируем среднюю громкость (mean_volume)
+        cmd = [
+            'ffmpeg', '-i', file_path, 
+            '-af', 'volumedetect', 
+            '-vn', '-sn', '-dn', 
+            '-f', 'null', '/dev/null'
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        # Если mean_volume ниже -60dB, это практически тишина
+        match = re.search(r"mean_volume: ([\-\d\.]+) dB", result.stderr)
+        if match:
+            volume = float(match.group(1))
+            return volume > -60.0
+        return False
+    except:
+        return False
+
 # ============================================================
-# 🎬 ПРОЦЕССОР v119.5
+# 🎬 ПРОЦЕССОР v120.0
 # ============================================================
 
-async def process_mission_v119_5(v_url, title, desc, source_name):
+async def process_mission_v120(v_url, title, desc, source_name):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -69,9 +89,10 @@ async def process_mission_v119_5(v_url, title, desc, source_name):
 
         if not success or os.path.getsize(f_raw) < 100000: return False
 
-        # --- АНАЛИЗ АУДИО ---
+        # --- АНАЛИЗ АУДИО И РЕЧИ ---
         mode_label = "● 🛰 КОСМИЧЕСКАЯ ТИШИНА ●" 
         has_subs = False
+        
         if model:
             print("🎙 Whisper: Поиск речи...")
             res = model.transcribe(f_raw)
@@ -93,10 +114,8 @@ async def process_mission_v119_5(v_url, title, desc, source_name):
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt_content)
                 mode_label = "● 📝 СУБТИТРЫ ПОДГОТОВЛЕНЫ ●"
                 has_subs = True
-            else:
-                audio_check = subprocess.run(['ffprobe', '-i', f_raw, '-show_streams', '-select_streams', 'a', '-loglevel', 'error'], capture_output=True).stdout
-                if audio_check:
-                    mode_label = "● 🎵 АТМОСФЕРНЫЙ ЗВУК ●"
+            elif check_real_audio(f_raw):
+                mode_label = "● 🎵 АТМОСФЕРНЫЙ ЗВУК ●"
 
         # --- МОНТАЖ ---
         prob = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', f_raw])
@@ -105,6 +124,7 @@ async def process_mission_v119_5(v_url, title, desc, source_name):
         
         vf = "subtitles=subs.srt:force_style='FontSize=16,Outline=1'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
         
+        # Перекодируем звук в aac 128k принудительно для совместимости
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(target_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', f_final], capture_output=True)
         
         path_send = f_final if os.path.exists(f_final) else f_raw
@@ -114,7 +134,7 @@ async def process_mission_v119_5(v_url, title, desc, source_name):
         clean_desc = super_clean(safe_translate(desc))
         
         if len(clean_desc) < 40:
-            fact_block = f"🔹 На этих кадрах запечатлено уникальное явление: {clean_title.lower()}. Наблюдение ведется в рамках текущих научных программ."
+            fact_block = f"🔹 Уникальные кадры события: {clean_title.lower()}. Наблюдение за объектом ведется в рамках текущих миссий."
         else:
             facts = clean_desc.split('. ')
             fact_block = "🔹 " + facts[0] + ('. ' + facts[1] if len(facts) > 1 else '') + "."
@@ -141,7 +161,7 @@ async def process_mission_v119_5(v_url, title, desc, source_name):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v119.5 'Clear Sky' активирована...")
+    print("🎬 [ЦУП] v120.0 'Deep Silence Detection' активирована...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     db = open(DB_FILE, 'r').read()
 
@@ -166,7 +186,7 @@ async def main():
                 for item in items:
                     v_id = item['id']['videoId']
                     if v_id not in db:
-                        if await process_mission_v119_5(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n']):
+                        if await process_mission_v120(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['n']):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
                             return
             
@@ -182,7 +202,7 @@ async def main():
                     if not any(v_url.lower().endswith(ext) for ext in ['.mp4', '.m4v', '.mov']) and 'youtube' not in v_url:
                         continue
                     if link not in db:
-                        if await process_mission_v119_5(v_url, item.find('title').text, item.find('description').text, s['n']):
+                        if await process_mission_v120(v_url, item.find('title').text, item.find('description').text, s['n']):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{link}")
                             return
         except: continue
