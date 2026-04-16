@@ -1,13 +1,10 @@
 import requests
 import os
-import json
 import random
 from datetime import datetime, timezone
 from deep_translator import GoogleTranslator
 
-# ============================================================
-# ⚙️ НАСТРОЙКИ (Берутся из Secrets GitHub)
-# ============================================================
+# Настройки
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 NASA_API_KEY = os.getenv('NASA_API_KEY')
@@ -16,7 +13,7 @@ DB_FILE        = "db_launch.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🐩 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ (51 ФАКТ)
+# Список секретов Марти (Все 51 факт)
 MARTI_FACTS = [
     "В космосе абсолютная тишина, потому что там нет воздуха, чтобы передавать звуки.",
     "На Венере солнце встает на западе, а садится на востоке.",
@@ -71,98 +68,55 @@ MARTI_FACTS = [
     "Самый старый свет во Вселенной — реликтовое излучение — возник спустя 380 тысяч лет после Большого взрыва."
 ]
 
-def get_youtube_live(query):
-    """Ищет прямую трансляцию на YouTube по названию миссии."""
+def get_yt_link(q):
     if not YOUTUBE_API_KEY: return None
-    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&q={query}&key={YOUTUBE_API_KEY}"
     try:
-        res = requests.get(url).json()
-        if res.get('items'):
-            return f"https://www.youtube.com/watch?v={res['items'][0]['id']['videoId']}"
+        r = requests.get(f"https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&q={q}&key={YOUTUBE_API_KEY}").json()
+        if r.get('items'): return f"https://www.youtube.com/watch?v={r['items'][0]['id']['videoId']}"
     except: pass
     return None
 
-def get_nasa_image():
-    """Получает красивое фото дня от NASA."""
-    if not NASA_API_KEY: return "https://www.nasa.gov/wp-content/uploads/2023/03/fgs_stsci-01h072ykf6p2p68zvgq4ay79e0.png"
-    url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
-    try:
-        res = requests.get(url).json()
-        return res.get('url')
-    except: return None
-
 def main():
-    print("🛰 Запуск бота...")
-    url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=10"
-    try:
-        res = requests.get(url, timeout=30).json()
-        launches = res.get('results', [])
-    except Exception as e:
-        print(f"Ошибка API: {e}")
-        return
+    print("🚀 [ЦУП] Проверка запусков...")
+    res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=5").json()
+    launches = res.get('results', [])
+    
+    sent_ids = open(DB_FILE, 'r').read().splitlines() if os.path.exists(DB_FILE) else []
 
-    now = datetime.now(timezone.utc)
-    sent_ids = []
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, 'r') as f:
-            sent_ids = [line.strip() for line in f.readlines()]
+    for l in launches:
+        net = datetime.fromisoformat(l['net'].replace('Z', '+00:00'))
+        diff = (net - datetime.now(timezone.utc)).total_seconds() / 60
+        l_id = f"{l['id']}_{'final' if diff < 70 else 'early'}"
 
-    for launch in launches:
-        l_id = launch['id']
-        name = launch['name']
-        net = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
-        diff = (net - now).total_seconds() / 60
-        
-        print(f"Проверка: {name} (Старт через {int(diff)} мин)")
+        print(f"📡 Проверяю: {l['name']} (через {int(diff)} мин)")
 
-        # Условие: за 24 часа или за 1 час
-        if 0 < diff < 1445:
-            type_msg = "final" if diff < 70 else "early"
-            memory_key = f"{l_id}_{type_msg}"
+        if 0 < diff < 1445 and l_id not in sent_ids:
+            status = "ГОТОВНОСТЬ 24 ЧАСА" if diff > 70 else "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)"
+            provider = l['launch_service_provider']['name']
             
-            if memory_key in sent_ids:
-                print(f"Уже отправлено: {memory_key}")
-                continue
+            # Перевод
+            desc_ru = translator.translate(l.get('mission', {}).get('description', 'Миссия по изучению космоса.'))
+            prov_ru = translator.translate(provider)
+            
+            # Ссылка
+            video = get_yt_link(f"{provider} {l['name']} live") or (l['vidURLs'][0]['url'] if l.get('vidURLs') else "https://www.youtube.com/@SpaceX/streams")
 
-            status = "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)" if diff < 70 else "ГОТОВНОСТЬ 24 ЧАСА"
-            desc_en = launch.get('mission', {}).get('description', 'Space mission details upcoming.')
-            desc_ru = translator.translate(desc_en)
-            provider = launch['launch_service_provider']['name']
-            provider_ru = translator.translate(provider)
-
-            # Поиск трансляции
-            video_url = get_youtube_live(f"{provider} {name} launch")
-            if not video_url:
-                 video_url = launch['vidURLs'][0]['url'] if launch.get('vidURLs') else "https://www.youtube.com/@SpaceX/streams"
-
-            img_url = launch.get('image') or get_nasa_image()
-
-            caption = (
-                f"🚀 <b>{status}: {name.upper()}</b>\n"
+            text = (
+                f"🚀 <b>{status}: {l['name'].upper()}</b>\n"
                 f"─────────────────────\n\n"
-                f"🏢 <b>Организатор:</b> {provider_ru}\n"
-                f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
-                f"📍 <b>Космодром:</b> {launch['pad']['location']['name']}\n\n"
+                f"🏢 <b>Организатор:</b> {prov_ru}\n"
+                f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{desc_ru}\n\n"
-                f"🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>\n\n"
+                f"🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video}'>СМОТРЕТЬ</a>\n\n"
                 f"🐩 <b>СЕКРЕТ ОТ МАРТИ:</b>\n<i>{random.choice(MARTI_FACTS)}</i>\n\n"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
-            
-            payload = {
-                "chat_id": CHANNEL_NAME,
-                "text": caption,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False
-            }
-            
-            resp = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
-            if resp.status_code == 200:
-                print(f"✅ Успешно отправлено: {name}")
-                with open(DB_FILE, 'a') as f: f.write(f"{memory_key}\n")
-                break 
-            else:
-                print(f"❌ Ошибка Telegram: {resp.text}")
+
+            payload = {"chat_id": CHANNEL_NAME, "text": text, "parse_mode": "HTML"}
+            if requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload).status_code == 200:
+                with open(DB_FILE, 'a') as f: f.write(f"{l_id}\n")
+                print(f"✅ Отправлено: {l['name']}")
+                break
 
 if __name__ == '__main__':
     main()
