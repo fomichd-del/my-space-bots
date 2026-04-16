@@ -11,31 +11,22 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install requests deep_translator
-
-      - name: Run Space Bots
+      - run: pip install requests deep_translator
+      - name: Start Bots
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         run: |
           python bot_launch.py
-          # Если хочешь, тут же можно запустить и радар:
-          # python space_radar.py
-
-      - name: Save memory
+      - name: Save Memory
         run: |
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
           git add db_launch.txt sent_radar_lives.txt || echo "No files"
-          git commit -m "Update satellite data" || echo "No changes"
+          git commit -m "Update DB" || echo "No changes"
           git push
