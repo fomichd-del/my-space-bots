@@ -1,37 +1,39 @@
-name: Bot Launch Notifier
+name: Space Diary Automation
 
 on:
   schedule:
-    - cron: '0 * * * *' # Раз в час, чтобы не тратить лимиты API часто
-  workflow_dispatch: # Позволяет запустить вручную кнопкой
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
 
 jobs:
-  build:
+  run-bots:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Важно для записи в db_launch.txt
-
+      contents: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install requests deep_translator
-
-      - name: Run bot
+      - run: pip install requests deep_translator
+      
+      - name: Run Main Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         run: python bot_launch.py
 
-      - name: Commit and Push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "🤖 Память обновлена: db_launch.txt"
-          file_pattern: 'db_launch.txt'
+      - name: Run Radar
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python space_radar.py
+
+      - name: Save Data
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add db_launch.txt sent_radar_lives.txt || echo "No files"
+          git commit -m "Update DB" || echo "No changes"
+          git push
