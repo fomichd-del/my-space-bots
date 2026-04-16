@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ
+# ⚙️ НАСТРОЙКИ (Берутся из Secrets GitHub)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
@@ -16,38 +16,92 @@ DB_FILE        = "db_launch.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Список фактов (сокращено для примера, используй свой полный список из 51 факта)
+# 🐩 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ (51 ФАКТ)
 MARTI_FACTS = [
-    "В космосе абсолютная тишина, потому что там нет воздуха.",
-    "На Венере солнце встает на западе.",
+    "В космосе абсолютная тишина, потому что там нет воздуха, чтобы передавать звуки.",
+    "На Венере солнце встает на западе, а садится на востоке.",
+    "Следы астронавтов на Луне останутся там минимум на 100 миллионов лет.",
+    "Сатурн настолько легкий, что плавал бы в воде, если бы нашелся такой гигантский океан.",
+    "Если два куска металла соприкоснутся в космосе, они спаяются навсегда. Это называется холодная сварка.",
+    "На Юпитере и Сатурне идут дожди из настоящих алмазов.",
+    "Солнце составляет 99.8% всей массы Солнечной системы.",
+    "Один день на Венере длится дольше, чем целый земной год.",
+    "Нейтронные звезды настолько плотные, что чайная ложка их вещества весила бы как гора Эверест.",
+    "Свет от Солнца доходит до Земли за 8 минут и 20 секунд.",
+    "Если бы вы могли доехать до ближайшей звезды на машине, это заняло бы 48 миллионов лет.",
+    "У Сатурна больше всего спутников в нашей системе — целых 146!",
+    "Гора Олимп на Марсе в три раза выше нашего Эвереста.",
+    "Астронавты на МКС видят 16 закатов и 16 рассветов каждый день.",
+    "Луна каждый год улетает от Земли примерно на 3.8 сантиметра.",
+    "В космосе нельзя плакать — слезы не стекают вниз, а скапливаются в липкие шарики вокруг глаз.",
+    "Космос пахнет жареным стейком, горячим металлом и сварочным дымом.",
     "Закат на Марсе — синего цвета.",
-    "Космос пахнет жареным стейком и горячим металлом."
+    "В нашей Галактике звезд больше, чем песчинок на всех пляжах Земли.",
+    "Астронавты на МКС вырастают на пару сантиметров, потому что позвоночник в невесомости расправляется.",
+    "Самый большой океан во Вселенной находится вокруг черной дыры — это облако водяного пара в 140 триллионов раз больше всей воды на Земле.",
+    "Юпитер — это огромный шар из газа, на него невозможно приземлиться.",
+    "Земля — единственная планета, названная не в честь древних богов.",
+    "Первым живым существом на орбите была собака Лайка. Марти гордится её смелостью!",
+    "На Луне нет ветра, поэтому флаги там висят на специальных Г-образных палках.",
+    "Если бы вы крикнули в космосе, вас бы никто не услышал, даже если бы стоял рядом.",
+    "Самая горячая планета — Венера, хотя Меркурий находится ближе к Солнцу.",
+    "В центре Млечного Пути находится сверхмассивная черная дыра Стрелец А*.",
+    "У Урана 27 спутников, и все они названы в честь героев Шекспира и Александра Поупа.",
+    "Комета Галлея вернется к нам только в 2061 году. Ждем!",
+    "Марсианская пыль очень мелкая и острая, как битое стекло.",
+    "Марс красный, потому что его поверхность покрыта ржавчиной (оксидом железа).",
+    "Нептуну требуется 165 земных лет, чтобы совершить один оборот вокруг Солнца.",
+    "На Луне есть места, где температура падает до -240 градусов Цельсия.",
+    "Скафандр НАСА стоит около 12 миллионов долларов, и 70% этой суммы — за рюкзак и пульт управления.",
+    "У Земли есть 'вторая луна' — астероид Круитни, который вращается вокруг Солнца синхронно с нами.",
+    "В космосе нет верха и низа, поэтому астронавты спят привязанными к стенам.",
+    "Планета Плутон меньше, чем территория России.",
+    "На Меркурии за один день можно увидеть два рассвета.",
+    "Юпитер работает как 'космический пылесос', притягивая своей гравитацией опасные кометы и спасая Землю.",
+    "Если наполнить стакан водой в космосе, вода не выльется, а выплывет огромным пузырем.",
+    "Космический телескоп Джеймс Уэбб может 'видеть' тепло даже самого крошечного шмеля на расстоянии Луны.",
+    "Астронавты на орбите используют специальный пылесос, чтобы стричь волосы.",
+    "На Титане, спутнике Сатурна, такая плотная атмосфера, что человек мог бы летать, просто прикрепив крылья к рукам.",
+    "Самый большой известная звезда — Стивенсон 2-18 — в 2150 раз больше нашего Солнца.",
+    "Слово 'астронавт' происходит от греческих слов, означающих 'звездный моряк'.",
+    "Если бы вы могли лететь со скоростью света, то пересекли бы всю Вселенную за 93 миллиарда лет.",
+    "У Сатурна есть спутник Япет, который выглядит как черно-белый пельмень с высоким гребнем посередине.",
+    "На МКС вода перерабатывается из всего: пота и даже дыхания астронавтов.",
+    "В центре некоторых туманностей рождаются сотни новых планет прямо сейчас.",
+    "Самый старый свет во Вселенной — реликтовое излучение — возник спустя 380 тысяч лет после Большого взрыва."
 ]
 
-def get_launch_data():
-    print("🛰 Запрос данных из Space Devs API...")
-    url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=5"
+def get_youtube_live(query):
+    """Ищет прямую трансляцию на YouTube по названию миссии."""
+    if not YOUTUBE_API_KEY: return None
+    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&q={query}&key={YOUTUBE_API_KEY}"
     try:
-        res = requests.get(url, timeout=30)
-        res.raise_for_status()
-        return res.json().get('results', [])
-    except Exception as e:
-        print(f"❌ Ошибка API: {e}")
-        return None
+        res = requests.get(url).json()
+        if res.get('items'):
+            return f"https://www.youtube.com/watch?v={res['items'][0]['id']['videoId']}"
+    except: pass
+    return None
+
+def get_nasa_image():
+    """Получает красивое фото дня от NASA."""
+    if not NASA_API_KEY: return "https://www.nasa.gov/wp-content/uploads/2023/03/fgs_stsci-01h072ykf6p2p68zvgq4ay79e0.png"
+    url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
+    try:
+        res = requests.get(url).json()
+        return res.get('url')
+    except: return None
 
 def main():
-    if not TELEGRAM_TOKEN:
-        print("❌ Ошибка: TELEGRAM_TOKEN не найден в Secrets!")
-        return
-
-    launches = get_launch_data()
-    if not launches:
-        print("📭 Новых запусков не найдено.")
+    print("🛰 Запуск бота...")
+    url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=10"
+    try:
+        res = requests.get(url, timeout=30).json()
+        launches = res.get('results', [])
+    except Exception as e:
+        print(f"Ошибка API: {e}")
         return
 
     now = datetime.now(timezone.utc)
-    
-    # Загружаем историю отправок
     sent_ids = []
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
@@ -56,48 +110,45 @@ def main():
     for launch in launches:
         l_id = launch['id']
         name = launch['name']
-        provider = launch['launch_service_provider']['name']
-        net_str = launch['net']
+        net = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
+        diff = (net - now).total_seconds() / 60
         
-        # Парсим дату запуска
-        net = datetime.fromisoformat(net_str.replace('Z', '+00:00'))
-        diff_minutes = (net - now).total_seconds() / 60
-        
-        print(f"🔎 Проверка: {name} (через {int(diff_minutes)} мин)")
+        print(f"Проверка: {name} (Старт через {int(diff)} мин)")
 
-        # Логика: отправляем, если до запуска меньше 24 часов и мы его еще не постили
-        if 0 < diff_minutes < 1440:
-            memory_key = f"{l_id}_24h"
+        # Условие: за 24 часа или за 1 час
+        if 0 < diff < 1445:
+            type_msg = "final" if diff < 70 else "early"
+            memory_key = f"{l_id}_{type_msg}"
             
             if memory_key in sent_ids:
-                print(f"✅ Уведомление для {l_id} уже было отправлено ранее.")
+                print(f"Уже отправлено: {memory_key}")
                 continue
 
-            print(f"🚀 Готовим пост для: {name}")
-            
-            # Перевод описания
-            mission_desc = launch.get('mission', {}).get('description', 'Научная миссия.')
-            try:
-                desc_ru = translator.translate(mission_desc)
-                provider_ru = translator.translate(provider)
-            except:
-                desc_ru, provider_ru = mission_desc, provider
+            status = "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)" if diff < 70 else "ГОТОВНОСТЬ 24 ЧАСА"
+            desc_en = launch.get('mission', {}).get('description', 'Space mission details upcoming.')
+            desc_ru = translator.translate(desc_en)
+            provider = launch['launch_service_provider']['name']
+            provider_ru = translator.translate(provider)
 
-            # Ссылка на видео
-            video_url = launch['vidURLs'][0]['url'] if launch.get('vidURLs') else f"https://www.youtube.com/results?search_query={provider}+launch+live"
-            
+            # Поиск трансляции
+            video_url = get_youtube_live(f"{provider} {name} launch")
+            if not video_url:
+                 video_url = launch['vidURLs'][0]['url'] if launch.get('vidURLs') else "https://www.youtube.com/@SpaceX/streams"
+
+            img_url = launch.get('image') or get_nasa_image()
+
             caption = (
-                f"🚀 <b>ГОТОВНОСТЬ 24 ЧАСА: {name.upper()}</b>\n"
+                f"🚀 <b>{status}: {name.upper()}</b>\n"
                 f"─────────────────────\n\n"
                 f"🏢 <b>Организатор:</b> {provider_ru}\n"
-                f"⏰ <b>Старт:</b> {net.strftime('%d.%m %H:%M')} UTC\n"
+                f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
                 f"📍 <b>Космодром:</b> {launch['pad']['location']['name']}\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{desc_ru}\n\n"
                 f"🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>\n\n"
                 f"🐩 <b>СЕКРЕТ ОТ МАРТИ:</b>\n<i>{random.choice(MARTI_FACTS)}</i>\n\n"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
-
+            
             payload = {
                 "chat_id": CHANNEL_NAME,
                 "text": caption,
@@ -105,16 +156,13 @@ def main():
                 "disable_web_page_preview": False
             }
             
-            tg_res = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
-            
-            if tg_res.status_code == 200:
-                print("📩 Сообщение успешно отправлено в Telegram!")
-                with open(DB_FILE, 'a') as f:
-                    f.write(f"{memory_key}\n")
+            resp = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
+            if resp.status_code == 200:
+                print(f"✅ Успешно отправлено: {name}")
+                with open(DB_FILE, 'a') as f: f.write(f"{memory_key}\n")
+                break 
             else:
-                print(f"❌ Ошибка Telegram: {tg_res.text}")
-            
-            break # Отправляем один пост за один прогон
+                print(f"❌ Ошибка Telegram: {resp.text}")
 
 if __name__ == '__main__':
     main()
