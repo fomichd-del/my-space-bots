@@ -1,6 +1,5 @@
 import requests
 import os
-import json
 import random
 from datetime import datetime, timezone
 from deep_translator import GoogleTranslator
@@ -72,98 +71,74 @@ MARTI_FACTS = [
 ]
 
 def get_youtube_live(query):
-    """Ищет СТРОГО прямую трансляцию на YouTube по названию."""
     if not YOUTUBE_API_KEY: return None
-    url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&q={query}&key={YOUTUBE_API_KEY}"
     try:
+        url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&q={query}&key={YOUTUBE_API_KEY}"
         res = requests.get(url, timeout=10).json()
         if res.get('items'):
             return f"https://www.youtube.com/watch?v={res['items'][0]['id']['videoId']}"
-    except: pass
-    return None
+    except: return None
 
-def get_nasa_image():
-    """Картинка дня от NASA как резервный вариант оформления."""
-    if not NASA_API_KEY: return "https://www.nasa.gov/wp-content/uploads/2023/03/fgs_stsci-01h072ykf6p2p68zvgq4ay79e0.png"
+def get_nasa_img():
+    if not NASA_API_KEY: return None
     try:
         res = requests.get(f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}", timeout=10).json()
-        return res.get('url')
-    except: return "https://www.nasa.gov/wp-content/uploads/2023/03/fgs_stsci-01h072ykf6p2p68zvgq4ay79e0.png"
+        return res.get('url') if res.get('media_type') == 'image' else None
+    except: return None
 
 def main():
-    print("🚀 [ЦУП] Анализ предстоящих миссий...")
+    print("🚀 [ЦУП] Анализ космоса...")
     try:
-        res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=8", timeout=30).json()
+        res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=10", timeout=30).json()
         launches = res.get('results', [])
-    except Exception as e:
-        print(f"Ошибка API: {e}")
-        return
+    except: return
 
     now = datetime.now(timezone.utc)
     sent_ids = open(DB_FILE, 'r').read().splitlines() if os.path.exists(DB_FILE) else []
 
-    for launch in launches:
-        l_id = launch['id']
-        name = launch['name']
-        net = datetime.fromisoformat(launch['net'].replace('Z', '+00:00'))
+    for l in launches:
+        net = datetime.fromisoformat(l['net'].replace('Z', '+00:00'))
         diff = (net - now).total_seconds() / 60
-        
-        # Определяем тип уведомления (24 часа или 1 час)
         msg_type = "final" if diff < 75 else "early"
-        memory_key = f"{l_id}_{msg_type}"
+        m_key = f"{l['id']}_{msg_type}"
 
-        if 0 < diff < 1445 and memory_key not in sent_ids:
-            print(f"📡 Формирую отчет для миссии: {name}")
-
+        if 0 < diff < 1445 and m_key not in sent_ids:
             status = "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)" if diff < 75 else "ГОТОВНОСТЬ 24 ЧАСА"
-            provider = launch['launch_service_provider']['name']
             
-            # Перевод данных
-            mission_en = launch.get('mission', {}).get('description', 'Подробности уточняются.')
-            mission_ru = translator.translate(mission_en)
-            provider_ru = translator.translate(provider)
+            # Перевод
+            mission_ru = translator.translate(l.get('mission', {}).get('description', 'Подробности уточняются.'))
+            provider_ru = translator.translate(l['launch_service_provider']['name'])
 
-            # --- ЛОГИКА ТРАНСЛЯЦИИ ---
-            # Ищем сначала в YouTube именно live, если нет - берем из базы только если это не просто ссылка на канал
-            video_url = get_youtube_live(f"{provider} {name} launch")
-            if not video_url and launch.get('vidURLs'):
-                db_video = launch['vidURLs'][0]['url']
-                if "channel" not in db_video and "@" not in db_video: # Проверка что это не ссылка на канал
-                    video_url = db_video
+            # Поиск видео (только если это не просто ссылка на канал)
+            video = get_youtube_live(f"{l['launch_service_provider']['name']} {l['name']} launch")
+            if not video and l.get('vidURLs'):
+                db_v = l['vidURLs'][0]['url']
+                if "channel" not in db_v and "/c/" not in db_v: video = db_v
+
+            v_line = f"🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video}'>СМОТРЕТЬ</a>\n\n" if video else ""
             
-            video_line = f"🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>\n\n" if video_url else ""
-
-            # --- ЛОГИКА КАРТИНКИ ---
-            img_url = launch.get('image') or get_nasa_image()
+            # Картинка
+            img = l.get('image') or get_nasa_img() or "https://raw.githubusercontent.com/nasa/apod-api/master/images/apod-logo.png"
 
             caption = (
-                f"🚀 <b>{status}: {name.upper()}</b>\n"
+                f"🚀 <b>{status}: {l['name'].upper()}</b>\n"
                 f"─────────────────────\n\n"
                 f"🏢 <b>Организатор:</b> {provider_ru}\n"
                 f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
-                f"📍 <b>Локация:</b> {launch['pad']['location']['name']}\n\n"
+                f"📍 <b>Локация:</b> {l['pad']['location']['name']}\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{mission_ru}\n\n"
-                f"{video_line}"
+                f"{v_line}"
                 f"🐩 <b>СЕКРЕТ ОТ МАРТИ:</b>\n<i>{random.choice(MARTI_FACTS)}</i>\n\n"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
-            
-            # Отправка как ФОТО с подписью
-            payload = {
-                "chat_id": CHANNEL_NAME,
-                "photo": img_url,
-                "caption": caption,
-                "parse_mode": "HTML"
-            }
-            
-            resp = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
+
+            resp = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", 
+                                 json={"chat_id": CHANNEL_NAME, "photo": img, "caption": caption, "parse_mode": "HTML"})
             
             if resp.status_code == 200:
-                with open(DB_FILE, 'a') as f: f.write(f"{memory_key}\n")
-                print(f"✅ Успешно доставлено: {name}")
+                with open(DB_FILE, 'a') as f: f.write(f"{m_key}\n")
+                print(f"✅ Успех: {l['name']}")
                 break
-            else:
-                print(f"❌ Ошибка отправки: {resp.text}")
 
 if __name__ == '__main__':
     main()
