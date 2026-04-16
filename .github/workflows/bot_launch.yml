@@ -2,15 +2,18 @@ name: Bot Launch Notifier
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
-  workflow_dispatch:
+    - cron: '0 * * * *' # Раз в час, чтобы не тратить лимиты API часто
+  workflow_dispatch: # Позволяет запустить вручную кнопкой
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Важно для записи в db_launch.txt
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -23,10 +26,12 @@ jobs:
       - name: Run bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        run: python bot_launch.py # ИСПОЛЬЗУЕМ НОВОЕ ИМЯ
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+        run: python bot_launch.py
 
       - name: Commit and Push changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🤖 Память обновлена: db_launch.txt"
-          file_pattern: 'db_launch.txt' # ИСПОЛЬЗУЕМ НОВОЕ ИМЯ
+          file_pattern: 'db_launch.txt'
