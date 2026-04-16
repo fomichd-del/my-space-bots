@@ -1,6 +1,7 @@
 import requests
 import os
 import random
+import json
 from datetime import datetime, timezone
 from deep_translator import GoogleTranslator
 
@@ -15,7 +16,7 @@ DB_FILE         = "db_launch.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# 🐩 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ
+# 🐩 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ (51 ФАКТ)
 MARTI_FACTS = [
     "В космосе абсолютная тишина, потому что там нет воздуха, чтобы передавать звуки.",
     "На Венере солнце встает на западе, а садится на востоке.",
@@ -61,17 +62,16 @@ MARTI_FACTS = [
     "Космический телескоп Джеймс Уэбб может 'видеть' тепло даже самого крошечного шмеля на расстоянии Луны.",
     "Астронавты на орбите используют специальный пылесос, чтобы стричь волосы.",
     "На Титане, спутнике Сатурна, такая плотная атмосфера, что человек мог бы летать, просто прикрепив крылья к рукам.",
-    "Самая горячая планета — Венера, хотя Меркурий находится ближе к Солнцу.",
-    "В центре Млечного Пути находится сверхмассивная черная дыра Стрелец А*.",
-    "У Урана 27 спутников, и все они названы в честь героев Шекспира и Александра Поупа.",
-    "Комета Галлея вернется к нам только в 2061 году. Ждем!",
-    "Марсианская пыль очень мелкая и острая, как битое стекло.",
-    "Марс красный, потому что его поверхность покрыта ржавчиной (оксидом железа).",
-    "Нептуну требуется 165 земных лет, чтобы совершить один оборот вокруг Солнца."
+    "Самая большая известная звезда — Стивенсон 2-18 — в 2150 раз больше нашего Солнца.",
+    "Слово 'астронавт' происходит от греческих слов, означающих 'звездный моряк'.",
+    "Если бы вы могли лететь со скоростью света, то пересекли бы всю Вселенную за 93 миллиарда лет.",
+    "У Сатурна есть спутник Япет, который выглядит как черно-белый пельмень с высоким гребнем посередине.",
+    "На МКС вода перерабатывается из всего: пота и даже дыхания астронавтов.",
+    "В центре некоторых туманностей рождаются сотни новых планет прямо сейчас.",
+    "Самый старый свет во Вселенной — реликтовое излучение — возник спустя 380 тысяч лет после Большого взрыва."
 ]
 
-def get_yt_live(query):
-    """Ищет прямую трансляцию на YouTube."""
+def get_youtube_live(query):
     if not YOUTUBE_API_KEY: return None
     url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&q={query}&key={YOUTUBE_API_KEY}"
     try:
@@ -82,7 +82,6 @@ def get_yt_live(query):
     return None
 
 def get_nasa_image():
-    """Получает фото дня от NASA."""
     if not NASA_API_KEY: return "https://www.nasa.gov/wp-content/uploads/2023/03/fgs_stsci-01h072ykf6p2p68zvgq4ay79e0.png"
     try:
         res = requests.get(f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}", timeout=10).json()
@@ -92,7 +91,7 @@ def get_nasa_image():
 def main():
     print("🚀 [ЦУП] Анализ предстоящих миссий...")
     try:
-        res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=8", timeout=30).json()
+        res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=10", timeout=30).json()
         launches = res.get('results', [])
     except: return
 
@@ -107,45 +106,34 @@ def main():
 
         if 0 < diff < 1445 and m_key not in sent_ids:
             status = "ФИНАЛЬНЫЙ ОТСЧЕТ (1 ЧАС)" if diff < 70 else "ГОТОВНОСТЬ 24 ЧАСА"
+            prov = l['launch_service_provider']['name']
             
-            # Перевод
-            mission_ru = translator.translate(l.get('mission', {}).get('description', 'Подробности миссии уточняются.'))
-            provider = l['launch_service_provider']['name']
-            provider_ru = translator.translate(provider)
-
-            # Умный поиск трансляции
-            video_url = get_yt_live(f"{provider} {l['name']} launch")
+            # Умный поиск видео
+            video_url = get_youtube_live(f"{prov} {l['name']} launch")
             if not video_url and l.get('vidURLs'):
                 db_link = l['vidURLs'][0]['url']
-                if "channel" not in db_link and "/c/" not in db_link: # Игнорим ссылки на каналы
+                if "channel" not in db_link and "/c/" not in db_link:
                     video_url = db_link
             
-            video_line = f"🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>\n\n" if video_url else ""
-            
-            # Картинка (Приоритет: фото ракеты -> NASA -> Заглушка)
+            v_line = f"🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>\n\n" if video_url else ""
             img = l.get('image') or get_nasa_image()
 
             caption = (
                 f"🚀 <b>{status}: {l['name'].upper()}</b>\n"
                 f"─────────────────────\n\n"
-                f"🏢 <b>Организатор:</b> {provider_ru}\n"
+                f"🏢 <b>Организатор:</b> {translator.translate(prov)}\n"
                 f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
-                f"📍 <b>Космодром:</b> {l['pad']['location']['name']}\n\n"
-                f"📖 <b>О МИССИИ:</b>\n{mission_ru}\n\n"
-                f"{video_line}"
+                f"📍 <b>Локация:</b> {l['pad']['location']['name']}\n\n"
+                f"📖 <b>О МИССИИ:</b>\n{translator.translate(l.get('mission', {}).get('description', 'Научный запуск.'))}\n\n"
+                f"{v_line}"
                 f"🐩 <b>СЕКРЕТ ОТ МАРТИ:</b>\n<i>{random.choice(MARTI_FACTS)}</i>\n\n"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
 
-            # Отправка ФОТО (Картинка будет сверху)
-            payload = {
-                "chat_id": CHANNEL_NAME,
-                "photo": img,
-                "caption": caption,
-                "parse_mode": "HTML"
-            }
-            
+            # Отправка через sendPhoto (Картинка СВЕРХУ)
+            payload = {"chat_id": CHANNEL_NAME, "photo": img, "caption": caption, "parse_mode": "HTML"}
             r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
+            
             if r.status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{m_key}\n")
                 print(f"✅ Успешно отправлено: {l['name']}")
