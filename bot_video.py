@@ -12,16 +12,16 @@ from datetime import datetime
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v146.4 (Final Check Protocol)
+# ⚙️ КОНФИГУРАЦИЯ v147.0 (Long Range Observer Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
-MAX_FILE_SIZE_BYTES = 45 * 1024 * 1024  # Лимит 45 Мб для Telegram
+SAFE_LIMIT_MB  = 40  # Целевой вес 40 Мб для стабильного прохода в 50 Мб лимит
 
-# Спектральный фильтр контента
+# Фильтр контента для сектора AdMe и других
 SPACE_KEYWORDS = [
     'космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 
     'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 
@@ -34,35 +34,32 @@ except:
     model = None
 
 MARTY_QUOTES = [
-    "Гав! Проверил квитанцию — посылка доставлена! 🚀🐩",
-    "Ррр-гав! Качество под контролем, системы в норме! ✨",
-    "Тяв! Нашел редкий кадр в глубинах сети! 🐾",
-    "Гав! Командор, я теперь лично слежу за отправкой! 🛰️"
+    "Гав! Длинная миссия требует особой упаковки! 📦🐩",
+    "Ррр-гав! Сжал видео так сильно, что оно пролезет сквозь черную дыру! ✨",
+    "Тяв! Командор, доставил длинный ролик в целости и сохранности! 🐾",
+    "Гав! Проверил системы — теперь даже длинные выпуски нам по зубам! 🛰️"
 ]
 
 # ============================================================
-# 🛠 ТУРБО-ИНСТРУМЕНТЫ
+# 🛠 ВСПОМОГАТЕЛЬНЫЕ ИНСТРУМЕНТЫ
 # ============================================================
 
 def get_short_facts(text):
     if not text: return "Подробности миссии смотрите в ролике! ✨"
-    text = re.sub(r'http\S+', '', text)
-    text = re.sub(r'#\S+', '', text)
-    text = html.unescape(text).strip()
-    sentences = [s.strip() for s in text.split('.') if len(s.strip()) > 10]
-    summary = ". ".join(sentences[:2]) 
-    if len(summary) > 300: summary = summary[:297] + "..."
-    return summary + "." if summary else "Свежие кадры прямо с орбиты! 🪐"
+    text = re.sub(r'http\S+', '', text).strip()
+    text = html.unescape(text)
+    summary = text[:250] + "..." if len(text) > 250 else text
+    return summary
 
 def get_fast_proxy():
-    print("🛰 [ЦУП] Поиск гипер-коридора (5s timeout)...")
+    print("🛰 [ЦУП] Поиск гипер-коридора (5s limit)...")
     url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all"
     try:
         resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:40]:
+            for p in proxies[:30]:
                 p = p.strip()
                 try:
                     requests.get("https://www.google.com", proxies={"https": f"http://{p}"}, timeout=2)
@@ -72,10 +69,10 @@ def get_fast_proxy():
     return None
 
 # ============================================================
-# 🎬 ГЛАВНЫЙ ПРОЦЕССОР
+# 🎬 ОСНОВНОЙ ПРОЦЕССОР (v147.0 Long Range)
 # ============================================================
 
-async def process_mission_v146(v_id, title, desc_raw, is_russian=False, source_name=""):
+async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_name=""):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -91,31 +88,27 @@ async def process_mission_v146(v_id, title, desc_raw, is_russian=False, source_n
             'quiet': True,
             'extractor_args': {'youtube': modern_args},
             'js_runtimes': {'deno': {}},
-            # --- Железная хватка (Iron Grip) ---
             'retries': 20,
             'fragment_retries': 50,
             'socket_timeout': 30,
-            'continuedl': True,
+            'continuedl': True
         }
         if proxy: ydl_opts['proxy'] = proxy
 
-        print(f"📡 [ЦУП] Захват объекта: {v_id} из сектора {source_name}...")
+        print(f"📡 [ЦУП] Захват объекта: {v_id} ({source_name})...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([v_url])
+            info = ydl.extract_info(v_url, download=True)
+            duration = info.get('duration', 1)
+            raw_size = os.path.getsize(f_raw)
 
-        if not os.path.exists(f_raw) or os.path.getsize(f_raw) < 500000:
-            return False
-
-        raw_size = os.path.getsize(f_raw)
-        print(f"⚖️ Вес объекта: {raw_size / (1024*1024):.2f} Мб")
+        print(f"⚖️ Вес: {raw_size/(1024*1024):.1f}Мб, Длительность: {duration}сек")
 
         # АНАЛИЗ ЗВУКА
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian and model:
-            print(f"🎙 Whisper: Анализ аудио...")
+            print(f"🎙 Whisper: Анализ аудиопотока...")
             res = model.transcribe(f_raw)
-            clean_text = res.get('text', '').strip()
-            if len(clean_text) > 15:
+            if len(res.get('text', '').strip()) > 15:
                 mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
                 srt = ""
                 for i, seg in enumerate(res.get('segments', [])):
@@ -128,27 +121,36 @@ async def process_mission_v146(v_id, title, desc_raw, is_russian=False, source_n
         elif not is_russian: 
             mode_tag = "🎵 МУЗЫКА КОСМОСА"
 
-        # СЖАТИЕ (Smart Quality)
-        if raw_size < MAX_FILE_SIZE_BYTES and not has_subs:
-            print("🚀 Режим 'Original Quality' активен.")
+        # УМНОЕ СЖАТИЕ ДЛЯ ДЛИННЫХ ВИДЕО (v147.0)
+        if raw_size < SAFE_LIMIT_MB * 1024 * 1024 and not has_subs:
+            print("🚀 Файл в норме. Отправка оригинала.")
             f_to_send = f_raw
         else:
-            print("⚙️ Режим 'Smart Processing' (Сжатие)...")
-            duration = 600
-            try:
-                with yt_dlp.YoutubeDL({'quiet': True, 'proxy': proxy}) as ydl:
-                    duration = ydl.extract_info(v_url, download=False).get('duration', 600)
-            except: pass
+            print("⚙️ Глубокая обработка для прохода в лимиты...")
+            # 1. Динамическое разрешение
+            if duration > 1200: # > 20 минут
+                scale = "scale=-2:360"
+                print("📉 Режим: 360p (Приоритет: длительность)")
+            elif duration > 600: # > 10 минут
+                scale = "scale=-2:480"
+                print("📉 Режим: 480p (Приоритет: баланс)")
+            else:
+                scale = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+                print("📉 Режим: 720p (Приоритет: качество)")
+
+            # 2. Расчет битрейта (целимся в 40Мб для безопасности)
+            target_br_bits = (SAFE_LIMIT_MB * 1024 * 1024 * 8) / duration
+            v_br = int(target_br_bits * 0.85) # Оставляем 15% на аудио и метаданные
+            v_br = max(150000, min(v_br, 2500000))
             
-            # Агрессивный расчет битрейта для прохода в лимит
-            target_br = int((MAX_FILE_SIZE_BYTES * 8) / duration) - 150000 
-            v_br = max(150000, min(target_br, 2500000))
-            vf = "subtitles=subs.srt:force_style='FontSize=22,BorderStyle=3,BackColour=&H80000000'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+            vf = f"subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3,BackColour=&H80000000'" if has_subs else scale
             
-            subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', f_final], capture_output=True)
+            print(f"🛠 FFmpeg: Сжатие в {v_br//1000}kbps...")
+            # Используем пресет 'veryfast' для лучшего качества при том же весе
+            subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'veryfast', '-c:a', 'aac', '-b:a', '96k', f_final], capture_output=True)
             f_to_send = f_final
 
-        # ОТПРАВКА С ПРОВЕРКОЙ (Final Check)
+        # ОТПРАВКА В TELEGRAM
         clean_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).upper()
         desc_ru = get_short_facts(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
@@ -160,7 +162,7 @@ async def process_mission_v146(v_id, title, desc_raw, is_russian=False, source_n
         )
 
         final_size = os.path.getsize(f_to_send) / (1024*1024)
-        print(f"📡 Трансляция в Telegram (Файл: {final_size:.2f} Мб)...")
+        print(f"📡 Отправка в Telegram ({final_size:.1f} Мб)...")
         
         with open(f_to_send, 'rb') as v:
             r = requests.post(
@@ -178,7 +180,7 @@ async def process_mission_v146(v_id, title, desc_raw, is_russian=False, source_n
                 return False
 
     except Exception as e:
-        print(f"⚠️ Критический сбой: {e}")
+        print(f"⚠️ Ошибка миссии: {e}")
         return False
 
 # ============================================================
@@ -195,7 +197,7 @@ def get_videos(cid):
     except: return []
 
 async def main():
-    print(f"🎬 [ЦУП] v146.4 'Final Check' — Запуск системы ({datetime.now().strftime('%H:%M:%S')})")
+    print(f"🎬 [ЦУП] v147.0 'Long Range' запуск...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
 
@@ -212,12 +214,12 @@ async def main():
     
     for s in SOURCES:
         if s['n'] == last_s: continue
-        print(f"📡 Сектор разведки: {s['n']}")
+        print(f"📡 Сектор: {s['n']}")
         vids = get_videos(s['cid'])
         for v in vids:
             if v['id'] not in db:
                 if s.get('filter') and not any(kw in (v['title'] + v['desc']).lower() for kw in SPACE_KEYWORDS): continue
-                if await process_mission_v146(v['id'], v['title'], v['desc'], s['ru'], s['n']):
+                if await process_mission_v147(v['id'], v['title'], v['desc'], s['ru'], s['n']):
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                     with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                     print("🎉 Миссия успешно завершена!"); return
