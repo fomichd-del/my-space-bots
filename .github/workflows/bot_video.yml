@@ -1,4 +1,4 @@
-name: Space Bot v130 Prime Release
+name: Space Bot v135.1 Stealth Release
 
 on:
   schedule:
@@ -22,10 +22,10 @@ jobs:
         python-version: '3.10'
         cache: 'pip'
 
-    - name: 🛠 Установка оборудования (FFmpeg)
+    - name: 🛠 Установка оборудования (FFmpeg и Node.js)
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg
+        sudo apt-get install -y ffmpeg nodejs
 
     - name: 📦 Установка библиотек
       run: |
@@ -46,6 +46,6 @@ jobs:
         touch last_video_date.txt
         touch last_source.txt
         git add last_video_date.txt last_source.txt
-        git commit -m "📊 Обновление реестра видео [v130.0]" || echo "Нет новых данных"
+        git commit -m "📊 Обновление реестра видео [v135.1]" || echo "Нет новых данных"
         git pull --rebase origin main
         git push origin main
