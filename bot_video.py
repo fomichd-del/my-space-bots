@@ -12,7 +12,7 @@ from datetime import datetime
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v144.2 (Precision Orbit)
+# ⚙️ КОНФИГУРАЦИЯ v145.0 (Deep Space Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -21,8 +21,7 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 MAX_FILE_SIZE_BYTES = 46 * 1024 * 1024 
 
-# Ключевые слова для фильтрации AdMe (только космос)
-SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ']
+SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс']
 
 try:
     model = whisper.load_model("base")
@@ -30,9 +29,9 @@ except:
     model = None
 
 MARTY_QUOTES = [
-    "Гав! Настроил антенны на новые частоты! 📡🐩",
-    "Ррр-гав! Отфильтровал лишнее, оставил только звезды! ✨",
-    "Тяв! Новые сектора изучены, летим дальше! 🐾"
+    "Гав! Прорвался сквозь метеоритный дождь блокировок! 🚀🐩",
+    "Ррр-гав! Нашел чистый сигнал в дальнем космосе! ✨",
+    "Тяв! Космическая почта v145 доставлена! 🐾"
 ]
 
 # ============================================================
@@ -57,7 +56,7 @@ def get_fast_proxy():
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:20]:
+            for p in proxies[:30]:
                 p = p.strip()
                 try:
                     requests.get("https://www.google.com", proxies={"https": f"http://{p}"}, timeout=3)
@@ -70,7 +69,7 @@ def get_fast_proxy():
 # 🎬 ПРОЦЕССОР
 # ============================================================
 
-async def process_mission_v144(v_id, title, desc_raw, is_russian=False, source_name=""):
+async def process_mission_v145(v_id, title, desc_raw, is_russian=False, source_name=""):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -79,27 +78,30 @@ async def process_mission_v144(v_id, title, desc_raw, is_russian=False, source_n
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
         
+        # Улучшенная маскировка с использованием Deno (JS)
         modern_args = ['player_client=mweb', 'player_skip=webpage']
-        info_opts = {'quiet': True, 'extractor_args': {'youtube': modern_args}}
-        if proxy: info_opts['proxy'] = proxy
-
-        with yt_dlp.YoutubeDL(info_opts) as ydl:
-            time.sleep(random.randint(5, 10))
-            info = ydl.extract_info(v_url, download=False)
-            duration = info.get('duration', 600)
-
-        res_limit = 360 if duration > 900 else 480
+        
         ydl_opts = {
-            'format': f'bestvideo[height<={res_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={res_limit}]',
-            'outtmpl': f_raw, 'quiet': True, 'extractor_args': {'youtube': modern_args}
+            'format': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]',
+            'outtmpl': f_raw,
+            'quiet': False,
+            'no_warnings': False,
+            'extractor_args': {'youtube': modern_args},
+            'noprogress': True,
+            'retries': 5,
+            'fragment_retries': 10
         }
         if proxy: ydl_opts['proxy'] = proxy
 
+        print(f"📡 [ЦУП] Захват объекта: {v_id} из {source_name}...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            time.sleep(random.randint(5, 12))
             ydl.download([v_url])
 
-        if not os.path.exists(f_raw) or os.path.getsize(f_raw) < 100000: return False
+        if not os.path.exists(f_raw) or os.path.getsize(f_raw) < 500000:
+            print("❌ Ошибка: Файл не загружен или поврежден."); return False
 
+        # ПЕРЕВОД (СУБТИТРЫ)
         has_subs = False
         mode_tag = "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian and model:
@@ -113,12 +115,21 @@ async def process_mission_v144(v_id, title, desc_raw, is_russian=False, source_n
             with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
             has_subs = True
 
+        # СЖАТИЕ
+        print("⚙️ FFmpeg: Финальная обработка...")
+        duration = 600 # default
+        try:
+            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+                duration = ydl.extract_info(v_url, download=False).get('duration', 600)
+        except: pass
+        
         target_br = int((MAX_FILE_SIZE_BYTES * 8) / duration) - 128000
-        v_br = max(100000, min(target_br, 1500000))
-        vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3,BackColour=&H80000000'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+        v_br = max(100000, min(target_br, 1200000))
+        vf = "subtitles=subs.srt:force_style='FontSize=22,BorderStyle=3,BackColour=&H80000000'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
         
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', f_final], capture_output=True)
 
+        # ОТПРАВКА
         clean_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).upper()
         desc_ru = get_short_facts(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
@@ -133,7 +144,8 @@ async def process_mission_v144(v_id, title, desc_raw, is_russian=False, source_n
             r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
                               files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=600)
             return r.status_code == 200
-    except: return False
+    except Exception as e:
+        print(f"⚠️ Сбой: {e}"); return False
 
 # ============================================================
 # 📡 НАВИГАТОР
@@ -148,7 +160,7 @@ def get_videos(cid):
     except: return []
 
 async def main():
-    print("🎬 [ЦУП] v144.2 'Precision Orbit' запуск...")
+    print("🎬 [ЦУП] v145.0 'Deep Space' запуск...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
 
@@ -169,17 +181,14 @@ async def main():
         vids = get_videos(s['cid'])
         for v in vids:
             if v['id'] not in db:
-                # Проверка фильтра для AdMe
                 if s.get('filter'):
                     full_text = (v['title'] + v['desc']).lower()
-                    if not any(kw in full_text for kw in SPACE_KEYWORDS):
-                        print(f"⏭ Пропуск: ролик не о космосе ({v['title']})")
-                        continue
+                    if not any(kw in full_text for kw in SPACE_KEYWORDS): continue
                 
-                if await process_mission_v144(v['id'], v['title'], v['desc'], s['ru'], s['n']):
+                if await process_mission_v145(v['id'], v['title'], v['desc'], s['ru'], s['n']):
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                     with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
-                    print("🎉 Миссия успешно завершена!"); return
+                    print("🎉 Миссия выполнена!"); return
     print("🛰 Горизонт чист.")
 
 if __name__ == '__main__':
