@@ -1,12 +1,12 @@
-name: Space Bot v90 Prime Release
+name: Space Bot v130 Prime Release
 
 on:
   schedule:
     - cron: '0 */6 * * *' # Запуск каждые 6 часов
-  workflow_dispatch:      # Кнопка для ручного запуска в любое время
+  workflow_dispatch:      # Кнопка для ручного запуска
 
 permissions:
-  contents: write         # Разрешение боту записывать ID видео в базу данных
+  contents: write
 
 jobs:
   mission-launch:
@@ -22,12 +22,12 @@ jobs:
         python-version: '3.10'
         cache: 'pip'
 
-    - name: 🛠 Установка FFmpeg (для субтитров)
+    - name: 🛠 Установка оборудования (FFmpeg)
       run: |
         sudo apt-get update
         sudo apt-get install -y ffmpeg
 
-    - name: 📦 Установка оборудования (библиотеки)
+    - name: 📦 Установка библиотек
       run: |
         python -m pip install --upgrade pip
         pip install requests yt-dlp openai-whisper deep-translator
@@ -43,6 +43,9 @@ jobs:
       run: |
         git config --global user.name "Space-Bot-Actions"
         git config --global user.email "bot@vladislav.space"
-        git add last_video_date.txt
-        git commit -m "📊 Обновление реестра видео [v90.0]" || echo "Нет новых данных"
-        git push
+        touch last_video_date.txt
+        touch last_source.txt
+        git add last_video_date.txt last_source.txt
+        git commit -m "📊 Обновление реестра видео [v130.0]" || echo "Нет новых данных"
+        git pull --rebase origin main
+        git push origin main
