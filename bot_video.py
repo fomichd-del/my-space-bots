@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v137.0 (Ghost iOS Protocol)
+# ⚙️ КОНФИГУРАЦИЯ v138.0 (Shadow Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -69,7 +69,7 @@ def get_short_facts(text):
 # 🎬 УМНЫЙ ПРОЦЕССОР 
 # ============================================================
 
-async def process_mission_v137(v_url, title, desc, source_name, is_russian=False):
+async def process_mission_v138(v_url, title, desc, source_name, is_russian=False):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -77,36 +77,32 @@ async def process_mission_v137(v_url, title, desc, source_name, is_russian=False
     try:
         print(f"📥 [ЦУП] Анализ объекта: {v_url}")
         
-        # МАГИЯ: Маскировка под iPhone (iOS) и Smart TV
-        ios_extractor = {'youtube': ['player_client=ios,tv']}
+        # 🛡 МАГИЯ v138.0: Полный отказ от веб-страниц YouTube, маскировка под Android API
+        shadow_extractor = {'youtube': ['player_client=android', 'player_skip=webpage']}
 
-        # 1. Получаем метаданные
-        info_opts = {'quiet': True, 'extractor_args': ios_extractor}
+        info_opts = {'quiet': True, 'extractor_args': shadow_extractor}
         with yt_dlp.YoutubeDL(info_opts) as ydl:
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 0)
             if not duration: duration = 600
 
-        # 2. Математический расчет битрейта
         target_total_bitrate = (MAX_FILE_SIZE * 8) / duration
         video_bitrate = int(target_total_bitrate - 128000) 
         final_v_bitrate = max(100000, min(video_bitrate, 2500000))
         print(f"⚖️ Расчет: длительность {duration}с, целевой битрейт {final_v_bitrate//1000}kbps")
 
-        # 3. Скачивание (480p + iOS Эмуляция)
         ydl_opts = {
             'format': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best',
             'outtmpl': f_raw, 
             'quiet': True,
             'no_warnings': True,
-            'extractor_args': ios_extractor
+            'extractor_args': shadow_extractor
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([v_url])
 
         if not os.path.exists(f_raw): return False
 
-        # 4. Субтитры (Только зарубежные секторы)
         has_subs = False
         mode_tag = "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА 🎙"
         
@@ -126,12 +122,10 @@ async def process_mission_v137(v_url, title, desc, source_name, is_russian=False
         elif not is_russian:
             mode_tag = "🎵 МУЗЫКА КОСМОСА 🎵"
 
-        # 5. Финальный рендер
         vf = "subtitles=subs.srt:force_style='FontSize=22,BorderStyle=3,BackColour=&H80000000'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
         print(f"⚙️ FFmpeg: Генерация нативного видео...")
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(final_v_bitrate), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', f_final], capture_output=True)
 
-        # 6. Оформление
         clean_title = (title if is_russian else safe_translate(title)).upper()
         facts = get_short_facts(desc if is_russian else safe_translate(desc))
         marty_comment = random.choice(MARTY_QUOTES)
@@ -178,7 +172,7 @@ def get_youtube_videos(channel_handle, filter_space=False):
     return items
 
 async def main():
-    print("🎬 [ЦУП] v137.0 'Ghost iOS Protocol' запуск...")
+    print("🎬 [ЦУП] v138.0 'Shadow Protocol' запуск...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     if not os.path.exists(SOURCE_LOG): open(SOURCE_LOG, 'w').write("None")
     db = open(DB_FILE, 'r').read()
@@ -214,7 +208,7 @@ async def main():
 
             for v in videos:
                 if v['id'] not in db:
-                    if await process_mission_v137(v['url'], v['title'], v['desc'], s['n'], s['ru']):
+                    if await process_mission_v138(v['url'], v['title'], v['desc'], s['n'], s['ru']):
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                         with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                         print("🎉 Миссия выполнена!"); return
