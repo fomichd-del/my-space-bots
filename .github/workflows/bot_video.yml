@@ -1,9 +1,9 @@
-name: Space Bot v135.1 Stealth Release
+name: Space Bot v136.0 Ghost Release
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Запуск каждые 6 часов
-  workflow_dispatch:      # Кнопка для ручного запуска
+    - cron: '0 */6 * * *' 
+  workflow_dispatch:      
 
 permissions:
   contents: write
@@ -22,10 +22,10 @@ jobs:
         python-version: '3.10'
         cache: 'pip'
 
-    - name: 🛠 Установка оборудования (FFmpeg и Node.js)
+    - name: 🛠 Установка оборудования (FFmpeg)
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg nodejs
+        sudo apt-get install -y ffmpeg
 
     - name: 📦 Установка библиотек
       run: |
@@ -37,7 +37,10 @@ jobs:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-      run: python bot_video.py
+        YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+      run: |
+        echo "$YOUTUBE_COOKIES" > cookies.txt
+        python bot_video.py
 
     - name: 💾 Сохранение бортового журнала (Git Push)
       run: |
@@ -46,6 +49,6 @@ jobs:
         touch last_video_date.txt
         touch last_source.txt
         git add last_video_date.txt last_source.txt
-        git commit -m "📊 Обновление реестра видео [v135.1]" || echo "Нет новых данных"
+        git commit -m "📊 Обновление реестра видео [v136.0]" || echo "Нет новых данных"
         git pull --rebase origin main
         git push origin main
