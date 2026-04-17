@@ -198,7 +198,7 @@ async def main():
 
     SOURCES = [
         {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True},
-        {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': False},
+        {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True},
         {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False},
         {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True},
         {'n': 'ESO Observatory', 'cid': '@ESOobservatory', 'ru': False},
