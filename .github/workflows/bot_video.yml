@@ -1,4 +1,4 @@
-name: Space Bot v140.0 Mirror Proxy
+name: Space Bot v141.0 Proxy Pulse
 
 on:
   schedule:
@@ -25,7 +25,7 @@ jobs:
     - name: 🛠 Установка оборудования (FFmpeg)
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg
+        sudo apt-get install -y ffmpeg curl
 
     - name: 📦 Установка библиотек
       run: |
@@ -46,6 +46,6 @@ jobs:
         touch last_video_date.txt
         touch last_source.txt
         git add last_video_date.txt last_source.txt
-        git commit -m "📊 Обновление реестра [v140.0]" || echo "Нет новых данных"
+        git commit -m "📊 Обновление реестра [v141.0]" || echo "Нет новых данных"
         git pull --rebase origin main
         git push origin main
