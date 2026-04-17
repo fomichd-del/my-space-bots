@@ -1,4 +1,4 @@
-name: Space Bot v137.0 Ghost iOS
+name: Space Bot v138.0 Shadow Protocol
 
 on:
   schedule:
@@ -22,6 +22,11 @@ jobs:
         python-version: '3.10'
         cache: 'pip'
 
+    - name: 🌐 Установка движка обхода защиты (Node.js 20)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
     - name: 🛠 Установка оборудования (FFmpeg)
       run: |
         sudo apt-get update
@@ -36,7 +41,6 @@ jobs:
     - name: 🚀 Запуск Космического Бота
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
         YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
       run: python bot_video.py
 
@@ -47,6 +51,6 @@ jobs:
         touch last_video_date.txt
         touch last_source.txt
         git add last_video_date.txt last_source.txt
-        git commit -m "📊 Обновление реестра видео [v137.0]" || echo "Нет новых данных"
+        git commit -m "📊 Обновление реестра видео [v138.0]" || echo "Нет новых данных"
         git pull --rebase origin main
         git push origin main
