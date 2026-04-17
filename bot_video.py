@@ -12,11 +12,11 @@ import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v130.0 (Prime Release)
+# ⚙️ КОНФИГУРАЦИЯ v131.0 (Titanium Release)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY')
-YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') # Больше не тратим квоты, но оставляем для yt-dlp
+YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
@@ -27,7 +27,6 @@ try:
 except:
     model = None
 
-# 🐩 КОММЕНТАРИИ ШТУРМАНА МАРТИ
 MARTY_QUOTES = [
     "Гав! Пока переводил это видео, чуть не улетел на орбиту! 🚀🐩",
     "Ррр-гав! Этот ролик точно заслуживает космической косточки! 🦴✨",
@@ -54,7 +53,6 @@ def super_clean(text):
     return html.escape(html.unescape(text)).strip()
 
 def get_short_facts(text):
-    """Обрезает длинное описание до 1-2 самых важных предложений"""
     clean_text = super_clean(text)
     sentences = [s.strip() for s in clean_text.split('. ') if s.strip()]
     if not sentences: return "Без описания, но выглядит невероятно!"
@@ -67,7 +65,7 @@ def get_short_facts(text):
 # 🎬 ПРОЦЕССОР (ЗАХВАТ, СУБТИТРЫ И МОНТАЖ)
 # ============================================================
 
-async def process_mission_v130(v_url, title, desc, source_name, is_russian=False):
+async def process_mission_v131(v_url, title, desc, source_name, is_russian=False):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -76,9 +74,9 @@ async def process_mission_v130(v_url, title, desc, source_name, is_russian=False
         print(f"📥 [ЦУП] Захват объекта: {v_url}")
         is_direct = any(v_url.lower().endswith(ext) for ext in ['.mp4', '.m4v', '.mov'])
         
-        # --- СКАЧИВАНИЕ ---
         if is_direct:
-            r = requests.get(v_url, stream=True, timeout=120)
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            r = requests.get(v_url, stream=True, timeout=120, headers=headers)
             with open(f_raw, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=1024*1024): f.write(chunk)
         else:
@@ -88,13 +86,13 @@ async def process_mission_v130(v_url, title, desc, source_name, is_russian=False
                 'quiet': True,
                 'no_warnings': True,
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'download_ranges': lambda info, dict: [{'start_time': 0, 'end_time': 420}] # 7 минут макс
+                'download_ranges': lambda info, dict: [{'start_time': 0, 'end_time': 420}]
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([v_url])
 
         if not os.path.exists(f_raw) or os.path.getsize(f_raw) < 100000:
-            print("❌ ОШИБКА: Файл поврежден.")
+            print("❌ ОШИБКА: Файл поврежден или не скачан.")
             return False
 
         # --- НЕЙРОСЕТЬ И СУБТИТРЫ ---
@@ -119,17 +117,14 @@ async def process_mission_v130(v_url, title, desc, source_name, is_russian=False
                     mode_label = "📝 РУССКИЕ СУБТИТРЫ ОТ ЦУП 📝"
                     has_subs = True
 
-        # --- МОНТАЖ И РЕНДЕР ---
         prob = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', f_raw])
         target_br = int((47 * 8 * 1024 * 1024) / float(prob)) - 128000
         
-        # BorderStyle=3 создает черную непрозрачную подложку под текстом! Перекрывает любые вшитые англ. субтитры.
         vf = "subtitles=subs.srt:force_style='FontSize=22,PrimaryColour=&HFFFFFF,BorderStyle=3,BackColour=&H80000000,Outline=1,Shadow=0'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
         
         print("⚙️ FFmpeg: Сборка финального видео...")
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(max(target_br, 200000)), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', f_final], capture_output=True)
         
-        # --- ФОРМИРОВАНИЕ ПОСТА (КОСМО-СТИЛЬ) ---
         clean_title = (title if is_russian else safe_translate(title)).upper()
         facts = get_short_facts(desc if is_russian else safe_translate(desc))
         marty_comment = random.choice(MARTY_QUOTES)
@@ -146,7 +141,6 @@ async def process_mission_v130(v_url, title, desc, source_name, is_russian=False
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
 
-        # --- ОТПРАВКА ---
         print("🚀 Отправка в Telegram...")
         with open(f_final if os.path.exists(f_final) else f_raw, 'rb') as v:
             r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
@@ -158,24 +152,84 @@ async def process_mission_v130(v_url, title, desc, source_name, is_russian=False
         return False
 
 # ============================================================
-# 🛰 СКАНЕР (УМНЫЕ RSS-ЛЕНТЫ)
+# 📡 ДВОЙНОЙ ЗАХВАТ (RSS + API РЕЗЕРВ)
+# ============================================================
+
+def get_youtube_videos(channel_id):
+    """Пытается получить видео через RSS, если блок — переходит на API"""
+    items = []
+    # ПОПЫТКА 1: RSS с маскировкой под браузер
+    try:
+        url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+        res = requests.get(url, headers=headers, timeout=15)
+        
+        if res.status_code == 200 and '<?xml' in res.text:
+            root = ET.fromstring(res.content)
+            namespaces = {'atom': 'http://www.w3.org/2005/Atom', 'media': 'http://search.yahoo.com/mrss/'}
+            entries = root.findall('.//atom:entry', namespaces)
+            for entry in entries[:15]:
+                link = entry.find('atom:link', namespaces).attrib['href']
+                desc_elem = entry.find('.//media:description', namespaces)
+                items.append({
+                    'id': link.split('v=')[-1],
+                    'url': link,
+                    'title': entry.find('atom:title', namespaces).text,
+                    'desc': desc_elem.text if desc_elem is not None else ""
+                })
+            if items: 
+                print("   ✅ RSS-канал прочитан успешно.")
+                return items
+    except Exception as e:
+        print(f"   ⚠️ Ошибка RSS (YouTube блокирует парсер). Включаю API-резерв...")
+
+    # ПОПЫТКА 2: Надежный API метод (Плейлист загрузок)
+    if not YOUTUBE_API_KEY: return []
+    try:
+        print("   🔄 Запрос через официальный YouTube API...")
+        # Шаг А: Узнаем ID плейлиста "Uploads" (Загруженные видео канала)
+        url_ch = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id={channel_id}&key={YOUTUBE_API_KEY}"
+        res_ch = requests.get(url_ch, timeout=15).json()
+        if 'items' not in res_ch or not res_ch['items']: return []
+        uploads_id = res_ch['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+
+        # Шаг Б: Получаем свежие видео из этого плейлиста (работает безотказно)
+        url_pl = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={uploads_id}&maxResults=15&key={YOUTUBE_API_KEY}"
+        res_pl = requests.get(url_pl, timeout=15).json()
+        
+        for item in res_pl.get('items', []):
+            snippet = item['snippet']
+            v_id = snippet['resourceId']['videoId']
+            items.append({
+                'id': v_id,
+                'url': f"https://www.youtube.com/watch?v={v_id}",
+                'title': snippet['title'],
+                'desc': snippet['description']
+            })
+        print(f"   ✅ API отработало: найдено {len(items)} видео.")
+        return items
+    except Exception as e:
+        print(f"   ❌ API-сбой: {e}")
+        return []
+
+# ============================================================
+# 🛰 СКАНЕР
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v130.0 'Prime Release' активирована...")
+    print("🎬 [ЦУП] v131.0 'Titanium Release' активирована...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     if not os.path.exists(SOURCE_LOG): open(SOURCE_LOG, 'w').write("None")
     db = open(DB_FILE, 'r').read()
     last_source = open(SOURCE_LOG, 'r').read().strip()
 
-    # t: 'yt_rss' означает скрытую RSS ленту YouTube (бесплатно, без API, работает всегда)
     SOURCES = [
-        {'n': 'KOSMO', 'cid': 'UC8M_itU9f_v7Yp7mQo-879A', 't': 'yt_rss', 'ru': True},
-        {'n': '2081 / 208I', 'cid': 'UCMZp-X_lYfN0-n_9n9_vXpw', 't': 'yt_rss', 'ru': True},
-        {'n': 'AdMe Космос', 'cid': 'UCB_S_1BIn3Y_t9Uf9Msn6Bw', 't': 'yt_rss', 'ru': True},
-        {'n': 'Роскосмос', 'cid': 'UCOm4M6L_L7xOovvS_I-k__A', 't': 'yt_rss', 'ru': True},
-        {'n': 'SpaceX News', 'cid': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt_rss', 'ru': False},
-        {'n': 'NASA JPL', 'cid': 'UC99RW7X_XzM_C6P6z_pXlAw', 't': 'yt_rss', 'ru': False},
+        {'n': 'KOSMO', 'cid': 'UC8M_itU9f_v7Yp7mQo-879A', 't': 'yt', 'ru': True},
+        {'n': '2081 / 208I', 'cid': 'UCMZp-X_lYfN0-n_9n9_vXpw', 't': 'yt', 'ru': True},
+        {'n': 'AdMe Космос', 'cid': 'UCB_S_1BIn3Y_t9Uf9Msn6Bw', 't': 'yt', 'ru': True},
+        {'n': 'Роскосмос', 'cid': 'UCOm4M6L_L7xOovvS_I-k__A', 't': 'yt', 'ru': True},
+        {'n': 'SpaceX News', 'cid': 'UC_MhefFv_XW3c66m7ZAnxHA', 't': 'yt', 'ru': False},
+        {'n': 'NASA JPL', 'cid': 'UC99RW7X_XzM_C6P6z_pXlAw', 't': 'yt', 'ru': False},
         {'n': 'ESO Observatory', 'u': 'https://www.eso.org/public/videos/feed/', 't': 'rss', 'ru': False}
     ]
 
@@ -189,37 +243,28 @@ async def main():
         try:
             print(f"\n📡 Сканирую сектор: {s['n']}...")
             
-            # --- ВЕТКА YOUTUBE (БЕЗ API) ---
-            if s['t'] == 'yt_rss':
-                url = f"https://www.youtube.com/feeds/videos.xml?channel_id={s['cid']}"
-                res = requests.get(url, timeout=30)
-                root = ET.fromstring(res.content)
-                namespaces = {'atom': 'http://www.w3.org/2005/Atom', 'media': 'http://search.yahoo.com/mrss/'}
-                
-                items = root.findall('.//atom:entry', namespaces)
-                print(f"🔍 Найдено сигналов: {len(items)}")
-                
-                for entry in items[:15]:
-                    title = entry.find('atom:title', namespaces).text
-                    link = entry.find('atom:link', namespaces).attrib['href']
-                    v_id = link.split('v=')[-1]
-                    
-                    desc_elem = entry.find('.//media:description', namespaces)
-                    desc = desc_elem.text if desc_elem is not None else ""
-                    
-                    if v_id not in db:
-                        if await process_mission_v130(link, title, desc, s['n'], s['ru']):
-                            with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
+            # --- ВЕТКА YOUTUBE ---
+            if s['t'] == 'yt':
+                videos = get_youtube_videos(s['cid'])
+                for v in videos:
+                    if v['id'] not in db:
+                        if await process_mission_v131(v['url'], v['title'], v['desc'], s['n'], s['ru']):
+                            with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                             with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                             print(f"🎉 Миссия успешно завершена!")
                             return
                             
             # --- ВЕТКА ПРЯМЫХ ВИДЕО (ESO) ---
             elif s['t'] == 'rss':
-                res = requests.get(s['u'], timeout=30)
+                headers = {'User-Agent': 'Mozilla/5.0'}
+                res = requests.get(s['u'], headers=headers, timeout=30)
+                if '<?xml' not in res.text[:100] and '<rss' not in res.text[:100]:
+                    print("⚠️ Неверный формат ленты (ожидался XML). Пропуск.")
+                    continue
+                    
                 root = ET.fromstring(res.content)
                 items = root.findall('.//item')
-                print(f"🔍 Найдено сигналов: {len(items)}")
+                print(f"   🔍 Найдено сигналов: {len(items)}")
                 
                 for item in items[:15]:
                     link = item.find('link').text
@@ -229,7 +274,7 @@ async def main():
                         title = item.find('title').text
                         desc = item.find('description').text
                         
-                        if await process_mission_v130(v_url, title, desc, s['n'], s['ru']):
+                        if await process_mission_v131(v_url, title, desc, s['n'], s['ru']):
                             with open(DB_FILE, 'a') as f: f.write(f"\n{link}")
                             with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                             print(f"🎉 Миссия успешно завершена!")
