@@ -12,7 +12,7 @@ from datetime import datetime
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v145.0 (Deep Space Protocol)
+# ⚙️ КОНФИГУРАЦИЯ v145.1 (Silence & Sound Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -21,7 +21,7 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 MAX_FILE_SIZE_BYTES = 46 * 1024 * 1024 
 
-SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс']
+SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс', 'astronomy', 'universe']
 
 try:
     model = whisper.load_model("base")
@@ -29,9 +29,9 @@ except:
     model = None
 
 MARTY_QUOTES = [
-    "Гав! Прорвался сквозь метеоритный дождь блокировок! 🚀🐩",
-    "Ррр-гав! Нашел чистый сигнал в дальнем космосе! ✨",
-    "Тяв! Космическая почта v145 доставлена! 🐾"
+    "Гав! Проверил частоты — в эфире прекрасная музыка! 🎵🐩",
+    "Ррр-гав! Тишина космоса тоже бывает громкой! ✨",
+    "Тяв! Доставил свежий выпуск в целости и сохранности! 🐾"
 ]
 
 # ============================================================
@@ -56,7 +56,7 @@ def get_fast_proxy():
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:30]:
+            for p in proxies[:25]:
                 p = p.strip()
                 try:
                     requests.get("https://www.google.com", proxies={"https": f"http://{p}"}, timeout=3)
@@ -78,48 +78,55 @@ async def process_mission_v145(v_id, title, desc_raw, is_russian=False, source_n
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
         
-        # Улучшенная маскировка с использованием Deno (JS)
+        # Маскировка + принудительный Deno
         modern_args = ['player_client=mweb', 'player_skip=webpage']
         
         ydl_opts = {
             'format': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]',
             'outtmpl': f_raw,
-            'quiet': False,
-            'no_warnings': False,
+            'quiet': True,
             'extractor_args': {'youtube': modern_args},
-            'noprogress': True,
             'retries': 5,
             'fragment_retries': 10
         }
         if proxy: ydl_opts['proxy'] = proxy
 
-        print(f"📡 [ЦУП] Захват объекта: {v_id} из {source_name}...")
+        print(f"📡 [ЦУП] Захват объекта: {v_id} ({source_name})...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            time.sleep(random.randint(5, 12))
+            time.sleep(random.randint(5, 10))
             ydl.download([v_url])
 
-        if not os.path.exists(f_raw) or os.path.getsize(f_raw) < 500000:
-            print("❌ Ошибка: Файл не загружен или поврежден."); return False
+        if not os.path.exists(f_raw) or os.path.getsize(f_raw) < 500000: return False
 
-        # ПЕРЕВОД (СУБТИТРЫ)
+        # ПЕРЕВОД И АНАЛИЗ ЗВУКА
         has_subs = False
         mode_tag = "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
+        
         if not is_russian and model:
-            print(f"🎙 Whisper: Перевод вещания {source_name}...")
-            mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
+            print(f"🎙 Whisper: Анализ аудиопотока...")
             res = model.transcribe(f_raw)
-            srt = ""
-            for i, seg in enumerate(res.get('segments', [])):
-                t_ru = GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())
-                srt += f"{i+1}\n{time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))} --> {time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))}\n{t_ru}\n\n"
-            with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
-            has_subs = True
+            clean_text = res.get('text', '').strip()
+            
+            # Если текста очень мало или Whisper поймал только галлюцинации шума
+            if len(clean_text) > 15:
+                print(f"📝 Текст обнаружен. Создаю субтитры...")
+                mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
+                srt = ""
+                for i, seg in enumerate(res.get('segments', [])):
+                    t_ru = GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())
+                    srt += f"{i+1}\n{time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))} --> {time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))}\n{t_ru}\n\n"
+                with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
+                has_subs = True
+            else:
+                print(f"🎵 Речь не обнаружена, только музыка.")
+                mode_tag = "🎵 МУЗЫКА КОСМОСА"
+        elif not is_russian:
+            mode_tag = "🎵 МУЗЫКА КОСМОСА"
 
         # СЖАТИЕ
-        print("⚙️ FFmpeg: Финальная обработка...")
-        duration = 600 # default
+        duration = 600
         try:
-            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+            with yt_dlp.YoutubeDL({'quiet': True, 'proxy': proxy}) as ydl:
                 duration = ydl.extract_info(v_url, download=False).get('duration', 600)
         except: pass
         
@@ -127,25 +134,28 @@ async def process_mission_v145(v_id, title, desc_raw, is_russian=False, source_n
         v_br = max(100000, min(target_br, 1200000))
         vf = "subtitles=subs.srt:force_style='FontSize=22,BorderStyle=3,BackColour=&H80000000'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
         
+        print(f"⚙️ FFmpeg: Обработка (Цель: {v_br//1000}kbps)...")
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', f_final], capture_output=True)
 
-        # ОТПРАВКА
+        # ОФОРМЛЕНИЕ
         clean_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).upper()
         desc_ru = get_short_facts(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
         caption = (
             f"<b>{mode_tag}</b>\n\n🎬 <b>{clean_title}</b>\n"
-            f"─────────────────────\n\n🪐 <b>О ЧЕМ РОЛИК:</b>\n<i>{desc_ru}</i>\n\n"
+            f"─────────────────────\n\n🪐 <b>О ЧЕМ РОЛИК:</b>\n"
+            f"<i>{desc_ru}</i>\n\n"
             f"🐩 <b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
 
+        print("📡 Отправка в Telegram...")
         with open(f_final if os.path.exists(f_final) else f_raw, 'rb') as v:
             r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
                               files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=600)
             return r.status_code == 200
     except Exception as e:
-        print(f"⚠️ Сбой: {e}"); return False
+        print(f"⚠️ Ошибка миссии: {e}"); return False
 
 # ============================================================
 # 📡 НАВИГАТОР
@@ -160,7 +170,7 @@ def get_videos(cid):
     except: return []
 
 async def main():
-    print("🎬 [ЦУП] v145.0 'Deep Space' запуск...")
+    print("🎬 [ЦУП] v145.1 'Silence & Sound' запуск...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
 
@@ -189,7 +199,7 @@ async def main():
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                     with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                     print("🎉 Миссия выполнена!"); return
-    print("🛰 Горизонт чист.")
+    print("🛰 На горизонте всё спокойно.")
 
 if __name__ == '__main__':
     asyncio.run(main())
