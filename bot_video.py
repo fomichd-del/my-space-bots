@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v135.0 (UHQ Express)
+# ⚙️ КОНФИГУРАЦИЯ v135.1 (UHQ Express + Stealth)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -67,7 +67,7 @@ def get_short_facts(text):
     return fact_block
 
 # ============================================================
-# 🎬 УМНЫЙ ПРОЦЕССОР (ДИНАМИЧЕСКОЕ КАЧЕСТВО)
+# 🎬 УМНЫЙ ПРОЦЕССОР (ДИНАМИЧЕСКОЕ КАЧЕСТВО + ОБХОД ЗАЩИТЫ)
 # ============================================================
 
 async def process_mission_v135(v_url, title, desc, source_name, is_russian=False):
@@ -78,28 +78,27 @@ async def process_mission_v135(v_url, title, desc, source_name, is_russian=False
     try:
         print(f"📥 [ЦУП] Анализ объекта: {v_url}")
         
-        # 1. Получаем метаданные через yt-dlp без скачивания
-        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+        # 1. Получаем метаданные через yt-dlp без скачивания (с маскировкой)
+        info_opts = {'quiet': True, 'extractor_args': {'youtube': ['player_client=android']}}
+        with yt_dlp.YoutubeDL(info_opts) as ydl:
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 0)
             if not duration: duration = 600 # на всякий случай 10 мин
 
         # 2. Математический расчет битрейта (bps)
-        # Формула: (Лимит байт * 8 / Длительность) - Аудио_Битрейт
         target_total_bitrate = (MAX_FILE_SIZE * 8) / duration
-        video_bitrate = int(target_total_bitrate - 128000) # вычитаем 128k на звук
+        video_bitrate = int(target_total_bitrate - 128000) 
         
-        # Ограничения: не ниже 100k (чтобы не было каши) и не выше 2500k (излишек)
         final_v_bitrate = max(100000, min(video_bitrate, 2500000))
-        
         print(f"⚖️ Расчет: длительность {duration}с, целевой битрейт {final_v_bitrate//1000}kbps")
 
-        # 3. Скачивание (выбираем 480p как базу для пережатия)
+        # 3. Скачивание (480p база + маскировка под Android)
         ydl_opts = {
             'format': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best',
             'outtmpl': f_raw, 
             'quiet': True,
-            'no_warnings': True
+            'no_warnings': True,
+            'extractor_args': {'youtube': ['player_client=android']} # 🛡 МАГИЯ: Маскировка
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([v_url])
@@ -178,7 +177,7 @@ def get_youtube_videos(channel_handle, filter_space=False):
     return items
 
 async def main():
-    print("🎬 [ЦУП] v135.0 'UHQ Express' запуск...")
+    print("🎬 [ЦУП] v135.1 'Stealth Release' запуск...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     if not os.path.exists(SOURCE_LOG): open(SOURCE_LOG, 'w').write("None")
     db = open(DB_FILE, 'r').read()
@@ -191,9 +190,9 @@ async def main():
         {'n': 'Наука', 'cid': '@ночнаянаука-ц4ш', 'ru': True, 'f': False},
         {'n': 'Интересно', 'cid': '@space-interesting', 'ru': True, 'f': False},
         {'n': 'Роскосмос', 'cid': '@roscosmos', 'ru': True, 'f': False},
-        {'n': 'NASA JPL', 'cid': '@NASAJPL', 'ru': False, 'f': False}, # Субтитры ВКЛ
-        {'n': 'SpaceX', 'cid': '@SpaceX', 'ru': False, 'f': False},     # Субтитры ВКЛ
-        {'n': 'ESO', 'u': 'https://www.eso.org/public/videos/feed/', 'ru': False, 'f': False} # Субтитры ВКЛ
+        {'n': 'NASA JPL', 'cid': '@NASAJPL', 'ru': False, 'f': False},
+        {'n': 'SpaceX', 'cid': '@SpaceX', 'ru': False, 'f': False},
+        {'n': 'ESO', 'u': 'https://www.eso.org/public/videos/feed/', 'ru': False, 'f': False}
     ]
 
     random.shuffle(SOURCES)
