@@ -12,14 +12,14 @@ from datetime import datetime
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v147.3 (Deep Log & Clean)
+# ⚙️ КОНФИГУРАЦИЯ v147.5 (Beauty & Brains Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
-SAFE_LIMIT_MB  = 42 # Целевой вес для Telegram (лимит 50)
+SAFE_LIMIT_MB  = 42 
 
 SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс', 'astronomy', 'universe', 'telescope']
 
@@ -29,25 +29,47 @@ except:
     model = None
 
 MARTY_QUOTES = [
-    "Гав! Убрал лишние решетки (#), теперь текст чистый как вакуум! 🧹🐩",
-    "Ррр-гав! Длинный ролик — это вызов, но мы его упакуем! ✨",
-    "Тяв! Командор, я теперь пишу подробные отчеты об ошибках! 🐾",
-    "Гав! Слежу за каждым мегабайтом в этой долгой миссии! 🛰️"
+    "Гав! Навел лоск в описании, теперь всё сияет как сверхновая! ✨🐩",
+    "Ррр-гав! Выбросил весь рекламный мусор, оставил только чистую науку! 🔭",
+    "Тяв! Командор, оцените стиль: коротко, ярко и по делу! 🐾",
+    "Гав! Красивому видео — красивое описание. Миссия v147.5 готова! 🛰️"
 ]
 
 # ============================================================
-# 🛠 ИНСТРУМЕНТЫ (ОЧИСТКА И ЛОГИ)
+# 🛠 УМНАЯ ОЧИСТКА ТЕКСТА
 # ============================================================
 
-def get_short_facts(text):
-    if not text: return "Подробности миссии смотрите в ролике! ✨"
-    # Удаляем ссылки и ХЕШТЕГИ (возвращаем фильтр)
+def get_smart_summary(text):
+    if not text: return "Интересные подробности — внутри ролика! ✨"
+    
+    # 1. Базовая очистка
     text = re.sub(r'http\S+', '', text)
-    text = re.sub(r'#\S+', '', text) 
-    text = html.unescape(text).strip()
-    # Берем первые два предложения или 250 символов
-    summary = text[:250] + "..." if len(text) > 250 else text
-    return summary
+    text = re.sub(r'#\S+', '', text)
+    text = html.unescape(text)
+    
+    # 2. Фильтрация мусорных строк (соцсети, ссылки, призывы)
+    junk_patterns = ['vk.com', 'ok.ru', 't.me', 'vk:', 'ok:', 'telegram:', 'rutube:', 'подписывайтесь', 'сайт:', 'facebook', 'instagram', 'max:']
+    lines = text.split('\n')
+    clean_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if len(line) < 15: continue # Пропускаем слишком короткие обрывки
+        if any(junk in line.lower() for junk in junk_patterns): continue
+        clean_lines.append(line)
+    
+    # 3. Собираем текст и ищем предложения
+    full_text = " ".join(clean_lines)
+    sentences = re.split(r'(?<=[.!?]) +', full_text)
+    
+    # Фильтруем осмысленные предложения
+    meaningful = [s for s in sentences if len(s) > 25 and not s.startswith(('Мы в', 'Подпишись'))]
+    
+    summary = " ".join(meaningful[:2]) # Берем 2 лучших предложения
+    if len(summary) < 30: # Если ничего не нашли, берем что есть
+        summary = full_text[:200]
+        
+    return summary.strip() + ".." if summary else "Свежий отчет из глубин космоса! 🪐"
 
 def get_fast_proxy():
     print("🛰 [ЦУП] Поиск гипер-коридора...")
@@ -66,7 +88,7 @@ def get_fast_proxy():
     return None
 
 # ============================================================
-# 🎬 ПРОЦЕССОР (v147.3 Deep Log)
+# 🎬 ПРОЦЕССОР (v147.5 Beauty)
 # ============================================================
 
 async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_name=""):
@@ -78,29 +100,39 @@ async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_n
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
         
+        # Разведка длительности
+        print(f"📡 [ЦУП] Анализ объекта {v_id}...")
+        temp_opts = {'quiet': True, 'js_runtimes': {'deno': {}}}
+        if proxy: temp_opts['proxy'] = proxy
+        with yt_dlp.YoutubeDL(temp_opts) as ydl:
+            info = ydl.extract_info(v_url, download=False)
+            duration = info.get('duration', 1)
+
+        # Выбор качества (как мы и решили)
+        h_limit = 720
+        if duration > 1800: h_limit = 240
+        elif duration > 900: h_limit = 360
+        elif duration > 480: h_limit = 480
+        
+        print(f"🎯 Режим: {h_limit}p (Время: {duration}с)")
+
         ydl_opts = {
-            'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]',
-            'outtmpl': f_raw,
-            'quiet': True,
-            'extractor_args': {'youtube': ['player_client=mweb', 'player_skip=webpage']},
-            'js_runtimes': {'deno': {}},
-            'retries': 20,
-            'fragment_retries': 50,
-            'continuedl': True
+            'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
+            'outtmpl': f_raw, 'quiet': True, 'js_runtimes': {'deno': {}},
+            'retries': 15, 'fragment_retries': 30, 'continuedl': True
         }
         if proxy: ydl_opts['proxy'] = proxy
 
-        print(f"📡 [ЦУП] Захват объекта: {v_id} ({source_name})...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(v_url, download=True)
-            duration = info.get('duration', 1)
-            raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
+            ydl.download([v_url])
+        
+        if not os.path.exists(f_raw): return False
+        raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
-        print(f"⚖️ Вес: {raw_mb:.1f}Мб, Длительность: {duration}сек")
-
+        # Whisper для иностранных
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian and model:
-            print(f"🎙 Whisper: Анализ аудио (длительность {duration}с)...")
+            print(f"🎙 Whisper: Работа над переводом...")
             res = model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
                 mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
@@ -113,56 +145,45 @@ async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_n
             else: mode_tag = "🎵 МУЗЫКА КОСМОСА"
         elif not is_russian: mode_tag = "🎵 МУЗЫКА КОСМОСА"
 
-        # ЛОГИКА СЖАТИЯ
+        # Упаковка
         if raw_mb < SAFE_LIMIT_MB and not has_subs:
             f_to_send = f_raw
         else:
-            print(f"⚙️ Глубокая упаковка ({'Субтитры' if has_subs else 'Размер'})...")
-            # Разрешение
-            if raw_mb > 180 or duration > 1800: scale = "scale=-2:240"
-            elif raw_mb > 100 or duration > 900: scale = "scale=-2:360"
-            else: scale = "scale=-2:480"
-
-            # Битрейт
             target_br = int((SAFE_LIMIT_MB * 1024 * 1024 * 8) / duration * 0.75)
             v_br = max(100000, min(target_br, 2000000))
-            vf = f"subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3,BackColour=&H80000000'" if has_subs else scale
-            
-            print(f"🛠 FFmpeg: Запуск (br={v_br//1000}k, res={scale})...")
-            process = subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '48k', f_final], capture_output=True, text=True)
-            
-            if process.returncode != 0:
-                print(f"❌ ОШИБКА FFmpeg: {process.stderr}")
-                return False
+            vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3,BackColour=&H80000000'" if has_subs else f"scale=-2:{h_limit}"
+            subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '48k', f_final], capture_output=True)
             f_to_send = f_final
 
-        # ОТПРАВКА
-        final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
-        print(f"📡 Отправка ({final_mb:.1f} Мб)...")
-        
+        # ОФОРМЛЕНИЕ ПОСТА (ВОЗВРАЩАЕМ КРАСОТУ)
+        summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         clean_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).upper()
+        
         caption = (
-            f"<b>{mode_tag}</b>\n\n🎬 <b>{clean_title}</b>\n─────────────────────\n\n"
-            f"🪐 <b>О ЧЕМ РОЛИК:</b>\n<i>{get_short_facts(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))}</i>\n\n"
-            f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+            f"<b>{mode_tag}</b>\n\n"
+            f"🎬 <b>{clean_title}</b>\n"
+            f"──────────────────────\n\n"
+            f"🚀 <b>О ЧЕМ МИССИЯ:</b>\n"
+            f"<i>{summary}</i>\n\n"
+            f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n"
+            f"📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
         with open(f_to_send, 'rb') as v:
             r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=600)
             if r.status_code == 200:
-                print("✅ Успешная доставка!")
+                print("✅ Миссия выполнена!")
                 return True
             else:
-                print(f"❌ Ошибка Telegram: {r.text}")
-                return False
+                print(f"❌ Ошибка Telegram: {r.text}"); return False
     except Exception as e:
         print(f"⚠️ Сбой: {e}"); return False
 
+# --- Функция main без изменений, как в v147.4 ---
 async def main():
-    print(f"🎬 [ЦУП] v147.3 'Deep Log' запуск...")
+    print(f"🎬 [ЦУП] v147.5 'Beauty & Brains' запуск...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
-
     SOURCES = [
         {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True},
         {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': False},
@@ -174,7 +195,6 @@ async def main():
         {'n': 'AdMe', 'cid': '@AdMe', 'ru': True, 'filter': True}
     ]
     random.shuffle(SOURCES)
-    
     for s in SOURCES:
         if s['n'] == last_s: continue
         print(f"📡 Сектор: {s['n']}")
@@ -191,7 +211,3 @@ async def main():
                         with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                         return
         except: continue
-    print("🛰 Горизонт чист.")
-
-if __name__ == '__main__':
-    asyncio.run(main())
