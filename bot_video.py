@@ -12,15 +12,15 @@ import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v135.1 (UHQ Express + Stealth)
+# ⚙️ КОНФИГУРАЦИЯ v136.0 (Ghost Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
+COOKIE_FILE    = "cookies.txt"
 
-# Лимит файла для Telegram Bot API (в байтах) ~48.5 MB для безопасности
 MAX_FILE_SIZE = 48.5 * 1024 * 1024 
 
 SPACE_KEYWORDS = ['космос', 'вселенн', 'планет', 'звезд', 'галактик', 'луна', 'марс', 'черная дыра', 'астроном', 'телескоп', 'nasa', 'spacex', 'роскосмос', 'астероид', 'комета']
@@ -67,10 +67,10 @@ def get_short_facts(text):
     return fact_block
 
 # ============================================================
-# 🎬 УМНЫЙ ПРОЦЕССОР (ДИНАМИЧЕСКОЕ КАЧЕСТВО + ОБХОД ЗАЩИТЫ)
+# 🎬 УМНЫЙ ПРОЦЕССОР 
 # ============================================================
 
-async def process_mission_v135(v_url, title, desc, source_name, is_russian=False):
+async def process_mission_v136(v_url, title, desc, source_name, is_russian=False):
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -78,12 +78,12 @@ async def process_mission_v135(v_url, title, desc, source_name, is_russian=False
     try:
         print(f"📥 [ЦУП] Анализ объекта: {v_url}")
         
-        # 1. Получаем метаданные через yt-dlp без скачивания (с маскировкой)
-        info_opts = {'quiet': True, 'extractor_args': {'youtube': ['player_client=android']}}
+        # 1. Получаем метаданные через yt-dlp с куки
+        info_opts = {'quiet': True, 'cookiefile': COOKIE_FILE}
         with yt_dlp.YoutubeDL(info_opts) as ydl:
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 0)
-            if not duration: duration = 600 # на всякий случай 10 мин
+            if not duration: duration = 600
 
         # 2. Математический расчет битрейта (bps)
         target_total_bitrate = (MAX_FILE_SIZE * 8) / duration
@@ -92,13 +92,13 @@ async def process_mission_v135(v_url, title, desc, source_name, is_russian=False
         final_v_bitrate = max(100000, min(video_bitrate, 2500000))
         print(f"⚖️ Расчет: длительность {duration}с, целевой битрейт {final_v_bitrate//1000}kbps")
 
-        # 3. Скачивание (480p база + маскировка под Android)
+        # 3. Скачивание (480p база + Cookie Пропуск)
         ydl_opts = {
             'format': 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]/best',
             'outtmpl': f_raw, 
             'quiet': True,
             'no_warnings': True,
-            'extractor_args': {'youtube': ['player_client=android']} # 🛡 МАГИЯ: Маскировка
+            'cookiefile': COOKIE_FILE # 🛡 МАГИЯ: Авторизация на YouTube
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([v_url])
@@ -125,12 +125,12 @@ async def process_mission_v135(v_url, title, desc, source_name, is_russian=False
         elif not is_russian:
             mode_tag = "🎵 МУЗЫКА КОСМОСА 🎵"
 
-        # 5. Финальный рендер с расчетным качеством
+        # 5. Финальный рендер 
         vf = "subtitles=subs.srt:force_style='FontSize=22,BorderStyle=3,BackColour=&H80000000'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
         print(f"⚙️ FFmpeg: Генерация нативного видео...")
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(final_v_bitrate), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '128k', f_final], capture_output=True)
 
-        # 6. Оформление (Чистый авторский стиль)
+        # 6. Оформление 
         clean_title = (title if is_russian else safe_translate(title)).upper()
         facts = get_short_facts(desc if is_russian else safe_translate(desc))
         marty_comment = random.choice(MARTY_QUOTES)
@@ -177,7 +177,7 @@ def get_youtube_videos(channel_handle, filter_space=False):
     return items
 
 async def main():
-    print("🎬 [ЦУП] v135.1 'Stealth Release' запуск...")
+    print("🎬 [ЦУП] v136.0 'Ghost Protocol' запуск...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     if not os.path.exists(SOURCE_LOG): open(SOURCE_LOG, 'w').write("None")
     db = open(DB_FILE, 'r').read()
@@ -201,19 +201,19 @@ async def main():
         try:
             print(f"📡 Сектор: {s['n']}...")
             videos = []
-            if 'u' in s: # RSS для ESO
+            if 'u' in s: 
                 root = ET.fromstring(requests.get(s['u']).content)
                 for item in root.findall('.//item')[:10]:
                     link = item.find('link').text
                     if link not in db:
                         v_url = item.find('enclosure').get('url') if item.find('enclosure') is not None else link
                         videos.append({'id': link, 'url': v_url, 'title': item.find('title').text, 'desc': item.find('description').text})
-            else: # YouTube
+            else: 
                 videos = get_youtube_videos(s['cid'], s['f'])
 
             for v in videos:
                 if v['id'] not in db:
-                    if await process_mission_v135(v['url'], v['title'], v['desc'], s['n'], s['ru']):
+                    if await process_mission_v136(v['url'], v['title'], v['desc'], s['n'], s['ru']):
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                         with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                         print("🎉 Миссия выполнена!"); return
