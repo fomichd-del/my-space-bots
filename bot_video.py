@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v131.0 (Titanium Release)
+# ⚙️ КОНФИГУРАЦИЯ v131.1 (Diagnostic Patch)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 NASA_API_KEY   = os.getenv('NASA_API_KEY')
@@ -156,7 +156,6 @@ async def process_mission_v131(v_url, title, desc, source_name, is_russian=False
 # ============================================================
 
 def get_youtube_videos(channel_id):
-    """Пытается получить видео через RSS, если блок — переходит на API"""
     items = []
     # ПОПЫТКА 1: RSS с маскировкой под браузер
     try:
@@ -180,23 +179,39 @@ def get_youtube_videos(channel_id):
             if items: 
                 print("   ✅ RSS-канал прочитан успешно.")
                 return items
+        else:
+            print(f"   🛡️ YouTube заблокировал RSS (Код {res.status_code}). Включаю API-резерв...")
     except Exception as e:
-        print(f"   ⚠️ Ошибка RSS (YouTube блокирует парсер). Включаю API-резерв...")
+        print(f"   ⚠️ Ошибка соединения RSS: {e}. Включаю API-резерв...")
 
-    # ПОПЫТКА 2: Надежный API метод (Плейлист загрузок)
-    if not YOUTUBE_API_KEY: return []
+    # ПОПЫТКА 2: Надежный API метод
+    if not YOUTUBE_API_KEY: 
+        print("   ❌ ОШИБКА: Секретный ключ YOUTUBE_API_KEY не загружен!")
+        return []
+        
     try:
         print("   🔄 Запрос через официальный YouTube API...")
-        # Шаг А: Узнаем ID плейлиста "Uploads" (Загруженные видео канала)
         url_ch = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id={channel_id}&key={YOUTUBE_API_KEY}"
         res_ch = requests.get(url_ch, timeout=15).json()
-        if 'items' not in res_ch or not res_ch['items']: return []
+        
+        # ДИАГНОСТИКА: Печатаем ошибку, если она есть
+        if 'error' in res_ch:
+            print(f"   ❌ ОШИБКА API (Запрос канала): {res_ch['error']['message']}")
+            return []
+            
+        if 'items' not in res_ch or not res_ch['items']:
+            print("   ⚠️ API вернул пустой ответ (канал не найден или скрыт).")
+            return []
+            
         uploads_id = res_ch['items'][0]['contentDetails']['relatedPlaylists']['uploads']
 
-        # Шаг Б: Получаем свежие видео из этого плейлиста (работает безотказно)
         url_pl = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={uploads_id}&maxResults=15&key={YOUTUBE_API_KEY}"
         res_pl = requests.get(url_pl, timeout=15).json()
         
+        if 'error' in res_pl:
+            print(f"   ❌ ОШИБКА API (Запрос плейлиста): {res_pl['error']['message']}")
+            return []
+
         for item in res_pl.get('items', []):
             snippet = item['snippet']
             v_id = snippet['resourceId']['videoId']
@@ -206,10 +221,12 @@ def get_youtube_videos(channel_id):
                 'title': snippet['title'],
                 'desc': snippet['description']
             })
+            
         print(f"   ✅ API отработало: найдено {len(items)} видео.")
         return items
+        
     except Exception as e:
-        print(f"   ❌ API-сбой: {e}")
+        print(f"   ❌ Критический API-сбой: {e}")
         return []
 
 # ============================================================
@@ -217,7 +234,7 @@ def get_youtube_videos(channel_id):
 # ============================================================
 
 async def main():
-    print("🎬 [ЦУП] v131.0 'Titanium Release' активирована...")
+    print("🎬 [ЦУП] v131.1 'Diagnostic Patch' активирована...")
     if not os.path.exists(DB_FILE): open(DB_FILE, 'w').close()
     if not os.path.exists(SOURCE_LOG): open(SOURCE_LOG, 'w').write("None")
     db = open(DB_FILE, 'r').read()
@@ -259,7 +276,7 @@ async def main():
                 headers = {'User-Agent': 'Mozilla/5.0'}
                 res = requests.get(s['u'], headers=headers, timeout=30)
                 if '<?xml' not in res.text[:100] and '<rss' not in res.text[:100]:
-                    print("⚠️ Неверный формат ленты (ожидался XML). Пропуск.")
+                    print("   ⚠️ Неверный формат ленты (ожидался XML). Пропуск.")
                     continue
                     
                 root = ET.fromstring(res.content)
