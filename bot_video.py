@@ -11,10 +11,10 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы инициализированы. Запуск v147.6...")
+print("🚀 [ЦУП] Системы инициализированы. Запуск v147.7...")
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v147.6 (Stability & Beauty)
+# ⚙️ КОНФИГУРАЦИЯ v147.7 (Shield of Purity Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -25,48 +25,67 @@ SAFE_LIMIT_MB  = 42
 
 SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс', 'astronomy', 'universe', 'telescope']
 
-# Глобальная переменная для модели (грузим только по требованию)
 whisper_model = None
 
 MARTY_QUOTES = [
-    "Гав! Навел лоск в описании, теперь всё сияет как сверхновая! ✨🐩",
-    "Ррр-гав! Выбросил рекламный мусор, оставил только чистую науку! 🔭",
-    "Тяв! Командор, оцените стиль: коротко, ярко и по делу! 🐾",
-    "Гав! Красивому видео — красивое описание. Миссия v147.6 готова! 🛰️"
+    "Гав! Провел дезинфекцию описания, теперь там только чистый космос! ✨🐩",
+    "Ррр-гав! Выбросил рекламу интернета и призывы подписаться, мы выше этого! 🔭",
+    "Тяв! Командор, SpaceX Fan теперь в нашем RU-реестре, работаем четко! 🐾",
+    "Гав! Описание блестит, как свежевыкрашенный Starship! Миссия v147.7 пошла! 🛰️"
 ]
 
 # ============================================================
-# 🛠 УМНАЯ ОЧИСТКА ТЕКСТА (БЕЗ ХЕШТЕГОВ И РЕКЛАМЫ)
+# 🛠 УЛЬТРА-ОЧИСТКА ТЕКСТА (БЕЗ СПАМА И РЕКЛАМЫ)
 # ============================================================
 
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
     
-    # 1. Удаляем ссылки и ХЕШТЕГИ
+    # 1. Вырезаем ссылки, хештеги и лишние символы
     text = re.sub(r'http\S+', '', text)
     text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
     
-    # 2. Фильтрация рекламного мусора
-    junk_patterns = ['vk.com', 'ok.ru', 't.me', 'vk:', 'ok:', 'telegram:', 'rutube:', 'подписывайтесь', 'сайт:', 'facebook', 'instagram', 'max:']
+    # 2. Расширенный список рекламного и мусорного контента
+    junk_patterns = [
+        'vk.com', 'ok.ru', 't.me', 'vk:', 'ok:', 'telegram:', 'rutube:', 
+        'подписывайтесь', 'подпишись', 'наш канал', 'нашем канале',
+        'поддержать нас', 'поддержать проект', 'донаты', 'amnezia', 
+        'интернет', 'vpn', 'реклама', 'сотрудничество', 'по вопросам',
+        'facebook', 'instagram', 'twitter', 'boosty', 'patreon',
+        'выпуски каждую неделю', 'жми на колокольчик', 'наш сайт'
+    ]
+    
     lines = text.split('\n')
     clean_lines = []
     
     for line in lines:
         line = line.strip()
-        if len(line) < 15: continue 
+        # Пропускаем пустые, короткие или рекламные строки
+        if len(line) < 20: continue 
         if any(junk in line.lower() for junk in junk_patterns): continue
+        # Убираем странные символы в начале строк (точки, тире, стрелочки)
+        line = re.sub(r'^[•\-\.\d\s►✅]+', '', line)
         clean_lines.append(line)
     
+    # Собираем осмысленные предложения
     full_text = " ".join(clean_lines)
     sentences = re.split(r'(?<=[.!?]) +', full_text)
-    meaningful = [s for s in sentences if len(s) > 25 and not s.lower().startswith(('мы в', 'подпишись', 'наш сайт'))]
     
-    summary = " ".join(meaningful[:2])
-    if len(summary) < 30:
-        summary = full_text[:200]
+    # Ищем первые два предложения, которые похожи на описание фактов
+    meaningful = []
+    for s in sentences:
+        s = s.strip()
+        if len(s) > 30 and not any(junk in s.lower() for junk in junk_patterns):
+            meaningful.append(s)
+            if len(meaningful) >= 2: break
+            
+    summary = " ".join(meaningful)
+    if not summary or len(summary) < 40:
+        # Если фильтр всё съел, берем первые 200 символов очищенного текста
+        summary = full_text[:200].strip()
         
-    return summary.strip() + ".." if summary else "Свежий отчет из глубин космоса! 🪐"
+    return summary if summary else "Свежий отчет из глубин космоса! 🪐"
 
 def get_fast_proxy():
     print("🛰 [ЦУП] Поиск гипер-коридора...")
@@ -85,7 +104,7 @@ def get_fast_proxy():
     return None
 
 # ============================================================
-# 🎬 ПРОЦЕССОР (v147.6 Stability)
+# 🎬 ПРОЦЕССОР (v147.7 Shield)
 # ============================================================
 
 async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_name=""):
@@ -98,7 +117,7 @@ async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_n
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
         
-        # --- DIRECT STREAM (РАЗВЕДКА) ---
+        # Разведка (Direct Stream)
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {'quiet': True, 'js_runtimes': {'deno': {}}}
         if proxy: temp_opts['proxy'] = proxy
@@ -106,15 +125,15 @@ async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_n
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 1)
 
-        # Выбор разрешения ДО скачивания
+        # Выбор качества
         h_limit = 720
         if duration > 1800: h_limit = 240
         elif duration > 900: h_limit = 360
         elif duration > 480: h_limit = 480
         
-        print(f"🎯 Выбран калибр: {h_limit}p (Время: {duration}с)")
+        print(f"🎯 Режим: {h_limit}p (Время: {duration}с)")
 
-        # --- ЗАХВАТ ---
+        # Захват
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 'quiet': True, 'js_runtimes': {'deno': {}},
@@ -128,14 +147,14 @@ async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_n
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
-        # --- МОЗГОВОЙ ЦЕНТР (WHISPER ПО ТРЕБОВАНИЮ) ---
+        # Обработка Whisper (только для иностранных)
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             if whisper_model is None:
-                print("🧠 [ЦУП] Загрузка нейропрофиля Whisper (Base)...")
+                print("🧠 [ЦУП] Загрузка Whisper (Base)...")
                 whisper_model = whisper.load_model("base")
             
-            print(f"🎙 Whisper: Перевод аудиопотока...")
+            print(f"🎙 Whisper: Перевод...")
             res = whisper_model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
                 mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
@@ -146,21 +165,19 @@ async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_n
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
             else: mode_tag = "🎵 МУЗЫКА КОСМОСА"
-        elif not is_russian: mode_tag = "🎵 МУЗЫКА КОСМОСА"
 
-        # --- УПАКОВКА ---
+        # Упаковка
         if raw_mb < SAFE_LIMIT_MB and not has_subs:
             f_to_send = f_raw
         else:
-            print(f"⚙️ Глубокая упаковка ({raw_mb:.1f} Мб -> {SAFE_LIMIT_MB} Мб)...")
+            print(f"⚙️ Глубокая упаковка...")
             target_br = int((SAFE_LIMIT_MB * 1024 * 1024 * 8) / duration * 0.75)
             v_br = max(120000, min(target_br, 2000000))
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3,BackColour=&H80000000'" if has_subs else f"scale=-2:{h_limit}"
-            
             subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '48k', f_final], capture_output=True)
             f_to_send = f_final
 
-        # --- ОФОРМЛЕНИЕ И ОТПРАВКА ---
+        # ОФОРМЛЕНИЕ
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         clean_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).upper()
         
@@ -175,7 +192,7 @@ async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_n
         )
 
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
-        print(f"📡 Отправка в Telegram ({final_mb:.1f} Мб)...")
+        print(f"📡 Отправка ({final_mb:.1f} Мб)...")
         
         with open(f_to_send, 'rb') as v:
             r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files={"video": v}, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, timeout=600)
@@ -188,17 +205,17 @@ async def process_mission_v147(v_id, title, desc_raw, is_russian=False, source_n
         print(f"⚠️ Сбой систем: {e}"); return False
 
 # ============================================================
-# 🛰 ГЛАВНЫЙ ЦИКЛ (НАВИГАЦИЯ)
+# 🛰 ГЛАВНЫЙ ЦИКЛ (ИСТОЧНИКИ v147.7)
 # ============================================================
 
 async def main():
-    print(f"🎬 [ЦУП] v147.6 'Stability' запуск...")
+    print(f"🎬 [ЦУП] v147.7 'Phantom Shield' запуск...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
 
     SOURCES = [
+        {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True}, # ТЕПЕРЬ RU
         {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True},
-        {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True},
         {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False},
         {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True},
         {'n': 'ESO Observatory', 'cid': '@ESOobservatory', 'ru': False},
@@ -210,7 +227,7 @@ async def main():
     
     for s in SOURCES:
         if s['n'] == last_s: continue
-        print(f"📡 Сектор разведки: {s['n']}")
+        print(f"📡 Сектор: {s['n']}")
         try:
             url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle={s['cid'].replace('@','')}&key={YOUTUBE_API_KEY}"
             res = requests.get(url).json()
