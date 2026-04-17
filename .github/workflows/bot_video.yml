@@ -1,8 +1,9 @@
-name: Space Bot v141.0 Proxy Pulse
+name: Space Bot v142.0 Golden Standard
 
 on:
   schedule:
-    - cron: '0 */6 * * *' 
+    - cron: '0 5 * * *'  # Утренний рейс (запуск в 5:00 UTC)
+    - cron: '0 16 * * *' # Вечерний рейс (запуск в 16:00 UTC)
   workflow_dispatch:      
 
 permissions:
@@ -22,10 +23,15 @@ jobs:
         python-version: '3.10'
         cache: 'pip'
 
+    - name: 🌐 Установка движка обхода (Node.js 20)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
     - name: 🛠 Установка оборудования (FFmpeg)
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg curl
+        sudo apt-get install -y ffmpeg
 
     - name: 📦 Установка библиотек
       run: |
@@ -43,9 +49,6 @@ jobs:
       run: |
         git config --global user.name "Space-Bot-Actions"
         git config --global user.email "bot@vladislav.space"
-        touch last_video_date.txt
-        touch last_source.txt
         git add last_video_date.txt last_source.txt
-        git commit -m "📊 Обновление реестра [v141.0]" || echo "Нет новых данных"
-        git pull --rebase origin main
+        git commit -m "📊 Обновление реестра [v142.0]" || echo "Нет данных"
         git push origin main
