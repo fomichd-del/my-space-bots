@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v162.5 'Event Horizon'. Проверка систем...")
+print("🚀 [ЦУП] Развертывание v163.0 'AdMe Explorer'. Системы стабилизированы...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -23,7 +23,7 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
-# Точный путь к Deno в среде GitHub Actions
+# Настройка JS-рантайма (Deno) для GitHub Actions
 DENO_BIN = "/home/runner/.deno/bin/deno"
 JS_CONF = {'deno': {}}
 if os.path.exists(DENO_BIN):
@@ -31,11 +31,20 @@ if os.path.exists(DENO_BIN):
 
 whisper_model = None
 
+# Список ключевых слов для фильтрации AdMe и других общих каналов
+SPACE_KEYWORDS = [
+    'космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 
+    'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 
+    'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос'
+]
+
+# Ротация User-Agent (имитация разных браузеров)
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
 ]
 
 MARTY_QUOTES = [
@@ -95,6 +104,13 @@ def get_deep_proxy():
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model, JS_CONF
+    # Специальная проверка для ADME: ищем космос в тексте
+    if source_name == "ADME":
+        search_text = (title + " " + desc_raw).lower()
+        if not any(word in search_text for word in SPACE_KEYWORDS):
+            print(f"⏭ [ЦУП] Объект ADME {v_id} не прошел звездный фильтр. Пропускаем.")
+            return False
+
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -102,9 +118,8 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
     try:
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         current_proxy = get_deep_proxy()
-        time.sleep(random.uniform(2, 5)) # Мимикрия под человека
+        time.sleep(random.uniform(2, 5)) 
         
-        # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
@@ -126,7 +141,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         print(f"⚖️ ТТХ: {duration}с | ~{filesize:.1f}Мб -> Лимит: {h_limit}p")
 
-        # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
@@ -144,7 +158,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
-        # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Запуск Whisper...")
@@ -159,7 +172,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
-        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             f_to_send = f_raw
         else:
@@ -172,13 +184,14 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
                 '-max_muxing_queue_size', '1024',
                 '-movflags', '+faststart',
-                '-pix_fmt', 'yuv420p', # Совместимость со всеми смартфонами
+                '-pix_fmt', 'yuv420p',
                 '-c:a', 'aac', '-b:a', '64k', f_final
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # --- 5. ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
+        print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
+
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
@@ -207,7 +220,8 @@ async def main():
         {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True},
         {'n': 'Роскосмос ТВ', 'cid': '@tvroscosmos', 'ru': True},
         {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True},
-        {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}
+        {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True},
+        {'n': 'ADME', 'cid': '@ADME_RU', 'ru': True} # Канал ADME в списке
     ]
     random.shuffle(SOURCES)
     for s in SOURCES:
