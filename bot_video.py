@@ -68,7 +68,7 @@ def get_fast_proxy():
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:60]: # Увеличили глубину поиска
+            for p in proxies[:60]:
                 p_str = f"http://{p.strip()}"
                 try:
                     requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2)
@@ -87,11 +87,10 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
         
-        # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': ['deno'], # Принудительно используем Deno
+            'js_runtimes': ['deno'],
             'proxy': proxy if proxy else None,
             'nocheckcertificate': True
         }
@@ -108,7 +107,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         print(f"⚖️ ТТХ: {duration}с | ~{filesize:.1f}Мб -> Лимит: {h_limit}p")
 
-        # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 'quiet': False, 
@@ -123,7 +121,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
-        # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Запуск Whisper для перевода...")
@@ -138,7 +135,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
-        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
@@ -156,7 +152,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # --- 5. ОТПРАВКА ---
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
