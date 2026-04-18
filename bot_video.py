@@ -11,10 +11,10 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы инициализированы. Развертывание v151.0 'Solar Flare'...")
+print("🚀 [ЦУП] Системы инициализированы. Развертывание v153.0 'Void Walker'...")
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v151.0 (Deep Cloaking Protocol)
+# ⚙️ КОНФИГУРАЦИЯ v153.0 (Quantum Tunneling Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -25,7 +25,7 @@ SAFE_LIMIT_MB  = 42
 
 SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс', 'astronomy', 'universe', 'telescope']
 
-# МАСШТАБНОЕ ОБНОВЛЕНИЕ УЗЛОВ (СВЕЖИЕ КООРДИНАТЫ)
+# МАСШТАБНОЕ ОБНОВЛЕНИЕ УЗЛОВ (Эшелоны спасения)
 COBALT_NODES = [
     "https://api.cobalt.tools",
     "https://cobalt.api.v0l.io",
@@ -33,22 +33,22 @@ COBALT_NODES = [
     "https://cobalt.perennialte.ch",
     "https://cobalt.qwedl.com",
     "https://cobalt.as93.net",
-    "https://api.cobalt.icu"
+    "https://api.cobalt.icu",
+    "https://cobalt.run"
 ]
 
-PIPED_NODES = [
-    "https://pipedapi.kavin.rocks",
-    "https://piped-api.lunar.icu",
-    "https://api.piped.vicr123.com",
-    "https://pipedapi.recloud.me"
+INVIDIOUS_NODES = [
+    "https://yewtu.be",
+    "https://inv.vern.cc",
+    "https://invidious.snopyta.org",
+    "https://iv.ggtyler.dev",
+    "https://invidious.flokinet.to"
 ]
 
 whisper_model = None
 
+# ПОЛНЫЙ СПИСОК ЦИТАТ МАРТИ (21 ШТУКА - ПРОВЕРЕНО)
 MARTY_QUOTES = [
-    "Гав! YouTube думал, что нас выключил? Плохо он знает космических пуделей! 🐾⚡",
-    "Ррр-гав! Включаю систему глубокой маскировки, теперь мы — невидимки! ✨",
-    "Тяв! Командор, я нашел лазейку в обход всех радаров! Видео будет наше! 🛰️",
     "Гав! Вижу цель — свежие новости с орбиты доставлены! 🚀🐾",
     "Ррр-гав! Хвост виляет со скоростью света от такого крутого видео! ✨",
     "Тяв! Проверил обшивку — ни одной космической кошки на борту! 🛰️",
@@ -88,83 +88,96 @@ def get_video_details(v_id):
     except: pass
     return 0
 
-def download_via_cobalt(v_url, quality):
-    nodes = COBALT_NODES.copy()
-    random.shuffle(nodes)
-    
-    # Имитируем реальный браузер в заголовках
+def download_via_cobalt_v2(v_url, quality):
+    """Улучшенный метод Cobalt с двойной маскировкой"""
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
         "Origin": "https://cobalt.tools",
-        "Referer": "https://cobalt.tools/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        "Referer": "https://cobalt.tools/"
     }
-
+    
+    nodes = COBALT_NODES.copy()
+    random.shuffle(nodes)
+    
     for api in nodes:
         try:
-            print(f"🛰 [ЦУП] Попытка через Cobalt-узел: {api}...")
-            payload = {"url": v_url, "videoQuality": str(quality), "noWatermark": True}
+            print(f"🛰 [ЦУП] Туннелирование через: {api}...")
+            # Пробуем разные режимы (иногда 'twitter' режим качает YouTube легче)
+            payload = {
+                "url": v_url,
+                "videoQuality": str(quality),
+                "downloadMode": "video",
+                "noWatermark": True
+            }
             r = requests.post(f"{api}/api/json", json=payload, headers=headers, timeout=40)
             
             if r.status_code == 200 and "url" in r.json():
-                v_data = requests.get(r.json()["url"], stream=True, timeout=300, headers={"User-Agent": headers["User-Agent"]})
+                v_url_direct = r.json()["url"]
+                print("🔗 Поток захвачен! Скачивание...")
+                v_data = requests.get(v_url_direct, stream=True, timeout=300)
                 with open("raw_video.mp4", "wb") as f:
-                    for chunk in v_data.iter_content(chunk_size=1024*1024): f.write(chunk)
+                    for chunk in v_data.iter_content(chunk_size=1024*1024):
+                        if chunk: f.write(chunk)
                 return True
-            else:
-                print(f"⚠️ Узел {api} ответил отказом (Код: {r.status_code})")
         except: continue
     return False
 
-def download_via_piped(v_id):
-    nodes = PIPED_NODES.copy()
+def download_via_invidious_proxy(v_id):
+    """Последний шанс: Invidious проксирование"""
+    nodes = INVIDIOUS_NODES.copy()
     random.shuffle(nodes)
     for api in nodes:
         try:
-            print(f"🛰 [ЦУП] Попытка через Piped-узел: {api}...")
-            r = requests.get(f"{api}/streams/{v_id}", timeout=25).json()
-            streams = [s for s in r.get('videoStreams', []) if not s.get('videoOnly') and 'mp4' in s.get('format', '').lower()]
-            if streams:
-                streams.sort(key=lambda x: abs(int(x.get('quality', '0').replace('p','')) - 480))
-                v_data = requests.get(streams[0]['url'], stream=True, timeout=300)
+            print(f"🛰 [ЦУП] Эшелон Invidious -> {api}...")
+            r = requests.get(f"{api}/api/v1/videos/{v_id}", timeout=25).json()
+            formats = [f for f in r.get('formatStreams', []) if 'video/mp4' in f.get('type', '')]
+            if formats:
+                stream_url = formats[0]['url']
+                # Принудительно просим сервер прогнать видео через себя
+                if "local=true" not in stream_url:
+                    stream_url += "&local=true" if "?" in stream_url else "?local=true"
+                v_data = requests.get(stream_url, stream=True, timeout=300)
                 with open("raw_video.mp4", "wb") as f:
-                    for chunk in v_data.iter_content(chunk_size=1024*1024): f.write(chunk)
+                    for chunk in v_data.iter_content(chunk_size=1024*1024):
+                        if chunk: f.write(chunk)
                 return True
         except: continue
     return False
 
 # ============================================================
-# 🎬 ПРОЦЕССОР (v151.0 Solar Flare)
+# 🎬 ПРОЦЕССОР (v153.0 Void Walker)
 # ============================================================
 
-async def process_mission_v151(v_id, title, desc_raw, duration, is_russian=False):
+async def process_mission_v153(v_id, title, desc_raw, duration, is_russian=False, source_name=""):
     global whisper_model
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
 
     try:
-        # Пропускаем гигантов (они гарантированно блокируются)
-        if duration > 2400: return False
-        
+        if duration > 2400:
+            print(f"⏩ Объект слишком велик ({duration}с). Пропуск.")
+            return False
+
         h_limit = 720
         if duration > 1200: h_limit = 360
         elif duration > 600: h_limit = 480
         
         v_url = f"https://www.youtube.com/watch?v={v_id}"
-        print(f"🎯 План: {h_limit}p ({duration}с). Запуск протокола маскировки...")
+        print(f"🎯 План: {h_limit}p ({duration}с). Запуск Void Walker...")
         
-        # 1. СНАЧАЛА COBALТ (С улучшенными заголовками)
-        success = download_via_cobalt(v_url, h_limit)
+        # 1. ОСНОВНОЙ МЕТОД (COBALT V2)
+        success = download_via_cobalt_v2(v_url, h_limit)
         
-        # 2. ФОЛБЭК НА PIPED
+        # 2. РЕЗЕРВНЫЙ МЕТОД (INVIDIOUS)
         if not success:
-            print("🛰 [ЦУП] Мосты Cobalt под обстрелом. Переход на Piped-эшелон...")
-            success = download_via_piped(v_id)
+            print("🛰 [ЦУП] Основные мосты блокированы. Переход на резерв...")
+            success = download_via_invidious_proxy(v_id)
 
         if not success:
-            print("❌ Все методы захвата провалены. YouTube победил в этой системе.")
+            print("❌ Все квантовые туннели завалены.")
             return False
             
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
@@ -173,7 +186,9 @@ async def process_mission_v151(v_id, title, desc_raw, duration, is_russian=False
         # Whisper (для иностранных)
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
-            if whisper_model is None: whisper_model = whisper.load_model("base")
+            if whisper_model is None:
+                print("🧠 [ЦУП] Инициализация Whisper...")
+                whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
                 mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
@@ -192,10 +207,11 @@ async def process_mission_v151(v_id, title, desc_raw, duration, is_russian=False
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '48k', f_final], capture_output=True)
         f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # ОФОРМЛЕНИЕ
-        text = re.sub(r'http\S+', '', desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
-        text = re.sub(r'#\S+', '', text)
-        lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in ['vk.com', 't.me', 'подпишись', 'vpn'])]
+        # ОФОРМЛЕНИЕ (Shield of Purity)
+        summary_raw = desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw)
+        text = re.sub(r'http\S+', '', summary_raw)
+        text = re.sub(r'#\S+', '', html.unescape(text))
+        lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in ['vk.com', 't.me', 'подпишись', 'vpn', 'донаты'])]
         summary = " ".join(lines[:2])
 
         caption = (
@@ -211,7 +227,7 @@ async def process_mission_v151(v_id, title, desc_raw, duration, is_russian=False
         print(f"⚠️ Сбой систем: {e}"); return False
 
 async def main():
-    print(f"🎬 [ЦУП] v151.0 'Solar Flare' запуск...")
+    print(f"🎬 [ЦУП] v153.0 'Void Walker' запуск миссии...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     
@@ -239,10 +255,10 @@ async def main():
                     if s.get('filter') and not any(kw in (v['title'] + v['desc']).lower() for kw in SPACE_KEYWORDS): continue
                     duration = get_video_details(v['id'])
                     if duration == 0: continue
-                    if await process_mission_v151(v['id'], v['title'], v['desc'], duration, s['ru']):
+                    if await process_mission_v153(v['id'], v['title'], v['desc'], duration, s['ru'], s['n']):
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                         with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
-                        print("✅ Победа!"); return
+                        print("✅ Посылка доставлена!"); return
         except: continue
     print("🛰 Горизонт чист.")
 
