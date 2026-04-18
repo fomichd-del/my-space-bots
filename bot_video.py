@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v161.1 'Solid Logic'. Исправление курса...")
+print("🚀 [ЦУП] Системы переведены в режим v162.0 'Deep Space Observer'...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -25,40 +25,65 @@ SAFE_LIMIT_MB  = 46
 
 whisper_model = None
 
+# Список современных User-Agent для маскировки
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
+    'Mozilla/5.0 (Apple) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+]
+
 MARTY_QUOTES = [
     "Гав! Вижу цель — свежие новости с орбиты доставлены! 🚀🐾",
-    "Ррр-гав! Хвост виляет со скоростью света от такого крутого видео! ✨",
+    "Ррр-гав! Хвост виляет со скоростью света от такого видео! ✨",
     "Тяв! Проверил обшивку — ни одной космической кошки на борту! 🛰️",
     "Гав! В космосе никто не услышит твой лай, но мой пост увидят все! 🌌",
     "Тяв! Обнаружил планету, похожую на гигантский теннисный мяч! 🎾🌍",
     "Гав! Навострил уши — ловлю сигналы из самых дальних галактик! 📡",
     "Ррр-гав! Эта миссия пахнет успехом и немного звездной пылью! 🐕🌠",
     "Гав! Передал данные быстрее, чем летит метеорит! ☄️🐾",
-    "Тяв! Командор, я проверил: на Луне сыра нет, только пыль и кратеры! 🧀🌑",
-    "Гав! В невесомости мои уши смешно разлетаются, но я всё равно на посту! 🛸👂",
-    "Ррр-гав! Защищаю канал от скуки лучше, чем любая нейросеть! 🛡️🐾",
+    "Тяв! Командор, я проверил: на Луне сыра нет, только пыль! 🌑",
+    "Гав! В невесомости мои уши смешно разлетаются, но я на посту! 👂",
+    "Ррр-гав! Защищаю канал от скуки лучше, чем нейросеть! 🛡️",
     "Тяв! Если увидите в небе комету — это я за ней погнался! 🐕💨",
-    "Гав! Мой нос подсказывает: это видео станет хитом на Земле! 🌍👃",
-    "Гав! Даже в скафандре я выгляжу потрясающе, согласны? 🧑‍🚀🐩",
-    "Ррр-гав! Слежу за приборами, пока Командор изучает карту созвездий! 🕹️🐾",
-    "Тяв! Это видео такое классное, что я чуть не сгрыз антенну от радости! 📺🦴",
-    "Гав! Проложил кратчайший путь сквозь пояс астероидов, не благодарите! 🗺️🪨",
-    "Ррр-гав! Встретил инопланетян — они тоже любят, когда их чешут за ушком! 👽🐕",
-    "Тяв! На борту идеальный порядок, все косточки пересчитаны и спрятаны! 🦴✅",
+    "Гав! Мой нос подсказывает: это видео станет хитом на Земле! 👃",
+    "Гав! Даже в скафандре я выгляжу потрясающе, согласны? 🧑‍🚀",
+    "Ррр-гав! Слежу за приборами, пока Командор изучает карту! 🕹️",
+    "Тяв! Это видео такое классное, что я чуть не сгрыз антенну! 📺",
+    "Гав! Проложил путь сквозь пояс астероидов, не благодарите! 🗺️",
+    "Ррр-гав! Встретил инопланетян — они тоже любят ласку! 👽",
+    "Тяв! На борту порядок, все косточки пересчитаны! 🦴✅",
     "Гав! Летим к звездам! Пристегните ремни, лапы и хвосты! 🚀🐾",
-    "Ррр-гав! Мой бортовой журнал полон открытий, делюсь самым лучшим! 📒✨"
+    "Ррр-гав! Мой журнал полон открытий, делюсь лучшим! 📒✨"
 ]
 
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
-    text = re.sub(r'http\S+', '', text); text = re.sub(r'#\S+', '', text)
+    # Удаляем ссылки, хештеги и специфические рекламные блоки
+    text = re.sub(r'http\S+', '', text)
+    text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
-    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:']
-    lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 20 and not any(j in l.lower() for j in junk)]
+    
+    # Агрессивный фильтр мусора
+    junk = [
+        'vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 
+        'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter', 
+        'купить', 'промокод', 'реклама', 'сотрудничество', 'по вопросам'
+    ]
+    
+    lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
+    
+    # Исключаем строки, которые выглядят как списки таймкодов (00:00)
+    lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
+    
     full = " ".join(lines)
     sentences = re.split(r'(?<=[.!?]) +', full)
-    res = " ".join([s.strip() for s in sentences if len(s) > 30][:2])
-    return res if len(res) > 30 else full[:200].strip()
+    res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
+    
+    if len(res) < 30:
+        res = full[:200].strip()
+    return res if res else "Свежий отчет из глубин космоса! 🪐"
 
 def get_fast_proxy():
     print("🛰 [ЦУП] Поиск гипер-коридора...")
@@ -91,9 +116,9 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕНО: Теперь это словарь!
+            'js_runtimes': {'deno': ['/home/runner/.deno/bin/deno']}, # Фикс пути Deno
             'proxy': proxy if proxy else None,
-            'nocheckcertificate': True
+            'user_agent': random.choice(USER_AGENTS) # Ротация
         }
         
         with yt_dlp.YoutubeDL(temp_opts) as ydl:
@@ -111,11 +136,14 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
-            'outtmpl': f_raw, 'quiet': False, 
-            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕНО
-            'retries': 20, 'fragment_retries': 40, 'continuedl': True,
+            'outtmpl': f_raw, 
+            'quiet': False, 
+            'js_runtimes': {'deno': ['/home/runner/.deno/bin/deno']},
+            'retries': 20, 
+            'fragment_retries': 40, 
+            'continuedl': True,
             'proxy': proxy if proxy else None,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'user_agent': random.choice(USER_AGENTS)
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([v_url])
@@ -138,7 +166,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
-        # --- 4. УПАКОВКА ---
+        # --- 4. УПАКОВКА С ПЛАВНЫМ ПЛЕЕРОМ ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
@@ -147,16 +175,21 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             v_br = max(120000, min(target_br, 2200000))
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
             
-            print(f"⚙️ [ЦУП] Запуск FFmpeg (Сжатие {duration}с)...")
+            print(f"⚙️ [ЦУП] Запуск FFmpeg (Сжатие до {v_br/1000:.0f} kbps)...")
+            # +faststart для мгновенного запуска видео в Telegram
             subprocess.run([
                 'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
                 '-max_muxing_queue_size', '1024',
+                '-movflags', '+faststart',
                 '-c:a', 'aac', '-b:a', '64k', f_final
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # --- 5. ОТПРАВКА ---
+        # --- 5. ТЕЛЕМЕТРИЯ И ОТПРАВКА ---
+        final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
+        print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб | Лимит: {SAFE_LIMIT_MB} Мб")
+
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
