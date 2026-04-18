@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v162.0 'Deep Space Observer'...")
+print("🚀 [ЦУП] Системы переведены в режим v162.1 'Deep Space Hotfix'. Исправление курса...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -30,8 +30,7 @@ USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
-    'Mozilla/5.0 (Apple) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0'
 ]
 
 MARTY_QUOTES = [
@@ -60,30 +59,16 @@ MARTY_QUOTES = [
 
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
-    # Удаляем ссылки, хештеги и специфические рекламные блоки
     text = re.sub(r'http\S+', '', text)
     text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
-    
-    # Агрессивный фильтр мусора
-    junk = [
-        'vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 
-        'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter', 
-        'купить', 'промокод', 'реклама', 'сотрудничество', 'по вопросам'
-    ]
-    
+    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter']
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
-    
-    # Исключаем строки, которые выглядят как списки таймкодов (00:00)
     lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
-    
     full = " ".join(lines)
     sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
-    
-    if len(res) < 30:
-        res = full[:200].strip()
-    return res if res else "Свежий отчет из глубин космоса! 🪐"
+    return res if len(res) > 30 else full[:200].strip()
 
 def get_fast_proxy():
     print("🛰 [ЦУП] Поиск гипер-коридора...")
@@ -116,9 +101,10 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': {'deno': ['/home/runner/.deno/bin/deno']}, # Фикс пути Deno
+            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
             'proxy': proxy if proxy else None,
-            'user_agent': random.choice(USER_AGENTS) # Ротация
+            'user_agent': random.choice(USER_AGENTS),
+            'nocheckcertificate': True
         }
         
         with yt_dlp.YoutubeDL(temp_opts) as ydl:
@@ -138,10 +124,9 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
             'quiet': False, 
-            'js_runtimes': {'deno': ['/home/runner/.deno/bin/deno']},
+            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
             'retries': 20, 
             'fragment_retries': 40, 
-            'continuedl': True,
             'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS)
         }
@@ -166,7 +151,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
-        # --- 4. УПАКОВКА С ПЛАВНЫМ ПЛЕЕРОМ ---
+        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
@@ -176,7 +161,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
             
             print(f"⚙️ [ЦУП] Запуск FFmpeg (Сжатие до {v_br/1000:.0f} kbps)...")
-            # +faststart для мгновенного запуска видео в Telegram
             subprocess.run([
                 'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
@@ -188,19 +172,15 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
 
         # --- 5. ТЕЛЕМЕТРИЯ И ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
-        print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб | Лимит: {SAFE_LIMIT_MB} Мб")
+        print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
 
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
         caption = (
-            f"<b>{mode_tag}</b>\n\n"
-            f"🎬 <b>{ru_title.upper()}</b>\n"
-            f"──────────────────────\n\n"
-            f"🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n"
-            f"<i>{summary}</i>\n\n"
-            f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n"
-            f"📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
+            f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n"
+            f"──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n"
+            f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
         with open(f_to_send, 'rb') as v:
