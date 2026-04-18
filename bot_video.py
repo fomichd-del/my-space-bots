@@ -11,10 +11,10 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы инициализированы. Развертывание v148.4 'Hyper-Jump'...")
+print("🚀 [ЦУП] Системы инициализированы. Развертывание v148.5 'Singularity'...")
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v148.4 (Dual-Bridge Protocol)
+# ⚙️ КОНФИГУРАЦИЯ v148.5 (Triple-Bridge Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -25,22 +25,30 @@ SAFE_LIMIT_MB  = 42
 
 SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс', 'astronomy', 'universe', 'telescope']
 
-# УЗЛЫ ЭШЕЛОНА 1: COBALT
+# ЭШЕЛОН 1: COBALT
 COBALT_NODES = [
     "https://api.cobalt.tools",
     "https://cobalt.api.v0l.io",
     "https://cobalt.lunar.icu",
-    "https://cobalt.perennialte.ch",
-    "https://api.cobalt.icu"
+    "https://api.cobalt.icu",
+    "https://cobalt.qwedl.com"
 ]
 
-# УЗЛЫ ЭШЕЛОНА 2: INVIDIOUS (Зеркала)
+# ЭШЕЛОН 2: INVIDIOUS
 INVIDIOUS_NODES = [
-    "https://invidious.snopyta.org",
     "https://yewtu.be",
-    "https://invidious.kavin.rocks",
-    "https://vid.puffyan.us",
-    "https://inv.vern.cc"
+    "https://invidious.snopyta.org",
+    "https://inv.vern.cc",
+    "https://invidious.flokinet.to",
+    "https://iv.ggtyler.dev"
+]
+
+# ЭШЕЛОН 3: PIPED (Новое!)
+PIPED_NODES = [
+    "https://pipedapi.kavin.rocks",
+    "https://piped-api.lunar.icu",
+    "https://pipedapi.moomoo.me",
+    "https://api.piped.vicr123.com"
 ]
 
 whisper_model = None
@@ -70,7 +78,7 @@ MARTY_QUOTES = [
 ]
 
 # ============================================================
-# 🛠 СИСТЕМЫ ЗАХВАТА
+# 🛠 ТЕХНИЧЕСКИЕ МОДУЛИ
 # ============================================================
 
 def parse_duration(duration_str):
@@ -89,14 +97,13 @@ def get_video_details(v_id):
     return 0
 
 def download_via_cobalt(v_url, quality):
-    """Эшелон 1: API Cobalt"""
     nodes = COBALT_NODES.copy()
     random.shuffle(nodes)
     for api in nodes:
         try:
             print(f"🛰 [ЦУП] Эшелон 1 (Cobalt) -> {api}...")
             payload = {"url": v_url, "videoQuality": str(quality), "noWatermark": True}
-            r = requests.post(f"{api}/api/json", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=30)
+            r = requests.post(f"{api}/api/json", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}, timeout=30)
             if r.status_code == 200 and "url" in r.json():
                 v_data = requests.get(r.json()["url"], stream=True, timeout=300)
                 with open("raw_video.mp4", "wb") as f:
@@ -106,19 +113,36 @@ def download_via_cobalt(v_url, quality):
     return False
 
 def download_via_invidious(v_id):
-    """Эшелон 2: Зеркала Invidious"""
     nodes = INVIDIOUS_NODES.copy()
     random.shuffle(nodes)
     for api in nodes:
         try:
             print(f"🛰 [ЦУП] Эшелон 2 (Invidious) -> {api}...")
-            # Запрашиваем данные о потоках
             r = requests.get(f"{api}/api/v1/videos/{v_id}", timeout=20).json()
-            # Ищем mp4 видео (обычно 360p или 720p)
             formats = [f for f in r.get('formatStreams', []) if 'video/mp4' in f.get('type', '')]
             if formats:
-                # Берем лучший из доступных (обычно первый)
                 stream_url = formats[0]['url']
+                v_data = requests.get(stream_url, stream=True, timeout=300)
+                with open("raw_video.mp4", "wb") as f:
+                    for chunk in v_data.iter_content(chunk_size=1024*1024): f.write(chunk)
+                return True
+        except: continue
+    return False
+
+def download_via_piped(v_id):
+    """Эшелон 3: Зеркала Piped (Новое!)"""
+    nodes = PIPED_NODES.copy()
+    random.shuffle(nodes)
+    for api in nodes:
+        try:
+            print(f"🛰 [ЦУП] Эшелон 3 (Piped) -> {api}...")
+            r = requests.get(f"{api}/streams/{v_id}", timeout=20).json()
+            # Ищем mp4 видео
+            video_streams = [s for s in r.get('videoStreams', []) if s.get('videoOnly') == False and 'mp4' in s.get('format', '').lower()]
+            if video_streams:
+                # Сортируем по качеству (ближе к 480p/360p)
+                video_streams.sort(key=lambda x: abs(int(x.get('quality', '0').replace('p','')) - 480))
+                stream_url = video_streams[0]['url']
                 v_data = requests.get(stream_url, stream=True, timeout=300)
                 with open("raw_video.mp4", "wb") as f:
                     for chunk in v_data.iter_content(chunk_size=1024*1024): f.write(chunk)
@@ -139,7 +163,7 @@ def get_smart_summary(text):
     return res if len(res) > 30 else full[:220].strip()
 
 # ============================================================
-# 🎬 ПРОЦЕССОР (v148.4 Hyper-Jump)
+# 🎬 ПРОЦЕССОР (v148.5 Singularity)
 # ============================================================
 
 async def process_mission_v148(v_id, title, desc_raw, duration, is_russian=False, source_name=""):
@@ -159,18 +183,17 @@ async def process_mission_v148(v_id, title, desc_raw, duration, is_russian=False
         if duration > 1200: h_limit = 360
         elif duration > 600: h_limit = 480
         
-        print(f"🎯 План: {h_limit}p ({duration}с). Запуск захвата...")
+        print(f"🎯 План: {h_limit}p ({duration}с). Запуск Triple-Bridge...")
         
-        # 1. ПРОБУЕМ COBALT
+        # ПОСЛЕДОВАТЕЛЬНЫЙ ПЕРЕБОР ЭШЕЛОНОВ
         success = download_via_cobalt(v_url, h_limit)
-        
-        # 2. ЕСЛИ НЕ ВЫШЛО — ПРОБУЕМ INVIDIOUS
         if not success:
-            print("⚠️ Эшелон 1 подвел. Переход на Эшелон 2 (Invidious)...")
             success = download_via_invidious(v_id)
+        if not success:
+            success = download_via_piped(v_id)
 
         if not success:
-            print("❌ Все методы захвата заблокированы.")
+            print("❌ Все 3 эшелона блокированы. YouTube победил в этом раунде.")
             return False
             
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
@@ -205,7 +228,8 @@ async def process_mission_v148(v_id, title, desc_raw, duration, is_russian=False
         caption = (
             f"<b>{mode_tag}</b>\n\n🎬 <b>{(title).upper()}</b>\n"
             f"──────────────────────\n\n🚀 <b>О ЧЕМ МИССИЯ:</b>\n<i>{summary}</i>\n\n"
-            f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
+            f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n"
+            f"📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
         with open(f_to_send, 'rb') as v:
@@ -215,7 +239,7 @@ async def process_mission_v148(v_id, title, desc_raw, duration, is_russian=False
         print(f"⚠️ Сбой систем: {e}"); return False
 
 async def main():
-    print(f"🎬 [ЦУП] v148.4 'Hyper-Jump' старт...")
+    print(f"🎬 [ЦУП] v148.5 'Singularity' старт...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     
