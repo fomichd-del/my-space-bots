@@ -11,10 +11,10 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v160.4 'Гласность'. Открываю шлюзы логов...")
+print("🚀 [ЦУП] Развертывание v161.0 'Quantum Sensor'. Системы активированы...")
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ (Maximum Control)
+# ⚙️ КОНФИГУРАЦИЯ
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -49,10 +49,6 @@ MARTY_QUOTES = [
     "Ррр-гав! Мой бортовой журнал полон открытий, делюсь самым лучшим! 📒✨"
 ]
 
-# ============================================================
-# 🛠 ВСПОМОГАТЕЛЬНЫЕ СИСТЕМЫ
-# ============================================================
-
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
     text = re.sub(r'http\S+', '', text); text = re.sub(r'#\S+', '', text)
@@ -72,7 +68,7 @@ def get_fast_proxy():
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:30]:
+            for p in proxies[:60]: # Увеличили глубину поиска
                 p_str = f"http://{p.strip()}"
                 try:
                     requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2)
@@ -80,10 +76,6 @@ def get_fast_proxy():
                 except: continue
     except: pass
     return None
-
-# ============================================================
-# 🎬 ОСНОВНОЙ ПРОЦЕССОР
-# ============================================================
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model
@@ -97,8 +89,12 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
-        temp_opts = {'quiet': True, 'js_runtimes': {'deno': {}}}
-        if proxy: temp_opts['proxy'] = proxy
+        temp_opts = {
+            'quiet': True, 
+            'js_runtimes': ['deno'], # Принудительно используем Deno
+            'proxy': proxy if proxy else None,
+            'nocheckcertificate': True
+        }
         
         with yt_dlp.YoutubeDL(temp_opts) as ydl:
             info = ydl.extract_info(v_url, download=False)
@@ -115,17 +111,19 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
-            'outtmpl': f_raw, 'quiet': False, 'js_runtimes': {'deno': {}},
-            'retries': 15, 'fragment_retries': 30, 'continuedl': True
+            'outtmpl': f_raw, 'quiet': False, 
+            'js_runtimes': ['deno'],
+            'retries': 20, 'fragment_retries': 40, 'continuedl': True,
+            'proxy': proxy if proxy else None,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
-        if proxy: ydl_opts['proxy'] = proxy
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([v_url])
         
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
-        # --- 3. WHISPER (ТОЛЬКО ДЛЯ ИНОСТРАННЫХ) ---
+        # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Запуск Whisper для перевода...")
@@ -140,7 +138,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
-        # --- 4. УПАКОВКА (С ОТКРЫТЫМИ ЛОГАМИ) ---
+        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
@@ -150,7 +148,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
             
             print(f"⚙️ [ЦУП] Запуск FFmpeg (Сжатие {duration}с)...")
-            # БЕЗ capture_output=True — теперь вы видите прогресс!
             subprocess.run([
                 'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
@@ -190,7 +187,9 @@ async def main():
         {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True},
         {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False},
         {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True},
-        {'n': 'Роскосмос ТВ', 'cid': '@tvroscosmos', 'ru': True}
+        {'n': 'Роскосмос ТВ', 'cid': '@tvroscosmos', 'ru': True},
+        {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True},
+        {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}
     ]
     random.shuffle(SOURCES)
     for s in SOURCES:
