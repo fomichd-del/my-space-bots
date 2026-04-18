@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v163.0 'AdMe Explorer'. Системы стабилизированы...")
+print("🚀 [ЦУП] Развертывание v163.1 'Perfect Orbit'. Финальная калибровка систем...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -23,7 +23,7 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
-# Настройка JS-рантайма (Deno) для GitHub Actions
+# Настройка JS-рантайма (Deno) для GitHub Actions (Абсолютная стабильность)
 DENO_BIN = "/home/runner/.deno/bin/deno"
 JS_CONF = {'deno': {}}
 if os.path.exists(DENO_BIN):
@@ -35,18 +35,21 @@ whisper_model = None
 SPACE_KEYWORDS = [
     'космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 
     'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 
-    'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос'
+    'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос',
+    'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт'
 ]
 
-# Ротация User-Agent (имитация разных браузеров)
+# Ротация User-Agent (имитация разных браузеров и устройств)
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPad; CPU OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
 ]
 
+# Расширенный словарь Марти (Ничего не удалено, добавлено 5 новых)
 MARTY_QUOTES = [
     "Гав! Вижу цель — свежие новости с орбиты доставлены! 🚀🐾",
     "Ррр-гав! Хвост виляет со скоростью света от такого видео! ✨",
@@ -68,7 +71,12 @@ MARTY_QUOTES = [
     "Ррр-гав! Встретил инопланетян — они тоже любят ласку! 👽",
     "Тяв! На борту порядок, все косточки пересчитаны! 🦴✅",
     "Гав! Летим к звездам! Пристегните ремни, лапы и хвосты! 🚀🐾",
-    "Ррр-гав! Мой журнал полон открытий, делюсь лучшим! 📒✨"
+    "Ррр-гав! Мой журнал полон открытий, делюсь лучшим! 📒✨",
+    "Гав! Если черная дыра засасывает всё, засосет ли она мою любимую косточку? 🤔🐾", # НОВОЕ
+    "Тяв! На радаре вспышка сверхновой! Или это просто кто-то включил фонарик? 🔦🌌", # НОВОЕ
+    "Ррр-гав! По теории струн, где-то есть Вселенная, где собаки выгуливают людей! 🐕🪐", # НОВОЕ
+    "Гав! Загружаю данные в канал. Скорость — варп 9! Держитесь крепче! 🚀💨", # НОВОЕ
+    "Тяв! Космическая радиация мне не страшна, у меня шерсть с защитой от альфа-частиц! 🛡️🐩" # НОВОЕ
 ]
 
 def get_smart_summary(text):
@@ -85,7 +93,7 @@ def get_smart_summary(text):
     return res if len(res) > 30 else full[:200].strip()
 
 def get_deep_proxy():
-    print("🛰 [ЦУП] Поиск сверхстабильного гипер-коридора...")
+    print("🛰 [ЦУП] Поиск сверхстабильного гипер-коридора (проверка связи с YouTube)...")
     url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all"
     try:
         resp = requests.get(url, timeout=10)
@@ -95,15 +103,18 @@ def get_deep_proxy():
             for p in proxies[:80]:
                 p_str = f"http://{p.strip()}"
                 try:
-                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=3)
-                    print(f"✅ Коридор подтвержден: {p.strip()}")
+                    # УЛУЧШЕНИЕ: Проверяем доступность именно YouTube, а не Google
+                    requests.get("https://www.youtube.com", proxies={"https": p_str}, timeout=3)
+                    print(f"✅ Коридор подтвержден для YouTube: {p.strip()}")
                     return p_str
                 except: continue
     except: pass
+    print("⚠️ Коридоры недоступны, переходим на прямое соединение.")
     return None
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model, JS_CONF
+    
     # Специальная проверка для ADME: ищем космос в тексте
     if source_name == "ADME":
         search_text = (title + " " + desc_raw).lower()
@@ -120,12 +131,14 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         current_proxy = get_deep_proxy()
         time.sleep(random.uniform(2, 5)) 
         
+        # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
             'js_runtimes': JS_CONF,
             'proxy': current_proxy,
             'user_agent': random.choice(USER_AGENTS),
+            'wait_for_video': (5, 30), # ВОЗВРАЩЕНО: Защита от раннего обрыва связи
             'nocheckcertificate': True
         }
         
@@ -141,6 +154,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         print(f"⚖️ ТТХ: {duration}с | ~{filesize:.1f}Мб -> Лимит: {h_limit}p")
 
+        # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
@@ -150,7 +164,8 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'fragment_retries': 50, 
             'continuedl': True,
             'proxy': current_proxy,
-            'user_agent': random.choice(USER_AGENTS)
+            'user_agent': random.choice(USER_AGENTS),
+            'wait_for_video': (5, 30) # ВОЗВРАЩЕНО
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([v_url])
@@ -158,6 +173,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
+        # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Запуск Whisper...")
@@ -172,6 +188,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
+        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             f_to_send = f_raw
         else:
@@ -189,6 +206,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
+        # --- 5. ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
         print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
 
@@ -221,7 +239,7 @@ async def main():
         {'n': 'Роскосмос ТВ', 'cid': '@tvroscosmos', 'ru': True},
         {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True},
         {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True},
-        {'n': 'ADME', 'cid': '@ADME_RU', 'ru': True} # Канал ADME в списке
+        {'n': 'ADME', 'cid': '@ADME_RU', 'ru': True}
     ]
     random.shuffle(SOURCES)
     for s in SOURCES:
