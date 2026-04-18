@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v162.4. Исправление формата JS Runtimes.")
+print("🚀 [ЦУП] Развертывание v162.5 'Event Horizon'. Проверка систем...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -22,6 +22,12 @@ CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
+
+# Точный путь к Deno в среде GitHub Actions
+DENO_BIN = "/home/runner/.deno/bin/deno"
+JS_CONF = {'deno': {}}
+if os.path.exists(DENO_BIN):
+    JS_CONF = {'deno': {'path': DENO_BIN}}
 
 whisper_model = None
 
@@ -88,7 +94,7 @@ def get_deep_proxy():
     return None
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
-    global whisper_model
+    global whisper_model, JS_CONF
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -96,12 +102,13 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
     try:
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         current_proxy = get_deep_proxy()
+        time.sleep(random.uniform(2, 5)) # Мимикрия под человека
         
         # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
+            'js_runtimes': JS_CONF,
             'proxy': current_proxy,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True
@@ -124,7 +131,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
             'quiet': False, 
-            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
+            'js_runtimes': JS_CONF,
             'retries': 30, 
             'fragment_retries': 50, 
             'continuedl': True,
@@ -165,6 +172,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
                 '-max_muxing_queue_size', '1024',
                 '-movflags', '+faststart',
+                '-pix_fmt', 'yuv420p', # Совместимость со всеми смартфонами
                 '-c:a', 'aac', '-b:a', '64k', f_final
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
