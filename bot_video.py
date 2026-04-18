@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v162.1 'Deep Space Hotfix'. Исправление курса...")
+print("🚀 [ЦУП] Развертывание v162.3 'Reliability Prime'. Приоритет: Стабильность.")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -23,9 +23,12 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
+# Путь к Deno для обхода JS-защиты
+DENO_PATH = "/home/runner/.deno/bin/deno"
+if not os.path.exists(DENO_PATH): DENO_PATH = "deno"
+
 whisper_model = None
 
-# Список современных User-Agent для маскировки
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -62,7 +65,7 @@ def get_smart_summary(text):
     text = re.sub(r'http\S+', '', text)
     text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
-    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter']
+    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter', 'сотрудничество', 'реклама']
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
     lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
     full = " ".join(lines)
@@ -70,21 +73,24 @@ def get_smart_summary(text):
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
     return res if len(res) > 30 else full[:200].strip()
 
-def get_fast_proxy():
-    print("🛰 [ЦУП] Поиск гипер-коридора...")
+def get_deep_proxy():
+    """Максимально тщательный поиск прокси перед каждым видео"""
+    print("🛰 [ЦУП] Поиск сверхстабильного гипер-коридора...")
     url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all"
     try:
-        resp = requests.get(url, timeout=5)
+        resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:60]:
+            for p in proxies[:80]: # Глубокий перебор
                 p_str = f"http://{p.strip()}"
                 try:
-                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2)
+                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=3)
+                    print(f"✅ Коридор подтвержден: {p.strip()}")
                     return p_str
                 except: continue
     except: pass
+    print("⚠️ Прямой эфир (прокси не найдены).")
     return None
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
@@ -95,16 +101,17 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
 
     try:
         v_url = f"https://www.youtube.com/watch?v={v_id}"
-        proxy = get_fast_proxy()
+        current_proxy = get_deep_proxy()
         
         # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
-            'proxy': proxy if proxy else None,
+            'js_runtimes': {'deno': [DENO_PATH]},
+            'proxy': current_proxy,
             'user_agent': random.choice(USER_AGENTS),
-            'nocheckcertificate': True
+            'nocheckcertificate': True,
+            'wait_for_video': (5, 30) # Ждем видео, если YouTube тормозит
         }
         
         with yt_dlp.YoutubeDL(temp_opts) as ydl:
@@ -124,10 +131,11 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
             'quiet': False, 
-            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
-            'retries': 20, 
-            'fragment_retries': 40, 
-            'proxy': proxy if proxy else None,
+            'js_runtimes': {'deno': [DENO_PATH]},
+            'retries': 30, # Увеличено для надежности
+            'fragment_retries': 50, 
+            'continuedl': True,
+            'proxy': current_proxy,
             'user_agent': random.choice(USER_AGENTS)
         }
 
@@ -139,7 +147,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
-            print("🧠 [ЦУП] Запуск Whisper для перевода...")
+            print("🧠 [ЦУП] Запуск Whisper...")
             if whisper_model is None: whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
@@ -153,14 +161,13 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
 
         # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
-            print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
         else:
             target_br = int((SAFE_LIMIT_MB * 1024 * 1024 * 8) / duration * 0.75)
             v_br = max(120000, min(target_br, 2200000))
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
             
-            print(f"⚙️ [ЦУП] Запуск FFmpeg (Сжатие до {v_br/1000:.0f} kbps)...")
+            print(f"⚙️ [ЦУП] FFmpeg: финальная кодировка...")
             subprocess.run([
                 'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
@@ -172,7 +179,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
 
         # --- 5. ТЕЛЕМЕТРИЯ И ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
-        print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
+        print(f"📊 [ЦУП] Миссия завершена. Вес: {final_mb:.2f} Мб")
 
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
