@@ -10,10 +10,10 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы инициализированы. Развертывание v155.0 'Nebula Ghost'...")
+print("🚀 [ЦУП] Системы инициализированы. Развертывание v156.0 'Cosmic Drift'...")
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v155.0 (Ghost Protocol)
+# ⚙️ КОНФИГУРАЦИЯ v156.0 (Cosmic Drift Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -24,7 +24,7 @@ SAFE_LIMIT_MB  = 42
 
 SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс', 'astronomy', 'universe', 'telescope']
 
-# Список свежих узлов захвата (Эшелоны 1-3)
+# МАСШТАБНОЕ ОБНОВЛЕНИЕ УЗЛОВ (Добавлены прокси-ориентированные)
 API_NODES = [
     "https://api.cobalt.tools",
     "https://cobalt.api.v0l.io",
@@ -33,19 +33,22 @@ API_NODES = [
     "https://api.cobalt.icu",
     "https://cobalt.perennialte.ch",
     "https://api.piped.vicr123.com",
-    "https://piped-api.lunar.icu"
+    "https://piped-api.lunar.icu",
+    "https://pipedapi.recloud.me",
+    "https://pipedapi.kavin.rocks",
+    "https://yewtu.be",
+    "https://inv.vern.cc"
 ]
 
-# Ротатор личностей (User-Agents)
 GHOST_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
 ]
 
 whisper_model = None
 
+# ПОЛНЫЙ СПИСОК ЦИТАТ МАРТИ (21 ШТУКА)
 MARTY_QUOTES = [
     "Гав! Вижу цель — свежие новости с орбиты доставлены! 🚀🐾",
     "Ррр-гав! Хвост виляет со скоростью света от такого крутого видео! ✨",
@@ -71,7 +74,7 @@ MARTY_QUOTES = [
 ]
 
 # ============================================================
-# 🛠 СИСТЕМЫ ПРИЗРАЧНОГО ЗАХВАТА
+# 🛠 СИСТЕМЫ ПЕРЕХВАТА
 # ============================================================
 
 def get_video_details(v_id):
@@ -87,55 +90,64 @@ def get_video_details(v_id):
     return 0
 
 def capture_video_stream(v_url, v_id, quality):
-    """Метод 'Nebula Ghost': ротация API с глубокой маскировкой"""
+    """Метод 'Cosmic Drift': агрессивный перебор с принудительным проксированием"""
     nodes = API_NODES.copy()
     random.shuffle(nodes)
     
     for api in nodes:
         try:
             agent = random.choice(GHOST_AGENTS)
-            print(f"🛰 [ЦУП] Попытка захвата через {api}...")
+            print(f"🛰 [ЦУП] Попытка через {api}...")
+            stream_url = None
             
-            # Логика Cobalt
+            # --- Логика Cobalt ---
             if "cobalt" in api or "tools" in api:
                 headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": agent, "Origin": "https://cobalt.tools"}
                 payload = {"url": v_url, "videoQuality": str(quality), "noWatermark": True}
                 r = requests.post(f"{api}/api/json", json=payload, headers=headers, timeout=40)
                 if r.status_code == 200 and "url" in r.json():
                     stream_url = r.json()["url"]
-                else: continue
             
-            # Логика Piped
+            # --- Логика Piped ---
             elif "piped" in api:
                 r = requests.get(f"{api}/streams/{v_id}", timeout=25).json()
                 streams = [s for s in r.get('videoStreams', []) if not s.get('videoOnly') and 'mp4' in s.get('format', '').lower()]
                 if streams:
                     streams.sort(key=lambda x: abs(int(x.get('quality', '0').replace('p','')) - quality))
                     stream_url = streams[0]['url']
-                else: continue
             
-            # Скачивание потока
-            print("🔗 Поток найден! Загрузка...")
-            v_data = requests.get(stream_url, stream=True, timeout=300, headers={"User-Agent": agent})
-            with open("raw_video.mp4", "wb") as f:
-                for chunk in v_data.iter_content(chunk_size=1024*1024):
-                    if chunk: f.write(chunk)
+            # --- Логика Invidious (Зеркала) ---
+            elif "inv" in api or "yewtu" in api:
+                r = requests.get(f"{api}/api/v1/videos/{v_id}", timeout=25).json()
+                formats = [f for f in r.get('formatStreams', []) if 'video/mp4' in f.get('type', '')]
+                if formats:
+                    stream_url = formats[0]['url']
+                    # Принудительное проксирование
+                    if "local=true" not in stream_url:
+                        stream_url += "&local=true" if "?" in stream_url else "?local=true"
+
+            if stream_url:
+                print("🔗 Поток захвачен! Загрузка...")
+                v_data = requests.get(stream_url, stream=True, timeout=400, headers={"User-Agent": agent})
+                if v_data.status_code == 200:
+                    with open("raw_video.mp4", "wb") as f:
+                        for chunk in v_data.iter_content(chunk_size=1024*1024):
+                            if chunk: f.write(chunk)
+                    if os.path.exists("raw_video.mp4") and os.path.getsize("raw_video.mp4") > 100000:
+                        return True
             
-            if os.path.exists("raw_video.mp4") and os.path.getsize("raw_video.mp4") > 1000:
-                return True
-                
         except Exception as e:
-            print(f"⚠️ Узел {api} не ответил. Пауза...")
-            time.sleep(2)
+            print(f"⚠️ Узел {api} отклонил запрос. Дрейфуем дальше...")
+            time.sleep(3)
             continue
             
     return False
 
 # ============================================================
-# 🎬 ПРОЦЕССОР (v155.0 Nebula Ghost)
+# 🎬 ПРОЦЕССОР (v156.0 Cosmic Drift)
 # ============================================================
 
-async def process_mission_v155(v_id, title, desc_raw, duration, is_russian=False):
+async def process_mission_v156(v_id, title, desc_raw, duration, is_russian=False):
     global whisper_model
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
@@ -148,10 +160,10 @@ async def process_mission_v155(v_id, title, desc_raw, duration, is_russian=False
         elif duration > 600: h_limit = 480
         
         v_url = f"https://www.youtube.com/watch?v={v_id}"
-        print(f"🎯 План: {h_limit}p ({duration}с). Прорыв Nebula Ghost...")
+        print(f"🎯 План: {h_limit}p ({duration}с). Запуск Cosmic Drift...")
         
         if not capture_video_stream(v_url, v_id, h_limit):
-            print("❌ Все призрачные туннели заблокированы. YouTube победил.")
+            print("❌ Блокада YouTube абсолютна. Все узлы захвачены или уничтожены.")
             return False
             
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
@@ -201,7 +213,7 @@ async def process_mission_v155(v_id, title, desc_raw, duration, is_russian=False
         print(f"⚠️ Сбой систем: {e}"); return False
 
 async def main():
-    print(f"🎬 [ЦУП] v155.0 'Nebula Ghost' запуск...")
+    print(f"🎬 [ЦУП] v156.0 'Cosmic Drift' запуск...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     
@@ -229,7 +241,7 @@ async def main():
                     if s.get('filter') and not any(kw in (v['title'] + v['desc']).lower() for kw in SPACE_KEYWORDS): continue
                     duration = get_video_details(v['id'])
                     if duration == 0: continue
-                    if await process_mission_v155(v['id'], v['title'], v['desc'], duration, s['ru']):
+                    if await process_mission_v156(v['id'], v['title'], v['desc'], duration, s['ru']):
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                         with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                         print("✅ Миссия выполнена!"); return
