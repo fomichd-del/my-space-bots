@@ -1,54 +1,52 @@
-name: Space Bot v147.7 Deep Space
+name: Bot-video v161.0
 
 on:
   schedule:
-    # 04:00 UTC = 07:00 по вашему времени (Утренний кофе)
-    - cron: '0 4 * * *' 
-    # 05:00 UTC = 08:00 по вашему времени (Второй запуск)
-    - cron: '0 5 * * *'
-    # 13:00 UTC = 16:00 по вашему времени (Дневной эфир)
-    - cron: '0 13 * * *'
-  workflow_dispatch:      
-
-permissions:
-  contents: write
+    - cron: '0 */3 * * *' # Запуск каждые 3 часа
+  workflow_dispatch:      # Кнопка для ручного запуска
 
 jobs:
   mission-launch:
     runs-on: ubuntu-latest
+    # Принудительно используем современную среду для скриптов
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-    - name: 🛰 Копирование систем
-      uses: actions/checkout@v4
+      - name: 🛰 Копирование систем
+        uses: actions/checkout@v4
 
-    - name: 🐍 Подготовка Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: 🐍 Подготовка Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: 🦕 Установка Deno (Ключ к обходу YouTube)
-      uses: denoland/setup-deno@v1
-      with:
-        deno-version: v1.x
+      - name: 🦕 Установка Deno (Ключ к обходу YouTube)
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
 
-    - name: 🛠 Установка оборудования
-      run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: 🛠 Установка оборудования (FFmpeg)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
-    - name: 📦 Установка библиотек
-      run: |
-        pip install requests openai-whisper deep-translator
-        pip install -U https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz
+      - name: 📦 Установка библиотек
+        run: |
+          pip install requests openai-whisper deep_translator
+          pip install -U yt-dlp
 
-    - name: 🚀 Запуск v147.7
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-      run: python bot_video.py
+      - name: 🚀 Запуск v161.0 'Quantum Sensor'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python bot_video.py
 
-    - name: 💾 Сохранение журнала
-      run: |
-        git config --global user.name "Space-Bot"
-        git config --global user.email "bot@vladislav_space"
-        git add last_video_date.txt last_source.txt
-        git commit -m "📊 Реестр v147.7" || echo "Нет данных"
-        git push origin main
+      - name: 💾 Сохранение журнала (Commit & Push)
+        if: always()
+        run: |
+          git config --global user.name "Space-Bot"
+          git config --global user.email "bot@vladislav_space"
+          git add last_video_date.txt last_source.txt || true
+          git commit -m "📊 Реестр v161.0 [автоматически]" || echo "Нет данных для сохранения"
+          git push origin main
