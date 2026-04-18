@@ -11,10 +11,10 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы инициализированы. Развертывание v148.1 'Total Eclipse'...")
+print("🚀 [ЦУП] Системы инициализированы. Развертывание v148.2 'Supernova Expansion'...")
 
 # ============================================================
-# ⚙️ КОНФИГУРАЦИЯ v148.1 (Zero yt-dlp Request Protocol)
+# ⚙️ КОНФИГУРАЦИЯ v148.2 (Massive Bridge Protocol)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
@@ -25,11 +25,16 @@ SAFE_LIMIT_MB  = 42
 
 SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс', 'astronomy', 'universe', 'telescope']
 
-# Список публичных узлов Cobalt API для обхода блокировок YouTube
+# МАСШТАБНОЕ РАСШИРЕНИЕ УЗЛОВ COBALT
 COBALT_INSTANCES = [
     "https://cobalt.api.v0l.io",
     "https://api.cobalt.tools",
-    "https://cobalt-api.lunar.icu"
+    "https://cobalt-api.lunar.icu",
+    "https://cobalt.perennialte.ch",
+    "https://cobalt.as93.net",
+    "https://cobalt.qwedl.com",
+    "https://cobalt.synced.cloud",
+    "https://api.cobalt.icu"
 ]
 
 whisper_model = None
@@ -64,14 +69,12 @@ MARTY_QUOTES = [
 # ============================================================
 
 def parse_duration(duration_str):
-    """Парсит ISO 8601 длительность (PT15M33S) в секунды"""
     match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration_str)
     if not match: return 0
     h, m, s = [int(x) if x else 0 for x in match.groups()]
     return h * 3600 + m * 60 + s
 
 def get_video_details(v_id):
-    """Получает длительность через официальный API YouTube (ключ Google)"""
     try:
         url = f"https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id={v_id}&key={YOUTUBE_API_KEY}"
         res = requests.get(url).json()
@@ -86,45 +89,42 @@ def get_smart_summary(text):
     text = re.sub(r'http\S+', '', text)
     text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
-    
-    # Расширенный фильтр Shield of Purity
-    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'поддержать', 'amnezia', 'vpn', 'сотрудничество', 'донаты', 'нашем канале']
+    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'поддержать', 'amnezia', 'vpn', 'сотрудничество', 'донаты']
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 20 and not any(j in l.lower() for j in junk)]
-    
     full = " ".join(lines)
     sentences = re.split(r'(?<=[.!?]) +', full)
     meaningful = [s.strip() for s in sentences if len(s.strip()) > 30 and not s.lower().startswith(('мы в', 'подпишись'))]
-    
     summary = " ".join(meaningful[:2])
-    if not summary or len(summary) < 40:
-        summary = full[:220].strip()
-        
-    return summary.strip() + ".." if summary else "Свежий отчет из глубин космоса! 🪐"
+    return summary.strip() + ".." if len(summary) > 40 else full[:220].strip()
 
 def download_via_shadow_bridge(v_url, quality):
-    """Метод захвата через API-туннели Cobalt"""
     payload = {"url": v_url, "videoQuality": str(quality), "downloadMode": "video", "noWatermark": True}
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
     
     nodes = COBALT_INSTANCES.copy()
     random.shuffle(nodes)
+    
     for api in nodes:
         try:
             print(f"🛰 [ЦУП] Попытка через узел: {api}...")
-            r = requests.post(f"{api}/api/json", json=payload, headers=headers, timeout=30)
+            r = requests.post(f"{api}/api/json", json=payload, headers=headers, timeout=40)
             if r.status_code == 200 and "url" in r.json():
                 direct_url = r.json()["url"]
                 print("🔗 Поток найден! Скачиваю...")
-                v_data = requests.get(direct_url, stream=True, timeout=120)
+                v_data = requests.get(direct_url, stream=True, timeout=300)
                 with open("raw_video.mp4", "wb") as f:
-                    for chunk in v_data.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                    for chunk in v_data.iter_content(chunk_size=1024*1024):
+                        if chunk: f.write(chunk)
                 return True
-        except: continue
+            else:
+                print(f"⚠️ Узел {api} вернул статус {r.status_code}")
+        except Exception as e:
+            print(f"⚠️ Узел {api} недоступен: {e}")
+            time.sleep(2) # Маленькая пауза перед следующим узлом
     return False
 
 # ============================================================
-# 🎬 ОСНОВНОЙ ПРОЦЕССОР (v148.1 Total Eclipse)
+# 🎬 ОСНОВНОЙ ПРОЦЕССОР (v148.2 Supernova)
 # ============================================================
 
 async def process_mission_v148(v_id, title, desc_raw, duration, is_russian=False, source_name=""):
@@ -134,25 +134,29 @@ async def process_mission_v148(v_id, title, desc_raw, duration, is_russian=False
         if os.path.exists(f): os.remove(f)
 
     try:
-        # Используем подмену URL для обхода некоторых проверок
+        # Для Cobalt API лучше использовать прямую ссылку YouTube
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         
-        # 1. ВЫБОР КАЧЕСТВА (на основе данных от API Google)
+        # 1. ФИЛЬТР ДЛИННЫХ ОБЪЕКТОВ
+        if duration > 2400:
+            print(f"⏩ Объект слишком велик ({duration}с). Пропускаю во избежание блокировок туннелей.")
+            return False
+
         h_limit = 720
-        if duration > 1800: h_limit = 360
-        elif duration > 900: h_limit = 480
+        if duration > 1200: h_limit = 360 # > 20 мин -> 360p
+        elif duration > 600: h_limit = 480 # > 10 мин -> 480p
         
-        print(f"🎯 План: {h_limit}p ({duration}с). Запуск Теневого Моста...")
+        print(f"🎯 План: {h_limit}p ({duration}с). Открытие Shadow Bridge...")
         
-        # 2. ЗАХВАТ ЧЕРЕЗ API-ТУННЕЛЬ
+        # 2. ЗАХВАТ
         if not download_via_shadow_bridge(v_url, h_limit):
-            print("❌ Все туннели заблокированы.")
+            print("❌ Все туннели заблокированы или перегружены.")
             return False
             
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
         print(f"⚖️ Вес объекта: {raw_mb:.1f} Мб")
 
-        # 3. WHISPER (только для иностранных каналов)
+        # 3. WHISPER (для иностранных)
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             if whisper_model is None:
@@ -177,7 +181,7 @@ async def process_mission_v148(v_id, title, desc_raw, duration, is_russian=False
         subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '48k', f_final], capture_output=True)
         f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # 5. ОФОРМЛЕНИЕ И ТРАНСЛЯЦИЯ
+        # 5. ТРАНСЛЯЦИЯ
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         clean_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).upper()
         
@@ -195,12 +199,8 @@ async def process_mission_v148(v_id, title, desc_raw, duration, is_russian=False
     except Exception as e:
         print(f"⚠️ Сбой систем: {e}"); return False
 
-# ============================================================
-# 🛰 ГЛАВНЫЙ ЦИКЛ (ИСТОЧНИКИ)
-# ============================================================
-
 async def main():
-    print(f"🎬 [ЦУП] v148.1 'Total Eclipse' запуск систем...")
+    print(f"🎬 [ЦУП] v148.2 'Supernova Expansion' старт миссии...")
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     
@@ -217,7 +217,7 @@ async def main():
     random.shuffle(SOURCES)
     for s in SOURCES:
         if s['n'] == last_s: continue
-        print(f"📡 Сектор разведки: {s['n']}")
+        print(f"📡 Сектор: {s['n']}")
         try:
             url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle={s['cid'].replace('@','')}&key={YOUTUBE_API_KEY}"
             res = requests.get(url).json()
@@ -228,16 +228,15 @@ async def main():
                 if v['id'] not in db:
                     if s.get('filter') and not any(kw in (v['title'] + v['desc']).lower() for kw in SPACE_KEYWORDS): continue
                     
-                    # Получаем длительность БЕЗ yt-dlp (через Google API)
                     duration = get_video_details(v['id'])
-                    if duration == 0: 
-                        print(f"⚠️ Видео {v['id']} недоступно для API разведки.")
-                        continue
+                    if duration == 0: continue
                     
                     if await process_mission_v148(v['id'], v['title'], v['desc'], duration, s['ru'], s['n']):
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                         with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
-                        print("✅ Посылка доставлена успешно!"); return
+                        print("✅ Миссия выполнена успешно!"); return
+                    else:
+                        print(f"🛰 Перехожу к следующему объекту в секторе {s['n']}...")
         except: continue
     print("🛰 Горизонт чист.")
 
