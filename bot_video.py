@@ -5,13 +5,12 @@ import subprocess
 import whisper
 import yt_dlp
 import asyncio
-import html
-import re
 import requests
-from datetime import datetime
+import re
+import html
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v157.2 'Titanium Armor'...")
+print("🚀 [ЦУП] Откат систем к режиму v159.0 'Retro-Refit'. Только база.")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -21,9 +20,7 @@ YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
-SAFE_LIMIT_MB  = 46  # Повышенный лимит качества по приказу Командора
-
-SPACE_KEYWORDS = ['космос', 'вселенная', 'планета', 'звезд', 'галактик', 'астероид', 'черная дыра', 'марса', 'луна', 'солнц', 'космическ', 'spacex', 'nasa', 'телескоп', 'мкс', 'astronomy', 'universe', 'telescope']
+SAFE_LIMIT_MB  = 46 # Оставляем высокое качество
 
 whisper_model = None
 
@@ -51,29 +48,19 @@ MARTY_QUOTES = [
     "Ррр-гав! Мой бортовой журнал полон открытий, делюсь самым лучшим! 📒✨"
 ]
 
-def get_smart_summary(text):
-    if not text: return "Интересные подробности — внутри ролика! ✨"
-    text = re.sub(r'http\S+', '', text); text = re.sub(r'#\S+', '', text)
-    text = html.unescape(text)
-    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia']
-    lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 20 and not any(j in l.lower() for j in junk)]
-    full = " ".join(lines)
-    sentences = re.split(r'(?<=[.!?]) +', full)
-    res = " ".join([s.strip() for s in sentences if len(s) > 30][:2])
-    return res if len(res) > 30 else full[:200].strip()
-
 def get_fast_proxy():
-    print("🛰 [ЦУП] Поиск гипер-коридора...")
+    print("🛰 [ЦУП] Поиск гипер-коридора (глубокое сканирование)...")
     url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all"
     try:
         resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:40]: # Увеличили выборку для надежности
+            for p in proxies[:50]: # Максимальный поиск
+                p_str = f"http://{p.strip()}"
                 try:
-                    requests.get("https://www.google.com", proxies={"https": f"http://{p.strip()}"}, timeout=2)
-                    return f"http://{p.strip()}"
+                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2)
+                    return p_str
                 except: continue
     except: pass
     return None
@@ -88,34 +75,23 @@ async def process_mission(v_id, title, desc_raw, is_russian=False):
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
         
-        # --- УЛЬТРА-МАСКИРОВКА (Client Spoofing) ---
+        # УПРОЩЕННЫЕ НАСТРОЙКИ (как в старые добрые времена)
         ydl_opts = {
             'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]',
-            'outtmpl': f_raw, 'quiet': True,
-            'merge_output_format': 'mp4',
-            'extractor_args': {
-                'youtube': [
-                    'player_client=android,ios,web', # Ротация клиентов
-                    'player_skip=webpage,configs',
-                    'skip_js_execution'
-                ]
-            },
+            'outtmpl': f_raw,
+            'quiet': True,
             'no_check_certificate': True,
             'noprogress': True
         }
         if proxy: ydl_opts['proxy'] = proxy
 
-        print(f"📡 [ЦУП] Захват объекта {v_id}...")
+        print(f"📡 [ЦУП] Попытка захвата {v_id}...")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([v_url])
         
         if not os.path.exists(f_raw): return False
         
-        # Определение длительности для сжатия
-        probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', f_raw], capture_output=True, text=True)
-        duration = float(probe.stdout.strip()) if probe.stdout.strip() else 60
-
-        # --- WHISPER ---
+        # WHISPER
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             if whisper_model is None: whisper_model = whisper.load_model("base")
@@ -129,27 +105,21 @@ async def process_mission(v_id, title, desc_raw, is_russian=False):
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
-        # --- ТИТАНОВОЕ СЖАТИЕ ---
-        target_br = int((SAFE_LIMIT_MB * 1024 * 1024 * 8) / duration * 0.8)
-        v_br = max(150000, min(target_br, 2500000))
+        # БРОНИРОВАННОЕ СЖАТИЕ (с защитой от вылета)
         vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else "scale=trunc(iw/2)*2:trunc(ih/2)*2"
-        
-        # Добавляем -max_muxing_queue_size для стабильности
         subprocess.run([
             'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
-            '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
-            '-max_muxing_queue_size', '1024',
+            '-c:v', 'libx264', '-crf', '28', '-preset', 'ultrafast', 
+            '-max_muxing_queue_size', '1024', # Тот самый предохранитель
             '-c:a', 'aac', '-b:a', '64k', f_final
         ], capture_output=True)
         
         f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # --- ОТПРАВКА ---
-        summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
+        # ОТПРАВКА
         caption = (
             f"<b>{mode_tag}</b>\n\n🎬 <b>{(title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).upper()}</b>\n"
-            f"──────────────────────\n\n🚀 <b>О ЧЕМ МИССИЯ:</b>\n<i>{summary}</i>\n\n"
-            f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
+            f"──────────────────────\n\n<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
         with open(f_to_send, 'rb') as v:
@@ -159,17 +129,14 @@ async def process_mission(v_id, title, desc_raw, is_russian=False):
 
 async def main():
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
-    last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     SOURCES = [
         {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True},
         {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True},
-        {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False},
         {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True},
         {'n': 'Роскосмос ТВ', 'cid': '@tvroscosmos', 'ru': True}
     ]
     random.shuffle(SOURCES)
     for s in SOURCES:
-        if s['n'] == last_s: continue
         try:
             url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle={s['cid'].replace('@','')}&key={YOUTUBE_API_KEY}"
             res = requests.get(url).json()
@@ -179,8 +146,8 @@ async def main():
                 if v['id'] not in db:
                     if await process_mission(v['id'], v['title'], v['desc'], s['ru']):
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                        with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
                         print("✅ Победа!"); return
+            time.sleep(random.randint(5, 15)) # Пауза между каналами для маскировки
         except: continue
     print("🛰 Горизонт чист.")
 
