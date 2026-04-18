@@ -1,9 +1,13 @@
-name: Space Bot v145.0 Deep Space
+name: Space Bot v147.7 Deep Space
 
 on:
   schedule:
-    - cron: '0 5 * * *' 
-    - cron: '0 16 * * *'
+    # 04:00 UTC = 07:00 по вашему времени (Утренний кофе)
+    - cron: '0 4 * * *' 
+    # 05:00 UTC = 08:00 по вашему времени (Второй запуск)
+    - cron: '0 5 * * *'
+    # 13:00 UTC = 16:00 по вашему времени (Дневной эфир)
+    - cron: '0 13 * * *'
   workflow_dispatch:      
 
 permissions:
@@ -35,7 +39,7 @@ jobs:
         pip install requests openai-whisper deep-translator
         pip install -U https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz
 
-    - name: 🚀 Запуск v145.0
+    - name: 🚀 Запуск v147.7
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -44,7 +48,7 @@ jobs:
     - name: 💾 Сохранение журнала
       run: |
         git config --global user.name "Space-Bot"
-        git config --global user.email "bot@vladislav.space"
+        git config --global user.email "bot@vladislav_space"
         git add last_video_date.txt last_source.txt
-        git commit -m "📊 Реестр v145.0" || echo "Нет данных"
+        git commit -m "📊 Реестр v147.7" || echo "Нет данных"
         git push origin main
