@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v161.0 'Quantum Sensor'. Системы активированы...")
+print("🚀 [ЦУП] Системы переведены в режим v161.1 'Solid Logic'. Исправление курса...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -87,10 +87,11 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
         
+        # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': ['deno'],
+            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕНО: Теперь это словарь!
             'proxy': proxy if proxy else None,
             'nocheckcertificate': True
         }
@@ -107,10 +108,11 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         print(f"⚖️ ТТХ: {duration}с | ~{filesize:.1f}Мб -> Лимит: {h_limit}p")
 
+        # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 'quiet': False, 
-            'js_runtimes': ['deno'],
+            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕНО
             'retries': 20, 'fragment_retries': 40, 'continuedl': True,
             'proxy': proxy if proxy else None,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -121,6 +123,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
+        # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Запуск Whisper для перевода...")
@@ -135,6 +138,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
+        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
@@ -152,6 +156,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
+        # --- 5. ОТПРАВКА ---
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
