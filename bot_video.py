@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v165.0 'Perfect Base'. Анти-белый экран активирован...")
+print("🚀 [ЦУП] Системы переведены в режим v165.1 'Smart Limit'. Анти-белый экран и фильтр веса активированы...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -112,7 +112,15 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         with yt_dlp.YoutubeDL(temp_opts) as ydl:
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 1)
-            filesize = info.get('filesize_approx', 0) / (1024 * 1024)
+            filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
+
+        # 🛑 АНТИ-ПЕРЕВЕС: ПРОВЕРКА ДО СКАЧИВАНИЯ 🛑
+        # Считаем минимально возможный размер файла после FFmpeg (видео 120kbps + аудио 64kbps)
+        min_possible_mb = (120000 + 64000) * duration / (8 * 1024 * 1024)
+        
+        if min_possible_mb > SAFE_LIMIT_MB:
+            print(f"⏭ [ЦУП] ОТМЕНА: Ролик слишком длинный ({int(duration // 60)} мин). После сжатия он весил бы минимум ~{min_possible_mb:.1f} Мб (лимит {SAFE_LIMIT_MB} Мб). Перехватываем следующую цель!")
+            return False
 
         h_limit = 720
         if duration > 1800 or filesize > 800: h_limit = 240
