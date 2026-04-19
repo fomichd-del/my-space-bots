@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v165.1 'Smart Limit'. Анти-белый экран и фильтр веса активированы...")
+print("🚀 [ЦУП] Системы переведены в режим v165.2 'Deep Compress'. Агрессивное сжатие активировано...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -69,7 +69,6 @@ def get_smart_summary(text):
     sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
     res = res if len(res) > 30 else full[:200].strip()
-    # Безопасная очистка скобок, чтобы не ломать HTML в Telegram
     return res.replace('<', '«').replace('>', '»')
 
 def get_fast_proxy():
@@ -112,14 +111,11 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         with yt_dlp.YoutubeDL(temp_opts) as ydl:
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 1)
-            filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
+            filesize = info.get('filesize_approx', 0) / (1024 * 1024)
 
-        # 🛑 АНТИ-ПЕРЕВЕС: ПРОВЕРКА ДО СКАЧИВАНИЯ 🛑
-        # Считаем минимально возможный размер файла после FFmpeg (видео 120kbps + аудио 64kbps)
-        min_possible_mb = (120000 + 64000) * duration / (8 * 1024 * 1024)
-        
-        if min_possible_mb > SAFE_LIMIT_MB:
-            print(f"⏭ [ЦУП] ОТМЕНА: Ролик слишком длинный ({int(duration // 60)} мин). После сжатия он весил бы минимум ~{min_possible_mb:.1f} Мб (лимит {SAFE_LIMIT_MB} Мб). Перехватываем следующую цель!")
+        # Пропускаем только откровенные фильмы (больше 60 минут)
+        if duration > 3600:
+            print(f"⏭ [ЦУП] Ролик дольше 1 часа ({int(duration//60)} мин). Пропускаем.")
             return False
 
         h_limit = 720
@@ -166,17 +162,24 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
         else:
-            target_br = int((SAFE_LIMIT_MB * 1024 * 1024 * 8) / duration * 0.75)
-            v_br = max(120000, min(target_br, 2200000))
+            # Агрессивный расчет битрейта для длинных видео (целимся в 44 Мб для запаса)
+            target_total_bps = int((44 * 1024 * 1024 * 8) / duration)
+            a_br_bps = 64000 if duration <= 1800 else 32000
+            target_v_bps = target_total_bps - a_br_bps
+            
+            # Позволяем битрейту падать до 40 kbps (для 240p этого достаточно)
+            v_br = max(40000, min(target_v_bps, 2200000))
+            a_br = '64k' if duration <= 1800 else '32k'
+            
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
             
-            print(f"⚙️ [ЦУП] Запуск FFmpeg (Сжатие до {v_br/1000:.0f} kbps)...")
+            print(f"⚙️ [ЦУП] Запуск FFmpeg (Видео: {v_br//1000} kbps | Аудио: {a_br})...")
             subprocess.run([
                 'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
                 '-max_muxing_queue_size', '1024',
                 '-movflags', '+faststart',
-                '-c:a', 'aac', '-b:a', '64k', f_final
+                '-c:a', 'aac', '-b:a', a_br, f_final
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
