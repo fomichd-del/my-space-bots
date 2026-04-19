@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v164.4 'Crystal Preview'. Генерация обложек активирована...")
+print("🚀 [ЦУП] Системы переведены в режим v162.1 'Deep Space Hotfix'. Исправление курса...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -24,13 +24,6 @@ SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
 whisper_model = None
-
-SPACE_KEYWORDS = [
-    'космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 
-    'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 
-    'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос',
-    'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт'
-]
 
 # Список современных User-Agent для маскировки
 USER_AGENTS = [
@@ -65,9 +58,7 @@ MARTY_QUOTES = [
 ]
 
 def get_smart_summary(text):
-    if not text or len(text.strip()) < 5: 
-        return "Интересные подробности — внутри ролика! ✨"
-    
+    if not text: return "Интересные подробности — внутри ролика! ✨"
     text = re.sub(r'http\S+', '', text)
     text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
@@ -77,13 +68,7 @@ def get_smart_summary(text):
     full = " ".join(lines)
     sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
-    
-    if len(res) < 30:
-        res = full[:200].strip()
-        if not res:
-            res = "Невероятные космические явления запечатлены в этом видео. Смотрим! 🚀"
-            
-    return html.escape(res)
+    return res if len(res) > 30 else full[:200].strip()
 
 def get_fast_proxy():
     print("🛰 [ЦУП] Поиск гипер-коридора...")
@@ -104,15 +89,8 @@ def get_fast_proxy():
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model
-    
-    if source_name == "ADME":
-        search_text = (title + " " + desc_raw).lower()
-        if not any(word in search_text for word in SPACE_KEYWORDS):
-            print(f"⏭ [ЦУП] Объект ADME {v_id} не прошел звездный фильтр. Пропускаем.")
-            return False
-
-    f_raw, f_final, f_thumb = "raw_video.mp4", "final_video.mp4", "thumb.jpg"
-    for f in [f_raw, f_final, "subs.srt", f_thumb]:
+    f_raw, f_final = "raw_video.mp4", "final_video.mp4"
+    for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
 
     try:
@@ -123,7 +101,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': {'deno': {}}, 
+            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
             'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True
@@ -133,9 +111,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 1)
             filesize = info.get('filesize_approx', 0) / (1024 * 1024)
-            if info.get('is_live') or info.get('live_status') == 'is_upcoming':
-                print("⏭ [ЦУП] Это трансляция или премьера. Ждать не будем, пропускаем.")
-                return False
 
         h_limit = 720
         if duration > 1800 or filesize > 800: h_limit = 240
@@ -149,7 +124,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
             'quiet': False, 
-            'js_runtimes': {'deno': {}}, 
+            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
             'retries': 20, 
             'fragment_retries': 40, 
             'proxy': proxy if proxy else None,
@@ -191,21 +166,9 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
                 '-max_muxing_queue_size', '1024',
                 '-movflags', '+faststart',
-                '-pix_fmt', 'yuv420p',
                 '-c:a', 'aac', '-b:a', '64k', f_final
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
-
-        # --- 4.5 СОЗДАНИЕ ОБЛОЖКИ (Анти-Белый Экран) ---
-        print("📸 [ЦУП] Создаем обложку для Telegram (Превью)...")
-        subprocess.run([
-            'ffmpeg', '-y', '-i', f_to_send, 
-            '-ss', '00:00:02.000',     # Берем кадр на 2-й секунде, чтобы не зацепить черный экран
-            '-vframes', '1',           # Всего один кадр
-            '-vf', 'scale=320:-1',     # Строгое требование Telegram: не больше 320 пикселей по ширине
-            '-q:v', '2',               # Высокое качество JPEG
-            f_thumb
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         # --- 5. ТЕЛЕМЕТРИЯ И ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
@@ -213,42 +176,19 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
 
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
-        ru_title_safe = html.escape(ru_title)
         
         caption = (
-            f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title_safe.upper()}</b>\n"
+            f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n"
             f"──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n"
             f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
         with open(f_to_send, 'rb') as v:
-            # Готовим файлы к отправке
-            files_to_send = {"video": v}
-            thumb_file = None
-            
-            # Если обложка успешно создалась, прикрепляем её
-            if os.path.exists(f_thumb):
-                thumb_file = open(f_thumb, 'rb')
-                files_to_send["thumbnail"] = thumb_file
-
-            try:
-                r = requests.post(
-                    f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                    files=files_to_send, 
-                    data={
-                        "chat_id": CHANNEL_NAME, 
-                        "caption": caption, 
-                        "parse_mode": "HTML",
-                        "supports_streaming": True 
-                    }, 
-                    timeout=600
-                )
-                return r.status_code == 200
-            finally:
-                # Обязательно закрываем файл обложки после отправки
-                if thumb_file:
-                    thumb_file.close()
-                    
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                              files={"video": v}, 
+                              data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, 
+                              timeout=600)
+            return r.status_code == 200
     except Exception as e:
         print(f"⚠️ Сбой систем: {e}"); return False
 
@@ -262,8 +202,7 @@ async def main():
         {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True},
         {'n': 'Роскосмос ТВ', 'cid': '@tvroscosmos', 'ru': True},
         {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True},
-        {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True},
-        {'n': 'ADME', 'cid': '@ADME_RU', 'ru': True}
+        {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}
     ]
     random.shuffle(SOURCES)
     for s in SOURCES:
