@@ -1,6 +1,7 @@
 import requests
 import os
 import sys
+import json
 from deep_translator import GoogleTranslator
 
 # --- НАСТРОЙКИ ---
@@ -45,7 +46,6 @@ def get_cosmos_content(target_type):
 
 def send_to_telegram(target_type):
     """Основная логика отправки"""
-    # ВАЖНО: Разделяем файлы памяти для фото и видео
     db_file = f"last_cosmo_{target_type}.txt"
     
     data = get_cosmos_content(target_type)
@@ -53,17 +53,14 @@ def send_to_telegram(target_type):
         print(f"❌ Не удалось найти {target_type} от NASA")
         return
 
-    # Используем дату как уникальный ключ
     current_id = data.get('date', data.get('title', ''))
     
-    # --- ПРОВЕРКА НА ПОВТОРЫ ---
     if os.path.exists(db_file):
         with open(db_file, 'r', encoding='utf-8') as f:
             if f.read().strip() == current_id:
                 print(f"✋ Этот контент ({target_type}) за {current_id} уже был.")
                 return
 
-    # --- ПЕРЕВОД ---
     try:
         translator = GoogleTranslator(source='en', target='ru')
         ru_title = translator.translate(data.get('title', 'Космос'))
@@ -83,8 +80,7 @@ def send_to_telegram(target_type):
 
     payload = {
         'chat_id': CHANNEL_NAME,
-        'parse_mode': 'HTML',
-        'disable_web_page_preview': False 
+        'parse_mode': 'HTML'
     }
 
     if target_type == 'image':
@@ -93,15 +89,22 @@ def send_to_telegram(target_type):
         api_method = "sendPhoto"
     else:
         video_url = data.get('url')
-        video_note = f"🎞 <b>Ссылка на ролик:</b> {video_url}\n\n"
-        payload['text'] = header + video_note + body + footer
+        # 🔥 ФОКУС: Невидимая ссылка в начале текста для генерации превью
+        hidden_link = f"<a href='{video_url}'>&#8205;</a>" 
+        payload['text'] = hidden_link + header + body + footer
+        # Настройка превью СВЕРХУ
+        payload['link_preview_options'] = {
+            'is_disabled': False,
+            'show_above_text': True,
+            'prefer_large_media': True
+        }
         api_method = "sendMessage"
 
     # --- ОТПРАВКА ---
-    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{api_method}", data=payload)
+    # Используем json=payload для корректной передачи вложенных настроек превью
+    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{api_method}", json=payload)
     
     if r.status_code == 200:
-        # Записываем дату именно в нужный файл (image или video)
         with open(db_file, 'w', encoding='utf-8') as f:
             f.write(current_id)
         print(f"✅ Пост успешно отправлен. Память сохранена в {db_file}")
@@ -109,6 +112,5 @@ def send_to_telegram(target_type):
         print(f"❌ Ошибка Telegram: {r.text}")
 
 if __name__ == "__main__":
-    # Получаем команду (image/video) из экшена
     mode = sys.argv[1] if len(sys.argv) > 1 else 'image'
     send_to_telegram(mode)
