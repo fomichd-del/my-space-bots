@@ -11,11 +11,9 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Titanium Resurgence'. Возвращение к истокам v2.5...")
+print("🚀 [ЦУП] Системы переведены в режим 'Deep Space'. Активирован POT-провайдер...")
 
-# ============================================================
-# ⚙️ КОНФИГУРАЦИЯ
-# ============================================================
+# Настройки остаются прежними (Ваш золотой стандарт)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES') 
@@ -26,39 +24,18 @@ SAFE_LIMIT_MB  = 46
 
 whisper_model = None
 
-SPACE_KEYWORDS = [
-    'космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 
-    'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 
-    'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос',
-    'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship'
-]
-
-USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0'
-]
-
-MARTY_QUOTES = [
-    "Гав! Вижу цель — свежие новости с орбиты доставлены! 🚀🐾",
-    "Ррр-гав! Хвост виляет со скоростью света от такого видео! ✨",
-    "Тяв! Проверил обшивку — ни одной космической кошки на борту! 🛰️",
-    "Гав! В космосе никто не услышит твой лай, но мой пост увидят все! 🌌",
-    "Гав! Передал данные быстрее, чем летит метеорит! ☄️🐾",
-    "Ррр-гав! Защищаю канал от скуки лучше, чем нейросеть! 🛡️"
-]
+SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
+USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
+MARTY_QUOTES = ["Гав! Взломал код Ютуба! Несите косточку! 🦴🚀", "Ррр-гав! Вижу цель сквозь помехи! ✨", "Тяв! Командор, я достал эти токены! 🛰️"]
 
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
-    text = re.sub(r'http\S+', '', text)
-    text = re.sub(r'#\S+', '', text)
-    text = html.unescape(text)
+    text = re.sub(r'http\S+', '', text); text = re.sub(r'#\S+', '', text); text = html.unescape(text)
     junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter', 'скачать', 'скачивай', 'ссылк', 'спонсор', 'реклама', 'промокод', 'скидк', 'boosty', 'patreon', 'поддержать', 'курсы', 'telegram']
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
     lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
-    full = " ".join(lines)
-    sentences = re.split(r'(?<=[.!?]) +', full)
+    full = " ".join(lines); sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
-    res = res if len(res) > 30 else full[:200].strip()
     if not res or len(res) < 15: res = "Погружаемся в тайны Вселенной в новом выпуске! Приятного просмотра."
     return res.replace('<', '«').replace('>', '»').replace('&', 'и')
 
@@ -68,13 +45,11 @@ def get_fast_proxy():
     try:
         resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
-            proxies = resp.text.strip().split('\n')
-            random.shuffle(proxies)
-            for p in proxies[:40]:
+            proxies = resp.text.strip().split('\n'); random.shuffle(proxies)
+            for p in proxies[:30]:
                 p_str = f"http://{p.strip()}"
                 try:
-                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2)
-                    return p_str
+                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2); return p_str
                 except: continue
     except: pass
     return None
@@ -83,8 +58,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
     global whisper_model
     if source_name in ["EVLSPACE", "ADME_RU"]:
         search_text = (title + " " + (desc_raw if desc_raw else "")).lower()
-        if not any(word in search_text for word in SPACE_KEYWORDS):
-            print(f"⏭ [ЦУП] Объект {source_name} не прошел фильтр. Пропускаем."); return False
+        if not any(word in search_text for word in SPACE_KEYWORDS): return False
             
     f_raw, f_final, f_thumb, f_cookies = "raw_video.mp4", "final_video.mp4", "thumb.jpg", "cookies.txt"
     for f in [f_raw, f_final, "subs.srt", f_thumb, f_cookies]:
@@ -99,20 +73,18 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         
         base_ydl_opts = {
-            'quiet': True, 
-            'proxy': proxy if proxy else None,
+            'quiet': True, 'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True,
-            # 🔥 Ключевое изменение: используем только те клиенты, которые любят куки
+            # 🔥 Включаем поддержку плагина для генерации PO-Token
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['web', 'mweb', 'tv'],
+                    'player_client': ['web', 'mweb'],
                     'player_skip': ['configs']
                 }
             },
-            'sleep_interval': random.uniform(3, 8), 
-            'max_sleep_interval': 15,
-            'retries': 5
+            'sleep_interval': random.uniform(5, 10), 
+            'max_sleep_interval': 20
         }
         if os.path.exists(f_cookies): base_ydl_opts['cookiefile'] = f_cookies
         
@@ -120,61 +92,48 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             try:
                 info = ydl.extract_info(v_url, download=False)
             except Exception as e:
-                # Если с куками и прокси не вышло, пробуем один раз "как есть" (бывает помогает)
-                print(f"🔄 Помехи: {e}. Пробую резервный метод..."); time.sleep(5)
-                base_ydl_opts['proxy'] = None
-                with yt_dlp.YoutubeDL(base_ydl_opts) as ydl_res:
-                    info = ydl_res.extract_info(v_url, download=False)
+                print(f"⚠️ Ошибка доступа: {e}"); return False
                 
             duration = info.get('duration', 1)
             filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
 
-        if duration > 3600: print(f"⏭ [ЦУП] Ролик слишком длинный."); return False
+        if duration > 3600: return False
 
         h_limit = 720
         if duration > 1800 or filesize > 800: h_limit = 240
         elif duration > 900 or filesize > 500: h_limit = 360
         elif duration > 480 or filesize > 300: h_limit = 480
         
-        print(f"⚖️ ТТХ: {duration}с | Лимит: {h_limit}p")
-
         download_opts = base_ydl_opts.copy()
-        # Расширяем поиск форматов, чтобы не было ошибки "format is not available"
         download_opts.update({
-            'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]/best',
-            'outtmpl': f_raw, 'quiet': False, 'retries': 15
+            'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
+            'outtmpl': f_raw, 'quiet': False, 'retries': 20
         })
 
         with yt_dlp.YoutubeDL(download_opts) as ydl: ydl.download([v_url])
         if not os.path.exists(f_raw): return False
+        
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
-
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
-            print("🧠 [ЦУП] Whisper..."); mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
+            print("🧠 Whisper..."); mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
             if whisper_model is None: whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
-                srt = ""
-                for i, seg in enumerate(res.get('segments', [])):
-                    t_ru = GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())
-                    srt += f"{i+1}\n{time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))} --> {time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))}\n{t_ru}\n\n"
+                srt = ""; [srt.update(f"{i+1}\n{time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))} --> {time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))}\n{GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())}\n\n") for i, seg in enumerate(res.get('segments', []))]
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
         if is_russian and raw_mb < SAFE_LIMIT_MB: f_to_send = f_raw
         else:
             target_total_bps = int((44 * 1024 * 1024 * 8) / duration)
-            a_br_bps = 64000 if duration <= 1500 else 32000
-            target_v_bps = target_total_bps - a_br_bps
-            v_br, a_br = max(40000, min(target_v_bps, 2200000)), ('64k' if duration <= 1500 else '32k')
+            v_br = max(40000, min(target_total_bps - 32000, 2200000))
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
-            print(f"⚙️ FFmpeg..."); subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-g', '60', '-max_muxing_queue_size', '1024', '-movflags', '+faststart', '-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '44100', '-b:a', a_br, f_final])
+            subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-g', '60', '-max_muxing_queue_size', '1024', '-movflags', '+faststart', '-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '44100', '-b:a', '32k', f_final])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
         subprocess.run(['ffmpeg', '-y', '-i', f_to_send, '-ss', '00:00:02.000', '-vframes', '1', '-vf', 'scale=320:-1', '-q:v', '2', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
-        ru_title = ru_title.replace('<', '«').replace('>', '»').replace('&', 'и')
+        ru_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).replace('<', '«').replace('>', '»').replace('&', 'и')
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         caption = f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
 
@@ -196,8 +155,7 @@ async def main():
         if s['n'] == last_s: continue
         try:
             url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle={s['cid'].replace('@','')}&key={YOUTUBE_API_KEY}"
-            res = requests.get(url).json()
-            up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+            res = requests.get(url).json(); up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
             vids = [{'id': i['snippet']['resourceId']['videoId'], 'title': i['snippet']['title'], 'desc': i['snippet']['description']} for i in requests.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={up_id}&maxResults=3&key={YOUTUBE_API_KEY}").json()['items']]
             for v in vids:
                 if v['id'] not in db:
