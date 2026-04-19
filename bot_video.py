@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Grandmaster'. Активирован EJS и JS-Runtime: Node...")
+print("🚀 [ЦУП] Системы переведены в режим 'Grandmaster v2.7'. Исправление формата JS-Runtime...")
 
 # Настройки базы (Ваш золотой стандарт)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -26,7 +26,7 @@ whisper_model = None
 
 SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
 USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
-MARTY_QUOTES = ["Гав! Разгадал все JS-загадки! 🧩🚀", "Ррр-гав! Теперь я настоящий хакер! ✨", "Тяв! Доставил видео в обход всех щитов! 🛰️"]
+MARTY_QUOTES = ["Гав! Перенастроил навигатор, теперь формат правильный! 🧩🚀", "Ррр-гав! Больше никаких ошибок в логах! ✨", "Тяв! Командор, я готов к захвату целей! 🛰️"]
 
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
@@ -75,9 +75,9 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'quiet': True, 'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True,
-            # 🔥 Настройки из новой Wiki (EJS + PO-Token)
-            'js_runtimes': ['node'], # Явно включаем Node
-            'remote_components': 'ejs:github', # Включаем загрузку скриптов с GitHub
+            # 🔥 ИСПРАВЛЕННЫЙ ФОРМАТ (согласно логам ошибки)
+            'js_runtimes': {'node': {}}, 
+            'remote_components': {'ejs': 'github'}, 
             'extractor_args': {
                 'youtube': {
                     'player_client': ['web', 'mweb'],
