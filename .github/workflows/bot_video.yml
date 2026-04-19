@@ -1,9 +1,9 @@
-name: Bot-video v162.0
+name: Bot-video v166.0
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # Запуск каждые 3 часа (00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00 UTC)
-  workflow_dispatch:      # Кнопка для ручного запуска
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
 
 jobs:
   mission-launch:
@@ -20,10 +20,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 🦕 Установка Deno (Ключ к обходу YouTube)
-        uses: denoland/setup-deno@v1
+      - name: 🟢 Установка Node.js (Для разгадки N-Challenge)
+        uses: actions/setup-node@v4
         with:
-          deno-version: v1.x
+          node-version: '20'
 
       - name: 🛠 Установка оборудования (FFmpeg)
         run: |
@@ -35,22 +35,22 @@ jobs:
           pip install requests openai-whisper deep_translator
           pip install -U yt-dlp
 
-      - name: 🚀 Запуск v162.0 'Titanium Sensor'
+      - name: 🚀 Запуск v166.0 'Solaris'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: python bot_video.py
 
-      - name: 🧹 Уборка секретных данных
+      - name: 🧹 Уборка
         if: always()
-        run: rm -f cookies.txt # Удаляем куки, чтобы они не попали в репозиторий
+        run: rm -f cookies.txt
 
-      - name: 💾 Сохранение журнала (Commit & Push)
+      - name: 💾 Сохранение журнала
         if: always()
         run: |
           git config --global user.name "Space-Bot"
           git config --global user.email "bot@vladislav_space"
           git add last_video_date.txt last_source.txt || true
-          git commit -m "📊 Реестр v162.0 [автоматически]" || echo "Нет данных для сохранения"
+          git commit -m "📊 Реестр v166.0" || echo "Нет данных"
           git push origin main
