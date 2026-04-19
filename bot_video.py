@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Supernova' (v2.4). Стабилизация связи и Web-приоритет...")
+print("🚀 [ЦУП] Системы переведены в режим 'Titanium Resurgence'. Возвращение к истокам v2.5...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -35,14 +35,16 @@ SPACE_KEYWORDS = [
 
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0'
 ]
 
 MARTY_QUOTES = [
-    "Гав! Пробиваюсь сквозь помехи! Новости в пути! 📡🐾",
-    "Ррр-гав! Поймал стабильный сигнал с орбиты! ✨",
-    "Тяв! Ютуб кусается, но я быстрее! 🚀",
-    "Гав! Поднял антенны на максимум, Командор! 🛰️"
+    "Гав! Вижу цель — свежие новости с орбиты доставлены! 🚀🐾",
+    "Ррр-гав! Хвост виляет со скоростью света от такого видео! ✨",
+    "Тяв! Проверил обшивку — ни одной космической кошки на борту! 🛰️",
+    "Гав! В космосе никто не услышит твой лай, но мой пост увидят все! 🌌",
+    "Гав! Передал данные быстрее, чем летит метеорит! ☄️🐾",
+    "Ррр-гав! Защищаю канал от скуки лучше, чем нейросеть! 🛡️"
 ]
 
 def get_smart_summary(text):
@@ -68,7 +70,7 @@ def get_fast_proxy():
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:30]:
+            for p in proxies[:40]:
                 p_str = f"http://{p.strip()}"
                 try:
                     requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2)
@@ -82,7 +84,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
     if source_name in ["EVLSPACE", "ADME_RU"]:
         search_text = (title + " " + (desc_raw if desc_raw else "")).lower()
         if not any(word in search_text for word in SPACE_KEYWORDS):
-            print(f"⏭ [ЦУП] Объект {source_name} не прошел фильтр."); return False
+            print(f"⏭ [ЦУП] Объект {source_name} не прошел фильтр. Пропускаем."); return False
             
     f_raw, f_final, f_thumb, f_cookies = "raw_video.mp4", "final_video.mp4", "thumb.jpg", "cookies.txt"
     for f in [f_raw, f_final, "subs.srt", f_thumb, f_cookies]:
@@ -101,19 +103,16 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True,
-            # 🔥 Supernova: Приоритизируем Web-клиентов для работы с куками
+            # 🔥 Ключевое изменение: используем только те клиенты, которые любят куки
             'extractor_args': {
                 'youtube': {
                     'player_client': ['web', 'mweb', 'tv'],
                     'player_skip': ['configs']
                 }
             },
-            'sleep_interval': random.uniform(3, 7), 
+            'sleep_interval': random.uniform(3, 8), 
             'max_sleep_interval': 15,
-            'ignoreerrors': False,
-            'no_warnings': False,
-            'socket_timeout': 30,
-            'retries': 10
+            'retries': 5
         }
         if os.path.exists(f_cookies): base_ydl_opts['cookiefile'] = f_cookies
         
@@ -121,13 +120,11 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             try:
                 info = ydl.extract_info(v_url, download=False)
             except Exception as e:
-                # Если с прокси не вышло, пробуем один раз напрямую
-                if proxy:
-                    print("🔄 Прокси подвел. Пробую прямой канал...")
-                    base_ydl_opts['proxy'] = None
-                    with yt_dlp.YoutubeDL(base_ydl_opts) as ydl_direct:
-                        info = ydl_direct.extract_info(v_url, download=False)
-                else: raise e
+                # Если с куками и прокси не вышло, пробуем один раз "как есть" (бывает помогает)
+                print(f"🔄 Помехи: {e}. Пробую резервный метод..."); time.sleep(5)
+                base_ydl_opts['proxy'] = None
+                with yt_dlp.YoutubeDL(base_ydl_opts) as ydl_res:
+                    info = ydl_res.extract_info(v_url, download=False)
                 
             duration = info.get('duration', 1)
             filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
@@ -142,16 +139,16 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         print(f"⚖️ ТТХ: {duration}с | Лимит: {h_limit}p")
 
         download_opts = base_ydl_opts.copy()
+        # Расширяем поиск форматов, чтобы не было ошибки "format is not available"
         download_opts.update({
-            'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
-            'outtmpl': f_raw, 'quiet': False, 'retries': 20
+            'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]/best',
+            'outtmpl': f_raw, 'quiet': False, 'retries': 15
         })
 
         with yt_dlp.YoutubeDL(download_opts) as ydl: ydl.download([v_url])
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
-        # Обработка Whisper и FFmpeg (наша золотая база)
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Whisper..."); mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
