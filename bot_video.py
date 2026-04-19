@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v162.4 'Star Filter'. Включена фильтрация EVLSPACE...")
+print("🚀 [ЦУП] Системы переведены в режим v165.0 'Perfect Base'. Анти-белый экран активирован...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -77,7 +77,8 @@ def get_smart_summary(text):
     sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
     res = res if len(res) > 30 else full[:200].strip()
-    return res.replace('&', '&amp;').replace('<', '«').replace('>', '»')
+    # Безопасная очистка скобок, чтобы не ломать HTML в Telegram
+    return res.replace('<', '«').replace('>', '»')
 
 def get_fast_proxy():
     print("🛰 [ЦУП] Поиск гипер-коридора...")
@@ -98,16 +99,8 @@ def get_fast_proxy():
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model
-    
-    # --- 🛡 ЗВЕЗДНЫЙ ФИЛЬТР ---
-    if source_name == "EVLSPACE":
-        search_text = (title + " " + (desc_raw if desc_raw else "")).lower()
-        if not any(word in search_text for word in SPACE_KEYWORDS):
-            print(f"⏭ [ЦУП] Объект {source_name} ({v_id}) не прошел фильтр (не о космосе). Пропускаем.")
-            return False
-
-    f_raw, f_final = "raw_video.mp4", "final_video.mp4"
-    for f in [f_raw, f_final, "subs.srt"]:
+    f_raw, f_final, f_thumb = "raw_video.mp4", "final_video.mp4", "thumb.jpg"
+    for f in [f_raw, f_final, "subs.srt", f_thumb]:
         if os.path.exists(f): os.remove(f)
 
     try:
@@ -187,23 +180,24 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
+        # --- 4.5 СОЗДАНИЕ ОБЛОЖКИ (Анти-Белый Экран) ---
+        print("📸 [ЦУП] Создаем превью...")
+        subprocess.run([
+            'ffmpeg', '-y', '-i', f_to_send, 
+            '-ss', '00:00:02.000', 
+            '-vframes', '1', 
+            '-vf', 'scale=320:-1', 
+            '-q:v', '2', 
+            f_thumb
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
         # --- 5. ТЕЛЕМЕТРИЯ И ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
         print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
 
-        try:
-            ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
-        except:
-            ru_title = title
-        ru_title = ru_title.replace('&', '&amp;').replace('<', '«').replace('>', '»')
-        
-        try:
-            raw_desc_cut = desc_raw[:3000] if desc_raw else ""
-            ru_desc = raw_desc_cut if is_russian else GoogleTranslator(source='auto', target='ru').translate(raw_desc_cut)
-        except:
-            ru_desc = "Интересные подробности в ролике!"
-            
-        summary = get_smart_summary(ru_desc)
+        ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
+        ru_title = ru_title.replace('<', '«').replace('>', '»')
+        summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         
         caption = (
             f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n"
@@ -212,18 +206,30 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         )
 
         with open(f_to_send, 'rb') as v:
-            r = requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                files={"video": v}, 
-                data={
-                    "chat_id": CHANNEL_NAME, 
-                    "caption": caption, 
-                    "parse_mode": "HTML",
-                    "supports_streaming": "true" 
-                }, 
-                timeout=600
-            )
-            return r.status_code == 200
+            files_to_send = {"video": v}
+            thumb_file = None
+            
+            if os.path.exists(f_thumb):
+                thumb_file = open(f_thumb, 'rb')
+                files_to_send["thumbnail"] = thumb_file
+
+            try:
+                r = requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                    files=files_to_send, 
+                    data={
+                        "chat_id": CHANNEL_NAME, 
+                        "caption": caption, 
+                        "parse_mode": "HTML",
+                        "supports_streaming": "true" 
+                    }, 
+                    timeout=600
+                )
+                return r.status_code == 200
+            finally:
+                if thumb_file:
+                    thumb_file.close()
+                    
     except Exception as e:
         print(f"⚠️ Сбой систем: {e}"); return False
 
