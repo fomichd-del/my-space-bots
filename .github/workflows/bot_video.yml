@@ -40,6 +40,7 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }} # 🔥 Мост для передачи кукисов
         run: python bot_video.py
 
       - name: 💾 Сохранение журнала (Commit & Push)
