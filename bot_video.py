@@ -11,9 +11,9 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Deep Space'. Активирован POT-провайдер...")
+print("🚀 [ЦУП] Системы переведены в режим 'Grandmaster'. Активирован EJS и JS-Runtime: Node...")
 
-# Настройки остаются прежними (Ваш золотой стандарт)
+# Настройки базы (Ваш золотой стандарт)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES') 
@@ -26,7 +26,7 @@ whisper_model = None
 
 SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
 USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
-MARTY_QUOTES = ["Гав! Взломал код Ютуба! Несите косточку! 🦴🚀", "Ррр-гав! Вижу цель сквозь помехи! ✨", "Тяв! Командор, я достал эти токены! 🛰️"]
+MARTY_QUOTES = ["Гав! Разгадал все JS-загадки! 🧩🚀", "Ррр-гав! Теперь я настоящий хакер! ✨", "Тяв! Доставил видео в обход всех щитов! 🛰️"]
 
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
@@ -46,10 +46,9 @@ def get_fast_proxy():
         resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n'); random.shuffle(proxies)
-            for p in proxies[:30]:
+            for p in proxies[:20]:
                 p_str = f"http://{p.strip()}"
-                try:
-                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2); return p_str
+                try: requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2); return p_str
                 except: continue
     except: pass
     return None
@@ -76,23 +75,23 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'quiet': True, 'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True,
-            # 🔥 Включаем поддержку плагина для генерации PO-Token
+            # 🔥 Настройки из новой Wiki (EJS + PO-Token)
+            'js_runtimes': ['node'], # Явно включаем Node
+            'remote_components': 'ejs:github', # Включаем загрузку скриптов с GitHub
             'extractor_args': {
                 'youtube': {
                     'player_client': ['web', 'mweb'],
                     'player_skip': ['configs']
                 }
             },
-            'sleep_interval': random.uniform(5, 10), 
-            'max_sleep_interval': 20
+            'sleep_interval': random.uniform(5, 12), 
+            'max_sleep_interval': 25
         }
         if os.path.exists(f_cookies): base_ydl_opts['cookiefile'] = f_cookies
         
         with yt_dlp.YoutubeDL(base_ydl_opts) as ydl:
-            try:
-                info = ydl.extract_info(v_url, download=False)
-            except Exception as e:
-                print(f"⚠️ Ошибка доступа: {e}"); return False
+            try: info = ydl.extract_info(v_url, download=False)
+            except Exception as e: print(f"⚠️ Ошибка: {e}"); return False
                 
             duration = info.get('duration', 1)
             filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
