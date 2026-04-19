@@ -219,7 +219,7 @@ async def main():
         {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True},
         {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False},
         {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True},
-        {'n': 'Роскосмос ТВ', 'cid': '@tvroscosmos', 'ru': True},
+        {'n': 'EVLSPACE', 'cid': '@EVLSPACE', 'ru': True},
         {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True},
         {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}
     ]
