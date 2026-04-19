@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v164.0 'Titanium Core'. Исправление таймаутов...")
+print("🚀 [ЦУП] Развертывание v164.1 'Streaming Protocol'. Активация мгновенного воспроизведения...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -23,7 +23,6 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
-# Путь к Deno для обхода защит YouTube
 DENO_BIN = "/home/runner/.deno/bin/deno"
 JS_CONF = {'deno': {}}
 if os.path.exists(DENO_BIN):
@@ -77,17 +76,28 @@ MARTY_QUOTES = [
 ]
 
 def get_smart_summary(text):
-    if not text: return "Интересные подробности — внутри ролика! ✨"
+    if not text or len(text.strip()) < 5: 
+        return "Интересные подробности и визуальные доказательства — внутри ролика! Включайте скорее! ✨"
+    
     text = re.sub(r'http\S+', '', text)
     text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
+    
     junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter']
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
     lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
+    
     full = " ".join(lines)
     sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
-    return res if len(res) > 30 else full[:200].strip()
+    
+    if len(res) < 30:
+        res = full[:200].strip()
+        if not res:
+            res = "Невероятные космические явления запечатлены в этом видео. Смотрим! 🚀"
+            
+    # Защита от поломки HTML-разметки Telegram
+    return html.escape(res)
 
 def get_deep_proxy():
     print("🛰 [ЦУП] Поиск стабильного гипер-коридора...")
@@ -97,10 +107,9 @@ def get_deep_proxy():
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:40]: # Ограничили перебор до 40, чтобы не терять время
+            for p in proxies[:40]:
                 p_str = f"http://{p.strip()}"
                 try:
-                    # Корректная проверка доступности YouTube
                     requests.get("https://www.youtube.com", proxies={"https": p_str}, timeout=3)
                     print(f"✅ Коридор подтвержден: {p.strip()}")
                     return p_str
@@ -112,7 +121,6 @@ def get_deep_proxy():
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model, JS_CONF
     
-    # Звездный фильтр для ADME
     if source_name == "ADME":
         search_text = (title + " " + desc_raw).lower()
         if not any(word in search_text for word in SPACE_KEYWORDS):
@@ -127,14 +135,13 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         current_proxy = get_deep_proxy()
         
-        # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
             'js_runtimes': JS_CONF,
             'proxy': current_proxy,
             'user_agent': random.choice(USER_AGENTS),
-            'socket_timeout': 15, # Быстрый обрыв мертвых прокси
+            'socket_timeout': 15, 
             'nocheckcertificate': True
         }
         
@@ -142,7 +149,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 1)
             filesize = info.get('filesize_approx', 0) / (1024 * 1024)
-            # Отсекаем прямые трансляции и премьеры, чтобы бот не зависал на часы
             if info.get('is_live') or info.get('live_status') == 'is_upcoming':
                 print("⏭ [ЦУП] Это трансляция или премьера. Ждать не будем, пропускаем.")
                 return False
@@ -154,13 +160,12 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         print(f"⚖️ ТТХ: {duration}с | ~{filesize:.1f}Мб -> Лимит: {h_limit}p")
 
-        # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
             'quiet': False, 
             'js_runtimes': JS_CONF,
-            'retries': 10, # Снижено, чтобы не зависать
+            'retries': 10, 
             'fragment_retries': 20, 
             'continuedl': True,
             'proxy': current_proxy,
@@ -173,7 +178,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
-        # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Запуск Whisper...")
@@ -188,7 +192,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
-        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             f_to_send = f_raw
         else:
@@ -206,24 +209,31 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # --- 5. ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
         print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
 
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
+        ru_title_safe = html.escape(ru_title)
         
         caption = (
-            f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n"
+            f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title_safe.upper()}</b>\n"
             f"──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n"
             f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
         with open(f_to_send, 'rb') as v:
-            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                              files={"video": v}, 
-                              data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, 
-                              timeout=600)
+            r = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                files={"video": v}, 
+                data={
+                    "chat_id": CHANNEL_NAME, 
+                    "caption": caption, 
+                    "parse_mode": "HTML",
+                    "supports_streaming": True  # ИСПРАВЛЕНИЕ ДЛЯ МГНОВЕННОГО ЗАПУСКА В ТЕЛЕГРАМЕ
+                }, 
+                timeout=600
+            )
             return r.status_code == 200
     except Exception as e:
         print(f"⚠️ Сбой систем: {e}"); return False
