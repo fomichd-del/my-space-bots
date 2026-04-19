@@ -6,7 +6,7 @@ from datetime import datetime
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ (ЦУП: Системы на максимуме)
+# ⚙️ НАСТРОЙКИ (ЦУП: Мощность на 100%)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
@@ -14,10 +14,6 @@ NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY"
 HISTORY_FILE   = 'last_earth_id.txt'
 
 translator = GoogleTranslator(source='auto', target='ru')
-
-# ============================================================
-# 🧠 СИСТЕМА ПАМЯТИ
-# ============================================================
 
 def is_already_sent(image_id):
     if os.path.exists(HISTORY_FILE):
@@ -30,25 +26,11 @@ def save_sent_id(image_id):
         f.write(f"{image_id}\n")
 
 # ============================================================
-# 🎨 ГЕНЕРАТОР "СОЧНЫХ" ЭПИТЕТОВ
-# ============================================================
-
-def get_vivid_intro():
-    intros = [
-        "Взгляните на это великолепие! ✨",
-        "Наша планета — истинный шедевр Вселенной. 💎",
-        "Невероятный кадр, от которого захватывает дух... 🌌",
-        "Космический репортаж специально для наших штурманов! 🛰",
-        "Тишина и величие Земли из бездны космоса. 🌏"
-    ]
-    return random.choice(intros)
-
-# ============================================================
-# 🌍 РЕЖИМЫ ПОИСКА
+# 🌍 ИСТОЧНИКИ: EPIC (ПОЛНЫЙ ДИСК) И LIBRARY (ДЕТАЛИ)
 # ============================================================
 
 def get_epic_data():
-    """Режим 1: Полный диск Земли из точки L1"""
+    """Источник 1: Весь земной шар с расстояния 1.5 млн км"""
     url = f"https://api.nasa.gov/EPIC/api/natural/available?api_key={NASA_API_KEY}"
     try:
         dates = requests.get(url, timeout=20).json()
@@ -63,29 +45,29 @@ def get_epic_data():
         img_id = shot['image']
         p = last_date.split("-")
         
-        # Ссылка для превью (JPG) и для оригинала (PNG)
-        preview_url = f"https://epic.gsfc.nasa.gov/archive/natural/{p[0]}/{p[1]}/{p[2]}/jpg/{img_id}.jpg"
-        original_url = f"https://epic.gsfc.nasa.gov/archive/natural/{p[0]}/{p[1]}/{p[2]}/png/{img_id}.png"
+        preview = f"https://epic.gsfc.nasa.gov/archive/natural/{p[0]}/{p[1]}/{p[2]}/jpg/{img_id}.jpg"
+        original = f"https://epic.gsfc.nasa.gov/archive/natural/{p[0]}/{p[1]}/{p[2]}/png/{img_id}.png"
         
         caption = (
-            f"🌍 <b>ЗЕМЛЯ: ВИД ИЗ ТОЧКИ ЛАГРАНЖА (L1)</b>\n"
+            f"🌍 <b>ЗЕМЛЯ: ГЛОБАЛЬНЫЙ ВИД</b>\n"
             f"─────────────────────\n\n"
-            f"{get_vivid_intro()}\n\n"
-            f"Этот снимок сделал спутник <b>DSCOVR</b> с расстояния 1.5 млн км. Перед вами — вся планета целиком, "
-            f"парящая в бесконечной пустоте как драгоценный сапфир.\n\n"
-            f"📅 Дата: <b>{last_date}</b>\n\n"
+            f"Прием! Этот кадр передал аппарат <b>DSCOVR</b>. Мы видим планету целиком, как хрупкий оазис в пустоте.\n\n"
+            f"📍 <b>Ракурс:</b> Точка Лагранжа L1 (1.5 млн км от нас).\n"
+            f"📅 <b>Дата:</b> {last_date}\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
-        return preview_url, original_url, caption, img_id
+        return preview, original, caption, img_id
     except: return None, None, None, None
 
 def get_extensive_library_data():
-    """Режим 2: Самые зрелищные виды Земли (Детально)"""
+    """Источник 2: Эпические виды с орбиты и МКС (Максимум разнообразия)"""
+    # Расширенный список запросов для сочного контента
     queries = [
-        "Earth from space ISS 8k", "Blue Marble high resolution", 
-        "Night lights of Earth city", "Atmosphere of Earth from space",
-        "Hurricane from orbit", "Earth horizon sunset",
-        "Australia from space", "Himalayas from space ISS"
+        "Earth night lights ISS", "Earth aurora space station", 
+        "Hurricane from space", "Earth limb atmosphere",
+        "Sahara desert from orbit", "Himalayas space photography",
+        "Great Barrier Reef from space", "Earth sunrise space station",
+        "Moon and Earth from space", "City lights at night from orbit"
     ]
     q = random.choice(queries)
     url = f"https://images-api.nasa.gov/search?q={q}&media_type=image"
@@ -95,80 +77,67 @@ def get_extensive_library_data():
         items = res['collection']['items']
         random.shuffle(items)
 
-        for item in items[:25]:
+        for item in items[:30]:
             nasa_id = item['data'][0]['nasa_id']
             if not is_already_sent(nasa_id):
-                # Получаем все варианты ссылок
                 asset_url = item['href']
                 assets = requests.get(asset_url).json()
                 
-                # Оригинал и превью (ищем самое большое)
-                original_url = next((a for a in assets if "~orig" in a), assets[0])
-                preview_url = next((a for a in assets if "~large" in a), original_url)
+                # Ищем лучшее превью и оригинал
+                original = next((a for a in assets if "~orig" in a), assets[0])
+                preview = next((a for a in assets if "~large" in a), original)
                 
                 title_en = item['data'][0]['title']
-                desc_en = item['data'][0].get('description', 'Потрясающий кадр нашей планеты.')
+                desc_en = item['data'][0].get('description', '')
 
                 title_ru = translator.translate(title_en)
-                desc_ru = translator.translate('. '.join(desc_en.split('.')[:3]) + '.')
+                # Берем самое сочное из описания
+                desc_ru = translator.translate('. '.join(desc_en.split('.')[:2]) + '.')
                 
                 caption = (
                     f"🛰 <b>ОРБИТАЛЬНЫЙ РЕПОРТАЖ: {title_ru.upper()}</b>\n"
                     f"─────────────────────\n\n"
-                    f"{get_vivid_intro()}\n\n"
-                    f"📖 <b>О КАДРЕ:</b> {desc_ru}\n\n"
-                    f"🔭 <i>Этот снимок передает невероятную мощь и хрупкость нашего дома. Рассмотрите детали — они поражают!</i>\n\n"
+                    f"📖 <b>О КМДРЕ:</b> {desc_ru}\n\n"
+                    f"✨ <i>С этой высоты Земля кажется живым существом. Каждое фото — это напоминание о том, как прекрасен наш дом.</i>\n\n"
                     f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
-                return preview_url, original_url, caption, nasa_id
+                return preview, original, caption, nasa_id
         return None, None, None, None
     except: return None, None, None, None
 
 # ============================================================
-# 📤 ГЛАВНАЯ ФУНКЦИЯ (ПОСТИНГ)
+# 📤 ПОСТИНГ
 # ============================================================
 
 def post_to_telegram():
-    mode = random.choice(["EPIC", "LIBRARY"])
-    print(f"📡 Запуск сканирования. Режим: {mode}")
+    # 70% шанса на Library (там больше разнообразия) и 30% на EPIC
+    mode = random.choices(["EPIC", "LIBRARY"], weights=[30, 70])[0]
+    print(f"📡 Режим: {mode}")
     
     provider = get_epic_data if mode == "EPIC" else get_extensive_library_data
     preview, original, cap, img_id = provider()
     
-    # План Б
-    if not preview:
-        provider = get_extensive_library_data if mode == "EPIC" else get_epic_data
-        preview, original, cap, img_id = provider()
+    if not preview: # План Б
+        preview, original, cap, img_id = get_extensive_library_data() if mode == "EPIC" else get_epic_data()
 
     if preview and img_id:
         keyboard = {
             "inline_keyboard": [
-                [{"text": "📥 СКАЧАТЬ В ПОЛНОМ КАЧЕСТВЕ", "url": original}],
+                [{"text": "🖼 СКАЧАТЬ ОРИГИНАЛ (Hi-Res)", "url": original}],
                 [{"text": "🛰 МКС: ПРЯМОЙ ЭФИР", "url": "https://www.n2yo.com/space-station/"}],
                 [{"text": "🌍 ГЛАЗА ЗЕМЛИ (3D КАРТА)", "url": "https://eyes.nasa.gov/apps/earth/"}]
             ]
         }
 
         payload = {
-            'chat_id': CHANNEL_NAME, 
-            'photo': preview, 
-            'caption': cap, 
-            'parse_mode': 'HTML',
+            'chat_id': CHANNEL_NAME, 'photo': preview, 
+            'caption': cap, 'parse_mode': 'HTML',
             'reply_markup': json.dumps(keyboard)
         }
         
-        try:
-            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
-            if r.status_code == 200:
-                save_sent_id(img_id)
-                print(f"✅ Успешно опубликовано! ID: {img_id}")
-            else:
-                print(f"❌ Ошибка Telegram: {r.text}")
-        except Exception as e:
-            print(f"❌ Системный сбой: {e}")
-    else:
-        print("📭 Новых кадров не обнаружено. Продолжаем мониторинг.")
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
+        save_sent_id(img_id)
+        print(f"✅ Готово: {img_id}")
 
 if __name__ == '__main__':
-    print("🚀 [ЦУП] Инженер поддержки: Инициализация модуля Earth-Vivid-HiRes...")
     post_to_telegram()
