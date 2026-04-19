@@ -2,9 +2,9 @@ name: earth_bot.py
 
 on:
   schedule:
-    # Запуск в 10:30 UTC (13:30 по МСК)
-    - cron: '30 10 * * *'
-  workflow_dispatch:
+    # Запуск каждые 4 часа (00:00, 04:00, 08:00 и т.д. по UTC)
+    - cron: '0 */4 * * *'
+  workflow_dispatch: # Кнопка для ручного запуска в интерфейсе GitHub
 
 jobs:
   build:
@@ -36,7 +36,9 @@ jobs:
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
+          # Проверка наличия файла истории, чтобы не упал commit
+          touch last_earth_id.txt
           git add last_earth_id.txt
-          git commit -m "Update Earth extensive history: $(date)" || echo "No changes"
+          git commit -m "Update Earth extensive history: $(date)" || echo "No changes to commit"
           git pull --rebase origin main
           git push origin main
