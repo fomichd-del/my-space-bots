@@ -1,14 +1,13 @@
-name: Bot-video v161.0
+name: Bot-video v162.0
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # Запуск каждые 3 часа
+    - cron: '0 */3 * * *' # Запуск каждые 3 часа (00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00 UTC)
   workflow_dispatch:      # Кнопка для ручного запуска
 
 jobs:
   mission-launch:
     runs-on: ubuntu-latest
-    # Принудительно используем современную среду для скриптов
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -36,12 +35,16 @@ jobs:
           pip install requests openai-whisper deep_translator
           pip install -U yt-dlp
 
-      - name: 🚀 Запуск v161.0 'Quantum Sensor'
+      - name: 🚀 Запуск v162.0 'Titanium Sensor'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }} # 🔥 Мост для передачи кукисов
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: python bot_video.py
+
+      - name: 🧹 Уборка секретных данных
+        if: always()
+        run: rm -f cookies.txt # Удаляем куки, чтобы они не попали в репозиторий
 
       - name: 💾 Сохранение журнала (Commit & Push)
         if: always()
@@ -49,5 +52,5 @@ jobs:
           git config --global user.name "Space-Bot"
           git config --global user.email "bot@vladislav_space"
           git add last_video_date.txt last_source.txt || true
-          git commit -m "📊 Реестр v161.0 [автоматически]" || echo "Нет данных для сохранения"
+          git commit -m "📊 Реестр v162.0 [автоматически]" || echo "Нет данных для сохранения"
           git push origin main
