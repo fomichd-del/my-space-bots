@@ -289,6 +289,7 @@ async def main():
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     
     SOURCES = [
+        {'n': 'ADME_RU', 'cid': '@ADME_RU', 'ru': True},
         {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True},
         {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True},
         {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False},
