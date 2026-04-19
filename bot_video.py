@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v164.3 'Streaming Fix'. Корректировка протоколов связи...")
+print("🚀 [ЦУП] Развертывание v164.4 'Crystal Preview'. Генерация обложек активирована...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -111,8 +111,8 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             print(f"⏭ [ЦУП] Объект ADME {v_id} не прошел звездный фильтр. Пропускаем.")
             return False
 
-    f_raw, f_final = "raw_video.mp4", "final_video.mp4"
-    for f in [f_raw, f_final, "subs.srt"]:
+    f_raw, f_final, f_thumb = "raw_video.mp4", "final_video.mp4", "thumb.jpg"
+    for f in [f_raw, f_final, "subs.srt", f_thumb]:
         if os.path.exists(f): os.remove(f)
 
     try:
@@ -123,7 +123,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
+            'js_runtimes': {'deno': {}}, 
             'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True
@@ -196,6 +196,17 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
+        # --- 4.5 СОЗДАНИЕ ОБЛОЖКИ (Анти-Белый Экран) ---
+        print("📸 [ЦУП] Создаем обложку для Telegram (Превью)...")
+        subprocess.run([
+            'ffmpeg', '-y', '-i', f_to_send, 
+            '-ss', '00:00:02.000',     # Берем кадр на 2-й секунде, чтобы не зацепить черный экран
+            '-vframes', '1',           # Всего один кадр
+            '-vf', 'scale=320:-1',     # Строгое требование Telegram: не больше 320 пикселей по ширине
+            '-q:v', '2',               # Высокое качество JPEG
+            f_thumb
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
         # --- 5. ТЕЛЕМЕТРИЯ И ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
         print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
@@ -211,19 +222,33 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         )
 
         with open(f_to_send, 'rb') as v:
-            # ИСПРАВЛЕНИЕ: supports_streaming теперь внутри словаря data
-            r = requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                files={"video": v}, 
-                data={
-                    "chat_id": CHANNEL_NAME, 
-                    "caption": caption, 
-                    "parse_mode": "HTML",
-                    "supports_streaming": True 
-                }, 
-                timeout=600
-            )
-            return r.status_code == 200
+            # Готовим файлы к отправке
+            files_to_send = {"video": v}
+            thumb_file = None
+            
+            # Если обложка успешно создалась, прикрепляем её
+            if os.path.exists(f_thumb):
+                thumb_file = open(f_thumb, 'rb')
+                files_to_send["thumbnail"] = thumb_file
+
+            try:
+                r = requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                    files=files_to_send, 
+                    data={
+                        "chat_id": CHANNEL_NAME, 
+                        "caption": caption, 
+                        "parse_mode": "HTML",
+                        "supports_streaming": True 
+                    }, 
+                    timeout=600
+                )
+                return r.status_code == 200
+            finally:
+                # Обязательно закрываем файл обложки после отправки
+                if thumb_file:
+                    thumb_file.close()
+                    
     except Exception as e:
         print(f"⚠️ Сбой систем: {e}"); return False
 
