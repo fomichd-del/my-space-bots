@@ -143,7 +143,7 @@ def post_to_telegram():
     if preview and img_id:
         keyboard = {
             "inline_keyboard": [
-                [{"text": "📥 СКАЧАТЬ В ПОЛНОМ КАЧЕСТВЕ (PNG/ORIG)", "url": original}],
+                [{"text": "📥 СКАЧАТЬ В ПОЛНОМ КАЧЕСТВЕ", "url": original}],
                 [{"text": "🛰 МКС: ПРЯМОЙ ЭФИР", "url": "https://www.n2yo.com/space-station/"}],
                 [{"text": "🌍 ГЛАЗА ЗЕМЛИ (3D КАРТА)", "url": "https://eyes.nasa.gov/apps/earth/"}]
             ]
