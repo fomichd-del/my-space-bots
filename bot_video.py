@@ -11,9 +11,9 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Grandmaster v2.9'. Активирован Fusion Core (JS-Fix)...")
+print("🚀 [ЦУП] Системы переведены в режим 'v170.0 Branded Edition'. Активация Intro/Outro и расширенных логов...")
 
-# Настройки базы (Золотой стандарт для канала КОСМОС)
+# Настройки базы
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES') 
@@ -26,7 +26,30 @@ whisper_model = None
 
 SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
 USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
-MARTY_QUOTES = ["Гав! Теперь мой процессор работает правильно! 🧩🚀", "Ррр-гав! Вижу чистый горизонт событий! ✨", "Тяв! Командор, Node.js запущен, летим к звездам! 🛰️"]
+
+# 🔥 Расширенный список выражений Марти (20 фраз)
+MARTY_QUOTES = [
+    "Гав! Теперь мой процессор работает правильно! 🧩🚀",
+    "Ррр-гав! Вижу чистый горизонт событий! ✨",
+    "Тяв! Командор, Node.js запущен, летим к звездам! 🛰️",
+    "Гав! Вижу цель — новая галактика! Погнали! 🌌",
+    "Тяв! Мои уши уловили сигнал из глубокого космоса! 📡",
+    "Ррр-мяу... ой, то есть Гав! Сверхсветовая скорость активирована! 🚀",
+    "Гав! Нашел косточку на обратной стороне Луны! 🦴🌘",
+    "Тяв! Экипаж, пристегните ремни, мы входим в атмосферу! ☄️",
+    "Гав! Все системы работают четко, как мои инстинкты! 🐾",
+    "Ррр-гав! Звезды светят ярко, но наш канал — ярче! 🌟",
+    "Гав! Загрузил данные прямо в облако... в настоящее облако Ориона! ☁️✨",
+    "Тяв! Я проверил шлюзы — к полету готов! 🛸",
+    "Гав! Марти на связи, помех не обнаружено! 🐕‍🚀",
+    "Ррр-гав! Этот ролик горячее, чем поверхность Солнца! ☀️",
+    "Гав! Я обнюхал этот файл — вирусов нет, только космос! 🧼🛰️",
+    "Тяв! Прыжок через червоточину прошел успешно! 🌪️",
+    "Гав! Вижу кольца Сатурна, они прекрасны! 🪐",
+    "Ррр-гав! Командор, я поймал метеорит! Принести? 🐾☄️",
+    "Тяв! Ракета заправлена, видео готово, Марти счастлив! 🧪🚀",
+    "Гав! Одна маленькая лапа для собаки, один большой прыжок для канала! 🐾🌠"
+]
 
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
@@ -40,7 +63,6 @@ def get_smart_summary(text):
     return res.replace('<', '«').replace('>', '»').replace('&', 'и')
 
 def get_fast_proxy():
-    print("🛰 [ЦУП] Поиск гипер-коридора...")
     url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all"
     try:
         resp = requests.get(url, timeout=5)
@@ -60,6 +82,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not any(word in search_text for word in SPACE_KEYWORDS): return False
             
     f_raw, f_final, f_thumb, f_cookies = "raw_video.mp4", "final_video.mp4", "thumb.jpg", "cookies.txt"
+    f_intro, f_outro = "intro.png", "intro0.png"
     for f in [f_raw, f_final, "subs.srt", f_thumb, f_cookies]:
         if os.path.exists(f): os.remove(f)
 
@@ -75,75 +98,87 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'quiet': True, 'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True,
-            # 🔥 Исправленный формат JS-Runtime (теперь это словарь, как просит лог)
             'js_runtimes': {'node': {}}, 
             'remote_components': ['ejs:github'], 
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['tv', 'web'], 
-                    'player_skip': ['configs']
-                }
-            },
-            'sleep_interval': random.uniform(5, 10), 
-            'max_sleep_interval': 20
+            'extractor_args': {'youtube': {'player_client': ['tv', 'web'], 'player_skip': ['configs']}},
+            'sleep_interval': random.uniform(5, 10)
         }
         if os.path.exists(f_cookies): base_ydl_opts['cookiefile'] = f_cookies
         
         with yt_dlp.YoutubeDL(base_ydl_opts) as ydl:
             try: info = ydl.extract_info(v_url, download=False)
-            except Exception as e: print(f"⚠️ Ошибка: {e}"); return False
-                
+            except Exception as e: print(f"⚠️ Ошибка доступа: {e}"); return False
+            
             duration = info.get('duration', 1)
-            filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
+            orig_size = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
+            print(f"⚖️ ТТХ: {duration}с | ~{orig_size:.1f}Мб")
 
         if duration > 3600: return False
 
         h_limit = 720
-        if duration > 1800 or filesize > 800: h_limit = 240
-        elif duration > 900 or filesize > 500: h_limit = 360
-        elif duration > 480 or filesize > 300: h_limit = 480
+        if duration > 1800 or orig_size > 800: h_limit = 240
+        elif duration > 900 or orig_size > 500: h_limit = 360
+        elif duration > 480 or orig_size > 300: h_limit = 480
         
         download_opts = base_ydl_opts.copy()
         download_opts.update({
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
-            'outtmpl': f_raw, 'quiet': False, 'retries': 20
+            'outtmpl': f_raw, 'quiet': False
         })
-
         with yt_dlp.YoutubeDL(download_opts) as ydl: ydl.download([v_url])
         if not os.path.exists(f_raw): return False
         
-        raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
-        has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
+        has_subs = False
         if not is_russian:
-            print("🧠 Whisper..."); mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
-            if whisper_model is None: whisper_model = whisper.load_model("base")
+            print("🧠 Whisper..."); if whisper_model is None: whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
                 srt = ""; [srt.update(f"{i+1}\n{time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))} --> {time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))}\n{GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())}\n\n") for i, seg in enumerate(res.get('segments', []))]
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
-        if is_russian and raw_mb < SAFE_LIMIT_MB: f_to_send = f_raw
-        else:
-            target_total_bps = int((44 * 1024 * 1024 * 8) / duration)
-            v_br = max(40000, min(target_total_bps - 32000, 2200000))
-            vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
-            subprocess.run(['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-g', '60', '-max_muxing_queue_size', '1024', '-movflags', '+faststart', '-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '44100', '-b:a', '32k', f_final])
-            f_to_send = f_final if os.path.exists(f_final) else f_raw
+        # 🔥 ГЕНЕРАЦИЯ БРЕНДИРОВАННОГО ВИДЕО (Intro + Main + Outro)
+        print("🎬 Монтаж заставок и сжатие...")
+        target_total_bps = int((44 * 1024 * 1024 * 8) / (duration + 4)) # +4 сек на заставки
+        v_br = max(40000, min(target_total_bps - 32000, 2200000))
+        
+        # Сложный фильтр FFmpeg: масштабируем картинки под видео, накладываем субтитры, склеиваем
+        filter_complex = f"[1:v]scale=-2:{h_limit}"
+        if has_subs: filter_complex += ",subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'"
+        filter_complex += f"[mainv]; [0:v]scale=-2:{h_limit},setsar=1[introv]; [2:v]scale=-2:{h_limit},setsar=1[outrov]; [introv][mainv][outrov]concat=n=3:v=1:a=0[outv]"
 
-        subprocess.run(['ffmpeg', '-y', '-i', f_to_send, '-ss', '00:00:02.000', '-vframes', '1', '-vf', 'scale=320:-1', '-q:v', '2', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd = [
+            'ffmpeg', '-y',
+            '-loop', '1', '-t', '2', '-i', f_intro if os.path.exists(f_intro) else f_raw, # Интро
+            '-i', f_raw, # Основное видео
+            '-loop', '1', '-t', '2', '-i', f_outro if os.path.exists(f_outro) else f_raw, # Финал
+            '-filter_complex', filter_complex,
+            '-map', '[outv]', '-map', '1:a?', # Берем склеенное видео и звук из оригинала
+            '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-movflags', '+faststart',
+            '-c:a', 'aac', '-b:a', '32k', f_final
+        ]
+        subprocess.run(cmd)
+        f_to_send = f_final if os.path.exists(f_final) else f_raw
+
+        # В качестве обложки всегда используем intro.png, если оно есть
+        if os.path.exists(f_intro):
+            subprocess.run(['ffmpeg', '-y', '-i', f_intro, '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(['ffmpeg', '-y', '-i', f_to_send, '-ss', '00:00:02', '-vframes', '1', '-vf', 'scale=320:-1', f_thumb])
+
         ru_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).replace('<', '«').replace('>', '»').replace('&', 'и')
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
-        caption = f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
+        caption = f"<b>{'🎙 ОРИГИНАЛ' if is_russian else '📝 ПЕРЕВОД'}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
 
         with open(f_to_send, 'rb') as v:
-            files_to_send = {"video": v}
-            if os.path.exists(f_thumb): files_to_send["thumbnail"] = open(f_thumb, 'rb')
-            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files=files_to_send, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": "true"}, timeout=600)
+            files = {"video": v}
+            if os.path.exists(f_thumb): files["thumbnail"] = open(f_thumb, 'rb')
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files=files, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": "true"}, timeout=600)
             return r.status_code == 200
     except Exception as e: print(f"⚠️ Сбой: {e}"); return False
     finally:
-        if os.path.exists(f_cookies): os.remove(f_cookies)
+        for f in [f_cookies, f_raw, f_final, f_thumb, "subs.srt"]:
+            if os.path.exists(f): os.remove(f)
 
 async def main():
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
@@ -162,6 +197,5 @@ async def main():
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
                         with open(SOURCE_LOG, 'w') as f: f.write(s['n']); return
         except: continue
-    print("🛰 Горизонт чист.")
 
 if __name__ == '__main__': asyncio.run(main())
