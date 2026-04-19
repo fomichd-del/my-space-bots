@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Titanium Base'. Золотая середина активирована...")
+print("🚀 [ЦУП] Системы переведены в режим 'Titanium Base v2.0'. Анти-краш плеера и чистый текст активированы...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -70,13 +70,25 @@ def get_smart_summary(text):
     text = re.sub(r'http\S+', '', text)
     text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
-    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter']
+    
+    # 🔥 Расширенный агрессивный фильтр от мусора и рекламы
+    junk = [
+        'vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 
+        'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter',
+        'скачать', 'скачивай', 'ссылк', 'спонсор', 'реклама', 'промокод', 
+        'скидк', 'boosty', 'patreon', 'поддержать', 'курсы', 'telegram'
+    ]
+    
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
     lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
     full = " ".join(lines)
     sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
     res = res if len(res) > 30 else full[:200].strip()
+    
+    # Если после фильтрации описание оказалось пустым
+    if not res or len(res) < 15:
+        res = "Погружаемся в тайны Вселенной в новом выпуске! Приятного просмотра."
     
     # 100% Защита от поломки HTML в Telegram
     return res.replace('<', '«').replace('>', '»').replace('&', 'и')
@@ -200,12 +212,14 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
             
             print(f"⚙️ [ЦУП] Запуск FFmpeg (Видео: {v_br//1000} kbps | Аудио: {a_br})...")
+            # 🔥 Внедрены параметры для стабильности плеера: -g 60, -profile:a aac_low, -ar 44100
             subprocess.run([
                 'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
+                '-g', '60',
                 '-max_muxing_queue_size', '1024',
                 '-movflags', '+faststart',
-                '-c:a', 'aac', '-b:a', a_br, f_final
+                '-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '44100', '-b:a', a_br, f_final
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
