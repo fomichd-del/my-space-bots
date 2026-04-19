@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Star Sentry v2.2'. Активирован протокол 'Ghost'...")
+print("🚀 [ЦУП] Системы переведены в режим 'Star Sentry v2.3'. Активирован протокол 'Solaris' (N-Challenge Fix)...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -36,8 +36,7 @@ SPACE_KEYWORDS = [
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1'
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
 ]
 
 MARTY_QUOTES = [
@@ -45,9 +44,7 @@ MARTY_QUOTES = [
     "Ррр-гав! Хвост виляет со скоростью света от такого видео! ✨",
     "Тяв! Проверил обшивку — ни одной космической кошки на борту! 🛰️",
     "Гав! В космосе никто не услышит твой лай, но мой пост увидят все! 🌌",
-    "Гав! Передал данные быстрее, чем летит метеорит! ☄️🐾",
-    "Тяв! Командор, я проверил: на Луне сыра нет, только пыль! 🌑",
-    "Ррр-гав! Защищаю канал от скуки лучше, чем нейросеть! 🛡️"
+    "Гав! Передал данные быстрее, чем летит метеорит! ☄️🐾"
 ]
 
 def get_smart_summary(text):
@@ -93,7 +90,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
     for f in [f_raw, f_final, "subs.srt", f_thumb, f_cookies]:
         if os.path.exists(f): os.remove(f)
 
-    # Разворачиваем куки только на время операции
     if YOUTUBE_COOKIES:
         with open(f_cookies, "w", encoding="utf-8") as f: f.write(YOUTUBE_COOKIES)
 
@@ -102,17 +98,22 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         proxy = get_fast_proxy()
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         
-        # Обходной вариант: ротация клиентов (ios, android, web)
-        clients = ['ios', 'android', 'tv', 'web']
-        random.shuffle(clients)
-        
         base_ydl_opts = {
-            'quiet': True, 'proxy': proxy if proxy else None,
+            'quiet': True, 
+            'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True,
-            'extractor_args': {'youtube': {'client': clients, 'skip': ['hls', 'dash']}},
-            'sleep_interval': random.uniform(1, 3), 
-            'max_sleep_interval': 5
+            # 🔥 Улучшенный обход: заставляем YouTube верить, что мы обычные мобильные клиенты
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                    'player_skip': ['webpage', 'configs']
+                }
+            },
+            'sleep_interval': random.uniform(2, 5), 
+            'max_sleep_interval': 10,
+            'youtube_include_dash_manifest': False, # Убираем DASH, чтобы не путать форматы
+            'youtube_include_hls_manifest': False
         }
         if os.path.exists(f_cookies): base_ydl_opts['cookiefile'] = f_cookies
         
@@ -123,6 +124,10 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 print(f"⚠️ Ошибка доступа: {e}"); return False
                 
             duration = info.get('duration', 1)
+            # Если после всех обходов форматов всё равно нет
+            if not info.get('formats'):
+                print("❌ Форматы не найдены. YouTube заблокировал выдачу потока."); return False
+                
             filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
 
         if duration > 3600: print(f"⏭ [ЦУП] Ролик слишком длинный."); return False
@@ -144,7 +149,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
-        # Обработка Whisper и FFmpeg (без изменений в логике сжатия)
+        # Обработка Whisper и FFmpeg (без изменений)
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Whisper..."); mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)"
@@ -181,7 +186,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             return r.status_code == 200
     except Exception as e: print(f"⚠️ Сбой: {e}"); return False
     finally:
-        # Уборка за собой
         if os.path.exists(f_cookies): os.remove(f_cookies)
 
 async def main():
