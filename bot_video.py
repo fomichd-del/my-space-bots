@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v163.2 'Anti-Zombie'. Таймеры ожидания активированы...")
+print("🚀 [ЦУП] Развертывание v164.0 'Titanium Core'. Исправление таймаутов...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -23,6 +23,7 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
+# Путь к Deno для обхода защит YouTube
 DENO_BIN = "/home/runner/.deno/bin/deno"
 JS_CONF = {'deno': {}}
 if os.path.exists(DENO_BIN):
@@ -89,21 +90,20 @@ def get_smart_summary(text):
     return res if len(res) > 30 else full[:200].strip()
 
 def get_deep_proxy():
-    print("🛰 [ЦУП] Поиск сверхстабильного гипер-коридора (проверка связи с YouTube)...")
+    print("🛰 [ЦУП] Поиск стабильного гипер-коридора...")
     url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all"
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:80]:
+            for p in proxies[:40]: # Ограничили перебор до 40, чтобы не терять время
                 p_str = f"http://{p.strip()}"
                 try:
-                    # УЛУЧШЕНИЕ: 100% точная проверка легкого эндпоинта YouTube
-                    res = requests.get("https://www.youtube.com/generate_204", proxies={"https": p_str, "http": p_str}, timeout=4)
-                    if res.status_code == 204:
-                        print(f"✅ Коридор подтвержден для YouTube: {p.strip()}")
-                        return p_str
+                    # Корректная проверка доступности YouTube
+                    requests.get("https://www.youtube.com", proxies={"https": p_str}, timeout=3)
+                    print(f"✅ Коридор подтвержден: {p.strip()}")
+                    return p_str
                 except: continue
     except: pass
     print("⚠️ Коридоры недоступны, переходим на прямое соединение.")
@@ -112,6 +112,7 @@ def get_deep_proxy():
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model, JS_CONF
     
+    # Звездный фильтр для ADME
     if source_name == "ADME":
         search_text = (title + " " + desc_raw).lower()
         if not any(word in search_text for word in SPACE_KEYWORDS):
@@ -125,16 +126,15 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
     try:
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         current_proxy = get_deep_proxy()
-        time.sleep(random.uniform(2, 5)) 
         
+        # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
             'js_runtimes': JS_CONF,
             'proxy': current_proxy,
             'user_agent': random.choice(USER_AGENTS),
-            'wait_for_video': (5, 30),
-            'socket_timeout': 15, # ЗАЩИТА ОТ БЕСКОНЕЧНЫХ ЗАВИСАНИЙ
+            'socket_timeout': 15, # Быстрый обрыв мертвых прокси
             'nocheckcertificate': True
         }
         
@@ -142,6 +142,10 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 1)
             filesize = info.get('filesize_approx', 0) / (1024 * 1024)
+            # Отсекаем прямые трансляции и премьеры, чтобы бот не зависал на часы
+            if info.get('is_live') or info.get('live_status') == 'is_upcoming':
+                print("⏭ [ЦУП] Это трансляция или премьера. Ждать не будем, пропускаем.")
+                return False
 
         h_limit = 720
         if duration > 1800 or filesize > 800: h_limit = 240
@@ -150,18 +154,18 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         print(f"⚖️ ТТХ: {duration}с | ~{filesize:.1f}Мб -> Лимит: {h_limit}p")
 
+        # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
             'quiet': False, 
             'js_runtimes': JS_CONF,
-            'retries': 15, 
-            'fragment_retries': 30, 
+            'retries': 10, # Снижено, чтобы не зависать
+            'fragment_retries': 20, 
             'continuedl': True,
             'proxy': current_proxy,
-            'user_agent': random.choice(USER_AGENTS),
-            'wait_for_video': (5, 30),
-            'socket_timeout': 20 # ЗАЩИТА ДЛЯ СКАЧИВАНИЯ
+            'socket_timeout': 15,
+            'user_agent': random.choice(USER_AGENTS)
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([v_url])
@@ -169,6 +173,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
+        # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
             print("🧠 [ЦУП] Запуск Whisper...")
@@ -183,6 +188,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
+        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
             f_to_send = f_raw
         else:
@@ -200,6 +206,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
+        # --- 5. ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
         print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
 
