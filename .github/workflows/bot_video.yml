@@ -1,4 +1,4 @@
-name: Bot-video v167.0
+name: Bot-video v168.0
 
 on:
   schedule:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 🟢 Установка Node.js (Ядро для токенов)
+      - name: 🟢 Установка Node.js 20+ (Критично для EJS)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -30,14 +30,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: 📦 Установка библиотек и POT-провайдера
+      - name: 📦 Установка системного набора 'Titanium+'
         run: |
           pip install requests openai-whisper deep_translator
-          pip install -U yt-dlp
-          # 🔥 Установка плагина для обхода PO-Token
+          # 🔥 Критическое изменение из Wiki: ставим yt-dlp со всеми зависимостями EJS
+          pip install -U "yt-dlp[default]"
           pip install bgutil-ytdlp-pot-provider
 
-      - name: 🚀 Запуск v167.0 'Deep Space'
+      - name: 🚀 Запуск v168.0 'Grandmaster'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -54,5 +54,5 @@ jobs:
           git config --global user.name "Space-Bot"
           git config --global user.email "bot@vladislav_space"
           git add last_video_date.txt last_source.txt || true
-          git commit -m "📊 Реестр v167.0" || echo "Нет данных"
+          git commit -m "📊 Реестр v168.0" || echo "Нет данных"
           git push origin main
