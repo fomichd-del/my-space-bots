@@ -11,9 +11,9 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Grandmaster v2.7'. Исправление формата JS-Runtime...")
+print("🚀 [ЦУП] Системы переведены в режим 'Grandmaster v2.8'. Активация TV-протокола...")
 
-# Настройки базы (Ваш золотой стандарт)
+# Настройки базы (Золотой стандарт для канала КОСМОС)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES') 
@@ -26,7 +26,7 @@ whisper_model = None
 
 SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
 USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
-MARTY_QUOTES = ["Гав! Перенастроил навигатор, теперь формат правильный! 🧩🚀", "Ррр-гав! Больше никаких ошибок в логах! ✨", "Тяв! Командор, я готов к захвату целей! 🛰️"]
+MARTY_QUOTES = ["Гав! Прикинулся телевизором — Ютуб меня не видит! 📺🚀", "Ррр-гав! Владислав, смотри, что я нашел в глубоком космосе! ✨", "Тяв! Командор, проход открыт, токены не нужны! 🛰️"]
 
 def get_smart_summary(text):
     if not text: return "Интересные подробности — внутри ролика! ✨"
@@ -75,17 +75,16 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'quiet': True, 'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'nocheckcertificate': True,
-            # 🔥 ИСПРАВЛЕННЫЙ ФОРМАТ (согласно логам ошибки)
-            'js_runtimes': {'node': {}}, 
-            'remote_components': {'ejs': 'github'}, 
+            'js_runtimes': ['node'], 
+            'remote_components': ['ejs:github'], # 🔥 Исправленный формат (список)
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['web', 'mweb'],
+                    'player_client': ['tv', 'web'], # 🔥 Приоритет TV-клиенту (не требует токен)
                     'player_skip': ['configs']
                 }
             },
-            'sleep_interval': random.uniform(5, 12), 
-            'max_sleep_interval': 25
+            'sleep_interval': random.uniform(5, 10), 
+            'max_sleep_interval': 20
         }
         if os.path.exists(f_cookies): base_ydl_opts['cookiefile'] = f_cookies
         
