@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v164.2 'Hybrid Core'. Возврат к стабильным гипер-коридорам...")
+print("🚀 [ЦУП] Системы переведены в режим v162.1 'Deep Space Hotfix'. Исправление курса...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -23,33 +23,16 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
-# Точный путь к Deno в среде GitHub Actions
-DENO_BIN = "/home/runner/.deno/bin/deno"
-JS_CONF = {'deno': {}}
-if os.path.exists(DENO_BIN):
-    JS_CONF = {'deno': {'path': DENO_BIN}}
-
 whisper_model = None
 
-# Звездный фильтр
-SPACE_KEYWORDS = [
-    'космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 
-    'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 
-    'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос',
-    'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт'
-]
-
-# Ротация User-Agent (маскировка)
+# Список современных User-Agent для маскировки
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (iPad; CPU OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0'
 ]
 
-# Фразы Марти (расширенный список, ничего не удалено)
 MARTY_QUOTES = [
     "Гав! Вижу цель — свежие новости с орбиты доставлены! 🚀🐾",
     "Ррр-гав! Хвост виляет со скоростью света от такого видео! ✨",
@@ -71,40 +54,24 @@ MARTY_QUOTES = [
     "Ррр-гав! Встретил инопланетян — они тоже любят ласку! 👽",
     "Тяв! На борту порядок, все косточки пересчитаны! 🦴✅",
     "Гав! Летим к звездам! Пристегните ремни, лапы и хвосты! 🚀🐾",
-    "Ррр-гав! Мой журнал полон открытий, делюсь лучшим! 📒✨",
-    "Гав! Если черная дыра засасывает всё, засосет ли она мою любимую косточку? 🤔🐾", 
-    "Тяв! На радаре вспышка сверхновой! Или это просто кто-то включил фонарик? 🔦🌌", 
-    "Ррр-гав! По теории струн, где-то есть Вселенная, где собаки выгуливают людей! 🐕🪐", 
-    "Гав! Загружаю данные в канал. Скорость — варп 9! Держитесь крепче! 🚀💨", 
-    "Тяв! Космическая радиация мне не страшна, у меня шерсть с защитой от альфа-частиц! 🛡️🐩"
+    "Ррр-гав! Мой журнал полон открытий, делюсь лучшим! 📒✨"
 ]
 
 def get_smart_summary(text):
-    if not text or len(text.strip()) < 5: 
-        return "Интересные подробности и визуальные доказательства — внутри ролика! Включайте скорее! ✨"
-    
+    if not text: return "Интересные подробности — внутри ролика! ✨"
     text = re.sub(r'http\S+', '', text)
     text = re.sub(r'#\S+', '', text)
     text = html.unescape(text)
-    
     junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter']
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
     lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
-    
     full = " ".join(lines)
     sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
-    
-    if len(res) < 30:
-        res = full[:200].strip()
-        if not res:
-            res = "Невероятные космические явления запечатлены в этом видео. Смотрим! 🚀"
-            
-    return html.escape(res)
+    return res if len(res) > 30 else full[:200].strip()
 
-# ВОЗВРАЩАЕМ ИДЕАЛЬНО РАБОТАЮЩИЙ ПОИСК ПРОКСИ
 def get_fast_proxy():
-    print("🛰 [ЦУП] Поиск гипер-коридора (быстрый сканер)...")
+    print("🛰 [ЦУП] Поиск гипер-коридора...")
     url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all"
     try:
         resp = requests.get(url, timeout=5)
@@ -114,23 +81,14 @@ def get_fast_proxy():
             for p in proxies[:60]:
                 p_str = f"http://{p.strip()}"
                 try:
-                    requests.get("https://www.google.com", proxies={"https": p_str, "http": p_str}, timeout=2)
-                    print(f"✅ Коридор подтвержден: {p.strip()}")
+                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2)
                     return p_str
                 except: continue
     except: pass
-    print("⚠️ Коридоры недоступны, переходим на прямое соединение.")
     return None
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
-    global whisper_model, JS_CONF
-    
-    if source_name == "ADME":
-        search_text = (title + " " + desc_raw).lower()
-        if not any(word in search_text for word in SPACE_KEYWORDS):
-            print(f"⏭ [ЦУП] Объект ADME {v_id} не прошел звездный фильтр. Пропускаем.")
-            return False
-
+    global whisper_model
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -139,13 +97,13 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
         
+        # --- 1. РАЗВЕДКА ---
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
-            'js_runtimes': JS_CONF,
+            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
             'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
-            'socket_timeout': 15, 
             'nocheckcertificate': True
         }
         
@@ -153,10 +111,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 1)
             filesize = info.get('filesize_approx', 0) / (1024 * 1024)
-            # Отсекаем трансляции, чтобы не висеть 6 часов
-            if info.get('is_live') or info.get('live_status') == 'is_upcoming':
-                print("⏭ [ЦУП] Это трансляция или премьера. Ждать не будем, пропускаем.")
-                return False
 
         h_limit = 720
         if duration > 1800 or filesize > 800: h_limit = 240
@@ -165,16 +119,15 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         print(f"⚖️ ТТХ: {duration}с | ~{filesize:.1f}Мб -> Лимит: {h_limit}p")
 
+        # --- 2. ЗАХВАТ ---
         ydl_opts = {
             'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]',
             'outtmpl': f_raw, 
             'quiet': False, 
-            'js_runtimes': JS_CONF,
-            'retries': 15, 
-            'fragment_retries': 30, 
-            'continuedl': True,
+            'js_runtimes': {'deno': {}}, # ИСПРАВЛЕННЫЙ ФОРМАТ
+            'retries': 20, 
+            'fragment_retries': 40, 
             'proxy': proxy if proxy else None,
-            'socket_timeout': 15,
             'user_agent': random.choice(USER_AGENTS)
         }
 
@@ -183,9 +136,10 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if not os.path.exists(f_raw): return False
         raw_mb = os.path.getsize(f_raw) / (1024 * 1024)
 
+        # --- 3. WHISPER ---
         has_subs, mode_tag = False, "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
         if not is_russian:
-            print("🧠 [ЦУП] Запуск Whisper...")
+            print("🧠 [ЦУП] Запуск Whisper для перевода...")
             if whisper_model is None: whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
@@ -197,49 +151,43 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
                 has_subs = True
 
+        # --- 4. УПАКОВКА ---
         if is_russian and raw_mb < SAFE_LIMIT_MB:
+            print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
         else:
             target_br = int((SAFE_LIMIT_MB * 1024 * 1024 * 8) / duration * 0.75)
             v_br = max(120000, min(target_br, 2200000))
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
             
+            print(f"⚙️ [ЦУП] Запуск FFmpeg (Сжатие до {v_br/1000:.0f} kbps)...")
             subprocess.run([
                 'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
                 '-max_muxing_queue_size', '1024',
                 '-movflags', '+faststart',
-                '-pix_fmt', 'yuv420p',
                 '-c:a', 'aac', '-b:a', '64k', f_final
             ])
             f_to_send = f_final if os.path.exists(f_final) else f_raw
 
+        # --- 5. ТЕЛЕМЕТРИЯ И ОТПРАВКА ---
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
         print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
 
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
-        ru_title_safe = html.escape(ru_title)
         
         caption = (
-            f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title_safe.upper()}</b>\n"
+            f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n"
             f"──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n"
             f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
         with open(f_to_send, 'rb') as v:
-            # Отправка с параметром supports_streaming="true" для мгновенного воспроизведения
-            r = requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                files={"video": v}, 
-                data={
-                    "chat_id": CHANNEL_NAME, 
-                    "caption": caption, 
-                    "parse_mode": "HTML",
-                    "supports_streaming": "true" 
-                }, 
-                timeout=600
-            )
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                              files={"video": v}, 
+                              data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML"}, 
+                              timeout=600)
             return r.status_code == 200
     except Exception as e:
         print(f"⚠️ Сбой систем: {e}"); return False
@@ -254,8 +202,7 @@ async def main():
         {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True},
         {'n': 'Роскосмос ТВ', 'cid': '@tvroscosmos', 'ru': True},
         {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True},
-        {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True},
-        {'n': 'ADME', 'cid': '@ADME_RU', 'ru': True}
+        {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}
     ]
     random.shuffle(SOURCES)
     for s in SOURCES:
