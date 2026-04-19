@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим v162.2 'Back to Basics'. Чистый код...")
+print("🚀 [ЦУП] Системы переведены в режим v162.4 'Star Filter'. Включена фильтрация EVLSPACE...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -24,6 +24,14 @@ SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
 whisper_model = None
+
+# Тот самый словарь-фильтр
+SPACE_KEYWORDS = [
+    'космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 
+    'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 
+    'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос',
+    'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship'
+]
 
 # Список современных User-Agent для маскировки
 USER_AGENTS = [
@@ -69,8 +77,7 @@ def get_smart_summary(text):
     sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
     res = res if len(res) > 30 else full[:200].strip()
-    # Идеальная защита HTML для Telegram (теперь не будет вылетов)
-    return res.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    return res.replace('&', '&amp;').replace('<', '«').replace('>', '»')
 
 def get_fast_proxy():
     print("🛰 [ЦУП] Поиск гипер-коридора...")
@@ -91,6 +98,14 @@ def get_fast_proxy():
 
 async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model
+    
+    # --- 🛡 ЗВЕЗДНЫЙ ФИЛЬТР ---
+    if source_name == "EVLSPACE":
+        search_text = (title + " " + (desc_raw if desc_raw else "")).lower()
+        if not any(word in search_text for word in SPACE_KEYWORDS):
+            print(f"⏭ [ЦУП] Объект {source_name} ({v_id}) не прошел фильтр (не о космосе). Пропускаем.")
+            return False
+
     f_raw, f_final = "raw_video.mp4", "final_video.mp4"
     for f in [f_raw, f_final, "subs.srt"]:
         if os.path.exists(f): os.remove(f)
@@ -176,12 +191,11 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
         print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
 
-        # Добавлена безопасная обработка пустых текстов
         try:
             ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         except:
             ru_title = title
-        ru_title = ru_title.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        ru_title = ru_title.replace('&', '&amp;').replace('<', '«').replace('>', '»')
         
         try:
             raw_desc_cut = desc_raw[:3000] if desc_raw else ""
@@ -198,15 +212,17 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         )
 
         with open(f_to_send, 'rb') as v:
-            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
-                              files={"video": v}, 
-                              data={
-                                  "chat_id": CHANNEL_NAME, 
-                                  "caption": caption, 
-                                  "parse_mode": "HTML",
-                                  "supports_streaming": "true"  # Единственное нужное дополнение от белого экрана
-                              }, 
-                              timeout=600)
+            r = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                files={"video": v}, 
+                data={
+                    "chat_id": CHANNEL_NAME, 
+                    "caption": caption, 
+                    "parse_mode": "HTML",
+                    "supports_streaming": "true" 
+                }, 
+                timeout=600
+            )
             return r.status_code == 200
     except Exception as e:
         print(f"⚠️ Сбой систем: {e}"); return False
