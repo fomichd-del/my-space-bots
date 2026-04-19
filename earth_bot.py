@@ -2,37 +2,60 @@ import requests
 import os
 import random
 import json
+import time
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ (Командор, проверь свои секреты в GitHub!)
+# ⚙️ НАСТРОЙКИ (ЦУП, системы готовы!)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
 NASA_API_KEY   = os.getenv('NASA_API_KEY') or "DEMO_KEY" 
 HISTORY_FILE   = 'last_earth_id.txt'
+SAFE_LIMIT_MB  = 46  # Наш жесткий лимит
 
 translator = GoogleTranslator(source='auto', target='ru')
 
 # ============================================================
-# 🧠 МОДУЛИ ПАМЯТИ И ТРАНСЛЯЦИИ
+# 🧠 ВПОМОГАТЕЛЬНЫЕ СИСТЕМЫ
 # ============================================================
 
 def is_already_sent(image_id):
-    """Проверяет, не отправляли ли мы это фото раньше"""
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
             return str(image_id) in f.read()
     return False
 
 def save_sent_id(image_id):
-    """Записывает ID фото, чтобы не было повторов"""
     with open(HISTORY_FILE, 'a', encoding='utf-8') as f:
         f.write(f"{image_id}\n")
 
+def download_and_check(url, file_name):
+    """Скачивает файл и проверяет его вес"""
+    try:
+        r = requests.get(url, stream=True, timeout=30)
+        if r.status_code == 200:
+            with open(file_name, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            size_mb = os.path.getsize(file_name) / (1024 * 1024)
+            if size_mb <= SAFE_LIMIT_MB:
+                return True, size_mb
+            else:
+                print(f"⚠️ Файл слишком тяжелый: {size_mb:.1f} MB")
+                os.remove(file_name)
+    except Exception as e:
+        print(f"❌ Ошибка загрузки: {e}")
+    return False, 0
+
+# ============================================================
+# 🌍 РЕЖИМЫ ПОИСКА ЗЕМЛИ
+# ============================================================
+
 def get_epic_data():
-    """Режим 1: Полный диск Земли (с расстояния 1.5 млн км)"""
+    """Режим 1: Полный диск Земли (NASA EPIC) - PNG качество"""
     url = f"https://api.nasa.gov/EPIC/api/natural/available?api_key={NASA_API_KEY}"
     try:
         dates = requests.get(url, timeout=20).json()
@@ -40,118 +63,119 @@ def get_epic_data():
         data_url = f"https://api.nasa.gov/EPIC/api/natural/date/{last_date}?api_key={NASA_API_KEY}"
         shots = requests.get(data_url, timeout=20).json()
         
-        # Фильтруем те, что уже были
         available_shots = [s for s in shots if not is_already_sent(s['image'])]
-        if not available_shots: return None, None, None
+        if not available_shots: return None, None, None, None
         
         shot = random.choice(available_shots)
         img_id = shot['image']
         p = last_date.split("-")
-        img_url = f"https://epic.gsfc.nasa.gov/archive/natural/{p[0]}/{p[1]}/{p[2]}/jpg/{img_id}.jpg"
+        # Берем именно PNG для максимального качества
+        img_url = f"https://epic.gsfc.nasa.gov/archive/natural/{p[0]}/{p[1]}/{p[2]}/png/{img_id}.png"
         
         caption = (
-            f"🌍 <b>ВЗГЛЯД ИЗ ТОЧКИ L1</b>\n"
+            f"🌍 <b>ЗЕМЛЯ: ВИД ИЗ ТОЧКИ ЛАГРАНЖА (L1)</b>\n"
             f"─────────────────────\n"
-            f"Этот снимок сделал спутник <b>DSCOVR</b> с расстояния 1.5 млн км. Мы видим нашу планету целиком, как хрупкий голубой шар в бескрайней пустоте.\n\n"
-            f"📅 Дата: <b>{last_date}</b>\n\n"
+            f"Прием! На связи глубокий космос. Этот снимок передал аппарат <b>DSCOVR</b> с дистанции 1,5 миллиона километров.\n\n"
+            f"💎 <b>КАЧЕСТВО:</b> Мы скачали этот кадр в исходном PNG-формате, чтобы вы могли рассмотреть каждый облачный вихрь нашего общего дома.\n\n"
+            f"📅 Дата съемки: <b>{last_date}</b>\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
-        return img_url, caption, img_id
-    except: return None, None, None
+        return img_url, caption, img_id, f"earth_{img_id}.png"
+    except: return None, None, None, None
 
 def get_extensive_library_data():
-    """Режим 2: Самые зрелищные виды (МКС, Аврора, Ночные города)"""
+    """Режим 2: Художественные виды с орбиты (NASA Library)"""
     queries = [
-        "Earth aurora from space", "Earth at night city lights", 
-        "Hurricane from space ISS", "Earth and Moon distance",
-        "Astronaut photography Earth", "Earth horizon sunset space",
-        "Himalayas from space", "Sahara desert from space"
+        "Earth from ISS high resolution", "Blue Marble Earth", 
+        "Stunning Earth sunset from space", "Night lights of Europe from space",
+        "Hurricane eye from orbit", "Aurora Borealis from ISS",
+        "Earth and Moon high res", "Pacific Ocean from space ISS"
     ]
     q = random.choice(queries)
     url = f"https://images-api.nasa.gov/search?q={q}&media_type=image"
     
     try:
-        print(f"📡 Ищу космический эксклюзив по запросу: {q}...")
         res = requests.get(url, timeout=25).json()
         items = res['collection']['items']
         random.shuffle(items)
 
-        for item in items[:50]:
+        for item in items[:20]:
             nasa_id = item['data'][0]['nasa_id']
             if not is_already_sent(nasa_id):
-                img_url = item['links'][0]['href']
+                # NASA Library хранит разные размеры по ссылке в collection.json
+                collection_url = item['href']
+                sizes = requests.get(collection_url).json()
+                # Ищем самый большой файл (обычно заканчивается на ~orig.jpg или ~orig.png)
+                img_url = next((s for s in sizes if "~orig" in s), sizes[0])
+                
                 title_en = item['data'][0]['title']
-                desc_en = item['data'][0].get('description', '')
+                desc_en = item['data'][0].get('description', 'Потрясающий вид на планету.')
 
-                # Перевод и форматирование описания
                 title_ru = translator.translate(title_en)
-                sentences = desc_en.split('.')
-                short_desc_en = '. '.join(sentences[:3]) + '.'
-                desc_ru = translator.translate(short_desc_en)
+                desc_ru = translator.translate('. '.join(desc_en.split('.')[:3]) + '.')
                 
                 caption = (
-                    f"🛰 <b>КОСМИЧЕСКИЙ РЕПОРТАЖ: {title_ru.upper()}</b>\n"
+                    f"🛰 <b>ОРБИТАЛЬНЫЙ ЭКСКЛЮЗИВ: {title_ru.upper()}</b>\n"
                     f"─────────────────────\n\n"
-                    f"📖 <b>ЧТО НА ФОТО:</b> {desc_ru}\n\n"
-                    f"🔭 <i>Этот кадр получен с орбиты. Каждая такая фотография помогает нам лучше изучить наш общий дом!</i>\n\n"
+                    f"📖 <b>О КМДРЕ:</b> {desc_ru}\n\n"
+                    f"✨ <i>Вглядитесь в эту глубину! С орбиты МКС границы исчезают, и остается только яркая, живая планета в черном океане звезд.</i>\n\n"
                     f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
-                return img_url, caption, nasa_id
-        return None, None, None
-    except: return None, None, None
+                ext = img_url.split('.')[-1].split('?')[0]
+                return img_url, caption, nasa_id, f"orbit_{nasa_id}.{ext}"
+        return None, None, None, None
+    except: return None, None, None, None
 
 # ============================================================
-# 📤 ГЛАВНАЯ ФУНКЦИЯ ОТПРАВКИ
+# 📤 ЦИКЛ ОТПРАВКИ
 # ============================================================
 
 def post_to_telegram():
-    # 50/50 выбираем режим (дальняя съемка или детальные фото)
     mode = random.choice(["EPIC", "LIBRARY"])
-    print(f"🛰 Выбран режим: {mode}")
+    print(f"🛰 Инициализация режима: {mode}")
     
-    if mode == "EPIC":
-        url, cap, img_id = get_epic_data()
-    else:
-        url, cap, img_id = get_extensive_library_data()
+    data_provider = get_epic_data if mode == "EPIC" else get_extensive_library_data
+    url, cap, img_id, local_file = data_provider()
     
-    # План Б, если первый режим ничего не нашел
-    if not url:
-        url, cap, img_id = get_extensive_library_data() if mode == "EPIC" else get_epic_data()
+    if not url: # План Б
+        url, cap, img_id, local_file = get_extensive_library_data() if mode == "EPIC" else get_epic_data()
 
     if url and img_id:
-        # СОЗДАЕМ ИНТЕРАКТИВНЫЙ ПУЛЬТ УПРАВЛЕНИЯ
-        keyboard = {
-            "inline_keyboard": [
-                # Та самая надежная ссылка на N2YO (Видео + Карта)
-                [{"text": "🛰 МКС: ПРЯМОЙ ЭФИР + КАРТА", "url": "https://www.n2yo.com/space-station/"}],
-                # Наглядная 3D карта от NASA
-                [{"text": "🌍 ГЛАЗА ЗЕМЛИ (3D КАРТА)", "url": "https://eyes.nasa.gov/apps/earth/"}]
-            ]
-        }
-
-        payload = {
-            'chat_id': CHANNEL_NAME, 
-            'photo': url, 
-            'caption': cap, 
-            'parse_mode': 'HTML',
-            'reply_markup': json.dumps(keyboard),
-            # Отключаем тяжелые превью ссылок, оставляем только фото
-            'link_preview_options': {'is_disabled': True}
-        }
+        print(f"📥 Загрузка оригинала: {url}")
+        success, size = download_and_check(url, local_file)
         
-        try:
-            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
+        if success:
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": "🛰 МКС: ПРЯМОЙ ЭФИР", "url": "https://www.n2yo.com/space-station/"}],
+                    [{"text": "🌍 ГЛАЗА ЗЕМЛИ (3D КАРТА)", "url": "https://eyes.nasa.gov/apps/earth/"}]
+                ]
+            }
+
+            # Отправляем именно как ДОКУМЕНТ, чтобы сохранить разрешение
+            with open(local_file, 'rb') as doc:
+                files = {'document': doc}
+                payload = {
+                    'chat_id': CHANNEL_NAME,
+                    'caption': cap,
+                    'parse_mode': 'HTML',
+                    'reply_markup': json.dumps(keyboard)
+                }
+                
+                r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument", data=payload, files=files)
+            
             if r.status_code == 200:
                 save_sent_id(img_id)
-                print(f"✅ Успешно отправлено в канал: {img_id}")
+                print(f"✅ Миссия выполнена! Файл {size:.1f}MB отправлен.")
             else:
-                print(f"❌ Ошибка Telegram: {r.text}")
-        except Exception as e:
-            print(f"❌ Ошибка сети: {e}")
+                print(f"❌ Телеграм отклонил запрос: {r.text}")
+            
+            if os.path.exists(local_file): os.remove(local_file)
+        else:
+            print("🚫 Не удалось подготовить файл нужного качества.")
     else:
-        print("📭 Космос молчит. Новых фото пока не найдено.")
+        print("📭 На сегодня новых снимков Земли в архивах нет.")
 
 if __name__ == '__main__':
-    post_user_info = f"Для штурмана Влада: сигнал стабильный, системы в норме!"
-    print(post_user_info)
+    print("🚀 [ЦУП] Инженер поддержки на связи. Развертывание системы Earth-HiRes...")
     post_to_telegram()
