@@ -11,13 +11,14 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы переведены в режим 'Titanium Base v2.0'. Анти-краш плеера и чистый текст активированы...")
+print("🚀 [ЦУП] Системы переведены в режим 'Titanium Base v2.0 + Cookies'. VIP-пропуск активирован...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
+YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES') # 🔥 Подключаем ключи доступа
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
@@ -120,9 +121,14 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             print(f"⏭ [ЦУП] Объект {source_name} ({v_id}) не прошел фильтр (не о космосе). Пропускаем.")
             return False
             
-    f_raw, f_final, f_thumb = "raw_video.mp4", "final_video.mp4", "thumb.jpg"
-    for f in [f_raw, f_final, "subs.srt", f_thumb]:
+    f_raw, f_final, f_thumb, f_cookies = "raw_video.mp4", "final_video.mp4", "thumb.jpg", "cookies.txt"
+    for f in [f_raw, f_final, "subs.srt", f_thumb, f_cookies]:
         if os.path.exists(f): os.remove(f)
+
+    # 🔥 Создаем временный файл cookies, если они переданы из GitHub Secrets
+    if YOUTUBE_COOKIES:
+        with open(f_cookies, "w", encoding="utf-8") as f:
+            f.write(YOUTUBE_COOKIES)
 
     try:
         v_url = f"https://www.youtube.com/watch?v={v_id}"
@@ -141,6 +147,10 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'sleep_interval': 1,
             'max_sleep_interval': 3
         }
+        
+        # Если файл с куками успешно создан, подключаем его к сканеру
+        if os.path.exists(f_cookies):
+            base_ydl_opts['cookiefile'] = f_cookies
         
         with yt_dlp.YoutubeDL(base_ydl_opts) as ydl:
             try:
@@ -200,19 +210,16 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             print(f"🚀 [ЦУП] Экспресс-маршрут: {raw_mb:.1f}Мб проходит без сжатия.")
             f_to_send = f_raw
         else:
-            # Целимся в 44 Мб для страховки. Разрешаем падать битрейту очень низко для длинных роликов.
             target_total_bps = int((44 * 1024 * 1024 * 8) / duration)
-            a_br_bps = 64000 if duration <= 1500 else 32000 # Звук хуже, если ролик длиннее 25 мин
+            a_br_bps = 64000 if duration <= 1500 else 32000
             target_v_bps = target_total_bps - a_br_bps
             
-            # Разрешаем сжатие видео до 40 kbps (спасет ролики до 55 минут)
             v_br = max(40000, min(target_v_bps, 2200000))
             a_br = '64k' if duration <= 1500 else '32k'
             
             vf = "subtitles=subs.srt:force_style='FontSize=20,BorderStyle=3'" if has_subs else f"scale=-2:{h_limit}"
             
             print(f"⚙️ [ЦУП] Запуск FFmpeg (Видео: {v_br//1000} kbps | Аудио: {a_br})...")
-            # 🔥 Внедрены параметры для стабильности плеера: -g 60, -profile:a aac_low, -ar 44100
             subprocess.run([
                 'ffmpeg', '-y', '-i', f_raw, '-vf', vf, 
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', 
@@ -238,7 +245,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         final_mb = os.path.getsize(f_to_send) / (1024 * 1024)
         print(f"📊 [ЦУП] Финальный вес: {final_mb:.2f} Мб")
 
-        # Очистка заголовка
         ru_title = title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)
         ru_title = ru_title.replace('<', '«').replace('>', '»').replace('&', 'и')
         
