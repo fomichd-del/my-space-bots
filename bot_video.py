@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Развертывание v164.1 'Streaming Protocol'. Активация мгновенного воспроизведения...")
+print("🚀 [ЦУП] Развертывание v164.2 'Hybrid Core'. Возврат к стабильным гипер-коридорам...")
 
 # ============================================================
 # ⚙️ КОНФИГУРАЦИЯ
@@ -23,6 +23,7 @@ DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
 SAFE_LIMIT_MB  = 46 
 
+# Точный путь к Deno в среде GitHub Actions
 DENO_BIN = "/home/runner/.deno/bin/deno"
 JS_CONF = {'deno': {}}
 if os.path.exists(DENO_BIN):
@@ -30,6 +31,7 @@ if os.path.exists(DENO_BIN):
 
 whisper_model = None
 
+# Звездный фильтр
 SPACE_KEYWORDS = [
     'космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 
     'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 
@@ -37,6 +39,7 @@ SPACE_KEYWORDS = [
     'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт'
 ]
 
+# Ротация User-Agent (маскировка)
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -46,6 +49,7 @@ USER_AGENTS = [
     'Mozilla/5.0 (iPad; CPU OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1'
 ]
 
+# Фразы Марти (расширенный список, ничего не удалено)
 MARTY_QUOTES = [
     "Гав! Вижу цель — свежие новости с орбиты доставлены! 🚀🐾",
     "Ррр-гав! Хвост виляет со скоростью света от такого видео! ✨",
@@ -96,21 +100,21 @@ def get_smart_summary(text):
         if not res:
             res = "Невероятные космические явления запечатлены в этом видео. Смотрим! 🚀"
             
-    # Защита от поломки HTML-разметки Telegram
     return html.escape(res)
 
-def get_deep_proxy():
-    print("🛰 [ЦУП] Поиск стабильного гипер-коридора...")
+# ВОЗВРАЩАЕМ ИДЕАЛЬНО РАБОТАЮЩИЙ ПОИСК ПРОКСИ
+def get_fast_proxy():
+    print("🛰 [ЦУП] Поиск гипер-коридора (быстрый сканер)...")
     url = "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=all"
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
             proxies = resp.text.strip().split('\n')
             random.shuffle(proxies)
-            for p in proxies[:40]:
+            for p in proxies[:60]:
                 p_str = f"http://{p.strip()}"
                 try:
-                    requests.get("https://www.youtube.com", proxies={"https": p_str}, timeout=3)
+                    requests.get("https://www.google.com", proxies={"https": p_str, "http": p_str}, timeout=2)
                     print(f"✅ Коридор подтвержден: {p.strip()}")
                     return p_str
                 except: continue
@@ -133,13 +137,13 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
 
     try:
         v_url = f"https://www.youtube.com/watch?v={v_id}"
-        current_proxy = get_deep_proxy()
+        proxy = get_fast_proxy()
         
         print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         temp_opts = {
             'quiet': True, 
             'js_runtimes': JS_CONF,
-            'proxy': current_proxy,
+            'proxy': proxy if proxy else None,
             'user_agent': random.choice(USER_AGENTS),
             'socket_timeout': 15, 
             'nocheckcertificate': True
@@ -149,6 +153,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             info = ydl.extract_info(v_url, download=False)
             duration = info.get('duration', 1)
             filesize = info.get('filesize_approx', 0) / (1024 * 1024)
+            # Отсекаем трансляции, чтобы не висеть 6 часов
             if info.get('is_live') or info.get('live_status') == 'is_upcoming':
                 print("⏭ [ЦУП] Это трансляция или премьера. Ждать не будем, пропускаем.")
                 return False
@@ -165,10 +170,10 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'outtmpl': f_raw, 
             'quiet': False, 
             'js_runtimes': JS_CONF,
-            'retries': 10, 
-            'fragment_retries': 20, 
+            'retries': 15, 
+            'fragment_retries': 30, 
             'continuedl': True,
-            'proxy': current_proxy,
+            'proxy': proxy if proxy else None,
             'socket_timeout': 15,
             'user_agent': random.choice(USER_AGENTS)
         }
@@ -223,6 +228,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         )
 
         with open(f_to_send, 'rb') as v:
+            # Отправка с параметром supports_streaming="true" для мгновенного воспроизведения
             r = requests.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
                 files={"video": v}, 
@@ -230,7 +236,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                     "chat_id": CHANNEL_NAME, 
                     "caption": caption, 
                     "parse_mode": "HTML",
-                    "supports_streaming": True  # ИСПРАВЛЕНИЕ ДЛЯ МГНОВЕННОГО ЗАПУСКА В ТЕЛЕГРАМЕ
+                    "supports_streaming": "true" 
                 }, 
                 timeout=600
             )
