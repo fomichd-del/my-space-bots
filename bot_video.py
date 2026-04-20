@@ -11,9 +11,9 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы v172.1 активны. Режим: Точная стыковка + Усиленный Ad-Blocker...")
+print("🚀 [ЦУП] Системы v172.2 активны. Режим: Максимальная стабильность + Брендирование...")
 
-# Настройки (Золотой стандарт)
+# Настройки (Золотой стандарт канала КОСМОС)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES') 
@@ -50,7 +50,7 @@ MARTY_QUOTES = [
     "Тяв! Подключаю нейросети для перевода инопланетного лая! 🧠",
     "Гав! Владислав, смотрите какой ракурс! Просто космос! 📸",
     "Ррр-гав! Мои лапы готовы к высадке на Луну! 🌙",
-    "Тяв! Космическая пыль залетает в нос, но я держусь! 💨",
+    "Тяв! Космический ветер дует прямо в уши, обожаю это чувство! 💨",
     "Гав! Миссия выполнена, возвращаюсь на базу за наградой! 🏆"
 ]
 
@@ -58,7 +58,6 @@ def get_smart_summary(text):
     if not text: return "Тайны космоса ждут вас внутри этого выпуска! ✨"
     text = re.sub(r'http\S+', '', text); text = re.sub(r'#\S+', '', text); text = html.unescape(text)
     
-    # 🔥 Усиленный список мусора (добавлены страховки, кинотеатры и билеты)
     junk = [
         'vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 
         'сайт:', 'facebook', 'instagram', 'twitter', 'скачать', 'скачивай', 'ссылк', 'спонсор', 
@@ -111,6 +110,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'nocheckcertificate': True,
             'js_runtimes': {'node': {}}, 
             'remote_components': ['ejs:github'], 
+            'socket_timeout': 40, # 🔥 Защита от тайм-аутов на медленных прокси
             'extractor_args': {'youtube': {'player_client': ['tv', 'web'], 'player_skip': ['configs']}},
             'sleep_interval': random.uniform(5, 10)
         }
