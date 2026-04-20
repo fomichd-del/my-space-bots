@@ -11,7 +11,7 @@ import requests
 from datetime import datetime, timedelta, timezone
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы v175.0 'Time Hunter' активны. Горизонт поиска: 30 дней.")
+print("🚀 [ЦУП] Системы v176.0 'Supernova' активны. Поиск за 30 дней. Ошибки устранены!")
 
 # Настройки (Золотой стандарт)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -117,8 +117,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
 
         if duration > 3600: 
             print("⚠️ Видео слишком длинное (> 1 часа). Пропускаем."); return False
-        if duration == 0:
-            print("⚠️ Не удалось определить длительность. Пропускаем."); return False
+        if duration == 0: return False
 
         h_limit = 720
         if duration > 1800 or filesize > 800: h_limit = 240
@@ -127,7 +126,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         w_limit = {240: 426, 360: 640, 480: 854, 720: 1280}.get(h_limit, 426)
 
-        print(f"📥 Начинаю загрузку (Лимит {h_limit}p)...")
+        print(f"📥 Загрузка в {h_limit}p...")
         with yt_dlp.YoutubeDL({**base_ydl_opts, 'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]', 'outtmpl': f_raw}) as ydl:
             ydl.download([v_url])
             
@@ -135,8 +134,11 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         has_subs = False
         if not is_russian:
-            print("🧠 Whisper..."); if whisper_model is None: whisper_model = whisper.load_model("base")
-            res = whisper_model.transcribe(f_raw); segments = res.get('segments', [])
+            print("🧠 Whisper... (Анализ)")
+            if whisper_model is None:
+                whisper_model = whisper.load_model("base")
+            res = whisper_model.transcribe(f_raw)
+            segments = res.get('segments', [])
             if segments:
                 srt_data = []
                 for i, seg in enumerate(segments):
@@ -147,7 +149,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 with open("subs.srt", "w", encoding="utf-8") as fs: fs.write("".join(srt_data))
                 has_subs = True
 
-        print("🎬 Монтаж 'Космического Сэндвича'...")
+        print("🎬 Финальный монтаж...")
         target_total_bps = int((44 * 1024 * 1024 * 8) / (duration + 4))
         v_br = max(40000, min(target_total_bps - 32000, 2000000))
         
@@ -158,10 +160,14 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             vf = f"{'subtitles=subs.srt:' if has_subs else ''}scale=-2:{h_limit}"
             ff_cmd = ['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '32k', f_final]
         
-        subprocess.run(ff_cmd); f_to_send = f_final if os.path.exists(f_final) else f_raw
+        subprocess.run(ff_cmd)
+        f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        if os.path.exists(INTRO_FILE): subprocess.run(['ffmpeg', '-y', '-i', INTRO_FILE, '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.NULL)
-        else: subprocess.run(['ffmpeg', '-y', '-i', f_to_send, '-ss', '00:00:01.000', '-vframes', '1', '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.NULL)
+        # Обложка
+        if os.path.exists(INTRO_FILE):
+            subprocess.run(['ffmpeg', '-y', '-i', INTRO_FILE, '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(['ffmpeg', '-y', '-i', f_to_send, '-ss', '00:00:01.000', '-vframes', '1', '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         ru_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).replace('<', '«').replace('>', '»')
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
@@ -171,13 +177,12 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             files = {"video": v}
             if os.path.exists(f_thumb): files["thumbnail"] = open(f_thumb, 'rb')
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files=files, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": "true"}, timeout=600)
-            print("✅ ПОБЕДА! Видео отправлено."); return True
-    except Exception as e: print(f"⚠️ Сбой миссии: {e}"); return False
+            print("✅ ПОБЕДА! Видео в канале."); return True
+    except Exception as e: print(f"⚠️ Сбой: {e}"); return False
 
 async def main():
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
-    # Окно поиска: 30 дней
     time_limit = datetime.now(timezone.utc) - timedelta(days=30)
     
     SOURCES = [{'n': 'ADME_RU', 'cid': '@ADME_RU', 'ru': True}, {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True}, {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True}, {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False}, {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True}, {'n': 'EVLSPACE', 'cid': '@EVLSPACE', 'ru': True}, {'n': 'ночнаянаука-ц4ш', 'cid': '@ночнаянаука-ц4ш', 'ru': True}, {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True}, {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}]
@@ -189,28 +194,20 @@ async def main():
         try:
             url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle={s['cid'].replace('@','')}&key={YOUTUBE_API_KEY}"
             res = requests.get(url).json(); up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
-            # Запрашиваем 50 видео для глубокого поиска
             vids_resp = requests.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={up_id}&maxResults=50&key={YOUTUBE_API_KEY}").json()
             
             for item in vids_resp.get('items', []):
                 v_id = item['snippet']['resourceId']['videoId']
-                v_title = item['snippet']['title']
-                v_desc = item['snippet']['description']
-                v_date_str = item['snippet']['publishedAt']
-                # Парсим дату видео
-                v_date = datetime.strptime(v_date_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                v_date = datetime.strptime(item['snippet']['publishedAt'], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
                 
-                # Проверка 1: Бот уже видел это видео?
                 if v_id in db: continue
-                
-                # Проверка 2: Видео старше 30 дней?
                 if v_date < time_limit:
-                    print(f"⌛ Видео {v_id} слишком старое ({v_date_str}). Дальше не ищем."); break
+                    print(f"⌛ Видео {v_id} старше 30 дней. Пропускаем сектор."); break
                 
-                # Попытка захвата
-                if await process_mission(v_id, v_title, v_desc, s['ru'], s['n']):
+                if await process_mission(v_id, item['snippet']['title'], item['snippet']['description'], s['ru'], s['n']):
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
                     with open(SOURCE_LOG, 'w') as f: f.write(s['n']); return
-        except Exception as e: print(f"⚠️ Ошибка сектора {s['n']}: {e}"); continue
+        except Exception as e: print(f"⚠️ Ошибка: {e}"); continue
 
-if __name__ == '__main__': asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())
