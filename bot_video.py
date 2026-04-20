@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы v170.0 запущены. Режим: Брендирование + 20 фраз Марти...")
+print("🚀 [ЦУП] Системы v171.0 активны. Исправление синтаксиса + 20 фраз Марти...")
 
 # Настройки (Золотой стандарт)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -31,7 +31,7 @@ whisper_model = None
 SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
 USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
 
-# 🐾 20 выражений Марти для связи с Командором
+# 🐾 20 свежих выражений Марти для связи с Командором
 MARTY_QUOTES = [
     "Гав! Засек неопознанный летающий объект! 🛸",
     "Ррр-гав! Все системы в норме, летим к звездам! ✨",
@@ -95,7 +95,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
     try:
         v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
-        print(f"📡 [ЦУП] Захват объекта {v_id}...")
+        print(f"📡 [ЦУП] Анализ объекта {v_id}...")
         
         base_ydl_opts = {
             'quiet': True, 'proxy': proxy if proxy else None,
@@ -125,23 +125,23 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ydl.download([v_url])
         if not os.path.exists(f_raw): return False
         
-        # Перевод субтитров если нужно
         has_subs = False
         if not is_russian:
-            print("🧠 Whisper..."); if whisper_model is None: whisper_model = whisper.load_model("base")
+            print("🧠 Whisper...")
+            if whisper_model is None:
+                whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
                 srt = ""; [srt.update(f"{i+1}\n{time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))} --> {time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))}\n{GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())}\n\n") for i, seg in enumerate(res.get('segments', []))]
-                with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt); has_subs = True
+                with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
+                has_subs = True
 
-        # Сборка 'Космического Сэндвича' с FFmpeg
         print("🎬 Монтаж заставок...")
         target_total_bps = int((44 * 1024 * 1024 * 8) / (duration + 4))
         v_br = max(40000, min(target_total_bps - 32000, 2000000))
         
-        # Сложный фильтр FFmpeg: Создает 2с видео из PNG, подгоняет масштаб и склеивает
-        # Если файлы intro.png / intro0.png отсутствуют, бот просто сожмет видео
         if os.path.exists(INTRO_FILE) and os.path.exists(OUTRO_FILE):
+            # 🔥 Оптимизированный фильтр: склеиваем 3 видео и накладываем аудио с задержкой 2 сек
             ff_cmd = [
                 'ffmpeg', '-y',
                 '-loop', '1', '-t', '2', '-i', INTRO_FILE,
@@ -151,7 +151,8 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 f"[0:v]scale=-2:{h_limit},setsar=1[v0];"
                 f"[1:v]{'subtitles=subs.srt:' if has_subs else ''}scale=-2:{h_limit},setsar=1[v1];"
                 f"[2:v]scale=-2:{h_limit},setsar=1[v2];"
-                f"[v0][1:a][v1][1:a][v2][1:a]concat=n=3:v=1:a=1[v][a]",
+                f"[v0][v1][v2]concat=n=3:v=1:a=0[v];"
+                f"[1:a]adelay=2000|2000[a]",
                 '-map', '[v]', '-map', '[a]',
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast',
                 '-c:a', 'aac', '-b:a', '32k', '-ar', '44100', f_final
@@ -163,7 +164,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         subprocess.run(ff_cmd)
         f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # Генерация обложки (Всегда intro.png для стиля, если есть)
+        # Превью всегда наша картинка intro.png
         if os.path.exists(INTRO_FILE):
             subprocess.run(['ffmpeg', '-y', '-i', INTRO_FILE, '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
