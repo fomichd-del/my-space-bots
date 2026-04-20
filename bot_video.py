@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы v174.0 'Diagnostic' активны. Марти включил рацию на полную!")
+print("🚀 [ЦУП] Системы v174.1 'Diagnostic' активны. Синтаксис очищен, рация включена!")
 
 # Настройки (Золотой стандарт)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -27,7 +27,7 @@ OUTRO_FILE = "intro0.png"
 
 whisper_model = None
 
-SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
+SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', '메теорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
 USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
 
 MARTY_QUOTES = [
@@ -109,16 +109,21 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if os.path.exists(f_cookies): base_ydl_opts['cookiefile'] = f_cookies
         
         with yt_dlp.YoutubeDL(base_ydl_opts) as ydl:
-            try: info = ydl.extract_info(v_url, download=False)
-            except Exception as e: print(f"⚠️ Ошибка YouTube API: {e}"); return False
+            try:
+                info = ydl.extract_info(v_url, download=False)
+            except Exception as e:
+                print(f"⚠️ Ошибка YouTube API: {e}")
+                return False
             duration = info.get('duration', 0)
             filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
             print(f"⏱ Длительность: {duration} сек. Вес: {filesize:.1f} Мб")
 
         if duration > 3600: 
-            print("⚠️ Видео слишком длинное (> 1 часа). Пропускаем."); return False
+            print("⚠️ Видео слишком длинное (> 1 часа). Пропускаем.")
+            return False
         if duration == 0:
-            print("⚠️ Не удалось определить длительность. Возможно, стрим или блок."); return False
+            print("⚠️ Не удалось определить длительность. Возможно, стрим или блок.")
+            return False
 
         h_limit = 720
         if duration > 1800 or filesize > 800: h_limit = 240
@@ -132,12 +137,16 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             ydl.download([v_url])
             
         if not os.path.exists(f_raw): 
-            print("⚠️ Файл не был скачан. Прокси подвел?"); return False
+            print("⚠️ Файл не был скачан. Прокси подвел?")
+            return False
         
         has_subs = False
         if not is_russian:
-            print("🧠 Whisper... (Перевод)"); if whisper_model is None: whisper_model = whisper.load_model("base")
-            res = whisper_model.transcribe(f_raw); segments = res.get('segments', [])
+            print("🧠 Whisper... (Перевод)")
+            if whisper_model is None:
+                whisper_model = whisper.load_model("base")
+            res = whisper_model.transcribe(f_raw)
+            segments = res.get('segments', [])
             if segments:
                 srt_data = []
                 for i, seg in enumerate(segments):
@@ -145,7 +154,8 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                     t_end = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
                     text = GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())
                     srt_data.append(f"{i+1}\n{t_start} --> {t_end}\n{text}\n\n")
-                with open("subs.srt", "w", encoding="utf-8") as fs: fs.write("".join(srt_data))
+                with open("subs.srt", "w", encoding="utf-8") as fs:
+                    fs.write("".join(srt_data))
                 has_subs = True
 
         print("🎬 Монтаж 'Космического Сэндвича'...")
@@ -159,11 +169,14 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             vf = f"{'subtitles=subs.srt:' if has_subs else ''}scale=-2:{h_limit}"
             ff_cmd = ['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '32k', f_final]
         
-        subprocess.run(ff_cmd); f_to_send = f_final if os.path.exists(f_final) else f_raw
+        subprocess.run(ff_cmd)
+        f_to_send = f_final if os.path.exists(f_final) else f_raw
 
         # Превью
-        if os.path.exists(INTRO_FILE): subprocess.run(['ffmpeg', '-y', '-i', INTRO_FILE, '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else: subprocess.run(['ffmpeg', '-y', '-i', f_to_send, '-ss', '00:00:01.000', '-vframes', '1', '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if os.path.exists(INTRO_FILE):
+            subprocess.run(['ffmpeg', '-y', '-i', INTRO_FILE, '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.run(['ffmpeg', '-y', '-i', f_to_send, '-ss', '00:00:01.000', '-vframes', '1', '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         ru_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).replace('<', '«').replace('>', '»')
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
@@ -173,8 +186,11 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             files = {"video": v}
             if os.path.exists(f_thumb): files["thumbnail"] = open(f_thumb, 'rb')
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files=files, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": "true"}, timeout=600)
-            print("✅ ПОБЕДА! Видео отправлено."); return True
-    except Exception as e: print(f"⚠️ Сбой миссии: {e}"); return False
+            print("✅ ПОБЕДА! Видео отправлено.")
+            return True
+    except Exception as e:
+        print(f"⚠️ Сбой миссии: {e}")
+        return False
 
 async def main():
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
@@ -186,14 +202,19 @@ async def main():
         print(f"🛰 [ЦУП] Смена сектора: {s['n']}...")
         try:
             url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle={s['cid'].replace('@','')}&key={YOUTUBE_API_KEY}"
-            res = requests.get(url).json(); up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+            res = requests.get(url).json()
+            up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
             vids_resp = requests.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={up_id}&maxResults=3&key={YOUTUBE_API_KEY}").json()
             vids = [{'id': i['snippet']['resourceId']['videoId'], 'title': i['snippet']['title'], 'desc': i['snippet']['description']} for i in vids_resp.get('items', [])]
             for v in vids:
                 if v['id'] not in db:
                     if await process_mission(v['id'], v['title'], v['desc'], s['ru'], s['n']):
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                        with open(SOURCE_LOG, 'w') as f: f.write(s['n']); return
-        except Exception as e: print(f"⚠️ Ошибка источника {s['n']}: {e}"); continue
+                        with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
+                        return
+        except Exception as e:
+            print(f"⚠️ Ошибка источника {s['n']}: {e}")
+            continue
 
-if __name__ == '__main__': asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())
