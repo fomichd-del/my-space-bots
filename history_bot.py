@@ -2,6 +2,7 @@ import requests
 import os
 import random
 import re
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -14,34 +15,30 @@ DB_FILE        = "last_history_event.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Список слов, которые НЕЛЬЗЯ переводить (сохраняем профессионализм)
+# Профессиональные термины (не переводим)
 PROTECTED_TERMS = [
     'NASA', 'SpaceX', 'ISS', 'SLS', 'Starship', 'Apollo', 'Soyuz', 'Vostok',
-    'Hubble', 'James Webb', 'Artemis', 'Blue Origin', 'ESA', 'JAXA', 'Roscosmos'
+    'Hubble', 'James Webb', 'Artemis', 'Blue Origin', 'ESA', 'JAXA', 'Roscosmos',
+    'Baikonur', 'Plesetsk', 'Vostochny', 'N1', 'Falcon 9', 'Falcon Heavy'
 ]
 
-# Заголовки для обхода блокировок
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SpaceEducationBot/1.0'}
 
 def get_marti_comment(text_ru):
-    """Генератор забавных комментариев Марти на основе ключевых слов"""
+    """Генератор комментариев Марти"""
     text_low = text_ru.lower()
-    
-    # Реакции на ключевые слова
     reactions = {
         'лун': 'Луна... там, говорят, идеальный песок для того, чтобы зарыть косточку. Только вот прыгать придется высоко! 🐾',
         'ракета': 'Если эта ракета летит вверх, значит ли это, что мой мячик можно забросить на орбиту? Я готов бежать за ним! 🚀',
         'марс': 'Марс красный, потому что там много пыли. Моя шерстка стала бы такой же через пять минут прогулки! 🐩',
         'еда': 'Космическая еда в тюбиках? Надеюсь, там есть вкус говядины, иначе я в космонавты не пойду! 🥩',
         'станция': 'МКС — это как большая будка, которая летает очень быстро. Интересно, а там разрешают спать на диване? 🛰',
-        'звезд': 'Я часто гавкаю на звезды ночью, но они никогда не гавкают в ответ. Вежливые они, эти звезды... ✨'
+        'звезд': 'Я часто гавкаю на звезды ночью, но они никогда не гавкают в ответ. Вежливые они... ✨',
+        'союз': '«Союз» — звучит надежно! Как мой поводок. Только летит быстрее. 🚀',
+        'гагарин': 'Первый человек в космосе! Интересно, он брал с собой угощения для собак? 🐕'
     }
-
     for key, comment in reactions.items():
-        if key in text_low:
-            return comment
-            
-    # Универсальные фразы, если совпадений нет
+        if key in text_low: return comment
     return random.choice([
         "Мой хвост виляет со скоростью первой космической, когда я читаю такие новости! 🐕",
         "Интересно, а в скафандре есть место, чтобы почесать за ушком? 🛸",
@@ -49,125 +46,108 @@ def get_marti_comment(text_ru):
     ])
 
 def professional_translate(text):
-    """Перевод с защитой технических терминов"""
+    """Перевод с сохранением терминологии"""
+    if not text: return ""
     temp_text = text
     replacements = {}
-    
-    # Прячем термины в заглушки
     for i, term in enumerate(PROTECTED_TERMS):
         placeholder = f"__TERM{i}__"
         if term in temp_text:
             temp_text = temp_text.replace(term, placeholder)
             replacements[placeholder] = term
-            
-    # Переводим
-    translated = translator.translate(temp_text)
-    
-    # Возвращаем термины на место
-    for placeholder, original in replacements.items():
-        translated = translated.replace(placeholder, original)
-        
-    return translated
+    try:
+        translated = translator.translate(temp_text)
+        for placeholder, original in replacements.items():
+            translated = translated.replace(placeholder, original)
+        return translated
+    except: return text
+
+# --- ИСТОЧНИКИ ДАННЫХ ---
 
 def get_space_devs_event():
-    """Источник №1: Профессиональный архив запусков и событий (The Space Devs)"""
+    """Источник №1: The Space Devs (Профессиональный архив)"""
     today = datetime.now()
     url = f"https://ll.thespacedevs.com/2.2.0/event/?date__month={today.month}&date__day={today.day}&limit=5"
-    
     try:
-        print(f"📡 Сканирую глобальный космический архив на {today.day}/{today.month}...")
-        response = requests.get(url, headers=HEADERS, timeout=30)
-        if response.status_code != 200: return None
-        
-        results = response.json().get('results', [])
+        res = requests.get(url, headers=HEADERS, timeout=15).json()
+        results = res.get('results', [])
         if not results: return None
-
         event = random.choice(results)
         dt = datetime.fromisoformat(event['date'].replace('Z', '+00:00'))
-        
-        return {
-            'year': dt.year,
-            'text': event['description'],
-            'img': event.get('feature_image'),
-            'title': event.get('name'),
-            'source': 'The Space Devs Archive'
-        }
-    except Exception as e:
-        print(f"⚠️ Ошибка Space Devs: {e}")
-        return None
+        return {'year': dt.year, 'text': event['description'], 'img': event.get('feature_image'), 'title': event.get('name'), 'source': 'The Space Devs Archive'}
+    except: return None
 
-def get_nasa_archive_event():
-    """Источник №2: Поиск по официальным архивам NASA за этот день"""
+def get_wikipedia_event():
+    """Источник №2: Wikipedia API (Глобальный охват)"""
     today = datetime.now()
-    month_name = today.strftime("%B")
-    query = f"{month_name} {today.day}"
-    url = f"https://images-api.nasa.gov/search?q={query}&media_type=image"
-    
+    url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/{today.month}/{today.day}"
     try:
-        print(f"📡 Ищу в фото-архивах NASA за {query}...")
-        response = requests.get(url, headers=HEADERS, timeout=30)
-        if response.status_code != 200: return None
-            
-        items = response.json()['collection']['items']
-        if not items: return None
+        res = requests.get(url, headers=HEADERS, timeout=15).json()
+        events = [e for e in res.get('events', []) if any(k in e['text'].lower() for k in ['space', 'orbit', 'launch', 'nasa', 'soviet', 'satellite'])]
+        if not events: return None
+        event = random.choice(events)
+        img = event.get('pages', [{}])[0].get('originalimage', {}).get('source')
+        return {'year': event['year'], 'text': event['text'], 'img': img, 'title': 'Космическая веха', 'source': 'Wikipedia Global Archive'}
+    except: return None
 
-        item = random.choice(items[:15])
-        data = item['data'][0]
-        
-        year = today.year - 10
-        if 'date_created' in data:
-            year = data['date_created'].split('-')[0]
-
-        return {
-            'year': year,
-            'text': data.get('description', data.get('title')),
-            'img': item['links'][0]['href'],
-            'title': data.get('title'),
-            'source': 'NASA Historical Library'
-        }
-    except Exception as e:
-        print(f"⚠️ Ошибка NASA Archive: {e}")
-        return None
+def get_roscosmos_event():
+    """Источник №3: Roscosmos RSS (Отечественная история)"""
+    url = "https://www.roscosmos.ru/export/news.xml" # Пример RSS Роскосмоса
+    try:
+        response = requests.get(url, timeout=15)
+        root = ET.fromstring(response.content)
+        items = root.findall('.//item')
+        # Ищем новости со словами "годовщина", "юбилей", "история"
+        historical = []
+        for item in items:
+            title = item.find('title').text
+            desc = item.find('description').text
+            if any(k in (title + desc).lower() for k in ['годовщин', 'юбилей', 'памят', 'истори']):
+                historical.append({
+                    'year': datetime.now().year, # RSS обычно дает текущие новости о прошлом
+                    'text': desc,
+                    'img': None,
+                    'title': title,
+                    'source': 'Пресс-служба Роскосмоса'
+                })
+        return random.choice(historical) if historical else None
+    except: return None
 
 def send_history():
-    event = get_space_devs_event()
+    # Очередность проверки источников
+    sources = [get_space_devs_event, get_wikipedia_event, get_roscosmos_event]
+    random.shuffle(sources) # Рандомизируем, чтобы контент был разным
+    
+    event = None
+    for get_data in sources:
+        event = get_data()
+        if event: break
+
     if not event:
-        event = get_nasa_archive_event()
-        
-    if not event:
-        print("📭 Сегодня тихий день в истории космоса.")
+        print("📭 Событий не найдено.")
         return
 
     event_key = f"{event['year']}_{event['title'][:20]}"
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r', encoding='utf-8') as f:
-            if event_key in f.read():
-                print(f"✋ Событие {event_key} уже было опубликовано.")
-                return
+            if event_key in f.read(): return
 
-    print(f"📝 Найдено событие: {event['title']}. Обработка...")
-    
-    # 1. Профессиональный перевод
+    # Обработка текста
     title_ru = professional_translate(event['title'])
-    
-    # 2. Умное разбиение на предложения (не ломается на "U.S." или "St.")
-    raw_desc = event['text']
-    sentences = re.split(r'(?<![A-Z])\.\s+', raw_desc)
+    sentences = re.split(r'(?<![A-Z])\.\s+', event['text'])
     short_desc_en = '. '.join(sentences[:4]) + ('.' if not sentences[0].endswith('.') else '')
     desc_ru = professional_translate(short_desc_en)
-    
-    # 3. Получаем комментарий от Марти
     marti_msg = get_marti_comment(desc_ru)
     
-    # 4. Формирование красочного поста
+    # Оформление "Архив ЦУП"
     caption = (
         f"📜 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
         f"📅 <code>ДАТА: {datetime.now().day:02d}.{datetime.now().month:02d}.{event['year']}</code>\n"
         f"─────────────────────\n\n"
-        f"🚀 <b>СОБЫТИЕ:</b>\n<u>{title_ru.upper()}</u>\n\n"
-        f"📖 <b>ЧТО ПРОИЗОШЛО:</b>\n{desc_ru}\n\n"
-        f"🐩 <b>МЫСЛИ МАРТИ:</b>\n<i>«{marti_msg}»</i>\n\n"
-        f"📡 <b>ИСТОЧНИК:</b> <code>{event['source']}</code>\n"
+        f"🚀 <b>ОБЪЕКТ:</b>\n<u>{title_ru.upper()}</u>\n\n"
+        f"📖 <b>СВОДКА ЦУП:</b>\n{desc_ru}\n\n"
+        f"🐩 <b>АНАЛИЗ МАРТИ:</b>\n<i>«{marti_msg}»</i>\n\n"
+        f"📡 <b>КАНАЛ СВЯЗИ:</b> <code>{event['source']}</code>\n"
         f"─────────────────────\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
@@ -180,13 +160,5 @@ def send_history():
     }
     
     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
-    
     if r.status_code == 200:
-        with open(DB_FILE, 'a', encoding='utf-8') as f:
-            f.write(f"{event_key}\n")
-        print(f"✅ Пост успешно отправлен!")
-    else:
-        print(f"❌ Ошибка Telegram: {r.text}")
-
-if __name__ == '__main__':
-    send_history()
+        with open(DB_FILE, 'a', encoding='utf-8') as f: f.write(f"{event_key}\n")
