@@ -1,4 +1,4 @@
-name: Bot-video v170.0
+name: Bot-video v172.2
 
 on:
   schedule:
@@ -41,7 +41,7 @@ jobs:
           # 🔥 Ставим чистый yt-dlp со всеми скриптами EJS
           pip install -U "yt-dlp[default]"
 
-      - name: 🚀 Запуск v170.0 'Grandmaster v2.8'
+      - name: 🚀 Запуск v172.2 'Grandmaster v2.9'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -54,5 +54,5 @@ jobs:
           git config --global user.name "Space-Bot"
           git config --global user.email "bot@vladislav_space"
           git add last_video_date.txt last_source.txt || true
-          git commit -m "📊 Реестр v170.0 [график обновлен]" || echo "Нет данных"
+          git commit -m "📊 Реестр v172.2 [Final Update]" || echo "Нет данных"
           git push origin main
