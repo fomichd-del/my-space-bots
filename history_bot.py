@@ -1,6 +1,7 @@
 import requests
 import os
 import random
+import re
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -13,26 +14,74 @@ DB_FILE        = "last_history_event.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
+# Список слов, которые НЕЛЬЗЯ переводить (сохраняем профессионализм)
+PROTECTED_TERMS = [
+    'NASA', 'SpaceX', 'ISS', 'SLS', 'Starship', 'Apollo', 'Soyuz', 'Vostok',
+    'Hubble', 'James Webb', 'Artemis', 'Blue Origin', 'ESA', 'JAXA', 'Roscosmos'
+]
+
 # Заголовки для обхода блокировок
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SpaceEducationBot/1.0'}
+
+def get_marti_comment(text_ru):
+    """Генератор забавных комментариев Марти на основе ключевых слов"""
+    text_low = text_ru.lower()
+    
+    # Реакции на ключевые слова
+    reactions = {
+        'лун': 'Луна... там, говорят, идеальный песок для того, чтобы зарыть косточку. Только вот прыгать придется высоко! 🐾',
+        'ракета': 'Если эта ракета летит вверх, значит ли это, что мой мячик можно забросить на орбиту? Я готов бежать за ним! 🚀',
+        'марс': 'Марс красный, потому что там много пыли. Моя шерстка стала бы такой же через пять минут прогулки! 🐩',
+        'еда': 'Космическая еда в тюбиках? Надеюсь, там есть вкус говядины, иначе я в космонавты не пойду! 🥩',
+        'станция': 'МКС — это как большая будка, которая летает очень быстро. Интересно, а там разрешают спать на диване? 🛰',
+        'звезд': 'Я часто гавкаю на звезды ночью, но они никогда не гавкают в ответ. Вежливые они, эти звезды... ✨'
+    }
+
+    for key, comment in reactions.items():
+        if key in text_low:
+            return comment
+            
+    # Универсальные фразы, если совпадений нет
+    return random.choice([
+        "Мой хвост виляет со скоростью первой космической, когда я читаю такие новости! 🐕",
+        "Интересно, а в скафандре есть место, чтобы почесать за ушком? 🛸",
+        "Космос такой большой... Надеюсь, там достаточно места для всех хороших мальчиков! 🐾"
+    ])
+
+def professional_translate(text):
+    """Перевод с защитой технических терминов"""
+    temp_text = text
+    replacements = {}
+    
+    # Прячем термины в заглушки
+    for i, term in enumerate(PROTECTED_TERMS):
+        placeholder = f"__TERM{i}__"
+        if term in temp_text:
+            temp_text = temp_text.replace(term, placeholder)
+            replacements[placeholder] = term
+            
+    # Переводим
+    translated = translator.translate(temp_text)
+    
+    # Возвращаем термины на место
+    for placeholder, original in replacements.items():
+        translated = translated.replace(placeholder, original)
+        
+    return translated
 
 def get_space_devs_event():
     """Источник №1: Профессиональный архив запусков и событий (The Space Devs)"""
     today = datetime.now()
-    # Запрашиваем события на конкретный месяц и день
     url = f"https://ll.thespacedevs.com/2.2.0/event/?date__month={today.month}&date__day={today.day}&limit=5"
     
     try:
         print(f"📡 Сканирую глобальный космический архив на {today.day}/{today.month}...")
         response = requests.get(url, headers=HEADERS, timeout=30)
-        if response.status_code != 200:
-            return None
+        if response.status_code != 200: return None
         
         results = response.json().get('results', [])
-        if not results:
-            return None
+        if not results: return None
 
-        # Выбираем случайное историческое событие
         event = random.choice(results)
         dt = datetime.fromisoformat(event['date'].replace('Z', '+00:00'))
         
@@ -57,19 +106,15 @@ def get_nasa_archive_event():
     try:
         print(f"📡 Ищу в фото-архивах NASA за {query}...")
         response = requests.get(url, headers=HEADERS, timeout=30)
-        if response.status_code != 200:
-            return None
+        if response.status_code != 200: return None
             
         items = response.json()['collection']['items']
-        if not items:
-            return None
+        if not items: return None
 
-        # Берем случайный исторический кадр
         item = random.choice(items[:15])
         data = item['data'][0]
         
-        # Пытаемся вытащить год из даты создания
-        year = today.year - 10 # Запасной вариант
+        year = today.year - 10
         if 'date_created' in data:
             year = data['date_created'].split('-')[0]
 
@@ -85,10 +130,7 @@ def get_nasa_archive_event():
         return None
 
 def send_history():
-    # Пробуем основной источник (самый точный)
     event = get_space_devs_event()
-    
-    # Если там ничего нет, идем в архив NASA
     if not event:
         event = get_nasa_archive_event()
         
@@ -96,7 +138,6 @@ def send_history():
         print("📭 Сегодня тихий день в истории космоса.")
         return
 
-    # Проверка на дубликаты (по году и части текста)
     event_key = f"{event['year']}_{event['title'][:20]}"
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r', encoding='utf-8') as f:
@@ -104,24 +145,33 @@ def send_history():
                 print(f"✋ Событие {event_key} уже было опубликовано.")
                 return
 
-    # Перевод
-    print(f"📝 Найдено событие: {event['title']}. Перевожу...")
-    title_ru = translator.translate(event['title'])
-    # Описание часто длинное, берем 3-4 предложения
-    short_desc = '. '.join(event['text'].split('.')[:4]) + '.'
-    desc_ru = translator.translate(short_desc)
+    print(f"📝 Найдено событие: {event['title']}. Обработка...")
     
+    # 1. Профессиональный перевод
+    title_ru = professional_translate(event['title'])
+    
+    # 2. Умное разбиение на предложения (не ломается на "U.S." или "St.")
+    raw_desc = event['text']
+    sentences = re.split(r'(?<![A-Z])\.\s+', raw_desc)
+    short_desc_en = '. '.join(sentences[:4]) + ('.' if not sentences[0].endswith('.') else '')
+    desc_ru = professional_translate(short_desc_en)
+    
+    # 3. Получаем комментарий от Марти
+    marti_msg = get_marti_comment(desc_ru)
+    
+    # 4. Формирование красочного поста
     caption = (
         f"📜 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
-        f"📅 <b>Дата: {datetime.now().day}.{datetime.now().month}.{event['year']} года</b>\n"
+        f"📅 <code>ДАТА: {datetime.now().day:02d}.{datetime.now().month:02d}.{event['year']}</code>\n"
         f"─────────────────────\n\n"
-        f"🚀 <b>СОБЫТИЕ: {title_ru.upper()}</b>\n\n"
+        f"🚀 <b>СОБЫТИЕ:</b>\n<u>{title_ru.upper()}</u>\n\n"
         f"📖 <b>ЧТО ПРОИЗОШЛО:</b>\n{desc_ru}\n\n"
-        f"🔭 <i>Источник: {event['source']}</i>\n\n"
+        f"🐩 <b>МЫСЛИ МАРТИ:</b>\n<i>«{marti_msg}»</i>\n\n"
+        f"📡 <b>ИСТОЧНИК:</b> <code>{event['source']}</code>\n"
+        f"─────────────────────\n"
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    # Отправка
     payload = {
         'chat_id': CHANNEL_NAME,
         'photo': event['img'] or "https://images.unsplash.com/photo-1451187580459-43490279c0fa",
