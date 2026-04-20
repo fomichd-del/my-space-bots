@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы v171.0 активны. Исправление синтаксиса + 20 фраз Марти...")
+print("🚀 [ЦУП] Системы v172.0 активны. Режим: Точная стыковка (Branding Fix) + 20 фраз Марти...")
 
 # Настройки (Золотой стандарт)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -31,7 +31,7 @@ whisper_model = None
 SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
 USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
 
-# 🐾 20 свежих выражений Марти для связи с Командором
+# 🐾 20 выражений Марти для связи с Командором
 MARTY_QUOTES = [
     "Гав! Засек неопознанный летающий объект! 🛸",
     "Ррр-гав! Все системы в норме, летим к звездам! ✨",
@@ -121,6 +121,9 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         elif duration > 900 or filesize > 500: h_limit = 360
         elif duration > 480 or filesize > 300: h_limit = 480
         
+        # Определяем эталонную ширину для склейки (16:9)
+        w_limit = {240: 426, 360: 640, 480: 854, 720: 1280}.get(h_limit, 426)
+
         with yt_dlp.YoutubeDL({**base_ydl_opts, 'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]', 'outtmpl': f_raw}) as ydl:
             ydl.download([v_url])
         if not os.path.exists(f_raw): return False
@@ -128,8 +131,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         has_subs = False
         if not is_russian:
             print("🧠 Whisper...")
-            if whisper_model is None:
-                whisper_model = whisper.load_model("base")
+            if whisper_model is None: whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
             if len(res.get('text', '').strip()) > 15:
                 srt = ""; [srt.update(f"{i+1}\n{time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))} --> {time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))}\n{GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())}\n\n") for i, seg in enumerate(res.get('segments', []))]
@@ -141,16 +143,17 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         v_br = max(40000, min(target_total_bps - 32000, 2000000))
         
         if os.path.exists(INTRO_FILE) and os.path.exists(OUTRO_FILE):
-            # 🔥 Оптимизированный фильтр: склеиваем 3 видео и накладываем аудио с задержкой 2 сек
+            # 🔥 Форсируем одинаковый размер для всех частей (масштаб + паддинг)
+            filter_pad = f"scale={w_limit}:{h_limit}:force_original_aspect_ratio=decrease,pad={w_limit}:{h_limit}:(ow-iw)/2:(oh-ih)/2,setsar=1"
             ff_cmd = [
                 'ffmpeg', '-y',
                 '-loop', '1', '-t', '2', '-i', INTRO_FILE,
                 '-i', f_raw,
                 '-loop', '1', '-t', '2', '-i', OUTRO_FILE,
                 '-filter_complex',
-                f"[0:v]scale=-2:{h_limit},setsar=1[v0];"
-                f"[1:v]{'subtitles=subs.srt:' if has_subs else ''}scale=-2:{h_limit},setsar=1[v1];"
-                f"[2:v]scale=-2:{h_limit},setsar=1[v2];"
+                f"[0:v]{filter_pad}[v0];"
+                f"[1:v]{'subtitles=subs.srt:' if has_subs else ''}{filter_pad}[v1];"
+                f"[2:v]{filter_pad}[v2];"
                 f"[v0][v1][v2]concat=n=3:v=1:a=0[v];"
                 f"[1:a]adelay=2000|2000[a]",
                 '-map', '[v]', '-map', '[a]',
@@ -173,7 +176,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         ru_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).replace('<', '«').replace('>', '»')
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
         mode_tag = "📝 ПЕРЕВОД (СУБТИТРЫ)" if not is_russian else "🎙 ОРИГИНАЛЬНАЯ ОЗВУЧКА"
-        
         caption = f"<b>{mode_tag}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
 
         with open(f_to_send, 'rb') as v:
