@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы v172.0 активны. Режим: Точная стыковка (Branding Fix) + 20 фраз Марти...")
+print("🚀 [ЦУП] Системы v172.1 активны. Режим: Точная стыковка + Усиленный Ad-Blocker...")
 
 # Настройки (Золотой стандарт)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -31,7 +31,6 @@ whisper_model = None
 SPACE_KEYWORDS = ['космос', 'планета', 'звезда', 'галактика', 'марс', 'юпитер', 'сатурн', 'вселенная', 'астрономия', 'телескоп', 'млечный путь', 'черная дыра', 'астероид', 'метеорит', 'луна', 'солнце', 'ракета', 'spacex', 'nasa', 'роскосмос', 'инопланет', 'орбита', 'мкс', 'космонавт', 'астронавт', 'марсоход', 'starship']
 USER_AGENTS = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36']
 
-# 🐾 20 выражений Марти для связи с Командором
 MARTY_QUOTES = [
     "Гав! Засек неопознанный летающий объект! 🛸",
     "Ррр-гав! Все системы в норме, летим к звездам! ✨",
@@ -51,18 +50,27 @@ MARTY_QUOTES = [
     "Тяв! Подключаю нейросети для перевода инопланетного лая! 🧠",
     "Гав! Владислав, смотрите какой ракурс! Просто космос! 📸",
     "Ррр-гав! Мои лапы готовы к высадке на Луну! 🌙",
-    "Тяв! Космический ветер дует прямо в уши, обожаю это чувство! 💨",
+    "Тяв! Космическая пыль залетает в нос, но я держусь! 💨",
     "Гав! Миссия выполнена, возвращаюсь на базу за наградой! 🏆"
 ]
 
 def get_smart_summary(text):
     if not text: return "Тайны космоса ждут вас внутри этого выпуска! ✨"
     text = re.sub(r'http\S+', '', text); text = re.sub(r'#\S+', '', text); text = html.unescape(text)
-    junk = ['vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 'сайт:', 'facebook', 'instagram', 'twitter', 'скачать', 'скачивай', 'ссылк', 'спонсор', 'реклама', 'промокод', 'скидк', 'boosty', 'patreon', 'поддержать', 'курсы', 'telegram']
+    
+    # 🔥 Усиленный список мусора (добавлены страховки, кинотеатры и билеты)
+    junk = [
+        'vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 
+        'сайт:', 'facebook', 'instagram', 'twitter', 'скачать', 'скачивай', 'ссылк', 'спонсор', 
+        'реклама', 'промокод', 'скидк', 'boosty', 'patreon', 'поддержать', 'курсы', 'telegram',
+        'страхован', 'полис', 'кинопоиск', 'плей-офф', 'кхл', 'билет', 'т-банк', 'тинькофф'
+    ]
+    
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
     lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
     full = " ".join(lines); sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
+    
     if not res or len(res) < 15: res = "Погружаемся в тайны Вселенной в новом выпуске! Приятного просмотра."
     return res.replace('<', '«').replace('>', '»').replace('&', 'и')
 
@@ -121,7 +129,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         elif duration > 900 or filesize > 500: h_limit = 360
         elif duration > 480 or filesize > 300: h_limit = 480
         
-        # Определяем эталонную ширину для склейки (16:9)
         w_limit = {240: 426, 360: 640, 480: 854, 720: 1280}.get(h_limit, 426)
 
         with yt_dlp.YoutubeDL({**base_ydl_opts, 'format': f'bestvideo[height<={h_limit}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h_limit}]', 'outtmpl': f_raw}) as ydl:
@@ -143,7 +150,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         v_br = max(40000, min(target_total_bps - 32000, 2000000))
         
         if os.path.exists(INTRO_FILE) and os.path.exists(OUTRO_FILE):
-            # 🔥 Форсируем одинаковый размер для всех частей (масштаб + паддинг)
             filter_pad = f"scale={w_limit}:{h_limit}:force_original_aspect_ratio=decrease,pad={w_limit}:{h_limit}:(ow-iw)/2:(oh-ih)/2,setsar=1"
             ff_cmd = [
                 'ffmpeg', '-y',
@@ -167,7 +173,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         subprocess.run(ff_cmd)
         f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # Превью всегда наша картинка intro.png
         if os.path.exists(INTRO_FILE):
             subprocess.run(['ffmpeg', '-y', '-i', INTRO_FILE, '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
