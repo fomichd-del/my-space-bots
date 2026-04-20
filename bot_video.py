@@ -11,7 +11,7 @@ import requests
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы v172.2 активны. Режим: Максимальная стабильность + Брендирование...")
+print("🚀 [ЦУП] Системы v173.0 активны. Режим: Полная очистка синтаксиса + Брендирование...")
 
 # Настройки (Золотой стандарт канала КОСМОС)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -56,20 +56,20 @@ MARTY_QUOTES = [
 
 def get_smart_summary(text):
     if not text: return "Тайны космоса ждут вас внутри этого выпуска! ✨"
-    text = re.sub(r'http\S+', '', text); text = re.sub(r'#\S+', '', text); text = html.unescape(text)
-    
+    text = re.sub(r'http\S+', '', text)
+    text = re.sub(r'#\S+', '', text)
+    text = html.unescape(text)
     junk = [
         'vk.com', 'ok.ru', 't.me', 'подписывайтесь', 'подпишись', 'наш канал', 'vpn', 'amnezia', 
         'сайт:', 'facebook', 'instagram', 'twitter', 'скачать', 'скачивай', 'ссылк', 'спонсор', 
         'реклама', 'промокод', 'скидк', 'boosty', 'patreon', 'поддержать', 'курсы', 'telegram',
         'страхован', 'полис', 'кинопоиск', 'плей-офф', 'кхл', 'билет', 'т-банк', 'тинькофф'
     ]
-    
     lines = [l.strip() for l in text.split('\n') if len(l.strip()) > 25 and not any(j in l.lower() for j in junk)]
     lines = [l for l in lines if not re.match(r'^\d{1,2}:\d{2}', l)]
-    full = " ".join(lines); sentences = re.split(r'(?<=[.!?]) +', full)
+    full = " ".join(lines)
+    sentences = re.split(r'(?<=[.!?]) +', full)
     res = " ".join([s.strip() for s in sentences if len(s) > 35][:2])
-    
     if not res or len(res) < 15: res = "Погружаемся в тайны Вселенной в новом выпуске! Приятного просмотра."
     return res.replace('<', '«').replace('>', '»').replace('&', 'и')
 
@@ -78,10 +78,13 @@ def get_fast_proxy():
     try:
         resp = requests.get(url, timeout=5)
         if resp.status_code == 200:
-            proxies = resp.text.strip().split('\n'); random.shuffle(proxies)
+            proxies = resp.text.strip().split('\n')
+            random.shuffle(proxies)
             for p in proxies[:15]:
                 p_str = f"http://{p.strip()}"
-                try: requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2); return p_str
+                try: 
+                    requests.get("https://www.google.com", proxies={"https": p_str}, timeout=2)
+                    return p_str
                 except: continue
     except: pass
     return None
@@ -110,7 +113,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             'nocheckcertificate': True,
             'js_runtimes': {'node': {}}, 
             'remote_components': ['ejs:github'], 
-            'socket_timeout': 40, # 🔥 Защита от тайм-аутов на медленных прокси
+            'socket_timeout': 40,
             'extractor_args': {'youtube': {'player_client': ['tv', 'web'], 'player_skip': ['configs']}},
             'sleep_interval': random.uniform(5, 10)
         }
@@ -118,7 +121,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         with yt_dlp.YoutubeDL(base_ydl_opts) as ydl:
             try: info = ydl.extract_info(v_url, download=False)
-            except Exception as e: print(f"⚠️ Ошибка: {e}"); return False
+            except Exception as e: print(f"⚠️ Ошибка YouTube: {e}"); return False
             duration = info.get('duration', 1)
             filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
 
@@ -138,11 +141,19 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         has_subs = False
         if not is_russian:
             print("🧠 Whisper...")
-            if whisper_model is None: whisper_model = whisper.load_model("base")
+            if whisper_model is None:
+                whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
-            if len(res.get('text', '').strip()) > 15:
-                srt = ""; [srt.update(f"{i+1}\n{time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))} --> {time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))}\n{GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())}\n\n") for i, seg in enumerate(res.get('segments', []))]
-                with open("subs.srt", "w", encoding="utf-8") as fs: fs.write(srt)
+            segments = res.get('segments', [])
+            if segments:
+                srt_data = []
+                for i, seg in enumerate(segments):
+                    t_start = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
+                    t_end = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
+                    text = GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())
+                    srt_data.append(f"{i+1}\n{t_start} --> {t_end}\n{text}\n\n")
+                with open("subs.srt", "w", encoding="utf-8") as fs:
+                    fs.write("".join(srt_data))
                 has_subs = True
 
         print("🎬 Монтаж заставок...")
@@ -161,7 +172,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
                 f"[1:v]{'subtitles=subs.srt:' if has_subs else ''}{filter_pad}[v1];"
                 f"[2:v]{filter_pad}[v2];"
                 f"[v0][v1][v2]concat=n=3:v=1:a=0[v];"
-                f"[1:a]adelay=2000|2000[a]",
+                f"[1:a]adelay=2000|2000:all=1[a]",
                 '-map', '[v]', '-map', '[a]',
                 '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast',
                 '-c:a', 'aac', '-b:a', '32k', '-ar', '44100', f_final
@@ -188,7 +199,9 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             if os.path.exists(f_thumb): files["thumbnail"] = open(f_thumb, 'rb')
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files=files, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": "true"}, timeout=600)
             return True
-    except Exception as e: print(f"⚠️ Сбой: {e}"); return False
+    except Exception as e: 
+        print(f"⚠️ Сбой миссии: {e}")
+        return False
 
 async def main():
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
@@ -199,13 +212,17 @@ async def main():
         if s['n'] == last_s: continue
         try:
             url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle={s['cid'].replace('@','')}&key={YOUTUBE_API_KEY}"
-            res = requests.get(url).json(); up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
-            vids = [{'id': i['snippet']['resourceId']['videoId'], 'title': i['snippet']['title'], 'desc': i['snippet']['description']} for i in requests.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={up_id}&maxResults=3&key={YOUTUBE_API_KEY}").json()['items']]
+            res = requests.get(url).json()
+            up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+            vids_resp = requests.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={up_id}&maxResults=3&key={YOUTUBE_API_KEY}").json()
+            vids = [{'id': i['snippet']['resourceId']['videoId'], 'title': i['snippet']['title'], 'desc': i['snippet']['description']} for i in vids_resp.get('items', [])]
             for v in vids:
                 if v['id'] not in db:
                     if await process_mission(v['id'], v['title'], v['desc'], s['ru'], s['n']):
                         with open(DB_FILE, 'a') as f: f.write(f"\n{v['id']}")
-                        with open(SOURCE_LOG, 'w') as f: f.write(s['n']); return
+                        with open(SOURCE_LOG, 'w') as f: f.write(s['n'])
+                        return
         except: continue
 
-if __name__ == '__main__': asyncio.run(main())
+if __name__ == '__main__': 
+    asyncio.run(main())
