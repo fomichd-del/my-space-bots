@@ -7,7 +7,7 @@ from datetime import datetime
 from deep_translator import GoogleTranslator
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ И ДИАГНОСТИКА
+# ⚙️ НАСТРОЙКИ
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
@@ -15,142 +15,137 @@ DB_FILE        = "last_history_event.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-PROTECTED_TERMS = [
-    'NASA', 'SpaceX', 'ISS', 'SLS', 'Starship', 'Apollo', 'Soyuz', 'Vostok',
-    'Hubble', 'James Webb', 'Artemis', 'Blue Origin', 'ESA', 'JAXA', 'Roscosmos',
-    'Baikonur', 'Plesetsk', 'Vostochny', 'Falcon 9'
+# 🛡 ФИЛЬТР БЕЗОПАСНОСТИ: Исключаем военную тематику
+FORBIDDEN_KEYWORDS = [
+    'military', 'war', 'weapon', 'defense', 'army', 'pentagon', 'spy', 'classified', 
+    'air force', 'война', 'военный', 'оборона', 'оружие', 'шпион', 'секретно', 
+    'ядерный', 'nuclear', 'missile', 'ракетный удар', 'разведка'
 ]
 
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SpaceEducationBot/1.0'}
+# ✨ КОСМИЧЕСКИЙ ФИЛЬТР: Обязательные темы
+SPACE_KEYWORDS = [
+    'space', 'orbit', 'nasa', 'planet', 'star', 'galaxy', 'telescope', 'launch',
+    'космос', 'орбита', 'планета', 'звезда', 'галактика', 'телескоп', 'запуск',
+    'астроном', 'спутник', 'луна', 'марс', 'discovery', 'открытие'
+]
 
-def check_systems():
-    """Предполетная проверка токенов и связи"""
-    print("🛠 [СИСТЕМА ДИАГНОСТИКИ] Инициализация...")
-    if not TELEGRAM_TOKEN:
-        print("❌ ОШИБКА: TELEGRAM_TOKEN не найден в секретах GitHub!")
-        return False
-    print("✅ Телеграм-токен обнаружен.")
-    return True
+PROTECTED_TERMS = ['NASA', 'SpaceX', 'ISS', 'Starship', 'Apollo', 'Roscosmos', 'ESA']
+
+def log_status(message):
+    """Вывод детального статуса в консоль ЦУП"""
+    print(f"📡 [ЦУП-ДИАГНОСТИКА]: {message}")
+
+def check_content_safety(text):
+    """Проверка текста на соответствие мирному космосу"""
+    text_low = text.lower()
+    
+    # 1. Ищем запрещенку
+    for word in FORBIDDEN_KEYWORDS:
+        if word in text_low:
+            return False, f"Обнаружена военная тематика: '{word}'"
+    
+    # 2. Ищем подтверждение космоса
+    if not any(word in text_low for word in SPACE_KEYWORDS):
+        return False, "Событие не связано напрямую с космосом или наукой"
+        
+    return True, "Проверка безопасности пройдена"
 
 def get_marti_comment(text_ru):
-    text_low = text_ru.lower()
+    # (Код Марти остается прежним, так как он уже настроен на забавный лад)
     reactions = {
-        'лун': 'Луна... там идеальный песок, чтобы зарыть косточку. Только прыгать придется высоко! 🐾',
-        'ракета': 'Если ракета летит вверх, значит ли это, что мой мячик можно забросить на орбиту? 🚀',
-        'марс': 'Марс красный, потому что там много пыли. Моя шерстка стала бы такой же за пять минут! 🐩',
-        'еда': 'Космическая еда в тюбиках? Надеюсь, там есть вкус говядины! 🥩',
-        'станция': 'МКС — это как большая будка, которая летает очень быстро. 🛰',
-        'звезд': 'Я часто гавкаю на звезды, но они никогда не гавкают в ответ. Вежливые... ✨'
+        'лун': 'Луна... идеальное место, чтобы зарыть косточку. Никакой гравитации, прыгаешь как супер-пес! 🐾',
+        'марс': 'На Марсе пыльно, моя шерстка станет рыжей! 🐩',
+        'звезд': 'Я гавкаю на звезды, они красивые. ✨'
     }
     for key, comment in reactions.items():
-        if key in text_low: return comment
-    return "Мой хвост виляет со скоростью первой космической от таких новостей! 🐕"
+        if key in text_ru.lower(): return comment
+    return "Космос такой большой! Надеюсь, там достаточно места для всех хороших мальчиков! 🐾"
 
 def professional_translate(text):
-    if not text: return ""
-    temp_text = text
-    replacements = {}
-    for i, term in enumerate(PROTECTED_TERMS):
-        placeholder = f"__TERM{i}__"
-        if term in temp_text:
-            temp_text = temp_text.replace(term, placeholder)
-            replacements[placeholder] = term
     try:
+        # Упрощенная защита терминов
+        temp_text = text
+        for term in PROTECTED_TERMS:
+            temp_text = temp_text.replace(term, f"[[{term}]]")
+        
         translated = translator.translate(temp_text)
-        for placeholder, original in replacements.items():
-            translated = translated.replace(placeholder, original)
+        
+        for term in PROTECTED_TERMS:
+            translated = translated.replace(f"[[{term}]]", term)
         return translated
     except Exception as e:
-        print(f"⚠️ Ошибка перевода: {e}")
+        log_status(f"Ошибка перевода: {e}")
         return text
 
-# --- БЛОК ИСТОЧНИКОВ С ЛОГИРОВАНИЕМ ---
+# --- ИСТОЧНИКИ С ПРОВЕРКОЙ ---
 
 def get_space_devs_event():
-    print("🔍 Поиск: Space Devs API...")
     today = datetime.now()
     url = f"https://ll.thespacedevs.com/2.2.0/event/?date__month={today.month}&date__day={today.day}&limit=5"
     try:
-        res = requests.get(url, headers=HEADERS, timeout=15)
-        if res.status_code != 200:
-            print(f"   └ 🛑 API вернул статус {res.status_code}")
-            return None
-        results = res.json().get('results', [])
+        res = requests.get(url, timeout=15).json()
+        results = res.get('results', [])
         if not results: return None
         event = random.choice(results)
-        dt = datetime.fromisoformat(event['date'].replace('Z', '+00:00'))
-        return {'year': dt.year, 'text': event['description'], 'img': event.get('feature_image'), 'title': event.get('name'), 'source': 'Space Devs'}
-    except Exception as e:
-        print(f"   └ 🛑 Ошибка: {e}")
-        return None
+        return {'year': datetime.fromisoformat(event['date'].replace('Z', '+00:00')).year, 
+                'text': event['description'], 'img': event.get('feature_image'), 
+                'title': event.get('name'), 'source': 'The Space Devs Archive'}
+    except: return None
 
 def get_wikipedia_event():
-    print("🔍 Поиск: Wikipedia (On this day)...")
     today = datetime.now()
     url = f"https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/{today.month}/{today.day}"
     try:
-        res = requests.get(url, headers=HEADERS, timeout=15).json()
-        events = [e for e in res.get('events', []) if any(k in e['text'].lower() for k in ['space', 'orbit', 'launch', 'nasa', 'soviet', 'satellite'])]
-        if not events:
-            print("   └ ℹ️ Космических событий в Википедии на сегодня нет.")
-            return None
-        event = random.choice(events)
-        img = event.get('pages', [{}])[0].get('originalimage', {}).get('source')
-        return {'year': event['year'], 'text': event['text'], 'img': img, 'title': 'Космическая веха', 'source': 'Wikipedia'}
-    except Exception as e:
-        print(f"   └ 🛑 Ошибка: {e}")
+        res = requests.get(url, timeout=15).json()
+        events = res.get('events', [])
+        random.shuffle(events)
+        for e in events:
+            is_safe, reason = check_content_safety(e['text'])
+            if is_safe:
+                img = e.get('pages', [{}])[0].get('originalimage', {}).get('source')
+                return {'year': e['year'], 'text': e['text'], 'img': img, 'title': 'Космическая веха', 'source': 'Wikipedia Global Archive'}
         return None
-
-def get_roscosmos_event():
-    print("🔍 Поиск: Роскосмос (RSS)...")
-    url = "https://www.roscosmos.ru/export/news.xml"
-    try:
-        response = requests.get(url, timeout=15)
-        root = ET.fromstring(response.content)
-        items = root.findall('.//item')
-        historical = []
-        for item in items:
-            title = item.find('title').text
-            desc = item.find('description').text
-            if any(k in (title + desc).lower() for k in ['годовщин', 'юбилей', 'памят', 'истори']):
-                historical.append({'year': datetime.now().year, 'text': desc, 'img': None, 'title': title, 'source': 'Роскосмос'})
-        if not historical: print("   └ ℹ️ В ленте Роскосмоса нет исторических сводок.")
-        return random.choice(historical) if historical else None
-    except Exception as e:
-        print(f"   └ 🛑 Ошибка RSS: {e}")
-        return None
+    except: return None
 
 def send_history():
-    if not check_systems(): return
-
-    sources = [get_space_devs_event, get_wikipedia_event, get_roscosmos_event]
+    log_status("Запуск протокола History Bot v2.0")
+    
+    sources = [get_space_devs_event, get_wikipedia_event]
     random.shuffle(sources)
     
     event = None
-    for get_data in sources:
-        event = get_data()
+    for fetch_method in sources:
+        log_status(f"Опрос источника: {fetch_method.__name__}")
+        event = fetch_method()
         if event:
-            print(f"✅ УСПЕХ: Данные получены из {event['source']}")
-            break
+            # Важнейшая проверка безопасности
+            is_safe, reason = check_content_safety(event['text'] + " " + event['title'])
+            if is_safe:
+                log_status(f"Событие найдено: {event['title']} ({event['year']})")
+                break
+            else:
+                log_status(f"Событие отклонено фильтром: {reason}")
+                event = None
 
     if not event:
-        print("🛑 ИТОГ: Ни один источник не вернул данных. Отправка отменена.")
+        log_status("ЗАВЕРШЕНИЕ: Подходящих мирных космических событий на сегодня не найдено.")
         return
 
+    # Проверка базы данных
     event_key = f"{event['year']}_{event['title'][:20]}"
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r', encoding='utf-8') as f:
             if event_key in f.read():
-                print(f"🛑 ИТОГ: Событие '{event_key}' уже есть в базе. Повтор исключен.")
+                log_status(f"ОТМЕНА: Событие {event_key} уже публиковалось ранее.")
                 return
 
-    # Обработка
+    # Подготовка контента
     title_ru = professional_translate(event['title'])
     sentences = re.split(r'(?<![A-Z])\.\s+', event['text'])
-    short_desc_en = '. '.join(sentences[:4]) + ('.' if not sentences[0].endswith('.') else '')
-    desc_ru = professional_translate(short_desc_en)
+    short_desc = '. '.join(sentences[:4]) + '.'
+    desc_ru = professional_translate(short_desc)
     marti_msg = get_marti_comment(desc_ru)
-    
+
     caption = (
         f"📜 <b>УРОК КОСМИЧЕСКОЙ ИСТОРИИ</b>\n"
         f"📅 <code>ДАТА: {datetime.now().day:02d}.{datetime.now().month:02d}.{event['year']}</code>\n"
@@ -163,6 +158,8 @@ def send_history():
         f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
+    # Попытка отправки
+    log_status("Отправка пакета данных в Telegram...")
     payload = {
         'chat_id': CHANNEL_NAME,
         'photo': event['img'] or "https://images.unsplash.com/photo-1451187580459-43490279c0fa",
@@ -170,15 +167,16 @@ def send_history():
         'parse_mode': 'HTML'
     }
     
-    print("📨 Отправка в Telegram...")
-    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
-    
-    if r.status_code == 200:
-        with open(DB_FILE, 'a', encoding='utf-8') as f:
-            f.write(f"{event_key}\n")
-        print("🎉 ПОБЕДА: Пост успешно опубликован!")
-    else:
-        print(f"❌ ОШИБКА TELEGRAM: {r.status_code} - {r.text}")
+    try:
+        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload, timeout=20)
+        if r.status_code == 200:
+            with open(DB_FILE, 'a', encoding='utf-8') as f:
+                f.write(f"{event_key}\n")
+            log_status("УСПЕХ: Сообщение доставлено в канал.")
+        else:
+            log_status(f"ОШИБКА TELEGRAM: {r.status_code} - {r.text}")
+    except Exception as e:
+        log_status(f"КРИТИЧЕСКАЯ ОШИБКА: {e}")
 
 if __name__ == '__main__':
     send_history()
