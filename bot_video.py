@@ -11,9 +11,9 @@ import requests
 from datetime import datetime, timedelta, timezone
 from deep_translator import GoogleTranslator
 
-print("🚀 [ЦУП] Системы v176.0 'Supernova' активны. Поиск за 30 дней. Ошибки устранены!")
+print("🚀 [ЦУП] Системы v177.0 'Multiverse' активны. Режим: YouTube + Резервные источники.")
 
-# Настройки (Золотой стандарт)
+# Настройки (Золотой стандарт канала КОСМОС)
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES') 
@@ -77,8 +77,10 @@ def get_fast_proxy():
     except: pass
     return None
 
-async def process_mission(v_id, title, desc_raw, is_russian=False, source_name=""):
+async def process_mission(v_url, title, desc_raw, is_russian=False, source_name=""):
     global whisper_model
+    v_id = v_url.split('=')[-1] if '=' in v_url else v_url.split('/')[-1]
+    
     if source_name in ["EVLSPACE", "ADME_RU"]:
         search_text = (title + " " + (desc_raw if desc_raw else "")).lower()
         if not any(word in search_text for word in SPACE_KEYWORDS): 
@@ -88,13 +90,12 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
     for f in [f_raw, f_final, "subs.srt", f_thumb, f_cookies]:
         if os.path.exists(f): os.remove(f)
 
-    if YOUTUBE_COOKIES:
+    if YOUTUBE_COOKIES and 'youtube.com' in v_url:
         with open(f_cookies, "w", encoding="utf-8") as f: f.write(YOUTUBE_COOKIES)
 
     try:
-        v_url = f"https://www.youtube.com/watch?v={v_id}"
         proxy = get_fast_proxy()
-        print(f"📡 [ЦУП] Анализ объекта {v_id}...")
+        print(f"📡 [ЦУП] Анализ объекта {v_id} ({source_name})...")
         
         base_ydl_opts = {
             'quiet': True, 'proxy': proxy if proxy else None,
@@ -109,15 +110,15 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         if os.path.exists(f_cookies): base_ydl_opts['cookiefile'] = f_cookies
         
         with yt_dlp.YoutubeDL(base_ydl_opts) as ydl:
-            try: info = ydl.extract_info(v_url, download=False)
-            except Exception as e: print(f"⚠️ Ошибка YouTube API: {e}"); return False
+            try:
+                info = ydl.extract_info(v_url, download=False)
+            except Exception as e:
+                print(f"⚠️ Ошибка источника: {e}"); return False
             duration = info.get('duration', 0)
             filesize = (info.get('filesize') or info.get('filesize_approx') or 0) / (1024 * 1024)
             print(f"⏱ Длительность: {duration} сек. Вес: {filesize:.1f} Мб")
 
-        if duration > 3600: 
-            print("⚠️ Видео слишком длинное (> 1 часа). Пропускаем."); return False
-        if duration == 0: return False
+        if duration > 3600 or duration == 0: return False
 
         h_limit = 720
         if duration > 1800 or filesize > 800: h_limit = 240
@@ -134,7 +135,7 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         
         has_subs = False
         if not is_russian:
-            print("🧠 Whisper... (Анализ)")
+            print("🧠 Whisper...")
             if whisper_model is None:
                 whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
@@ -163,7 +164,6 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
         subprocess.run(ff_cmd)
         f_to_send = f_final if os.path.exists(f_final) else f_raw
 
-        # Обложка
         if os.path.exists(INTRO_FILE):
             subprocess.run(['ffmpeg', '-y', '-i', INTRO_FILE, '-vf', 'scale=320:-1', f_thumb], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
@@ -177,37 +177,58 @@ async def process_mission(v_id, title, desc_raw, is_russian=False, source_name="
             files = {"video": v}
             if os.path.exists(f_thumb): files["thumbnail"] = open(f_thumb, 'rb')
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files=files, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": "true"}, timeout=600)
-            print("✅ ПОБЕДА! Видео в канале."); return True
-    except Exception as e: print(f"⚠️ Сбой: {e}"); return False
+            print("✅ ПОБЕДА! Видео отправлено."); return True
+    except Exception as e: print(f"⚠️ Сбой миссии: {e}"); return False
 
 async def main():
     db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     time_limit = datetime.now(timezone.utc) - timedelta(days=30)
     
-    SOURCES = [{'n': 'ADME_RU', 'cid': '@ADME_RU', 'ru': True}, {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True}, {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True}, {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False}, {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True}, {'n': 'EVLSPACE', 'cid': '@EVLSPACE', 'ru': True}, {'n': 'ночнаянаука-ц4ш', 'cid': '@ночнаянаука-ц4ш', 'ru': True}, {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True}, {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}]
-    random.shuffle(SOURCES)
+    # 🌟 YouTube Источники
+    YT_SOURCES = [{'n': 'ADME_RU', 'cid': '@ADME_RU', 'ru': True}, {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True}, {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True}, {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False}, {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True}, {'n': 'EVLSPACE', 'cid': '@EVLSPACE', 'ru': True}, {'n': 'ночнаянаука-ц4ш', 'cid': '@ночнаянаука-ц4ш', 'ru': True}, {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True}, {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}]
     
-    for s in SOURCES:
+    # 🛰 РЕЗЕРВНЫЕ ИСТОЧНИКИ (RSS NASA & ESA) - работают без API YouTube
+    RESERVE_SOURCES = [
+        {'n': 'NASA_Breaking', 'url': 'https://www.nasa.gov/rss/dyn/breaking_news.rss', 'ru': False},
+        {'n': 'ESA_Videos', 'url': 'https://www.esa.int/rssfeed/Videos', 'ru': False}
+    ]
+
+    # Сначала пробуем YouTube
+    random.shuffle(YT_SOURCES)
+    for s in YT_SOURCES:
         if s['n'] == last_s: continue
-        print(f"🛰 [ЦУП] Смена сектора: {s['n']}...")
+        print(f"🛰 [ЦУП] Поиск на YouTube: {s['n']}...")
         try:
             url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&forHandle={s['cid'].replace('@','')}&key={YOUTUBE_API_KEY}"
-            res = requests.get(url).json(); up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
-            vids_resp = requests.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={up_id}&maxResults=50&key={YOUTUBE_API_KEY}").json()
+            res = requests.get(url, timeout=10).json()
+            up_id = res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+            vids_resp = requests.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={up_id}&maxResults=50&key={YOUTUBE_API_KEY}", timeout=10).json()
             
             for item in vids_resp.get('items', []):
                 v_id = item['snippet']['resourceId']['videoId']
                 v_date = datetime.strptime(item['snippet']['publishedAt'], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                
-                if v_id in db: continue
-                if v_date < time_limit:
-                    print(f"⌛ Видео {v_id} старше 30 дней. Пропускаем сектор."); break
-                
-                if await process_mission(v_id, item['snippet']['title'], item['snippet']['description'], s['ru'], s['n']):
+                if v_id in db or v_date < time_limit: continue
+                if await process_mission(f"https://www.youtube.com/watch?v={v_id}", item['snippet']['title'], item['snippet']['description'], s['ru'], s['n']):
                     with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
                     with open(SOURCE_LOG, 'w') as f: f.write(s['n']); return
-        except Exception as e: print(f"⚠️ Ошибка: {e}"); continue
+        except: continue
+
+    # Если YouTube не сработал (блокировка или нет видео) - активируем Резерв
+    print("🛰 [ЦУП] YouTube недоступен или пуст. Переход на Резервные Каналы...")
+    for s in RESERVE_SOURCES:
+        try:
+            resp = requests.get(s['url'], timeout=10).text
+            items = re.findall(r'<item>(.*?)</item>', resp, re.DOTALL)
+            for item in items[:10]:
+                title = re.search(r'<title>(.*?)</title>', item).group(1)
+                link = re.search(r'<link>(.*?)</link>', item).group(1)
+                v_id = link.split('/')[-1]
+                if v_id in db: continue
+                if await process_mission(link, title, "Новое видео из архивов NASA/ESA", s['ru'], s['n']):
+                    with open(DB_FILE, 'a') as f: f.write(f"\n{v_id}")
+                    with open(SOURCE_LOG, 'w') as f: f.write(s['n']); return
+        except: continue
 
 if __name__ == '__main__':
     asyncio.run(main())
