@@ -115,7 +115,15 @@ def main():
                 if "channel" not in db_link and "/c/" not in db_link:
                     video_url = db_link
             
-            v_line = f"🍿 <b>ТРАНСЛЯЦИЯ:</b> <a href='{video_url}'>СМОТРЕТЬ</a>\n\n" if video_url else ""
+            # Создание кнопки, если ссылка найдена
+            reply_markup = None
+            if video_url:
+                reply_markup = {
+                    "inline_keyboard": [[
+                        {"text": "🍿 СМОТРЕТЬ ТРАНСЛЯЦИЮ", "url": video_url}
+                    ]]
+                }
+
             img = l.get('image') or get_nasa_image()
 
             caption = (
@@ -125,13 +133,22 @@ def main():
                 f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
                 f"📍 <b>Локация:</b> {l['pad']['location']['name']}\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{translator.translate(l.get('mission', {}).get('description', 'Научный запуск.'))}\n\n"
-                f"{v_line}"
                 f"🐩 <b>СЕКРЕТ ОТ МАРТИ:</b>\n<i>{random.choice(MARTI_FACTS)}</i>\n\n"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
 
-            # Отправка через sendPhoto (Картинка СВЕРХУ)
-            payload = {"chat_id": CHANNEL_NAME, "photo": img, "caption": caption, "parse_mode": "HTML"}
+            # Формирование полезной нагрузки для POST запроса
+            payload = {
+                "chat_id": CHANNEL_NAME,
+                "photo": img,
+                "caption": caption,
+                "parse_mode": "HTML"
+            }
+            
+            # Если есть кнопка, упаковываем её в JSON строку
+            if reply_markup:
+                payload["reply_markup"] = json.dumps(reply_markup)
+
             r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
             
             if r.status_code == 200:
