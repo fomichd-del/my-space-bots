@@ -1,7 +1,7 @@
 import requests
 import os
 import random
-import json  # Добавлено для работы с клавиатурой и настройками превью
+import json
 from datetime import datetime, timezone
 from deep_translator import GoogleTranslator
 
@@ -23,7 +23,6 @@ def get_yt_live(query):
         url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&q={query}&key={YOUTUBE_API_KEY}"
         res = requests.get(url, timeout=10).json()
         if res.get('items'):
-            # Возвращаем кортеж (bypass-ссылка, оригинальный ID)
             return res['items'][0]['id']['videoId']
     except: pass
     return None
@@ -56,13 +55,13 @@ def run_radar():
         net = datetime.fromisoformat(l['net'].replace('Z', '+00:00'))
         diff = (net - datetime.now(timezone.utc)).total_seconds() / 60
 
+        # Радар ловит только те, что "в эфире" или вот-вот взлетят
         if -20 < diff < 180:
             prov = l['launch_service_provider']['name']
             
-            # Поиск видео
+            # Поиск активного видео
             video_id = get_yt_live(f"{prov} {l['name']} live launch")
             
-            # Если через поиск не нашли, пробуем взять из базы
             if not video_id and l.get('vidURLs'):
                 db_v = l['vidURLs'][0]['url']
                 if "youtube.com/watch?v=" in db_v:
@@ -74,15 +73,10 @@ def run_radar():
                 print(f"🔇 Для {l['name']} эфир пока не обнаружен.")
                 continue
 
-            # Ссылки для разных целей
-            bypass_url = f"https://www.youtube.com/watch?v={video_id}"
-            standard_url = f"https://www.youtube.com/watch?v={video_id}"
-            img = l.get('image') or get_nasa_image()
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
 
-            # ОФОРМЛЕНИЕ ТЕКСТА
-            # Скрытая ссылка на фото (нулевой ширины пробел) позволяет оставить картинку сверху
+            # ОФОРМЛЕНИЕ ТЕКСТА (без скрытых ссылок, плеер сам создаст превью сверху)
             text = (
-                f"<a href='{img}'>&#8203;</a>"
                 f"📡 <b>РАДАР ПОЙМАЛ ЭФИР: {l['rocket']['configuration']['name'].upper()}</b>\n"
                 f"─────────────────────\n\n"
                 f"🏢 <b>Организатор:</b> {translator.translate(prov)}\n"
@@ -91,28 +85,27 @@ def run_radar():
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
 
-            # Кнопка-"бар" снизу
-            keyboard = {"inline_keyboard": [[{"text": "🍿 СМОТРЕТЬ ПРЯМОЙ ЭФИР", "url": bypass_url}]]}
+            # Кнопка
+            keyboard = {"inline_keyboard": [[{"text": "🍿 СМОТРЕТЬ ТРАНСЛЯЦИЮ", "url": video_url}]]}
 
-            # Настройки превью для создания "видео-экрана"
+            # Настройки превью: делаем из ссылки "большое окно" СВЕРХУ текста
             payload = {
                 "chat_id": CHANNEL_NAME,
                 "text": text,
                 "parse_mode": "HTML",
                 "reply_markup": json.dumps(keyboard),
                 "link_preview_options": {
-                    "url": standard_url,       # Ссылка, по которой строится плеер
-                    "show_above_text": False,  # Разместить экран СНИЗУ под текстом
-                    "prefer_large_media": True # Сделать видео-экран большим
+                    "url": video_url,
+                    "show_above_text": True,    # Видео-плеер будет НАД текстом
+                    "prefer_large_media": True  # Сделать его максимально большим
                 }
             }
 
-            # Отправка через sendMessage
             r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload)
             
             if r.status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{l_id}\n")
-                print(f"✅ Радар зафиксировал эфир с плеером: {l['name']}")
+                print(f"✅ Радар успешно опубликовал эфир: {l['name']}")
                 break
 
 if __name__ == '__main__':
