@@ -2,6 +2,7 @@ import requests
 import os
 import sys
 import json
+import re
 from deep_translator import GoogleTranslator
 
 # --- НАСТРОЙКИ ---
@@ -26,11 +27,21 @@ def get_short_facts(text, icons):
             formatted_list.append(f"{icon} {clean_fact}.")
     return "\n\n".join(formatted_list)
 
+def clean_video_url(url):
+    """
+    Превращает 'embed' ссылки NASA в обычные ссылки YouTube.
+    Telegram гораздо лучше генерирует плеер из стандартных ссылок.
+    """
+    if 'youtube.com/embed/' in url:
+        # Извлекаем ID видео из ссылки типа https://www.youtube.com/embed/XXXXX?rel=0
+        video_id = url.split('/')[-1].split('?')[0]
+        return f"https://www.youtube.com/watch?v={video_id}"
+    return url
+
 def get_cosmos_content(target_type):
     """Ищет свежий контент в NASA APOD (фото или видео)"""
     url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
     for attempt in range(5):
-        # 1-я попытка: за сегодня. Дальше — случайные из архива.
         fetch_url = url if attempt == 0 else f"{url}&count=10"
         try:
             response = requests.get(fetch_url, timeout=20)
@@ -88,20 +99,26 @@ def send_to_telegram(target_type):
         payload['caption'] = header + body + footer
         api_method = "sendPhoto"
     else:
-        video_url = data.get('url')
-        # 🔥 ФОКУС: Невидимая ссылка в начале текста для генерации превью
-        hidden_link = f"<a href='{video_url}'>&#8205;</a>" 
+        # 1. Чистим ссылку (убираем /embed/)
+        video_url = clean_video_url(data.get('url'))
+        
+        # 2. Используем невидимый пробел (\u200b) внутри тега ссылки.
+        # Это заставляет Telegram видеть ссылку для превью, но она не видна в тексте.
+        hidden_link = f"<a href='{video_url}'>\u200b</a>" 
+        
         payload['text'] = hidden_link + header + body + footer
-        # Настройка превью СВЕРХУ
+        
+        # 3. Настройка превью: Обязательно указываем URL и позицию сверху
         payload['link_preview_options'] = {
             'is_disabled': False,
+            'url': video_url,
             'show_above_text': True,
             'prefer_large_media': True
         }
         api_method = "sendMessage"
 
     # --- ОТПРАВКА ---
-    # Используем json=payload для корректной передачи вложенных настроек превью
+    # Важно: используем json=payload, чтобы Telegram правильно считал настройки превью
     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{api_method}", json=payload)
     
     if r.status_code == 200:
