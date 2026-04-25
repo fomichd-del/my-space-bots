@@ -53,22 +53,27 @@ def format_full_info(key, info, title_prefix=""):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # УСИЛЕННАЯ ПРОВЕРКА: ищем 'get_map' в тексте сообщения
-    if "get_map" in message.text:
+    # Логика для глубоких ссылок (из канала)
+    # Текст сообщения будет выглядеть так: "/start get_map"
+    text_parts = message.text.split()
+    
+    if len(text_parts) > 1 and text_parts[1] == "get_map":
+        # Создаем кнопку специально для карты
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-        markup.add(telebot.types.KeyboardButton("📍 Отправить локацию для карты", request_location=True))
+        btn = telebot.types.KeyboardButton("📍 ОТПРАВИТЬ МОИ КООРДИНАТЫ", request_location=True)
+        markup.add(btn)
         
         bot.send_message(message.chat.id, 
-            "🛰 **Прием! Вижу запрос на карту неба.**\n\n"
-            "Чтобы я настроил линзы телескопов на твой город, нажми кнопку ниже. "
-            "Я нарисую карту и сразу пришлю её тебе! 🐩🚀", 
+            "🛰 **Прием, штурман! Вижу запрос на персональную карту.**\n\n"
+            "Нажми на большую кнопку внизу, чтобы я настроил линзы телескопов на твой город! 🐩🚀", 
             reply_markup=markup, parse_mode='Markdown')
         return
 
-    # Обычное меню
+    # Если это обычный старт (без параметров)
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🎲 Случайное созвездие", "📋 Список созвездий")
-    markup.add(telebot.types.KeyboardButton("📍 Определить мое небо", request_location=True))
+    markup.row("🎲 Случайное созвездие", "📋 Список созвездий")
+    markup.row(telebot.types.KeyboardButton("📍 Определить мое небо", request_location=True))
+    
     bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Чем займемся сегодня?", reply_markup=markup)
 
 @bot.message_handler(content_types=['location'])
@@ -76,7 +81,7 @@ def handle_location(message):
     lat, lon = message.location.latitude, message.location.longitude
     user_name = message.from_user.first_name
     
-    bot.send_message(message.chat.id, "🛰 Координаты получены. Запускаю рендеринг звездной сферы...")
+    bot.send_message(message.chat.id, "🛰 Координаты в базе! Запускаю рендеринг звездной сферы...")
     
     try:
         photo_path = generate_star_map(lat, lon, user_name)
@@ -85,22 +90,22 @@ def handle_location(message):
                 message.chat.id, 
                 photo, 
                 caption="🌟 **ТВОЁ НЕБО ГОТОВО!**\n\n"
-                        "Делай скриншот и отправляй его в комментарии к посту! "
-                        "Марти будет очень рад увидеть твои звезды! 🐩📸",
+                        "Делай скриншот и отправляй его в комментарии к посту в канале! "
+                        "Марти ждет твои звезды! 🐩📸",
                 parse_mode='Markdown',
                 reply_markup=telebot.types.ReplyKeyboardRemove()
             )
     except Exception as e:
-        bot.send_message(message.chat.id, "❌ Ошибка при рисовании карты. Но я все равно посчитал созвездие!")
+        bot.send_message(message.chat.id, "❌ Произошел сбой при рисовании. Но я всё равно вижу звезды над тобой!")
 
-    # Инфо про созвездие
+    # Показываем созвездие в зените
     key = get_best_constellation(lat, lon)
     data = load_data()
     info = data.get(key, {})
     bot.send_message(message.chat.id, format_full_info(key, info, "🔭 **Прямо сейчас над тобой:**\n\n"), parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: True)
-def handle_all_messages(message):
+def handle_text(message):
     data = load_data()
     text = message.text.strip()
 
@@ -120,7 +125,6 @@ def handle_all_messages(message):
         bot.send_message(message.chat.id, full_message, parse_mode='Markdown')
     
     else:
-        # Поиск по названию
         found = False
         for key, info in data.items():
             if text.lower() in info.get('name', '').lower():
