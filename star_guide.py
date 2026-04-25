@@ -8,7 +8,10 @@ import random
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space' 
-MAP_URL        = "https://fomichd-del.github.io/my-space-bots/" 
+
+# ВНИМАНИЕ: Обязательно впиши здесь юзернейм своего бота БЕЗ @
+# Пример: 'MartinCosmoBot'
+BOT_USERNAME   = 'ТВОЙ_БОТ_USERNAME' 
 
 # 🌠 ПОЛНАЯ БАЗА: 50 УНИКАЛЬНЫХ ФАКТОВ
 CONSTELLATIONS = [
@@ -75,7 +78,9 @@ def post_star_guide():
     if not TELEGRAM_TOKEN: return
     item = random.choice(CONSTELLATIONS)
     
-    # --- СБОРКА ТЕКСТА С ПСЕВДО-КНОПКОЙ ---
+    # Формируем ссылку на бота с командой
+    bot_link = f"https://t.me/{BOT_USERNAME}?start=get_map"
+    
     header = (
         f"🚀 <b>ВНИМАНИЕ! КОСМИЧЕСКИЙ ПАТРУЛЬ!</b> 🚀\n"
         f"🌟✨🌟✨🌟✨🌟✨🌟✨🌟✨🌟\n\n"
@@ -87,13 +92,12 @@ def post_star_guide():
         f"👉 <code>{item['name'].upper()}</code> 👈\n\n"
         f"📖 <b>СЕКРЕТНЫЙ ФАКТ:</b>\n"
         f"«{item['fact']}»\n\n"
-        f"🪐 <i>Скорее хватай планетарий и найди это чудо на небе! Удачной охоты!</i> 🌠\n\n"
     )
 
-    # Псевдо-кнопка в техно-стиле
+    # Та самая "встроенная" кнопка как в Марс-боте
     navigation = (
         f"<b>НАВИГАЦИЯ ШТУРМАНА:</b>\n"
-        f"🚀 <b><a href='{MAP_URL}'>[ ВКЛЮЧИТЬ КАРТУ СОЗВЕЗДИЙ ]</a></b>\n"
+        f"🛰 <b><a href='{bot_link}'>[ ВКЛЮЧИТЬ ПЕРСОНАЛЬНУЮ КАРТУ ]</a></b>\n"
         f"─────────────────────\n\n"
     )
 
