@@ -10,7 +10,7 @@ import sys
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space' 
 
-# ✅ Твой бот теперь прописан правильно
+# ✅ Твой бот прописан здесь
 BOT_USERNAME   = 'VladikSpaceNews_bot' 
 
 # 🌠 ПОЛНАЯ БАЗА: 50 УНИКАЛЬНЫХ ФАКТОВ
@@ -67,18 +67,19 @@ CONSTELLATIONS = [
     {"name": "Эридан", "fact": "Это длинная небесная река, которая течет от Ориона через половину неба. 🌊"}
 ]
 
-# 📸 Обновленные прямые ссылки на фото (без лишних параметров)
+# 📸 Список надежных прямых ссылок на фото (без редиректов)
 STAR_PHOTOS = [
-    "https://cdn.pixabay.com/photo/2016/11/29/03/53/astronomy-1867175_1280.jpg",
-    "https://cdn.pixabay.com/photo/2017/08/30/01/05/milky-way-2695569_1280.jpg",
-    "https://cdn.pixabay.com/photo/2012/01/09/10/58/milky-way-11631_1280.jpg"
+    "https://images.unsplash.com/photo-1464802686167-b939a67a06a1?q=80&w=1200",
+    "https://images.unsplash.com/photo-1506318137071-a8e063b4bcc0?q=80&w=1200",
+    "https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=1200",
+    "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?q=80&w=1200"
 ]
 
 def post_star_guide():
     print("🛰 [ОТЛАДКА] Запуск системы публикации Star Guide...")
 
     if not TELEGRAM_TOKEN:
-        print("❌ [ОШИБКА] TELEGRAM_TOKEN не найден!")
+        print("❌ [ОШИБКА] TELEGRAM_TOKEN не обнаружен!")
         return
 
     item = random.choice(CONSTELLATIONS)
@@ -106,24 +107,43 @@ def post_star_guide():
     footer = f"🛸 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     caption = header + main_info + navigation + footer
 
+    # Выбираем случайное фото
+    photo_url = random.choice(STAR_PHOTOS)
+    print(f"📸 [ОТЛАДКА] Пытаюсь отправить фото: {photo_url}")
+
     payload = {
         'chat_id': CHANNEL_NAME,
-        'photo': random.choice(STAR_PHOTOS),
+        'photo': photo_url,
         'caption': caption,
-        'parse_mode': 'HTML'
+        'parse_mode': 'HTML',
+        'link_preview_options': {'is_disabled': True} 
     }
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
     
     try:
-        r = requests.post(url, json=payload, timeout=20)
+        r = requests.post(url, json=payload, timeout=25)
+        
         if r.status_code == 200:
-            print(f"✅ [УСПЕХ] Пост про созвездие '{item['name']}' опубликован!")
+            print(f"✅ [УСПЕХ] Пост про созвездие '{item['name']}' опубликован в канале!")
         else:
             print(f"❌ [ОШИБКА TELEGRAM] Код: {r.status_code}")
-            print(f"📝 [ДЕТАЛИ]: {r.text}")
+            print(f"📝 [ДЕТАЛИ ОТВЕТА]: {r.text}")
+            
+            # Если фото не прошло, пробуем отправить просто текстом как запасной вариант
+            print("🔄 [ОТЛАДКА] Пробую отправить без фото (только текст)...")
+            text_payload = {
+                'chat_id': CHANNEL_NAME,
+                'text': caption,
+                'parse_mode': 'HTML',
+                'link_preview_options': {'is_disabled': True}
+            }
+            r_text = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=text_payload)
+            if r_text.status_code == 200:
+                print("✅ [ЗАПАСНОЙ ВАР.] Сообщение отправлено без фото.")
+            
     except Exception as e:
-        print(f"💥 [ОШИБКА СЕТИ]: {e}")
+        print(f"💥 [КРИТИЧЕСКАЯ ОШИБКА СЕТИ]: {e}")
 
 if __name__ == '__main__':
     post_star_guide()
