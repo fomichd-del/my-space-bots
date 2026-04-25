@@ -4,17 +4,17 @@ from PIL import Image, ImageDraw
 from datetime import datetime
 
 def generate_star_map(lat, lon, user_name="Исследователь"):
-    # Настройки холста
+    # Настройки изображения
     WIDTH, HEIGHT = 800, 800
     CENTER = (400, 400)
     RADIUS = 350
     
-    # Цвета
+    # Цвета в стиле канала
     BG_COLOR = (5, 10, 35)      # Глубокий космос
     HORIZON_COLOR = (40, 60, 120)
     STAR_COLOR = (255, 255, 255)
+    TEXT_COLOR = (255, 215, 0)   # Золотой
 
-    # Создаем изображение
     img = Image.new('RGB', (WIDTH, HEIGHT), BG_COLOR)
     draw = ImageDraw.Draw(img)
 
@@ -24,11 +24,11 @@ def generate_star_map(lat, lon, user_name="Исследователь"):
     obs.date = datetime.utcnow()
     obs.pressure = 0 
 
-    # Рисуем круг горизонта
+    # Рисуем границу горизонта
     draw.ellipse([CENTER[0]-RADIUS, CENTER[1]-RADIUS, CENTER[0]+RADIUS, CENTER[1]+RADIUS], 
                  outline=HORIZON_COLOR, width=3)
 
-    # Список ключевых звезд
+    # Список ярких звезд
     bright_stars = [
         "Sirius,f|S|A1,6:45:08.9,-16:42:58,1.46,2000",
         "Vega,f|S|A0,18:36:56.3,38:47:01,0.03,2000",
@@ -42,26 +42,19 @@ def generate_star_map(lat, lon, user_name="Исследователь"):
     for star_data in bright_stars:
         star = ephem.readdb(star_data)
         star.compute(obs)
-
         if star.alt > 0:
-            # Проекция на плоскость
             r = RADIUS * (1 - (float(star.alt) / (math.pi / 2)))
             angle = float(star.az) - math.pi / 2
-            
             x = CENTER[0] + r * math.cos(angle)
             y = CENTER[1] + r * math.sin(angle)
-
-            # Рисуем звезду
             size = max(1, int(6 - float(star.mag)))
             draw.ellipse([x-size, y-size, x+size, y+size], fill=STAR_COLOR)
-            
-            # Подпись звезды
             if float(star.mag) < 1.0:
                 draw.text((x + 7, y), star.name, fill=(180, 180, 180))
 
-    # Текстовые метки
-    draw.text((30, 30), f"НЕБО НАД ТОБОЙ: {user_name.upper()}", fill=(255, 215, 0))
-    draw.text((30, 750), "🐩 Марти: 'Смотри, это звезды прямо над нами!'", fill=(255, 215, 0))
+    # Красивые надписи
+    draw.text((30, 30), f"НЕБО НАД ТОБОЙ: {user_name.upper()}", fill=TEXT_COLOR)
+    draw.text((30, 750), "🐩 Марти: 'Гав! Это звезды прямо над твоим домом!'", fill=TEXT_COLOR)
 
     file_path = "user_sky.png"
     img.save(file_path)
