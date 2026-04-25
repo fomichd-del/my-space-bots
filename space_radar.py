@@ -18,17 +18,17 @@ translator = GoogleTranslator(source='auto', target='ru')
 FORBIDDEN = ['military', 'spy', 'defense', 'weapon', 'война', 'оборона', 'classified', 'reconnaissance']
 
 def get_yt_live(query):
-    """Ищет видео, отдавая приоритет трансляциям (live/upcoming)"""
+    """Ищет видео, захватывая и Live, и запланированные эфиры"""
     if not YOUTUBE_API_KEY: return None
     try:
-        # Убираем жесткий фильтр eventType=live, чтобы видеть запланированные пуски
+        # Ищем трансляции (live) и запланированные (upcoming)
         url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q={query}&key={YOUTUBE_API_KEY}&maxResults=3"
         res = requests.get(url, timeout=10).json()
         
         if res.get('items'):
             for item in res['items']:
                 status = item['snippet'].get('liveBroadcastContent')
-                # Берем только если это прямой эфир или запланированный
+                # Берем только если эфир идет СЕЙЧАС или скоро начнется
                 if status in ['live', 'upcoming']:
                     return item['id']['videoId']
     except: pass
@@ -42,51 +42,62 @@ def get_nasa_image():
     except: return "https://www.nasa.gov/wp-content/uploads/2023/03/fgs_stsci-01h072ykf6p2p68zvgq4ay79e0.png"
 
 def run_radar():
-    print("📡 [РАДАР] Сканирование мировых эфиров...")
+    print("📡 [РАДАР] Инициализация сканирования...")
     try:
-        # Увеличили лимит до 15, чтобы видеть больше событий
-        res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=15", timeout=30).json()
+        res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=10", timeout=30).json()
         launches = res.get('results', [])
-    except: return
+    except Exception as e:
+        print(f"❌ Ошибка связи с космодромом: {e}")
+        return
 
     sent_ids = open(DB_FILE, 'r').read().splitlines() if os.path.exists(DB_FILE) else []
 
     for l in launches:
         l_id = str(l['id'])
+        
+        # Пропускаем, если уже постили
         if l_id in sent_ids: continue
+
+        net = datetime.fromisoformat(l['net'].replace('Z', '+00:00'))
+        diff = (net - datetime.now(timezone.utc)).total_seconds() / 60
+        
+        # ДИАГНОСТИКА: Печатаем всё, что видим в радиусе 12 часов
+        if diff < 720:
+            print(f"🔎 В поле зрения: {l['name']} (T-{int(diff)} мин)")
 
         # Мирный фильтр
         desc = l.get('mission', {}).get('description', '')
         if any(w in (desc + l['name']).lower() for w in FORBIDDEN):
-            print(f"🛑 Пропуск (Военная миссия): {l['name']}")
+            print(f"🛑 Пропуск: {l['name']} (Военный объект)")
             continue
 
-        net = datetime.fromisoformat(l['net'].replace('Z', '+00:00'))
-        diff = (net - datetime.now(timezone.utc)).total_seconds() / 60
-
-        # Окно работы: за 4 часа (240 мин) до пуска и до 30 мин после старта
+        # ОКНО ПУБЛИКАЦИИ: от 4 часов до старта до 30 минут после
         if -30 < diff < 240:
             prov = l['launch_service_provider']['name']
+            print(f"🎯 ЦЕЛЬ ЗАХВАЧЕНА: {l['name']}. Поиск трансляции...")
             
-            # 1. Пробуем найти через YouTube API (самый надежный способ для плеера)
+            # Поиск через YouTube API
             video_id = get_yt_live(f"{prov} {l['name']} live launch")
             
-            # 2. Если поиск не дал плодов, проверяем базу Space Devs
+            # Резервный поиск в базе (если YouTube API не нашел)
             if not video_id and l.get('vidURLs'):
-                db_v = l['vidURLs'][0]['url']
-                if "youtube.com/watch?v=" in db_v:
-                    video_id = db_v.split('v=')[-1].split('&')[0]
-                elif "youtu.be/" in db_v:
-                    video_url_part = db_v.split('/')[-1].split('?')[0]
-                    video_id = video_url_part
+                for vid in l['vidURLs']:
+                    url_v = vid['url']
+                    if "youtube.com/watch?v=" in url_v:
+                        video_id = url_v.split('v=')[-1].split('&')[0]
+                        break
+                    elif "youtu.be/" in url_v:
+                        video_id = url_v.split('/')[-1].split('?')[0]
+                        break
 
             if not video_id:
-                print(f"🔇 Для {l['name']} (через {int(diff)} мин) эфир пока не создан.")
+                print(f"🔇 Эфир для {l['name']} пока не обнаружен.")
                 continue
 
             video_url = f"https://www.youtube.com/watch?v={video_id}"
+            img = l.get('image') or get_nasa_image()
 
-            # Оформление
+            # ОФОРМЛЕНИЕ
             text = (
                 f"📡 <b>РАДАР ПОЙМАЛ ЭФИР: {l['rocket']['configuration']['name'].upper()}</b>\n"
                 f"─────────────────────\n\n"
@@ -96,10 +107,9 @@ def run_radar():
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
 
-            # Кнопка под постом
             keyboard = {"inline_keyboard": [[{"text": "🍿 СМОТРЕТЬ ТРАНСЛЯЦИЮ", "url": video_url}]]}
 
-            # Настройки превью: плеер СВЕРХУ, большой экран
+            # Отправка с ВИДЕО-ЭКРАНОМ
             payload = {
                 "chat_id": CHANNEL_NAME,
                 "text": text,
@@ -107,8 +117,8 @@ def run_radar():
                 "reply_markup": json.dumps(keyboard),
                 "link_preview_options": {
                     "url": video_url,
-                    "show_above_text": True,
-                    "prefer_large_media": True
+                    "show_above_text": True,   # Видео-плеер СВЕРХУ
+                    "prefer_large_media": True # Большой размер
                 }
             }
 
@@ -116,10 +126,9 @@ def run_radar():
             
             if r.status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{l_id}\n")
-                print(f"✅ Радар опубликовал эфир: {l['name']}")
-                # Убрали break, чтобы обрабатывать все подходящие пуски за раз
+                print(f"✅ ПОСТ ОТПРАВЛЕН: {l['name']}")
             else:
-                print(f"❌ Ошибка отправки: {r.text}")
+                print(f"❌ Ошибка Telegram: {r.text}")
 
 if __name__ == '__main__':
     run_radar()
