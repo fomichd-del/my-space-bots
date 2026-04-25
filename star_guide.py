@@ -10,7 +10,7 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space' 
 MAP_URL        = "https://fomichd-del.github.io/my-space-bots/" 
 
-# 🌠 ПОЛНАЯ БАЗА: 50 УНИКАЛЬНЫХ ФАКТОВ (ДЛЯ ВЛАДИКА)
+# 🌠 ПОЛНАЯ БАЗА: 50 УНИКАЛЬНЫХ ФАКТОВ
 CONSTELLATIONS = [
     {"name": "Большая Медведица", "fact": "В её «ковше» есть две звезды, которые всегда указывают путь к Полярной звезде! 🌟"},
     {"name": "Орион", "fact": "В его плече горит звезда-гигант Бетельгейзе. Если бы она была на месте Солнца, то проглотила бы Марс! 😱"},
@@ -50,7 +50,7 @@ CONSTELLATIONS = [
     {"name": "Малый Лев", "fact": "Младший брат большого Льва, который прячется под его лапами. 🦁"},
     {"name": "Рысь", "fact": "Названо так, потому что его звезды такие тусклые, что нужны глаза рыси, чтобы их увидеть! 👀"},
     {"name": "Малый Пес", "fact": "Здесь сияет Процион — восьмая по яркости звезда, наш близкий сосед. 🐶"},
-    {"name": "Единорог", "fact": "В нем спрятана туманность Розетка — огромное космический цветок! 🦄"},
+    {"name": "Единорог", "fact": "В нем спрятан туманность Розетка — огромное космический цветок! 🦄"},
     {"name": "Секстант", "fact": "Назван в честь прибора, которым моряки определяли путь по звездам. 🧭"},
     {"name": "Змееносец", "fact": "Тринадцатое созвездие, через которое проходит Солнце, но его редко зовут зодиаком. ⚕️"},
     {"name": "Змея", "fact": "Уникальное созвездие, которое состоит из двух отдельных частей на небе. 🐍"},
@@ -64,7 +64,7 @@ CONSTELLATIONS = [
     {"name": "Эридан", "fact": "Это длинная небесная река, которая течет от Ориона через половину неба. 🌊"}
 ]
 
-# НАДЕЖНЫЕ ФОТО (ИЗБЕГАЕМ ФОТОСТОКОВ)
+# НАДЕЖНЫЕ ФОТО
 STAR_PHOTOS = [
     "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/NGC_4414_%28NASA-Hubble%29.jpg/1200px-NGC_4414_%28NASA-Hubble%29.jpg",
     "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Crab_Nebula.jpg/1200px-Crab_Nebula.jpg",
@@ -75,28 +75,38 @@ def post_star_guide():
     if not TELEGRAM_TOKEN: return
     item = random.choice(CONSTELLATIONS)
     
-    # КРАСОЧНЫЙ ТЕКСТ
-    text = (
+    # --- СБОРКА ТЕКСТА С ПСЕВДО-КНОПКОЙ ---
+    header = (
         f"🚀 <b>ВНИМАНИЕ! КОСМИЧЕСКИЙ ПАТРУЛЬ!</b> 🚀\n"
         f"🌟✨🌟✨🌟✨🌟✨🌟✨🌟✨🌟\n\n"
         f"🛰 <i>Прием, юные штурманы! Ночное небо зажгло свои огни. Пора начать охоту за созвездиями!</i>\n\n"
+    )
+    
+    main_info = (
         f"🔭 <b>НАША ЦЕЛЬ СЕГОДНЯ:</b>\n"
         f"👉 <code>{item['name'].upper()}</code> 👈\n\n"
         f"📖 <b>СЕКРЕТНЫЙ ФАКТ:</b>\n"
         f"«{item['fact']}»\n\n"
         f"🪐 <i>Скорее хватай планетарий и найди это чудо на небе! Удачной охоты!</i> 🌠\n\n"
-        f"🛸 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    keyboard = {"inline_keyboard": [[{"text": "🚀ВКЛЮЧИТЬ КАРТУ СОЗВЕЗДИЙ🚀", "url": MAP_URL}]]}
+    # Псевдо-кнопка в техно-стиле
+    navigation = (
+        f"<b>НАВИГАЦИЯ ШТУРМАНА:</b>\n"
+        f"🚀 <b><a href='{MAP_URL}'>[ ВКЛЮЧИТЬ КАРТУ СОЗВЕЗДИЙ ]</a></b>\n"
+        f"─────────────────────\n\n"
+    )
+
+    footer = f"🛸 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+
+    caption = header + main_info + navigation + footer
 
     payload = {
         'chat_id': CHANNEL_NAME,
         'photo': random.choice(STAR_PHOTOS),
-        'caption': text,
+        'caption': caption,
         'parse_mode': 'HTML',
-        'reply_markup': json.dumps(keyboard),
-        'link_preview_options': {'is_disabled': True} # ВЫКЛЮЧАЕМ БОЛЬШОЙ БАР СНИЗУ
+        'link_preview_options': {'is_disabled': True} 
     }
     
     requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
