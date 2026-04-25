@@ -2,6 +2,7 @@ import requests
 import os
 import json
 import random
+import sys
 
 # ============================================================
 # ⚙️ НАСТРОЙКИ
@@ -9,9 +10,9 @@ import random
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space' 
 
-# ВНИМАНИЕ: Обязательно впиши здесь юзернейм своего бота БЕЗ @
-# Пример: 'MartinCosmoBot'
-BOT_USERNAME   = 'ТВОЙ_БОТ_USERNAME' 
+# ⚠️ ВНИМАНИЕ: Замени 'YOUR_BOT_USERNAME' на имя твоего бота без @
+# Например: 'MartinCosmoBot'
+BOT_USERNAME   = 'YOUR_BOT_USERNAME' 
 
 # 🌠 ПОЛНАЯ БАЗА: 50 УНИКАЛЬНЫХ ФАКТОВ
 CONSTELLATIONS = [
@@ -67,7 +68,6 @@ CONSTELLATIONS = [
     {"name": "Эридан", "fact": "Это длинная небесная река, которая течет от Ориона через половину неба. 🌊"}
 ]
 
-# НАДЕЖНЫЕ ФОТО
 STAR_PHOTOS = [
     "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/NGC_4414_%28NASA-Hubble%29.jpg/1200px-NGC_4414_%28NASA-Hubble%29.jpg",
     "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Crab_Nebula.jpg/1200px-Crab_Nebula.jpg",
@@ -75,12 +75,24 @@ STAR_PHOTOS = [
 ]
 
 def post_star_guide():
-    if not TELEGRAM_TOKEN: return
+    print("🛰 [ОТЛАДКА] Запуск системы публикации Star Guide...")
+
+    # 1. Проверка токена
+    if not TELEGRAM_TOKEN:
+        print("❌ [ОШИБКА] TELEGRAM_TOKEN не найден в переменных окружения!")
+        return
+    else:
+        print(f"✅ [ОТЛАДКА] Токен обнаружен (длина: {len(TELEGRAM_TOKEN)})")
+
+    # 2. Выбор созвездия
     item = random.choice(CONSTELLATIONS)
-    
-    # Формируем ссылку на бота с командой
+    print(f"🔭 [ОТЛАДКА] Выбрано созвездие: {item['name']}")
+
+    # 3. Ссылка на бота
     bot_link = f"https://t.me/{BOT_USERNAME}?start=get_map"
-    
+    print(f"🔗 [ОТЛАДКА] Ссылка для кнопки: {bot_link}")
+
+    # 4. Сборка текста
     header = (
         f"🚀 <b>ВНИМАНИЕ! КОСМИЧЕСКИЙ ПАТРУЛЬ!</b> 🚀\n"
         f"🌟✨🌟✨🌟✨🌟✨🌟✨🌟✨🌟\n\n"
@@ -94,7 +106,6 @@ def post_star_guide():
         f"«{item['fact']}»\n\n"
     )
 
-    # Та самая "встроенная" кнопка как в Марс-боте
     navigation = (
         f"<b>НАВИГАЦИЯ ШТУРМАНА:</b>\n"
         f"🛰 <b><a href='{bot_link}'>[ ВКЛЮЧИТЬ ПЕРСОНАЛЬНУЮ КАРТУ ]</a></b>\n"
@@ -105,15 +116,33 @@ def post_star_guide():
 
     caption = header + main_info + navigation + footer
 
+    # 5. Формирование запроса
+    photo_url = random.choice(STAR_PHOTOS)
+    print(f"📸 [ОТЛАДКА] URL изображения: {photo_url}")
+
     payload = {
         'chat_id': CHANNEL_NAME,
-        'photo': random.choice(STAR_PHOTOS),
+        'photo': photo_url,
         'caption': caption,
         'parse_mode': 'HTML',
         'link_preview_options': {'is_disabled': True} 
     }
+
+    # 6. Отправка и анализ результата
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    print(f"📡 [ОТЛАДКА] Отправка POST запроса в Telegram...")
     
-    requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
+    try:
+        r = requests.post(url, json=payload, timeout=20)
+        
+        if r.status_code == 200:
+            print("✅ [УСПЕХ] Сообщение успешно доставлено в канал!")
+        else:
+            print(f"❌ [ОШИБКА TELEGRAM] Код: {r.status_code}")
+            print(f"📝 [ДЕТАЛИ ОТВЕТА]: {r.text}")
+            
+    except Exception as e:
+        print(f"💥 [КРИТИЧЕСКАЯ ОШИБКА СЕТИ]: {e}")
 
 if __name__ == '__main__':
     post_star_guide()
