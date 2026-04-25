@@ -6,6 +6,7 @@ import ephem
 from threading import Thread
 from flask import Flask
 from datetime import datetime
+from draw_map import generate_star_map  # Импортируем нашу рисовалку
 
 # --- 1. ПОДДЕРЖКА РАБОТОСПОСОБНОСТИ ---
 app = Flask('')
@@ -56,14 +57,34 @@ def send_welcome(message):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎲 Случайное созвездие", "📋 Список созвездий")
     markup.add(telebot.types.KeyboardButton("📍 Определить мое небо", request_location=True))
-    bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Нажми кнопку, чтобы начать!", reply_markup=markup)
+    bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Нажми кнопку, чтобы я настроил телескопы!", reply_markup=markup)
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    key = get_best_constellation(message.location.latitude, message.location.longitude)
+    lat = message.location.latitude
+    lon = message.location.longitude
+    user_name = message.from_user.first_name
+    
+    bot.send_message(message.chat.id, "🛰 Принимаю координаты... Рисую твою карту неба!")
+
+    # 1. Генерируем изображение
+    photo_path = generate_star_map(lat, lon, user_name)
+    
+    # 2. Определяем лучшее созвездие
+    key = get_best_constellation(lat, lon)
     data = load_data()
     info = data.get(key, {})
-    reply = format_full_info(key, info, title_prefix="📍 **Твое небо настроено!**\n\n")
+    
+    # 3. Отправляем фото
+    with open(photo_path, 'rb') as photo:
+        bot.send_photo(
+            message.chat.id, 
+            photo, 
+            caption=f"🌟 Твоя персональная карта неба готова!"
+        )
+
+    # 4. Отправляем текст про созвездие в зените
+    reply = format_full_info(key, info, title_prefix=f"📍 **Прямо над тобой сейчас:**\n\n")
     bot.send_message(message.chat.id, reply, parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: True)
@@ -86,23 +107,16 @@ def handle_all_messages(message):
             "all year": "🔄 **Видны всегда**"
         }
         
-        # Начало общего сообщения
         full_message = "📍 **Атлас созвездий**\n\n"
-        
         for season_id, title in seasons_map.items():
-            # Собираем созвездия для текущего сезона
             group = [f"• {info.get('name')} {info.get('difficulty', '⭐')}" 
                      for k, info in data.items() if info.get('season') == season_id]
-            
             if group:
-                # Добавляем блок сезона к общему сообщению
                 full_message += f"{title}\n" + "\n".join(group) + "\n\n"
         
-        # Отправляем всё ОДНИМ сообщением в конце цикла
         bot.send_message(message.chat.id, full_message, parse_mode='Markdown')
         return
 
-    # Поиск по названию
     for key, info in data.items():
         if text.lower() in info.get('name', '').lower():
             bot.send_message(message.chat.id, format_full_info(key, info), parse_mode='Markdown')
