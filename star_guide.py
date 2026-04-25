@@ -10,7 +10,7 @@ import sys
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space' 
 
-# ✅ Твой юзернейм бота прописан здесь
+# ✅ Твой бот теперь прописан правильно
 BOT_USERNAME   = 'VladikSpaceNews_bot' 
 
 # 🌠 ПОЛНАЯ БАЗА: 50 УНИКАЛЬНЫХ ФАКТОВ
@@ -67,11 +67,11 @@ CONSTELLATIONS = [
     {"name": "Эридан", "fact": "Это длинная небесная река, которая течет от Ориона через половину неба. 🌊"}
 ]
 
-# 📸 Обновил ссылки на более надежные для Telegram
+# 📸 Обновленные прямые ссылки на фото (без лишних параметров)
 STAR_PHOTOS = [
-    "https://images.unsplash.com/photo-1464802686167-b939a67a06a1?q=80&w=1200",
-    "https://images.unsplash.com/photo-1506318137071-a8e063b4bcc0?q=80&w=1200",
-    "https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=1200"
+    "https://cdn.pixabay.com/photo/2016/11/29/03/53/astronomy-1867175_1280.jpg",
+    "https://cdn.pixabay.com/photo/2017/08/30/01/05/milky-way-2695569_1280.jpg",
+    "https://cdn.pixabay.com/photo/2012/01/09/10/58/milky-way-11631_1280.jpg"
 ]
 
 def post_star_guide():
@@ -87,7 +87,7 @@ def post_star_guide():
     header = (
         f"🚀 <b>ВНИМАНИЕ! КОСМИЧЕСКИЙ ПАТРУЛЬ!</b> 🚀\n"
         f"🌟✨🌟✨🌟✨🌟✨🌟✨🌟✨🌟\n\n"
-        f"🛰 <i>Прием, юные штурманы! Ночное небо зажгло свои огни.</i>\n\n"
+        f"🛰 <i>Прием, юные штурманы! Ночное небо зажгло свои огни. Пора начать охоту за созвездиями!</i>\n\n"
     )
     
     main_info = (
@@ -110,8 +110,7 @@ def post_star_guide():
         'chat_id': CHANNEL_NAME,
         'photo': random.choice(STAR_PHOTOS),
         'caption': caption,
-        'parse_mode': 'HTML',
-        'link_preview_options': {'is_disabled': True} 
+        'parse_mode': 'HTML'
     }
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
