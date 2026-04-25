@@ -100,7 +100,7 @@ def get_planet_data():
         body = f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
         
         pseudo_buttons = (
-            "<b>ПУЛЬТ УПРАВЛЕНИЯ:</b>\n"
+            "<b>ВЗГЛЯНИ СЮДА:</b>\n"
             f"🌌 <b><a href='https://eyes.nasa.gov/apps/exo/'>[ ОХОТНИК ЗА ЭКЗОПЛАНЕТАМИ ]</a></b>\n"
             f"🚜 <b><a href='https://eyes.nasa.gov/apps/mars2020/'>[ ГДЕ СЕЙЧАС РОВЕР? ]</a></b>\n"
             "─────────────────────\n"
