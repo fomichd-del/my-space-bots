@@ -2,7 +2,6 @@ import requests
 import os
 import random
 import json
-import time
 from deep_translator import GoogleTranslator
 
 # ============================================================
@@ -11,11 +10,13 @@ from deep_translator import GoogleTranslator
 NASA_API_KEY   = os.getenv('NASA_API_KEY', 'DEMO_KEY') 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
+# 🛰 Ссылка на твой чат для "кнопки" обсуждения
+CHAT_LINK      = 'https://t.me/vladislav_space_chat' 
 DB_FILE        = "last_mars_photo.txt" 
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Темы для поиска
+# Темы для поиска (Земля исключена)
 SPACE_TOPICS = [
     "Mercury planet", "Venus surface", "Mars landscape", 
     "Jupiter Juno", "Saturn Cassini", "Uranus planet", 
@@ -24,27 +25,33 @@ SPACE_TOPICS = [
 ]
 
 def is_earth_content(text):
+    """Проверка, не является ли контент земным."""
     stop_words = ['earth', 'terra', 'iss', 'international space station', 'blue marble', 'satellite of earth']
     text_lower = text.lower()
     return any(word in text_lower for word in stop_words)
 
 def get_file_size_mb(url):
+    """Проверка размера файла."""
     try:
         response = requests.head(url, timeout=10)
         size = int(response.headers.get('Content-Length', 0))
         return size / (1024 * 1024)
-    except: return 0
+    except:
+        return 0
 
 def get_best_image_url(asset_manifest_url):
+    """Выбирает самое качественное фото из доступных."""
     try:
         res = requests.get(asset_manifest_url).json()
         items = [i['href'] for i in res['collection']['items'] if i['href'].lower().endswith('.jpg')]
         items.sort(key=lambda x: ('~orig' in x.lower(), '~large' in x.lower()), reverse=True)
         for url in items:
             size = get_file_size_mb(url)
-            if 0 < size <= 48: return url
+            if 0 < size <= 48:
+                return url
         return items[-1] if items else None
-    except: return None
+    except:
+        return None
 
 def get_planet_data():
     source = random.choice(['apod', 'search'])
@@ -83,72 +90,54 @@ def get_planet_data():
             desc_en = target['data'][0].get('description', '')
             img_url = get_best_image_url(target['href'])
 
-        if not img_url or nasa_id in sent_ids: return get_planet_data()
+        if not img_url or nasa_id in sent_ids:
+            return get_planet_data()
 
+        # Перевод
         title_ru = translator.translate(title_en)
         short_desc_en = '. '.join(desc_en.split('.')[:3]) + '.'
         desc_ru = translator.translate(short_desc_en)
 
-        caption = (
-            f"🪐 <b>ОБЪЕКТ ДНЯ: {title_ru.upper()}</b>\n"
-            f"─────────────────────\n\n"
-            f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
-            f"🔭 <i>Снимок получен из архивов NASA в высоком разрешении.</i>\n\n"
-            f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+        # --- СБОРКА ПОСТА С ПСЕВДО-КНОПКАМИ ---
+        # Вариант 1 (Яркий техно-стиль)
+        header = f"🪐 <b>ОБЪЕКТ ДНЯ: {title_ru.upper()}</b>\n─────────────────────\n\n"
+        body = f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
+        
+        pseudo_buttons = (
+            "<b>ПУЛЬТ УПРАВЛЕНИЯ:</b>\n"
+            f"🌌 <b><a href='https://eyes.nasa.gov/apps/exo/'>[ ОХОТНИК ЗА ЭКЗОПЛАНЕТАМИ ]</a></b>\n"
+            f"🚜 <b><a href='https://eyes.nasa.gov/apps/mars2020/'>[ ГДЕ СЕЙЧАС РОВЕР? ]</a></b>\n"
+            f"💬 <b><a href='{CHAT_LINK}'>[ ОБСУДИТЬ В ЧАТЕ ]</a></b>\n"
+            "─────────────────────\n"
         )
+        
+        footer = f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+        
+        caption = header + body + pseudo_buttons + footer
         return img_url, caption, nasa_id
-    except: return None, None, None
+        
+    except:
+        return None, None, None
 
 def send_to_telegram():
     img_url, caption, nasa_id = get_planet_data()
     if not img_url: return
 
-    # --- ШАГ 1: Отправка фото БЕЗ кнопок (Активация комментариев) ---
-    base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto"
+    # Отправляем как ОБЫЧНОЕ фото. Telegram сам добавит кнопку комментариев.
     payload = {
         'chat_id': CHANNEL_NAME,
         'photo': img_url,
         'caption': caption,
-        'parse_mode': 'HTML'
+        'parse_mode': 'HTML',
+        'disable_web_page_preview': False 
     }
     
-    r = requests.post(base_url, json=payload)
+    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
     
     if r.status_code == 200:
-        msg_id = r.json()['result']['message_id']
-        print(f"✅ Пост {nasa_id} отправлен. Ждем 5 сек для связи с чатом...")
-        
-        # Пауза 5 секунд — это время нужно Telegram для создания связи с группой
-        time.sleep(5)
-        
-        # --- ШАГ 2: ПОЛНОЕ ОБНОВЛЕНИЕ (Описание + Кнопки) ---
-        # Мы используем editMessageCaption, чтобы принудительно перерисовать пост
-        keyboard = {
-            "inline_keyboard": [
-                [{"text": "🌌 ОХОТНИК ЗА ЭКЗОПЛАНЕТАМИ (3D)", "url": "https://eyes.nasa.gov/apps/exo/"}],
-                [{"text": "🚜 ГДЕ СЕЙЧАС РОВЕР?", "url": "https://eyes.nasa.gov/apps/mars2020/"}]
-            ]
-        }
-        
-        edit_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/editMessageCaption"
-        edit_payload = {
-            'chat_id': CHANNEL_NAME,
-            'message_id': msg_id,
-            'caption': caption, # Повторяем тот же текст
-            'reply_markup': json.dumps(keyboard),
-            'parse_mode': 'HTML'
-        }
-        
-        edit_res = requests.post(edit_url, json=edit_payload)
-        
-        if edit_res.status_code == 200:
-            print(f"📡 Кнопки добавлены успешно. Комментарии должны быть активны.")
-        else:
-            print(f"⚠️ Ошибка при добавлении кнопок: {edit_res.text}")
-
-        # Сохранение в базу
         with open(DB_FILE, 'a', encoding='utf-8') as f:
             f.write(f"{nasa_id}\n")
+        print(f"✅ Пост {nasa_id} отправлен с текстовыми кнопками!")
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
