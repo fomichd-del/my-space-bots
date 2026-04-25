@@ -10,13 +10,11 @@ from deep_translator import GoogleTranslator
 NASA_API_KEY   = os.getenv('NASA_API_KEY', 'DEMO_KEY') 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
-# 🛰 Ссылка на твой чат для "кнопки" обсуждения
-CHAT_LINK      = 'https://t.me/vladislav_space_chat' 
 DB_FILE        = "last_mars_photo.txt" 
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-# Темы для поиска (Земля исключена)
+# Темы для поиска
 SPACE_TOPICS = [
     "Mercury planet", "Venus surface", "Mars landscape", 
     "Jupiter Juno", "Saturn Cassini", "Uranus planet", 
@@ -93,13 +91,11 @@ def get_planet_data():
         if not img_url or nasa_id in sent_ids:
             return get_planet_data()
 
-        # Перевод
         title_ru = translator.translate(title_en)
         short_desc_en = '. '.join(desc_en.split('.')[:3]) + '.'
         desc_ru = translator.translate(short_desc_en)
 
-        # --- СБОРКА ПОСТА С ПСЕВДО-КНОПКАМИ ---
-        # Вариант 1 (Яркий техно-стиль)
+        # --- СБОРКА ПОСТА (БЕЗ КНОПКИ ЧАТА) ---
         header = f"🪐 <b>ОБЪЕКТ ДНЯ: {title_ru.upper()}</b>\n─────────────────────\n\n"
         body = f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
         
@@ -107,7 +103,6 @@ def get_planet_data():
             "<b>ПУЛЬТ УПРАВЛЕНИЯ:</b>\n"
             f"🌌 <b><a href='https://eyes.nasa.gov/apps/exo/'>[ ОХОТНИК ЗА ЭКЗОПЛАНЕТАМИ ]</a></b>\n"
             f"🚜 <b><a href='https://eyes.nasa.gov/apps/mars2020/'>[ ГДЕ СЕЙЧАС РОВЕР? ]</a></b>\n"
-            f"💬 <b><a href='{CHAT_LINK}'>[ ОБСУДИТЬ В ЧАТЕ ]</a></b>\n"
             "─────────────────────\n"
         )
         
@@ -123,13 +118,11 @@ def send_to_telegram():
     img_url, caption, nasa_id = get_planet_data()
     if not img_url: return
 
-    # Отправляем как ОБЫЧНОЕ фото. Telegram сам добавит кнопку комментариев.
     payload = {
         'chat_id': CHANNEL_NAME,
         'photo': img_url,
         'caption': caption,
-        'parse_mode': 'HTML',
-        'disable_web_page_preview': False 
+        'parse_mode': 'HTML'
     }
     
     r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
@@ -137,7 +130,7 @@ def send_to_telegram():
     if r.status_code == 200:
         with open(DB_FILE, 'a', encoding='utf-8') as f:
             f.write(f"{nasa_id}\n")
-        print(f"✅ Пост {nasa_id} отправлен с текстовыми кнопками!")
+        print(f"✅ Пост {nasa_id} отправлен. Лишние кнопки удалены.")
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
