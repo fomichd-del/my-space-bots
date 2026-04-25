@@ -6,15 +6,13 @@ import ephem
 from threading import Thread
 from flask import Flask
 from datetime import datetime
-from draw_map import generate_star_map  # Подключаем твой новый модуль рисования
+from draw_map import generate_star_map
 
 # --- 1. ПОДДЕРЖКА РАБОТОСПОСОБНОСТИ ---
 app = Flask('')
 @app.route('/')
 def home(): return "Мартин на связи! 🛰️"
-
-def run(): app.run(host='0.0.0.0', port=8080)
-def keep_alive(): Thread(target=run).start()
+def keep_alive(): Thread(target=lambda: app.run(host='0.0.0.0', port=8080)).start()
 
 # --- 2. НАСТРОЙКА БОТА ---
 TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -55,88 +53,82 @@ def format_full_info(key, info, title_prefix=""):
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # Проверка на переход из канала (глубокая ссылка)
+    # УСИЛЕННАЯ ПРОВЕРКА: ищем 'get_map' в тексте сообщения
     if "get_map" in message.text:
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         markup.add(telebot.types.KeyboardButton("📍 Отправить локацию для карты", request_location=True))
+        
         bot.send_message(message.chat.id, 
-            "🚀 Привет! Я готов нарисовать твою карту неба. Нажми кнопку ниже, чтобы я настроил телескопы на твои координаты!", 
-            reply_markup=markup)
+            "🛰 **Прием! Вижу запрос на карту неба.**\n\n"
+            "Чтобы я настроил линзы телескопов на твой город, нажми кнопку ниже. "
+            "Я нарисую карту и сразу пришлю её тебе! 🐩🚀", 
+            reply_markup=markup, parse_mode='Markdown')
         return
 
-    # Обычный старт бота
+    # Обычное меню
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎲 Случайное созвездие", "📋 Список созвездий")
     markup.add(telebot.types.KeyboardButton("📍 Определить мое небо", request_location=True))
-    bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Выбирай команду или отправь координаты!", reply_markup=markup)
+    bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Чем займемся сегодня?", reply_markup=markup)
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    lat = message.location.latitude
-    lon = message.location.longitude
+    lat, lon = message.location.latitude, message.location.longitude
     user_name = message.from_user.first_name
     
-    bot.send_message(message.chat.id, "🛰 Принимаю сигнал... Рисую твою персональную карту!")
+    bot.send_message(message.chat.id, "🛰 Координаты получены. Запускаю рендеринг звездной сферы...")
     
-    # 1. Генерируем изображение через draw_map.py
     try:
         photo_path = generate_star_map(lat, lon, user_name)
         with open(photo_path, 'rb') as photo:
             bot.send_photo(
                 message.chat.id, 
                 photo, 
-                caption="🌟 Вот твоё небо прямо сейчас! Сделай скриншот и поделись им в комментариях канала. 🐩🚀",
+                caption="🌟 **ТВОЁ НЕБО ГОТОВО!**\n\n"
+                        "Делай скриншот и отправляй его в комментарии к посту! "
+                        "Марти будет очень рад увидеть твои звезды! 🐩📸",
+                parse_mode='Markdown',
                 reply_markup=telebot.types.ReplyKeyboardRemove()
             )
     except Exception as e:
-        bot.send_message(message.chat.id, "❌ Упс! Ошибка при проявке космического снимка. Но я все равно вижу звезды!")
+        bot.send_message(message.chat.id, "❌ Ошибка при рисовании карты. Но я все равно посчитал созвездие!")
 
-    # 2. Текстовая информация о созвездии в зените
+    # Инфо про созвездие
     key = get_best_constellation(lat, lon)
     data = load_data()
     info = data.get(key, {})
-    reply = format_full_info(key, info, title_prefix="🔭 **Прямо над тобой сейчас:**\n\n")
-    bot.send_message(message.chat.id, reply, parse_mode='Markdown')
+    bot.send_message(message.chat.id, format_full_info(key, info, "🔭 **Прямо сейчас над тобой:**\n\n"), parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
     data = load_data()
     text = message.text.strip()
 
-    # Кнопка: Случайное созвездие
     if text == "🎲 Случайное созвездие":
         key = random.choice(list(data.keys()))
         info = data[key]
         bot.send_message(message.chat.id, format_full_info(key, info), parse_mode='Markdown')
-        return
-
-    # Кнопка: Список созвездий
-    if text == "📋 Список созвездий":
-        seasons_map = {
-            "winter": "❄️ **Зимние**",
-            "spring": "🌱 **Весенние**",
-            "summer": "☀️ **Летние**",
-            "autumn": "🍂 **Осенние**",
-            "all year": "🔄 **Видны всегда**"
-        }
-        
+    
+    elif text == "📋 Список созвездий":
+        seasons_map = {"winter": "❄️", "spring": "🌱", "summer": "☀️", "autumn": "🍂", "all year": "🔄"}
         full_message = "📍 **Атлас созвездий**\n\n"
-        for season_id, title in seasons_map.items():
-            group = [f"• {info.get('name')} {info.get('difficulty', '⭐')}" 
-                     for k, info in data.items() if info.get('season') == season_id]
+        for s_id, icon in seasons_map.items():
+            group = [f"• {inf.get('name')} {inf.get('difficulty', '⭐')}" 
+                     for k, inf in data.items() if inf.get('season') == s_id]
             if group:
-                full_message += f"{title}\n" + "\n".join(group) + "\n\n"
-        
+                full_message += f"{icon} **{s_id.upper()}**\n" + "\n".join(group) + "\n\n"
         bot.send_message(message.chat.id, full_message, parse_mode='Markdown')
-        return
-
-    # Поиск по названию созвездия
-    for key, info in data.items():
-        if text.lower() in info.get('name', '').lower():
-            bot.send_message(message.chat.id, format_full_info(key, info), parse_mode='Markdown')
-            return
-            
-    bot.send_message(message.chat.id, "🔭 Такого созвездия нет в моих картах. Попробуй другое!")
+    
+    else:
+        # Поиск по названию
+        found = False
+        for key, info in data.items():
+            if text.lower() in info.get('name', '').lower():
+                bot.send_message(message.chat.id, format_full_info(key, info), parse_mode='Markdown')
+                found = True
+                break
+        if not found:
+            bot.send_message(message.chat.id, "🔭 В моих звездных атласах такого нет. Попробуй другое!")
 
 if __name__ == "__main__":
     keep_alive()
