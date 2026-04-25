@@ -7,82 +7,133 @@ from deep_translator import GoogleTranslator
 # ============================================================
 # ⚙️ НАСТРОЙКИ
 # ============================================================
+# Вставь свой ключ NASA сюда или добавь в переменные окружения
+NASA_API_KEY   = os.getenv('NASA_API_KEY', 'DEMO_KEY') 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_mars_photo.txt" 
 
 translator = GoogleTranslator(source='auto', target='ru')
 
-PLANETS = [
-    "Mercury planet", "Venus planet", "Mars planet", 
-    "Jupiter planet", "Saturn planet", "Uranus planet", 
-    "Neptune planet", "Pluto dwarf planet"
+# Темы для поиска (Земля исключена)
+SPACE_TOPICS = [
+    "Mercury planet", "Venus surface", "Mars landscape", 
+    "Jupiter Juno", "Saturn Cassini", "Uranus planet", 
+    "Neptune planet", "Pluto New Horizons", "Nebula Hubble",
+    "Galaxy", "Star cluster", "Supernova", "Black hole space"
 ]
 
-def get_planet_data():
-    planet_query = random.choice(PLANETS)
-    planet_name_simple = planet_query.split()[0]
-    
-    url = f"https://images-api.nasa.gov/search?q={planet_query}&media_type=image"
-    
+def is_earth_content(text):
+    """Проверка, не является ли контент земным."""
+    stop_words = ['earth', 'terra', 'iss', 'international space station', 'blue marble', 'satellite of earth']
+    text_lower = text.lower()
+    return any(word in text_lower for word in stop_words)
+
+def get_file_size_mb(url):
+    """Проверка размера файла без его полной загрузки."""
     try:
-        print(f"📡 Ищу фото для планеты: {planet_name_simple}...")
-        res = requests.get(url, timeout=20).json()
-        items = res['collection']['items']
-        
-        sent_ids = []
-        if os.path.exists(DB_FILE):
-            with open(DB_FILE, 'r', encoding='utf-8') as f:
-                sent_ids = f.read().splitlines()
+        response = requests.head(url, timeout=10)
+        size = int(response.headers.get('Content-Length', 0))
+        return size / (1024 * 1024)
+    except:
+        return 0
 
-        random.shuffle(items)
-        target_item = None
+def get_best_image_url(asset_manifest_url):
+    """Выбирает самое качественное фото из доступных, подходящее под лимит ТГ."""
+    try:
+        res = requests.get(asset_manifest_url).json()
+        items = [i['href'] for i in res['collection']['items'] if i['href'].lower().endswith('.jpg')]
         
-        for item in items[:20]:
-            nasa_id = item['data'][0]['nasa_id']
-            if nasa_id not in sent_ids:
-                target_item = item
-                break
+        # Сортируем: сначала оригинал (~orig), потом большие (~large)
+        items.sort(key=lambda x: ('~orig' in x.lower(), '~large' in x.lower()), reverse=True)
         
-        if not target_item:
-            return None, None, None
+        for url in items:
+            size = get_file_size_mb(url)
+            if 0 < size <= 48: # Лимит Телеграма
+                return url
+        return items[-1] if items else None
+    except:
+        return None
 
-        img_url = target_item['links'][0]['href']
-        nasa_id = target_item['data'][0]['nasa_id']
-        title_en = target_item['data'][0]['title']
-        desc_en = target_item['data'][0].get('description', '')
+def get_planet_data():
+    # Шанс 50/50: либо Фото Дня (APOD), либо поиск по Архиву
+    source = random.choice(['apod', 'search'])
+    sent_ids = []
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, 'r', encoding='utf-8') as f:
+            sent_ids = f.read().splitlines()
 
+    try:
+        if source == 'apod':
+            # Берем случайную дату с 2010 года
+            y, m, d = random.randint(2010, 2024), random.randint(1, 12), random.randint(1, 28)
+            url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}&date={y}-{m}-{d}"
+            data = requests.get(url).json()
+            
+            if data.get('media_type') != 'image' or is_earth_content(data.get('title', '')):
+                return get_planet_data() # Рекурсия, если попалось видео или Земля
+            
+            img_url = data.get('hdurl') or data.get('url')
+            if get_file_size_mb(img_url) > 48: img_url = data.get('url')
+            
+            title_en = data.get('title')
+            desc_en = data.get('explanation', '')
+            nasa_id = f"APOD_{y}{m}{d}"
+
+        else:
+            query = random.choice(SPACE_TOPICS)
+            search_url = f"https://images-api.nasa.gov/search?q={query}&media_type=image"
+            res = requests.get(search_url).json()
+            items = res['collection']['items']
+            random.shuffle(items)
+
+            target = None
+            for item in items[:25]:
+                data = item['data'][0]
+                if data['nasa_id'] not in sent_ids and not is_earth_content(data['title']):
+                    target = item
+                    break
+            
+            if not target: return get_planet_data()
+
+            nasa_id = target['data'][0]['nasa_id']
+            title_en = target['data'][0]['title']
+            desc_en = target['data'][0].get('description', '')
+            # Получаем прямую ссылку на качественный файл через манифест
+            img_url = get_best_image_url(target['href'])
+
+        if not img_url or nasa_id in sent_ids:
+            return get_planet_data()
+
+        # Перевод и формирование текста
         title_ru = translator.translate(title_en)
         short_desc_en = '. '.join(desc_en.split('.')[:3]) + '.'
         desc_ru = translator.translate(short_desc_en)
 
         caption = (
-            f"🪐 <b>ПЛАНЕТА ДНЯ: {title_ru.upper()}</b>\n"
+            f"🪐 <b>ОБЪЕКТ ДНЯ: {title_ru.upper()}</b>\n"
             f"─────────────────────\n\n"
             f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
-            f"🔭 <i>Этот снимок был сделан одной из межпланетных станций NASA во время исследования нашей системы.</i>\n\n"
+            f"🔭 <i>Снимок получен из архивов NASA в высоком разрешении.</i>\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
         
         return img_url, caption, nasa_id
         
     except Exception as e:
-        print(f"❌ Ошибка поиска: {e}")
+        print(f"❌ Ошибка: {e}")
         return None, None, None
 
 def send_to_telegram():
     img_url, caption, nasa_id = get_planet_data()
     
     if not img_url:
-        print("📭 Новых фото планет не найдено.")
+        print("📭 Не удалось найти подходящее фото.")
         return
 
-    # --- БЛОК КНОПОК (НОВОЕ!) ---
     keyboard = {
         "inline_keyboard": [
-            # Кнопка 1: Охотник за экзопланетами (3D вид на чужие миры)
             [{"text": "🌌 ОХОТНИК ЗА ЭКЗОПЛАНЕТАМИ (3D)", "url": "https://eyes.nasa.gov/apps/exo/"}],
-            # Кнопка 2: Где сейчас ровер (интерактивная карта Марса)
             [{"text": "🚜 ГДЕ СЕЙЧАС РОВЕР?", "url": "https://eyes.nasa.gov/apps/mars2020/"}]
         ]
     }
@@ -93,14 +144,14 @@ def send_to_telegram():
         'photo': img_url,
         'caption': caption,
         'parse_mode': 'HTML',
-        'reply_markup': json.dumps(keyboard) # Добавляем кнопки в сообщение
+        'reply_markup': json.dumps(keyboard)
     }
     
     r = requests.post(base_url, data=payload)
     if r.status_code == 200:
         with open(DB_FILE, 'a', encoding='utf-8') as f:
             f.write(f"{nasa_id}\n")
-        print(f"✅ Пост про {nasa_id} с интерактивными кнопками отправлен!")
+        print(f"✅ Пост {nasa_id} отправлен! (Размер: {get_file_size_mb(img_url):.1f} MB)")
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
