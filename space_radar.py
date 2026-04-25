@@ -18,12 +18,19 @@ translator = GoogleTranslator(source='auto', target='ru')
 FORBIDDEN = ['military', 'spy', 'defense', 'weapon', 'война', 'оборона', 'classified', 'reconnaissance']
 
 def get_yt_live(query):
+    """Ищет видео, отдавая приоритет трансляциям (live/upcoming)"""
     if not YOUTUBE_API_KEY: return None
     try:
-        url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&q={query}&key={YOUTUBE_API_KEY}"
+        # Убираем жесткий фильтр eventType=live, чтобы видеть запланированные пуски
+        url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q={query}&key={YOUTUBE_API_KEY}&maxResults=3"
         res = requests.get(url, timeout=10).json()
+        
         if res.get('items'):
-            return res['items'][0]['id']['videoId']
+            for item in res['items']:
+                status = item['snippet'].get('liveBroadcastContent')
+                # Берем только если это прямой эфир или запланированный
+                if status in ['live', 'upcoming']:
+                    return item['id']['videoId']
     except: pass
     return None
 
@@ -37,7 +44,8 @@ def get_nasa_image():
 def run_radar():
     print("📡 [РАДАР] Сканирование мировых эфиров...")
     try:
-        res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=10", timeout=30).json()
+        # Увеличили лимит до 15, чтобы видеть больше событий
+        res = requests.get("https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=15", timeout=30).json()
         launches = res.get('results', [])
     except: return
 
@@ -47,6 +55,7 @@ def run_radar():
         l_id = str(l['id'])
         if l_id in sent_ids: continue
 
+        # Мирный фильтр
         desc = l.get('mission', {}).get('description', '')
         if any(w in (desc + l['name']).lower() for w in FORBIDDEN):
             print(f"🛑 Пропуск (Военная миссия): {l['name']}")
@@ -55,27 +64,29 @@ def run_radar():
         net = datetime.fromisoformat(l['net'].replace('Z', '+00:00'))
         diff = (net - datetime.now(timezone.utc)).total_seconds() / 60
 
-        # Радар ловит только те, что "в эфире" или вот-вот взлетят
-        if -20 < diff < 180:
+        # Окно работы: за 4 часа (240 мин) до пуска и до 30 мин после старта
+        if -30 < diff < 240:
             prov = l['launch_service_provider']['name']
             
-            # Поиск активного видео
+            # 1. Пробуем найти через YouTube API (самый надежный способ для плеера)
             video_id = get_yt_live(f"{prov} {l['name']} live launch")
             
+            # 2. Если поиск не дал плодов, проверяем базу Space Devs
             if not video_id and l.get('vidURLs'):
                 db_v = l['vidURLs'][0]['url']
                 if "youtube.com/watch?v=" in db_v:
-                    video_id = db_v.split('v=')[-1]
+                    video_id = db_v.split('v=')[-1].split('&')[0]
                 elif "youtu.be/" in db_v:
-                    video_id = db_v.split('/')[-1]
+                    video_url_part = db_v.split('/')[-1].split('?')[0]
+                    video_id = video_url_part
 
             if not video_id:
-                print(f"🔇 Для {l['name']} эфир пока не обнаружен.")
+                print(f"🔇 Для {l['name']} (через {int(diff)} мин) эфир пока не создан.")
                 continue
 
             video_url = f"https://www.youtube.com/watch?v={video_id}"
 
-            # ОФОРМЛЕНИЕ ТЕКСТА (без скрытых ссылок, плеер сам создаст превью сверху)
+            # Оформление
             text = (
                 f"📡 <b>РАДАР ПОЙМАЛ ЭФИР: {l['rocket']['configuration']['name'].upper()}</b>\n"
                 f"─────────────────────\n\n"
@@ -85,10 +96,10 @@ def run_radar():
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
 
-            # Кнопка
+            # Кнопка под постом
             keyboard = {"inline_keyboard": [[{"text": "🍿 СМОТРЕТЬ ТРАНСЛЯЦИЮ", "url": video_url}]]}
 
-            # Настройки превью: делаем из ссылки "большое окно" СВЕРХУ текста
+            # Настройки превью: плеер СВЕРХУ, большой экран
             payload = {
                 "chat_id": CHANNEL_NAME,
                 "text": text,
@@ -96,8 +107,8 @@ def run_radar():
                 "reply_markup": json.dumps(keyboard),
                 "link_preview_options": {
                     "url": video_url,
-                    "show_above_text": True,    # Видео-плеер будет НАД текстом
-                    "prefer_large_media": True  # Сделать его максимально большим
+                    "show_above_text": True,
+                    "prefer_large_media": True
                 }
             }
 
@@ -105,8 +116,10 @@ def run_radar():
             
             if r.status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{l_id}\n")
-                print(f"✅ Радар успешно опубликовал эфир: {l['name']}")
-                break
+                print(f"✅ Радар опубликовал эфир: {l['name']}")
+                # Убрали break, чтобы обрабатывать все подходящие пуски за раз
+            else:
+                print(f"❌ Ошибка отправки: {r.text}")
 
 if __name__ == '__main__':
     run_radar()
