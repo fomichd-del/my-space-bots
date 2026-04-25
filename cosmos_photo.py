@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import re
+import time
 from deep_translator import GoogleTranslator
 
 # --- НАСТРОЙКИ ---
@@ -28,12 +29,8 @@ def get_short_facts(text, icons):
     return "\n\n".join(formatted_list)
 
 def clean_video_url(url):
-    """
-    Превращает 'embed' ссылки NASA в обычные ссылки YouTube.
-    Telegram гораздо лучше генерирует плеер из стандартных ссылок.
-    """
+    """Превращает 'embed' ссылки NASA в обычные ссылки YouTube для Telegram"""
     if 'youtube.com/embed/' in url:
-        # Извлекаем ID видео из ссылки типа https://www.youtube.com/embed/XXXXX?rel=0
         video_id = url.split('/')[-1].split('?')[0]
         return f"https://www.youtube.com/watch?v={video_id}"
     return url
@@ -56,7 +53,7 @@ def get_cosmos_content(target_type):
     return None
 
 def send_to_telegram(target_type):
-    """Основная логика отправки"""
+    """Основная логика отправки с фиксом комментариев и видео сверху"""
     db_file = f"last_cosmo_{target_type}.txt"
     
     data = get_cosmos_content(target_type)
@@ -83,48 +80,63 @@ def send_to_telegram(target_type):
         ru_title = data.get('title', 'Космическое событие')
         facts = "Удивительный факт о космосе уже на подходе! 🛰️"
 
-    # --- СБОРКА ПОСТА ---
+    # --- СБОРКА ТЕКСТА ---
     prefix = "🎬 <b>ВИДЕО:</b> " if target_type == 'video' else "🌌 "
     header = f"{prefix}<b>{ru_title.upper()}</b>\n─────────────────────\n\n"
     body = f"<b>ГЛАВНОЕ:</b>\n\n{facts}\n\n"
     footer = f"✨ <b>Больше космоса:</b>\n👉 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
+    full_text = header + body + footer
 
-    payload = {
-        'chat_id': CHANNEL_NAME,
-        'parse_mode': 'HTML'
-    }
-
+    # --- ЛОГИКА ОТПРАВКИ ---
     if target_type == 'image':
-        payload['photo'] = data.get('url')
-        payload['caption'] = header + body + footer
-        api_method = "sendPhoto"
+        # Для фото используем обычный метод (комментарии обычно работают без 2-х шагов, если нет кнопок)
+        payload = {
+            'chat_id': CHANNEL_NAME,
+            'photo': data.get('url'),
+            'caption': full_text,
+            'parse_mode': 'HTML'
+        }
+        r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
     else:
-        # 1. Чистим ссылку (убираем /embed/)
+        # --- РЕЖИМ ВИДЕО (ДВУХЭТАПНЫЙ ФИКС ДЛЯ КОММЕНТАРИЕВ) ---
         video_url = clean_video_url(data.get('url'))
         
-        # 2. Используем невидимый пробел (\u200b) внутри тега ссылки.
-        # Это заставляет Telegram видеть ссылку для превью, но она не видна в тексте.
-        hidden_link = f"<a href='{video_url}'>\u200b</a>" 
-        
-        payload['text'] = hidden_link + header + body + footer
-        
-        # 3. Настройка превью: Обязательно указываем URL и позицию сверху
-        payload['link_preview_options'] = {
-            'is_disabled': False,
-            'url': video_url,
-            'show_above_text': True,
-            'prefer_large_media': True
+        # Шаг 1: Отправляем базовый текст БЕЗ превью и ссылок (Активируем комментарии)
+        payload_init = {
+            'chat_id': CHANNEL_NAME,
+            'text': full_text,
+            'parse_mode': 'HTML',
+            'link_preview_options': {'is_disabled': True}
         }
-        api_method = "sendMessage"
+        r_init = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json=payload_init)
+        
+        if r_init.status_code == 200:
+            msg_id = r_init.json()['result']['message_id']
+            time.sleep(1) # Короткая пауза для системной связи
+            
+            # Шаг 2: Редактируем, добавляя невидимую ссылку и плеер СВЕРХУ
+            hidden_link = f"<a href='{video_url}'>\u200b</a>"
+            payload_edit = {
+                'chat_id': CHANNEL_NAME,
+                'message_id': msg_id,
+                'text': hidden_link + full_text,
+                'parse_mode': 'HTML',
+                'link_preview_options': {
+                    'is_disabled': False,
+                    'url': video_url,
+                    'show_above_text': True,
+                    'prefer_large_media': True
+                }
+            }
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/editMessageText", json=payload_edit)
+        else:
+            r = r_init
 
-    # --- ОТПРАВКА ---
-    # Важно: используем json=payload, чтобы Telegram правильно считал настройки превью
-    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{api_method}", json=payload)
-    
+    # --- ЗАВЕРШЕНИЕ ---
     if r.status_code == 200:
         with open(db_file, 'w', encoding='utf-8') as f:
             f.write(current_id)
-        print(f"✅ Пост успешно отправлен. Память сохранена в {db_file}")
+        print(f"✅ Пост успешно отправлен через ЦУП. Комментарии активированы.")
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
