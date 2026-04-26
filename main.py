@@ -8,7 +8,7 @@ import requests
 import logging
 from draw_map import generate_star_map
 
-# 1. ОСТАВЛЯЕМ РАДАР (чтобы видеть успех)
+# 1. ОСТАВЛЯЕМ ГЛУБОКИЙ РАДАР (для отслеживания всех пакетов)
 telebot.logger.setLevel(logging.DEBUG)
 
 apihelper.CONNECT_TIMEOUT = 120
@@ -33,6 +33,7 @@ if TOKEN:
     print(f"✅ [СИСТЕМА]: Токен загружен (Начало: {TOKEN[:5]}...)")
     bot = telebot.TeleBot(TOKEN, threaded=False)
     
+    # --- ОБРАБОТЧИК СТАРТА ---
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
         print(f"📩 [АКТИВНОСТЬ]: {message.from_user.first_name} нажал СТАРТ")
@@ -43,21 +44,32 @@ if TOKEN:
             bot.send_message(message.chat.id, "🛰 **Секретный шлюз открыт.**\nЖми на кнопку для карты! 🐩🔭", reply_markup=markup, parse_mode='Markdown')
         else:
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add("🎲 Случайное созвездие")
-            markup.add(types.KeyboardButton("📍 Мое небо", request_location=True))
+            markup.row("🎲 Случайное созвездие")
+            markup.row(types.KeyboardButton("📍 Мое небо", request_location=True))
             bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Готов к работе!", reply_markup=markup)
 
+    # --- ОБРАБОТЧИК ЛОКАЦИИ (ГЕНЕРАЦИЯ КАРТЫ) ---
     @bot.message_handler(content_types=['location'])
     def handle_location(message):
         print(f"📍 [ЛОКАЦИЯ]: Рисую для {message.from_user.first_name}")
-        bot.send_message(message.chat.id, "🛰 Секунду... Рисую!")
+        bot.send_message(message.chat.id, "🛰 Секунду... Навожу телескопы!")
         try:
             path = generate_star_map(message.location.latitude, message.location.longitude, message.from_user.first_name)
             with open(path, 'rb') as f:
                 bot.send_photo(message.chat.id, f, caption="🌟 ТВОЁ НЕБО ГОТОВО! 🐩📸", parse_mode='Markdown')
         except Exception as e:
             print(f"❌ [ОШИБКА РИСОВАНИЯ]: {e}")
-            bot.send_message(message.chat.id, "⚠️ Ошибка телескопа.")
+            bot.send_message(message.chat.id, "⚠️ Ошибка телескопа. Попробуй позже.")
+
+    # --- НОВЫЙ ВСЕЯДНЫЙ РАДАР (ДЛЯ ЛЮБОГО ТЕКСТА) ---
+    @bot.message_handler(content_types=['text'])
+    def handle_text(message):
+        print(f"💬 [ТЕКСТ]: Получено сообщение '{message.text}' от {message.from_user.first_name}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.row("🎲 Случайное созвездие")
+        markup.row(types.KeyboardButton("📍 Мое небо", request_location=True))
+        bot.send_message(message.chat.id, f"Слышу тебя, штурман! Ты сказал: {message.text}. Но я пока лучше всего реагирую на команды и кнопки.", reply_markup=markup)
+
 else:
     print("❌ [ОШИБКА]: ТОКЕН НЕ НАЙДЕН!")
     bot = None
@@ -68,7 +80,6 @@ def start_martin():
     
     print("🧹 [СИСТЕМА]: Прямой сброс старых настроек (5 сек на ответ)...")
     try:
-        # Жесткий запрос к Telegram в обход библиотеки telebot
         url = f"https://api.telegram.org/bot{TOKEN}/deleteWebhook?drop_pending_updates=True"
         requests.get(url, timeout=5)
         print("✅ [СИСТЕМА]: Путь чист!")
@@ -78,7 +89,7 @@ def start_martin():
     print("🚀 [БОТ]: Вхожу в эфир Telegram...")
     while True:
         try:
-            # Запускаем чтение сообщений (skip_pending=True очистит старые клики)
+            # skip_pending=True игнорирует старые клики, чтобы бот не "захлебнулся"
             bot.infinity_polling(timeout=90, long_polling_timeout=90, skip_pending=True)
         except Exception as e:
             print(f"📡 [СВЯЗЬ]: Помехи ({e}). Жду 5 сек...")
