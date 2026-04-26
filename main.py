@@ -6,7 +6,7 @@ from flask import Flask
 import time
 from draw_map import generate_star_map
 
-# 1. МАКСИМАЛЬНАЯ ВЫНОСЛИВОСТЬ СВЯЗИ
+# 1. НАСТРОЙКИ СВЯЗИ
 apihelper.CONNECT_TIMEOUT = 120
 apihelper.READ_TIMEOUT = 120
 
@@ -68,17 +68,29 @@ if bot:
             print(f"❌ ОШИБКА РИСОВАНИЯ: {e}")
             bot.send_message(message.chat.id, "⚠️ Ошибка телескопа.")
 
-# 4. ЗАПУСК ДВИГАТЕЛЕЙ
+# 4. ЗАПУСК ДВИГАТЕЛЕЙ С ПРОВЕРКОЙ "КТО Я"
 if __name__ == "__main__":
     t = Thread(target=run)
     t.daemon = True
     t.start()
     
     if bot:
-        print("🛰 МАРТИН: Вхожу в режим прослушивания эфира...")
-        while True:
-            try:
-                bot.polling(none_stop=True, timeout=90, long_polling_timeout=90)
-            except Exception as e:
-                print(f"📡 СВЯЗЬ: Помехи в эфире ({e}). Переподключение...")
-                time.sleep(5)
+        try:
+            print("🧹 ОЧИСТКА: Удаляем старые Webhooks и сбрасываем очередь...")
+            bot.remove_webhook()
+            time.sleep(1)
+            
+            me = bot.get_me()
+            print(f"🤖 УСПЕХ: Я залогинился как @{me.username}")
+            print("🛰 МАРТИН: Вхожу в режим прослушивания эфира...")
+            
+            while True:
+                try:
+                    bot.polling(none_stop=True, timeout=90, long_polling_timeout=90)
+                except Exception as e:
+                    print(f"📡 СВЯЗЬ: Помехи в эфире ({e}). Переподключение...")
+                    time.sleep(5)
+        except Exception as e:
+            print(f"❌ КРИТИЧЕСКАЯ ОШИБКА ЗАПУСКА: {e}")
+    else:
+        print("⛔ Бот не запущен.")
