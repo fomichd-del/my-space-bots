@@ -1,90 +1,52 @@
 import os
-import sys
-import requests
-import time
-from threading import Thread
+import telebot
+from telebot import types
 from flask import Flask
+from threading import Thread
 from draw_map import generate_star_map
 
-def log_print(msg):
-    print(msg)
-    sys.stdout.flush()
-
+# 1. Настройка Flask (чтобы Render видел, что бот работает)
 app = Flask('')
+
 @app.route('/')
-def home(): return "Система Марти: Режим Инкогнито 🕵️‍♂️"
+def home():
+    return "Марти Астроном: Связь с Землей установлена! 🚀"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 7860))
+    # Render сам назначит порт
+    port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-TOKEN = os.environ.get('TELEGRAM_TOKEN', '').strip()
-URL = f"https://api.telegram.org/bot{TOKEN}/"
+# 2. Настройка бота
+TOKEN = os.environ.get('TELEGRAM_TOKEN')
+bot = telebot.TeleBot(TOKEN, threaded=False)
 
-# Маскируемся под обычный браузер
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-}
+@bot.message_handler(commands=['start'])
+def start(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    btn = types.KeyboardButton("📍 Мое небо", request_location=True)
+    markup.add(btn)
+    bot.send_message(message.chat.id, f"Прием, {message.from_user.first_name}! Я Марти Астроном. 🐩🔭\nНажми кнопку ниже, и я нарисую карту звезд прямо над тобой!", reply_markup=markup)
 
-def send_msg(chat_id, text, reply_markup=None):
-    data = {'chat_id': chat_id, 'text': text, 'parse_mode': 'Markdown'}
-    if reply_markup: data['reply_markup'] = reply_markup
-    try: requests.post(URL + "sendMessage", json=data, headers=HEADERS, timeout=15)
-    except: pass
+@bot.message_handler(content_types=['location'])
+def handle_location(message):
+    bot.send_message(message.chat.id, "🛰 Секунду! Навожу телескопы на твои координаты...")
+    try:
+        path = generate_star_map(message.location.latitude, message.location.longitude, message.from_user.first_name)
+        with open(path, 'rb') as photo:
+            bot.send_photo(message.chat.id, photo, caption="🌟 ТВОЁ НЕБО ГОТОВО! 📸")
+    except Exception as e:
+        bot.send_message(message.chat.id, "⚠️ Техническая заминка в обсерватории. Попробуй еще раз.")
 
-def start_martin():
-    if not TOKEN:
-        log_print("❌ КРИТИЧЕСКАЯ ОШИБКА: НЕТ ТОКЕНА")
-        return
-    
-    log_print("📡 [ИНКОГНИТО]: Марти Астроном начал глубокое сканирование...")
-    offset = 0
-    
-    while True:
-        try:
-            # Пытаемся пробиться с коротким таймаутом, чтобы не висеть долго
-            response = requests.get(URL + f"getUpdates?offset={offset}&timeout=10", headers=HEADERS, timeout=15)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("result"):
-                    for update in data["result"]:
-                        offset = update["update_id"] + 1
-                        msg = update.get("message")
-                        if not msg: continue
-                        
-                        chat_id = msg['chat']['id']
-                        user_name = msg['from'].get('first_name', 'Космонавт')
-                        text = msg.get('text', '')
-
-                        log_print(f"✅ [КОНТАКТ]: Поймал сообщение от {user_name}!")
-
-                        if text == "/start":
-                            markup = {
-                                "keyboard": [[{"text": "📍 Мое небо", "request_location": True}]],
-                                "resize_keyboard": True
-                            }
-                            send_msg(chat_id, f"Прием, {user_name}! Я Марти. Проверка связи прошла успешно! 🐩🔭", markup)
-                        elif "location" in msg:
-                            send_msg(chat_id, "🛰 Вижу координаты! Запускаю обсерваторию...")
-                            try:
-                                path = generate_star_map(msg['location']['latitude'], msg['location']['longitude'], user_name)
-                                with open(path, 'rb') as f:
-                                    requests.post(URL + "sendPhoto", data={'chat_id': chat_id}, files={'photo': f}, headers=HEADERS, timeout=20)
-                            except Exception as e:
-                                send_msg(chat_id, "⚠️ Ошибка при отрисовке карты.")
-                        else:
-                            send_msg(chat_id, "Я тебя слышу! Нажми кнопку 'Мое небо' для карты.")
-            else:
-                if response.status_code != 409: # Игнорируем конфликты
-                    log_print(f"⚠️ Статус ответа: {response.status_code}")
-
-        except Exception as e:
-            # Не спамим таймаутами в логи, просто ждем
-            if "timeout" not in str(e).lower():
-                log_print(f"🔄 Поиск сигнала... ({e})")
-            time.sleep(5)
+@bot.message_handler(func=lambda m: True)
+def echo(message):
+    bot.reply_to(message, "Я тебя слышу! Используй кнопку 'Мое небо', чтобы увидеть звезды.")
 
 if __name__ == "__main__":
-    Thread(target=run_flask, daemon=True).start()
-    start_martin()
+    # Запускаем "маяк" для Render
+    t = Thread(target=run_flask)
+    t.start()
+    
+    # Запускаем бота
+    print("🚀 Марти Астроном вышел на орбиту!")
+    bot.infinity_polling()
