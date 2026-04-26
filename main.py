@@ -1,48 +1,66 @@
 import os
 import telebot
 from telebot import types
-import json
-import random
 from threading import Thread
 from flask import Flask
-from draw_map import generate_star_map
+from draw_map import generate_star_map # Твой файл рисования
 
-# 1. ЗАГЛУШКА ДЛЯ HF (Чтобы Space не засыпал)
+# --- 1. СИСТЕМА ЖИЗНЕОБЕСПЕЧЕНИЯ ДЛЯ HF ---
 app = Flask('')
 @app.route('/')
-def home(): return "Martin Star Bot is running! 🛰️"
+def home():
+    return "Мартин на связи! Ракета Space News на орбите. 🛰️"
 
 def run():
-    # Hugging Face обычно использует порт 7860
+    # HF требует порт 7860
     port = int(os.environ.get("PORT", 7860))
     app.run(host='0.0.0.0', port=port)
 
-# 2. ПОЛУЧАЕМ ТОКЕН ИЗ СЕКРЕТОВ
+# --- 2. НАСТРОЙКА БОТА ---
+# Берём токен из секретов Hugging Face, которые ты добавил в Settings
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
+# --- 3. ОБРАБОТКА КОМАНДЫ /START ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    if "get_map" in message.text:
+    text = message.text or ""
+    
+    # ПРОВЕРКА: Если человек пришел по кнопке "Включить карту" из канала
+    if "get_map" in text:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         markup.add(types.KeyboardButton("📍 ПОКАЗАТЬ МОЁ НЕБО", request_location=True))
-        bot.send_message(message.chat.id, "🛰 **Связь установлена!**\n\nНажми кнопку, чтобы я нарисовал карту звезд над тобой! 🐩🔭", reply_markup=markup, parse_mode='Markdown')
+        
+        bot.send_message(message.chat.id, 
+            "🛰 **Прием, штурман! Секретный код распознан.**\n\n"
+            "Нажми на кнопку ниже, чтобы я настроил линзы на твой город! 🐩🔭", 
+            reply_markup=markup, parse_mode='Markdown')
     else:
+        # Обычное меню
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.row("🎲 Случайное созвездие")
-        markup.row(types.KeyboardButton("📍 Определить небо", request_location=True))
-        bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Готов к наблюдениям!", reply_markup=markup)
+        markup.add("🎲 Случайное созвездие")
+        markup.add(types.KeyboardButton("📍 Мое небо сейчас", request_location=True))
+        
+        bot.send_message(message.chat.id, 
+            "Привет! Я Мартин. 🌌 Рад видеть тебя на борту!\n\n"
+            "Выбирай команду на пульте управления!", reply_markup=markup)
 
+# --- 4. РИСОВАНИЕ КАРТЫ (КОГДА НАЖАЛИ КНОПКУ) ---
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    bot.send_message(message.chat.id, "🛰 Начинаю рендеринг звездной сферы...")
+    bot.send_message(message.chat.id, "🛰 Секунду... Проявляю космический снимок!")
     try:
+        # Вызываем твой draw_map.py
         path = generate_star_map(message.location.latitude, message.location.longitude, message.from_user.first_name)
         with open(path, 'rb') as f:
-            bot.send_photo(message.chat.id, f, caption="🌟 **ТВОЁ НЕБО ГОТОВО!**\n\nОтправляй его в канал Space News! 🐩🚀", parse_mode='Markdown')
+            bot.send_photo(message.chat.id, f, 
+                           caption="🌟 **ТВОЁ НЕБО ГОТОВО!**\n\nВладик будет в восторге! Отправляй скрин в комментарии канала! 🐩📸",
+                           parse_mode='Markdown')
     except Exception as e:
-        bot.send_message(message.chat.id, "⚠️ Ошибка телескопа. Попробуй позже.")
+        bot.send_message(message.chat.id, "⚠️ Ошибка связи с телескопом. Попробуй позже!")
 
 if __name__ == "__main__":
+    # Запускаем Flask в отдельном потоке (для Hugging Face)
     Thread(target=run).start()
+    # Запускаем самого бота
     bot.polling(none_stop=True)
