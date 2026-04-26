@@ -6,7 +6,7 @@ from flask import Flask
 import time
 from draw_map import generate_star_map
 
-# 1. НАСТРОЙКИ СВЯЗИ
+# 1. МАКСИМАЛЬНОЕ УСИЛЕНИЕ СИГНАЛА (Таймауты до 2 минут)
 apihelper.CONNECT_TIMEOUT = 120
 apihelper.READ_TIMEOUT = 120
 
@@ -16,12 +16,12 @@ app = Flask('')
 def home():
     return "Мартин на связи! Ракета Space News на орбите. 🛰️"
 
-def run():
+def run_flask():
     port = int(os.environ.get("PORT", 7860))
     print(f"📡 СИСТЕМА: Веб-сервер запущен на порту {port}")
     app.run(host='0.0.0.0', port=port)
 
-# 2. ПОДГОТОВКА ПАСПОРТА (ТОКЕНА)
+# 2. ПОДГОТОВКА ТОКЕНА
 TOKEN_RAW = os.environ.get('TELEGRAM_TOKEN')
 if not TOKEN_RAW:
     print("❌ КРИТИЧЕСКАЯ ОШИБКА: Токен не найден в Secrets!")
@@ -35,16 +35,15 @@ else:
 if bot:
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
-        # ЭТОТ ПРИНТ МЫ ДОЛЖНЫ УВИДЕТЬ В ЛОГАХ ПРИ НАЖАТИИ СТАРТ
         print(f"🚀 СООБЩЕНИЕ: Получена команда /start от {message.from_user.first_name}")
-        
         text = message.text or ""
+        
         if "get_map" in text:
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
             markup.add(types.KeyboardButton("📍 ПОКАЗАТЬ МОЁ НЕБО", request_location=True))
             bot.send_message(message.chat.id, 
-                "🛰 **Прием, штурман! Секретный код распознан.**\n\n"
-                "Нажми кнопку ниже, чтобы я настроил линзы на твой город! 🐩🔭", 
+                "🛰 **Прием, штурман! Секретный шлюз открыт.**\n\n"
+                "Нажми кнопку ниже, чтобы я прислал карту звезд над твоим городом! 🐩🔭", 
                 reply_markup=markup, parse_mode='Markdown')
         else:
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -68,29 +67,34 @@ if bot:
             print(f"❌ ОШИБКА РИСОВАНИЯ: {e}")
             bot.send_message(message.chat.id, "⚠️ Ошибка телескопа.")
 
-# 4. ЗАПУСК ДВИГАТЕЛЕЙ С ПРОВЕРКОЙ "КТО Я"
-if __name__ == "__main__":
-    t = Thread(target=run)
-    t.daemon = True
-    t.start()
+# 4. ЗАПУСК БОТА (С ЗАЩИТОЙ ОТ ЗАВИСАНИЯ)
+def run_bot():
+    if not bot: return
     
-    if bot:
+    while True:
         try:
-            print("🧹 ОЧИСТКА: Удаляем старые Webhooks и сбрасываем очередь...")
+            print("🧹 ОЧИСТКА: Пробуем удалить Webhooks...")
             bot.remove_webhook()
-            time.sleep(1)
             
+            print("🤖 ПРОВЕРКА: Авторизация...")
             me = bot.get_me()
             print(f"🤖 УСПЕХ: Я залогинился как @{me.username}")
-            print("🛰 МАРТИН: Вхожу в режим прослушивания эфира...")
             
-            while True:
-                try:
-                    bot.polling(none_stop=True, timeout=90, long_polling_timeout=90)
-                except Exception as e:
-                    print(f"📡 СВЯЗЬ: Помехи в эфире ({e}). Переподключение...")
-                    time.sleep(5)
+            print("🛰 МАРТИН: Начинаю слушать эфир (Polling)...")
+            bot.polling(none_stop=True, timeout=90, long_polling_timeout=90)
+            
         except Exception as e:
-            print(f"❌ КРИТИЧЕСКАЯ ОШИБКА ЗАПУСКА: {e}")
-    else:
-        print("⛔ Бот не запущен.")
+            print(f"📡 СВЯЗЬ: Ошибка ({e}). Переподключение через 10 секунд...")
+            time.sleep(10)
+
+if __name__ == "__main__":
+    # 1. Сначала запускаем Flask (чтобы Hugging Face видел, что мы живы)
+    t_flask = Thread(target=run_flask)
+    t_flask.daemon = True
+    t_flask.start()
+    
+    # 2. Даем серверу HF 5 секунд "прогреться"
+    time.sleep(5)
+    
+    # 3. Запускаем бота в основном потоке
+    run_bot()
