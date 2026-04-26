@@ -1,18 +1,13 @@
 import os
 import sys
 import telebot
-from telebot import types, apihelper
+from telebot import types
 from threading import Thread
 from flask import Flask
 import time
 from draw_map import generate_star_map
 
-# 1. СУПЕР-ЖЕСТКИЕ УСТАНОВКИ ТАЙМАУТОВ
-# Мы прописываем их везде, где только можно
-apihelper.CONNECT_TIMEOUT = 120
-apihelper.READ_TIMEOUT = 120
-apihelper.LONG_POLLING_TIMEOUT = 120
-
+# Принудительный вывод в консоль
 def log_print(msg):
     print(msg)
     sys.stdout.flush()
@@ -21,7 +16,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Марти Астроном: Борт работает!"
+    return "Марти Астроном: В эфире!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 7860))
@@ -31,20 +26,20 @@ def run_flask():
 TOKEN = os.environ.get('TELEGRAM_TOKEN', '').strip()
 
 if TOKEN:
-    # Инициализируем бота БЕЗ потоков для максимальной стабильности
+    # Инициализация БЕЗ автоматических запросов к API
     bot = telebot.TeleBot(TOKEN, threaded=False)
-    log_print("✅ [СИСТЕМА]: Код загружен!")
+    log_print("✅ [СИСТЕМА]: Код загружен. Попытка скрытого подключения...")
 
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
-        log_print(f"📩 [АКТИВНОСТЬ]: Старт от {message.from_user.first_name}")
+        log_print(f"📩 [АКТИВНОСТЬ]: Старт!")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add(types.KeyboardButton("📍 Мое небо", request_location=True))
-        bot.send_message(message.chat.id, "Прием! Я Марти Астроном. Нажми на кнопку ниже!", reply_markup=markup)
+        bot.send_message(message.chat.id, "Прием! Я Марти Астроном. Нажми кнопку ниже!", reply_markup=markup)
 
     @bot.message_handler(content_types=['location'])
     def handle_location(message):
-        log_print(f"📍 [ЛОКАЦИЯ]: Запрос от {message.from_user.first_name}")
+        log_print(f"📍 [ЛОКАЦИЯ]: Запрос принят.")
         bot.send_message(message.chat.id, "🛰 Рисую карту звезд...")
         try:
             path = generate_star_map(message.location.latitude, message.location.longitude, message.from_user.first_name)
@@ -56,8 +51,8 @@ if TOKEN:
 
     @bot.message_handler(func=lambda m: True)
     def echo_all(message):
-        log_print(f"💬 [ТЕКСТ]: Получено: {message.text}")
-        bot.reply_to(message, "Я на связи! Нажми кнопку для карты.")
+        log_print(f"💬 [ТЕКСТ]: Есть контакт!")
+        bot.reply_to(message, "Я на связи!")
 
 else:
     log_print("❌ [ОШИБКА]: Нет токена!")
@@ -65,15 +60,16 @@ else:
 
 def start_martin():
     if not bot: return
-    log_print("🚀 [ЭФИР]: Марти Астроном на посту!")
+    log_print("🚀 [ЭФИР]: Марти Астроном заступил на дежурство!")
     
     while True:
         try:
-            # МЫ УМЕНЬШАЕМ INTERVAL, ЧТОБЫ ЧАЩЕ ПРОВЕРЯТЬ
-            bot.polling(none_stop=True, interval=1, timeout=60)
+            # Используем самый короткий интервал и таймаут, чтобы не раздражать прокси Hugging Face
+            bot.polling(none_stop=True, interval=2, timeout=20)
         except Exception as e:
-            log_print(f"📡 [СВЯЗЬ]: Помехи ({e}). Пробую снова через 5 сек...")
-            time.sleep(5)
+            # Если ошибка SSL — не паникуем, просто ждем и пробуем снова
+            log_print(f"📡 [СВЯЗЬ]: Ищу сигнал... ({e})")
+            time.sleep(10)
 
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
