@@ -7,7 +7,6 @@ from flask import Flask
 import time
 from draw_map import generate_star_map
 
-# Принудительный вывод в консоль
 def log_print(msg):
     print(msg)
     sys.stdout.flush()
@@ -16,23 +15,21 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Марти Астроном: В эфире!"
+    return "Марти Астроном: Режим Спринтера активен! 🏃‍♂️"
 
 def run_flask():
     port = int(os.environ.get("PORT", 7860))
     app.run(host='0.0.0.0', port=port)
 
-# ПОДГОТОВКА ТОКЕНА
 TOKEN = os.environ.get('TELEGRAM_TOKEN', '').strip()
 
 if TOKEN:
-    # Инициализация БЕЗ автоматических запросов к API
     bot = telebot.TeleBot(TOKEN, threaded=False)
-    log_print("✅ [СИСТЕМА]: Код загружен. Попытка скрытого подключения...")
+    log_print("✅ [СИСТЕМА]: Код загружен. Переходим на короткие дистанции.")
 
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
-        log_print(f"📩 [АКТИВНОСТЬ]: Старт!")
+        log_print(f"📩 [АКТИВНОСТЬ]: Старт от {message.from_user.first_name}")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add(types.KeyboardButton("📍 Мое небо", request_location=True))
         bot.send_message(message.chat.id, "Прием! Я Марти Астроном. Нажми кнопку ниже!", reply_markup=markup)
@@ -51,8 +48,8 @@ if TOKEN:
 
     @bot.message_handler(func=lambda m: True)
     def echo_all(message):
-        log_print(f"💬 [ТЕКСТ]: Есть контакт!")
-        bot.reply_to(message, "Я на связи!")
+        log_print(f"💬 [ТЕКСТ]: Контакт! Получено: {message.text}")
+        bot.reply_to(message, "Я на связи! Нажми кнопку для карты.")
 
 else:
     log_print("❌ [ОШИБКА]: Нет токена!")
@@ -60,16 +57,17 @@ else:
 
 def start_martin():
     if not bot: return
-    log_print("🚀 [ЭФИР]: Марти Астроном заступил на дежурство!")
+    log_print("🚀 [ЭФИР]: Марти Астроном начал сканирование...")
     
     while True:
         try:
-            # Используем самый короткий интервал и таймаут, чтобы не раздражать прокси Hugging Face
-            bot.polling(none_stop=True, interval=2, timeout=20)
+            # ТАЙМАУТ 10 СЕКУНД — чтобы успеть до разрыва связи сервером
+            bot.polling(none_stop=True, interval=1, timeout=10, long_polling_timeout=5)
         except Exception as e:
-            # Если ошибка SSL — не паникуем, просто ждем и пробуем снова
-            log_print(f"📡 [СВЯЗЬ]: Ищу сигнал... ({e})")
-            time.sleep(10)
+            # Если это таймаут — не пишем его в логи как ошибку, это норма
+            if "read timeout" not in str(e).lower():
+                log_print(f"📡 [СВЯЗЬ]: {e}")
+            time.sleep(2)
 
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
