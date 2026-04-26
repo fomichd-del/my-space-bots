@@ -10,7 +10,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "OK" # Короткий ответ для Cron-job, чтобы не было ошибок
+    return "OK" # Короткий ответ для Cron-job
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -34,28 +34,26 @@ if TOKEN:
 
     @bot.message_handler(content_types=['location'])
     def handle_location(message):
-        bot.send_message(message.chat.id, "🛰 Секунду! Навожу телескопы на твои координаты...")
+        bot.send_message(message.chat.id, "🛰 Запускаю обсерваторию... Секунду.")
         path = None
         try:
             lat = message.location.latitude
             lon = message.location.longitude
-            user_name = message.from_user.first_name or "Космонавт"
+            user_name = message.from_user.first_name or "Пилот"
             
-            # Генерация карты
+            # Генерация карты через наш draw_map
             path = generate_star_map(lat, lon, user_name)
             
             if path and os.path.exists(path):
                 with open(path, 'rb') as photo:
                     bot.send_photo(message.chat.id, photo, caption="✨ ТВОЁ ПЕРСОНАЛЬНОЕ НЕБО ГОТОВО!")
-                
-                # Удаляем файл после отправки
-                os.remove(path)
+                os.remove(path) # Удаляем временный файл
             else:
-                bot.send_message(message.chat.id, "⚠️ Не удалось создать файл карты.")
+                bot.send_message(message.chat.id, "⚠️ Ошибка: Карта не была создана. Проверь логи!")
                 
         except Exception as e:
-            print(f"Ошибка в обсерватории: {e}")
-            bot.send_message(message.chat.id, "⚠️ Техническая заминка. Попробуй еще раз через минуту.")
+            print(f"Ошибка в main: {e}")
+            bot.send_message(message.chat.id, f"⚠️ Сбой систем: {e}")
             if path and os.path.exists(path):
                 os.remove(path)
 
