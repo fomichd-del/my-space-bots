@@ -11,7 +11,7 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space' 
 
 # ✅ Твой бот прописан здесь
-BOT_USERNAME   = 'VladikSpaceNews_bot' 
+BOT_USERNAME   = 'MartyAstrobot' 
 
 # 🌠 ПОЛНАЯ БАЗА: 50 УНИКАЛЬНЫХ ФАКТОВ
 CONSTELLATIONS = [
