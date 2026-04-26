@@ -1,12 +1,16 @@
 import os
 import telebot
-from telebot import types
+from telebot import types, apihelper
 from threading import Thread
 from flask import Flask
 import time
 from draw_map import generate_star_map
 
-# 1. СИСТЕМА ЖИЗНЕОБЕСПЕЧЕНИЯ (FLASK ДЛЯ HUGGING FACE)
+# 1. ГЛОБАЛЬНЫЕ НАСТРОЙКИ СВЯЗИ (Увеличиваем время ожидания до 60 секунд)
+apihelper.CONNECT_TIMEOUT = 60
+apihelper.READ_TIMEOUT = 60
+
+# 2. СИСТЕМА ЖИЗНЕОБЕСПЕЧЕНИЯ (FLASK)
 app = Flask('')
 
 @app.route('/')
@@ -19,19 +23,19 @@ def run():
     print(f"📡 Запуск веб-сервера на порту {port}...")
     app.run(host='0.0.0.0', port=port)
 
-# 2. ПОЛУЧЕНИЕ ТОКЕНА ИЗ СЕКРЕТОВ (SETTINGS В HF)
+# 3. ПОЛУЧЕНИЕ ТОКЕНА ИЗ СЕКРЕТОВ (SETTINGS В HF)
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 
-# 3. ИНИЦИАЛИЗАЦИЯ БОТА С ПРОВЕРКОЙ
+# 4. ИНИЦИАЛИЗАЦИЯ БОТА С ПРОВЕРКОЙ
 if not TOKEN:
     print("❌ ОШИБКА: Токен 'TELEGRAM_TOKEN' не найден в Secrets на Hugging Face!")
     bot = None
 else:
     print(f"✅ Токен найден (начинается на {TOKEN[:5]}...)")
-    # Увеличиваем таймауты, чтобы не было ReadTimeout
+    # Создаем бота
     bot = telebot.TeleBot(TOKEN, threaded=False)
 
-# 4. ОБРАБОТЧИК START (Специально для канала Space News)
+# 5. ОБРАБОТЧИКИ (КОМАНДЫ)
 if bot:
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
@@ -53,7 +57,6 @@ if bot:
             
             bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Готов к наблюдениям!", reply_markup=markup)
 
-    # ОБРАБОТЧИК ЛОКАЦИИ
     @bot.message_handler(content_types=['location'])
     def handle_location(message):
         print(f"📍 Получены координаты: {message.location.latitude}, {message.location.longitude}")
@@ -68,26 +71,26 @@ if bot:
             print(f"❌ Ошибка рисования: {e}")
             bot.send_message(message.chat.id, "⚠️ Ошибка связи с телескопом.")
 
-# 5. ЗАПУСК ВСЕХ СИСТЕМ
+# 6. ЗАПУСК С ПОВТОРНЫМИ ПОПЫТКАМИ
 if __name__ == "__main__":
-    # Запускаем Flask в отдельном потоке
-    server_thread = Thread(target=run)
-    server_thread.start()
+    # Запускаем Flask
+    Thread(target=run).start()
     
     if bot:
         print("🚀 Попытка авторизации в Telegram...")
-        try:
-            me = bot.get_me()
-            print(f"🤖 УСПЕХ! Бот @{me.username} вышел на связь!")
-            
-            # Бесконечный цикл опроса (Polling)
-            while True:
-                try:
-                    bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
-                except Exception as e:
-                    print(f"❌ Ошибка соединения: {e}. Перезапуск через 5 сек...")
-                    time.sleep(5)
-        except Exception as e:
-            print(f"❌ КРИТИЧЕСКАЯ ОШИБКА АВТОРИЗАЦИИ: {e}")
+        
+        while True:
+            try:
+                # Проверяем, видит ли бот себя
+                me = bot.get_me()
+                print(f"🤖 УСПЕХ! Бот @{me.username} на связи!")
+                
+                # Запускаем прием сообщений
+                bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+                
+            except Exception as e:
+                # Если упал (например, из-за таймаута) — ждем 10 сек и пробуем снова
+                print(f"❌ Сбой связи: {e}. Переподключение через 10 секунд...")
+                time.sleep(10)
     else:
-        print("⛔ Бот не запущен, так как нет токена.")
+        print("⛔ Бот не запущен, проверьте настройки токена.")
