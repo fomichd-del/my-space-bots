@@ -16,22 +16,14 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # 1. Настраиваем пилота
           git config --global user.email "github-actions@github.com"
           git config --global user.name "github-actions"
 
-          # 2. Создаем временную чистую ветку без истории (orphan)
           git checkout --orphan deploy-branch
-
-          # 3. Убираем из очереди на отправку ВООБЩЕ ВСЁ
           git rm -rf . --cached
 
-          # 4. Добавляем ТОЛЬКО нужные файлы для Мартина
-          # Если появятся новые файлы (например, звуки), просто добавь их в этот список ниже
-          git add main.py draw_map.py constellations.json requirements.txt Dockerfile
+          # ДОБАВИЛИ README.md В СПИСОК НИЖЕ
+          git add main.py draw_map.py constellations.json requirements.txt Dockerfile README.md
 
-          # 5. Делаем чистый коммит без лишнего груза
-          git commit -m "Deploy Martin: Only essential files"
-
-          # 6. Силой пропихиваем эту чистую ветку в Hugging Face
+          git commit -m "Deploy Martin: Added README config"
           git push --force https://Fomich85:$HF_TOKEN@huggingface.co/spaces/Fomich85/martin-star-bot deploy-branch:main
