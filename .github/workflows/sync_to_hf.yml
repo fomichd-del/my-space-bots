@@ -12,8 +12,22 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
+
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          # 1. Настраиваем виртуального «пилота»
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "github-actions"
+
+          # 2. УДАЛЯЕМ лишние файлы только из текущей сессии (в GitHub они ОСТАНУТСЯ)
+          # Добавь сюда через пробел все файлы, которые мешают
+          rm -f intro.png intro0.png 
+
+          # 3. Фиксируем изменения для отправки
+          git add .
+          git commit -m "Clean sync for Martin (removed video assets)" || echo "No changes to commit"
+
+          # 4. Отправляем чистый код на Hugging Face
           git push --force https://Fomich85:$HF_TOKEN@huggingface.co/spaces/Fomich85/martin-star-bot main
