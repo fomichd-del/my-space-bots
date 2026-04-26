@@ -1,4 +1,5 @@
 import os
+import logging
 import telebot
 from telebot import types, apihelper
 from threading import Thread
@@ -6,7 +7,12 @@ from flask import Flask
 import time
 from draw_map import generate_star_map
 
-# 1. ТАЙМАУТЫ (Даем время на медленный интернет)
+# ==========================================
+# 1. ВКЛЮЧАЕМ ГЛУБОКИЙ РАДАР (ВНУТРЕННИЕ ЛОГИ)
+# Это покажет НАСТОЯЩИЕ ответы от серверов Telegram
+# ==========================================
+telebot.logger.setLevel(logging.DEBUG)
+
 apihelper.CONNECT_TIMEOUT = 90
 apihelper.READ_TIMEOUT = 90
 
@@ -25,9 +31,8 @@ def run_flask():
 TOKEN_RAW = os.environ.get('TELEGRAM_TOKEN', '')
 TOKEN = TOKEN_RAW.strip().replace("'", "").replace('"', "")
 
-# 3. ЛОГИКА БОТА
 if TOKEN:
-    print(f"✅ [СИСТЕМА]: Токен загружен (87451...)")
+    print(f"✅ [СИСТЕМА]: Токен загружен (Начало: {TOKEN[:5]}...)")
     bot = telebot.TeleBot(TOKEN, threaded=False)
     
     @bot.message_handler(commands=['start'])
@@ -40,8 +45,8 @@ if TOKEN:
             bot.send_message(message.chat.id, "🛰 **Секретный шлюз открыт.**\nЖми на кнопку для карты! 🐩🔭", reply_markup=markup, parse_mode='Markdown')
         else:
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add("🎲 Случайное созвездие")
-            markup.add(types.KeyboardButton("📍 Мое небо", request_location=True))
+            markup.row("🎲 Случайное созвездие")
+            markup.row(types.KeyboardButton("📍 Мое небо", request_location=True))
             bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Готов к работе!", reply_markup=markup)
 
     @bot.message_handler(content_types=['location'])
@@ -59,25 +64,22 @@ else:
     print("❌ [ОШИБКА]: ТОКЕН НЕ НАЙДЕН!")
     bot = None
 
-# 4. ФУНКЦИЯ ЗАПУСКА БОТА
+# 3. ФУНКЦИЯ ЗАПУСКА БОТА
 def start_martin():
     if not bot: return
-    print("🚀 [БОТ]: Пытаюсь войти в эфир Telegram...")
+    print("🚀 [БОТ]: Пытаюсь войти в эфир Telegram (смотри детальные логи ниже)...")
     while True:
         try:
             bot.remove_webhook()
-            # Используем infinity_polling для автоматического перезапуска
             bot.infinity_polling(timeout=90, long_polling_timeout=90)
         except Exception as e:
             print(f"📡 [СВЯЗЬ]: Помехи ({e}). Жду 10 сек...")
             time.sleep(10)
 
-# 5. ГЛАВНЫЙ ЗАПУСК
+# 4. ГЛАВНЫЙ ЗАПУСК
 if __name__ == "__main__":
-    # Запускаем сайт в отдельном потоке
     flask_thread = Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
     
-    # Запускаем Мартина в основном потоке
     start_martin()
