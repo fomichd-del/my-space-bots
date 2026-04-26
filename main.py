@@ -1,20 +1,18 @@
 import os
-import logging
 import telebot
 from telebot import types, apihelper
 from threading import Thread
 from flask import Flask
 import time
+import requests
+import logging
 from draw_map import generate_star_map
 
-# ==========================================
-# 1. ВКЛЮЧАЕМ ГЛУБОКИЙ РАДАР (ВНУТРЕННИЕ ЛОГИ)
-# Это покажет НАСТОЯЩИЕ ответы от серверов Telegram
-# ==========================================
+# 1. ОСТАВЛЯЕМ РАДАР (чтобы видеть успех)
 telebot.logger.setLevel(logging.DEBUG)
 
-apihelper.CONNECT_TIMEOUT = 90
-apihelper.READ_TIMEOUT = 90
+apihelper.CONNECT_TIMEOUT = 120
+apihelper.READ_TIMEOUT = 120
 
 app = Flask('')
 
@@ -45,8 +43,8 @@ if TOKEN:
             bot.send_message(message.chat.id, "🛰 **Секретный шлюз открыт.**\nЖми на кнопку для карты! 🐩🔭", reply_markup=markup, parse_mode='Markdown')
         else:
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.row("🎲 Случайное созвездие")
-            markup.row(types.KeyboardButton("📍 Мое небо", request_location=True))
+            markup.add("🎲 Случайное созвездие")
+            markup.add(types.KeyboardButton("📍 Мое небо", request_location=True))
             bot.send_message(message.chat.id, "Привет! Я Мартин. 🌌 Готов к работе!", reply_markup=markup)
 
     @bot.message_handler(content_types=['location'])
@@ -64,17 +62,27 @@ else:
     print("❌ [ОШИБКА]: ТОКЕН НЕ НАЙДЕН!")
     bot = None
 
-# 3. ФУНКЦИЯ ЗАПУСКА БОТА
+# 3. ПРЯМОЙ СБРОС И ЗАПУСК (ОБХОД ЗАВИСАНИЯ)
 def start_martin():
     if not bot: return
-    print("🚀 [БОТ]: Пытаюсь войти в эфир Telegram (смотри детальные логи ниже)...")
+    
+    print("🧹 [СИСТЕМА]: Прямой сброс старых настроек (5 сек на ответ)...")
+    try:
+        # Жесткий запрос к Telegram в обход библиотеки telebot
+        url = f"https://api.telegram.org/bot{TOKEN}/deleteWebhook?drop_pending_updates=True"
+        requests.get(url, timeout=5)
+        print("✅ [СИСТЕМА]: Путь чист!")
+    except Exception as e:
+        print(f"⚠️ [СИСТЕМА]: Сброс проигнорирован (нормально): {e}")
+
+    print("🚀 [БОТ]: Вхожу в эфир Telegram...")
     while True:
         try:
-            bot.remove_webhook()
-            bot.infinity_polling(timeout=90, long_polling_timeout=90)
+            # Запускаем чтение сообщений (skip_pending=True очистит старые клики)
+            bot.infinity_polling(timeout=90, long_polling_timeout=90, skip_pending=True)
         except Exception as e:
-            print(f"📡 [СВЯЗЬ]: Помехи ({e}). Жду 10 сек...")
-            time.sleep(10)
+            print(f"📡 [СВЯЗЬ]: Помехи ({e}). Жду 5 сек...")
+            time.sleep(5)
 
 # 4. ГЛАВНЫЙ ЗАПУСК
 if __name__ == "__main__":
