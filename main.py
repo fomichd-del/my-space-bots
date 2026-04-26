@@ -1,79 +1,84 @@
 import os
 import sys
-import telebot
-from telebot import types, apihelper
+import requests
+import time
 from threading import Thread
 from flask import Flask
-import time
 from draw_map import generate_star_map
 
 def log_print(msg):
     print(msg)
     sys.stdout.flush()
 
-# УСТАНАВЛИВАЕМ ГИГАНТСКИЕ ТАЙМАУТЫ
-apihelper.CONNECT_TIMEOUT = 120
-apihelper.READ_TIMEOUT = 120
-
 app = Flask('')
-
 @app.route('/')
-def home():
-    return "Марти Астроном: Жду сигнал из космоса! 🔭"
+def home(): return "Марти Астроном: Партизанский режим активен! 🐩"
 
 def run_flask():
     port = int(os.environ.get("PORT", 7860))
     app.run(host='0.0.0.0', port=port)
 
 TOKEN = os.environ.get('TELEGRAM_TOKEN', '').strip()
+URL = f"https://api.telegram.org/bot{TOKEN}/"
 
-if TOKEN:
-    bot = telebot.TeleBot(TOKEN, threaded=False)
-    log_print("✅ [СИСТЕМА]: Код загружен. Режим глубокого ожидания.")
-
-    @bot.message_handler(commands=['start'])
-    def send_welcome(message):
-        log_print(f"📩 [УСПЕХ]: Получен СТАРТ от {message.from_user.first_name}!")
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add(types.KeyboardButton("📍 Мое небо", request_location=True))
-        bot.send_message(message.chat.id, "Прием! Я Марти Астроном. Наконец-то связь налажена! Нажми кнопку ниже.", reply_markup=markup)
-
-    @bot.message_handler(content_types=['location'])
-    def handle_location(message):
-        log_print(f"📍 [ЛОКАЦИЯ]: Рисую карту...")
-        bot.send_message(message.chat.id, "🛰 Навожу телескопы...")
-        try:
-            path = generate_star_map(message.location.latitude, message.location.longitude, message.from_user.first_name)
-            with open(path, 'rb') as f:
-                bot.send_photo(message.chat.id, f, caption="🌟 ТВОЁ НЕБО ГОТОВО! 🐩📸")
-        except Exception as e:
-            log_print(f"❌ [ОШИБКА]: {e}")
-            bot.send_message(message.chat.id, "⚠️ Ошибка телескопа.")
-
-    @bot.message_handler(func=lambda m: True)
-    def echo_all(message):
-        log_print(f"💬 [ТЕКСТ]: Получено сообщение: {message.text}")
-        bot.reply_to(message, "Слышу тебя громко и четко! Нажми кнопку для карты.")
-
-else:
-    log_print("❌ [ОШИБКА]: Токен не найден!")
-    bot = None
+def send_msg(chat_id, text, reply_markup=None):
+    data = {'chat_id': chat_id, 'text': text, 'parse_mode': 'Markdown'}
+    if reply_markup: data['reply_markup'] = reply_markup
+    try: requests.post(URL + "sendMessage", json=data, timeout=10)
+    except: pass
 
 def start_martin():
-    if not bot: return
-    log_print("🚀 [ЭФИР]: Марти Астроном начал слушать космос...")
+    if not TOKEN:
+        log_print("❌ НЕТ ТОКЕНА")
+        return
+    
+    log_print("🚀 [ПАРТИЗАН]: Марти вышел на связь без посредников!")
+    offset = 0
     
     while True:
         try:
-            # УВЕЛИЧИВАЕМ ТАЙМАУТ ПОЛЛИНГА ДО 20 СЕКУНД
-            bot.polling(none_stop=True, interval=2, timeout=20)
+            # Запрашиваем обновления напрямую через requests (это сложнее заблокировать)
+            response = requests.get(URL + f"getUpdates?offset={offset}&timeout=20", timeout=30)
+            data = response.json()
+            
+            if data.get("result"):
+                for update in data["result"]:
+                    offset = update["update_id"] + 1
+                    msg = update.get("message")
+                    if not msg: continue
+                    
+                    chat_id = msg['chat']['id']
+                    user_name = msg['from'].get('first_name', 'Космонавт')
+                    text = msg.get('text', '')
+
+                    log_print(f"💬 [КОНТАКТ]: Сообщение от {user_name}")
+
+                    if text == "/start":
+                        markup = {
+                            "keyboard": [[{"text": "📍 Мое небо", "request_location": True}]],
+                            "resize_keyboard": True
+                        }
+                        send_msg(chat_id, f"Привет, {user_name}! Я Марти. Нажми кнопку для карты!", markup)
+                    
+                    elif "location" in msg:
+                        lat = msg['location']['latitude']
+                        lon = msg['location']['longitude']
+                        log_print(f"📍 [ЛОКАЦИЯ]: Рисую для {user_name}")
+                        send_msg(chat_id, "🛰 Секунду, навожу телескопы...")
+                        try:
+                            path = generate_star_map(lat, lon, user_name)
+                            with open(path, 'rb') as f:
+                                requests.post(URL + "sendPhoto", data={'chat_id': chat_id}, files={'photo': f}, timeout=20)
+                        except Exception as e:
+                            log_print(f"❌ ОШИБКА КАРТЫ: {e}")
+                            send_msg(chat_id, "⚠️ Ошибка телескопа.")
+                    else:
+                        send_msg(chat_id, "Прием! Нажми кнопку 'Мое небо' (если нет кнопки — введи /start).")
+
         except Exception as e:
-            # Если это таймаут — это нормально для HF, просто пробуем снова
-            if "timeout" in str(e).lower():
-                time.sleep(1)
-            else:
-                log_print(f"📡 [СВЯЗЬ]: Попытка прорыва... ({e})")
-                time.sleep(5)
+            if "timeout" not in str(e).lower():
+                log_print(f"📡 [СВЯЗЬ]: Поиск сигнала... ({e})")
+            time.sleep(2)
 
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
