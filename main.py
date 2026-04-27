@@ -18,7 +18,7 @@ wiki_wiki = wikipediaapi.Wikipedia(
 # === МАЯК ДЛЯ RENDER ===
 app = Flask(__name__)
 @app.route('/')
-def keep_alive(): return "Марти 4.0 Ultra-Vivid в эфире! 🚀"
+def keep_alive(): return "Марти 5.0 Ultra-Vivid в эфире! 🚀"
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -30,23 +30,22 @@ def send_welcome(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("📡 Мое небо", request_location=True))
     markup.add(KeyboardButton("📖 Инструкция"))
-    bot.send_message(message.chat.id, "🛰 <b>Бортовой компьютер Ultra-Vivid 4.0 запущен!</b>\n\nШтурман, я обновил системы визуализации. Жми «Мое небо», чтобы увидеть атлас в максимальном качестве.", reply_markup=markup, parse_mode='HTML')
+    bot.send_message(message.chat.id, "🛰 <b>Бортовой компьютер Ultra-Vivid 5.0 активен!</b>\n\nСистемы визуализации откалиброваны. Жми «Мое небо».", reply_markup=markup, parse_mode='HTML')
 
 @bot.message_handler(func=lambda m: m.text == "📖 Инструкция")
 def show_help(message):
     help_text = (
         "📖 <b>ИНСТРУКЦИЯ ШТУРМАНА</b>\n\n"
-        "✨ <b>Звезды:</b> Подписаны мелким шрифтом. Большие точки — ярчайшие.\n"
-        "🏛 <b>Созвездия:</b> Все контуры выделены. Твоя цель — <b>розовый неон</b>.\n"
-        "🪐 <b>Планеты:</b> Отмечены символами (♂, ♃) и яркими цветами.\n"
-        "🌕 <b>Луна и ☀️ Солнце:</b> Твои главные ориентиры.\n\n"
-        "<i>Если не видишь карту — проверь, включена ли передача геопозиции.</i>"
+        "✨ <b>Звезды:</b> Подписаны мелким шрифтом. Жирные точки — главные маяки.\n"
+        "🏛 <b>Созвездия:</b> Контуры выделены золотом. Цель — <b>яркий неоновый розовый</b>.\n"
+        "🪐 <b>Планеты:</b> Отмечены символами (♂, ♃).\n"
+        "☀️ <b>Солнце и Луна:</b> Крупные диски для ориентации."
     )
     bot.send_message(message.chat.id, help_text, parse_mode='HTML')
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    loading_msg = bot.send_message(message.chat.id, "🔭 <i>Рендеринг атласа Ultra-Vivid... Пожалуйста, подождите.</i>", parse_mode='HTML')
+    loading_msg = bot.send_message(message.chat.id, "🔭 <i>Рендеринг атласа... Подключаюсь к телескопам.</i>", parse_mode='HTML')
     
     success, result, target_name, _ = generate_star_map(
         message.location.latitude, 
@@ -60,7 +59,7 @@ def handle_location(message):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(f"📚 База данных: {target_name}", callback_data=f"wiki_{target_name}"))
         with open(result, 'rb') as photo:
-            bot.send_photo(message.chat.id, photo, caption=f"✨ Карта готова!\n🎯 Сегодня изучаем: <b>{target_name}</b>", reply_markup=markup, parse_mode='HTML')
+            bot.send_photo(message.chat.id, photo, caption=f"✨ Твой сектор готов!\n🎯 Фокус на созвездии: <b>{target_name}</b>", reply_markup=markup, parse_mode='HTML')
         os.remove(result)
     else:
         bot.send_message(message.chat.id, f"❌ Ошибка рендеринга: {result}")
@@ -68,16 +67,16 @@ def handle_location(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '')
-    bot.answer_callback_query(call.id, "Запрос к архивам...")
+    bot.answer_callback_query(call.id, "Поиск в архивах...")
     
-    # Продвинутый поиск
+    # Продвинутый поиск: сначала ищем по тегу созвездия
     page = wiki_wiki.page(f"{subject} (созвездие)")
     if not page.exists(): page = wiki_wiki.page(subject)
     
     if page.exists():
-        bot.send_message(call.message.chat.id, f"📖 <b>{subject.upper()}</b>\n\n{page.summary[:1200]}...\n\n🔗 <a href='{page.fullurl}'>Читать далее</a>", parse_mode='HTML')
+        bot.send_message(call.message.chat.id, f"📖 <b>{subject.upper()}</b>\n\n{page.summary[:1000]}...\n\n🔗 <a href='{page.fullurl}'>Читать далее</a>", parse_mode='HTML')
     else:
-        bot.send_message(call.message.chat.id, f"⚠️ Данные о «{subject}» не найдены.")
+        bot.send_message(call.message.chat.id, f"⚠️ Данные о «{subject}» не найдены в бортовом архиве.")
 
 if __name__ == "__main__":
     Thread(target=run_server).start()
