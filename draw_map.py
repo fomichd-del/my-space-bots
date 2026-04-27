@@ -33,7 +33,7 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         obs.lat, obs.lon = str(lat), str(lon)
         obs.date = datetime.utcnow()
 
-        # 1. Загружаем твой новый идеальный фон
+        # 1. Загружаем твой идеальный фон
         try:
             bg_img = Image.open('background1.png')
         except FileNotFoundError:
@@ -47,9 +47,8 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         ax_bg.imshow(bg_img)
         ax_bg.axis('off')
 
-        # 2. ПРОЗРАЧНАЯ КАРТА НЕБА (Калибровка круга)
-        # [отступ_слева, отступ_снизу, ширина, высота]
-        ax = fig.add_axes([0.08, 0.28, 0.84, 0.48], projection='polar')
+        # 2. ПРОЗРАЧНАЯ КАРТА НЕБА (Сжали круг, чтобы не вылезал на неон)
+        ax = fig.add_axes([0.14, 0.32, 0.72, 0.46], projection='polar')
         ax.set_facecolor('none')
         ax.set_theta_zero_location('N')
         ax.set_theta_direction(-1)
@@ -86,7 +85,7 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
                 s.compute(obs)
                 if s.alt > 0:
                     ax.scatter(s.az, np.pi/2 - s.alt, s=60, c=color)
-                    ax.text(s.az, np.pi/2 - s.alt + 0.08, f" {name}", color=color, fontsize=10, fontweight='bold')
+                    ax.text(s.az, np.pi/2 - s.alt + 0.08, f" {name}", color=color, fontsize=12, fontweight='bold')
             except: pass
 
         # --- ПЛАНЕТЫ И ЛУНА ---
@@ -95,30 +94,30 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
             p.compute(obs)
             if p.alt > 0:
                 ax.scatter(p.az, np.pi/2 - p.alt, s=120, c=color)
-                ax.text(p.az, np.pi/2 - p.alt + 0.08, name, color=color, fontsize=10, fontweight='bold')
+                ax.text(p.az, np.pi/2 - p.alt + 0.08, name, color=color, fontsize=12, fontweight='bold')
 
         moon = ephem.Moon()
         moon.compute(obs)
         if moon.alt > 0:
             ax.scatter(moon.az, np.pi/2 - moon.alt, s=350, c='#F4F6F0', alpha=0.9)
 
-        # 3. ВПЕЧАТЫВАЕМ ТЕКСТ В ПАНЕЛИ (Калибровка текста)
+        # 3. ВПЕЧАТЫВАЕМ ТЕКСТ В ПАНЕЛИ (Новая точная калибровка)
         sun = ephem.Sun()
         next_rise = ephem.localtime(obs.next_rising(sun)).strftime('%H:%M')
         next_set = ephem.localtime(obs.next_setting(sun)).strftime('%H:%M')
 
-        t_color = '#A5B4D9' # Голубоватый текст под стать неону
-        f_size = 14
+        t_color = '#D4E6FF' # Сделал цвет ярче
+        f_size = 20 # Увеличил размер шрифта!
 
-        # Координаты X (от левого края) и Y (от нижнего края). 0.0 - край, 1.0 - противоположный край
-        fig.text(0.35, 0.170, user_name.upper(), color=t_color, fontsize=f_size, fontweight='bold')
-        fig.text(0.48, 0.142, f"{float(lat):.2f}°N, {float(lon):.2f}°E", color=t_color, fontsize=f_size, fontweight='bold')
-        fig.text(0.35, 0.114, get_moon_phase(obs), color=t_color, fontsize=f_size, fontweight='bold')
+        # Сдвинул координаты вверх и вправо. ha='left' гарантирует, что текст не налезет на иконки
+        fig.text(0.40, 0.200, user_name.upper(), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.52, 0.165, f"{float(lat):.2f}°N, {float(lon):.2f}°E", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.38, 0.130, get_moon_phase(obs), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
         
-        fig.text(0.36, 0.086, next_rise, color=t_color, fontsize=f_size, fontweight='bold')
-        fig.text(0.72, 0.086, next_set, color=t_color, fontsize=f_size, fontweight='bold')
+        fig.text(0.40, 0.095, next_rise, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.77, 0.095, next_set, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
         
-        fig.text(0.35, 0.058, "СОЗВЕЗДИЯ И ПЛАНЕТЫ", color=t_color, fontsize=f_size, fontweight='bold')
+        fig.text(0.38, 0.060, "ГЛУБОКИЙ КОСМОС", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
 
         # Сохранение
         path = f"sky_{datetime.now().strftime('%H%M%S')}.png"
