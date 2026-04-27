@@ -8,7 +8,7 @@ import os, json, random
 from PIL import Image
 import ephem
 
-# --- ПОЛНЫЙ СЛОВАРЬ (88 СОЗВЕЗДИЙ + ЯРКИЕ ЗВЕЗДЫ) ---
+# --- ПОЛНЫЙ ГАЛАКТИЧЕСКИЙ СЛОВАРЬ (88 СОЗВЕЗДИЙ + ЗВЕЗДЫ) ---
 RU_NAMES = {
     "Andromeda": "Андромеда", "Antlia": "Насос", "Apus": "Райская Птица", "Aquarius": "Водолей",
     "Aquila": "Орел", "Ara": "Жертвенник", "Aries": "Овен", "Auriga": "Возничий", "Bootes": "Волопас",
@@ -34,15 +34,23 @@ RU_NAMES = {
     "Vega": "Вега", "Polaris": "Полярная", "Sirius": "Сириус", "Arcturus": "Арктур", "Capella": "Капелла", "Altair": "Альтаир"
 }
 
+# РАСШИРЕННАЯ БАЗА ЦЕЛЕЙ (88 созвездий + Зодиак + Звезды)
 TARGETS = {
     "ursa_major": [165, 56], "ursa_minor": [37, 89], "orion": [84, -5],
-    "cassiopeia": [10, 59], "leo": [152, 12], "cygnus": [310, 45],
-    "gemini": [114, 28], "taurus": [69, 16], "lyra": [279, 39],
-    "andromeda": [10, 41], "pegasus": [345, 15]
+    "cassiopeia": [10, 59], "cygnus": [310, 45], "lyra": [279, 39],
+    "aquila": [297, 8], "pegasus": [345, 15], "andromeda": [10, 41],
+    "perseus": [52, 49], "auriga": [79, 46], "bootes": [214, 19],
+    "aries": [31, 23], "taurus": [69, 16], "gemini": [114, 28],
+    "cancer": [130, 20], "leo": [152, 12], "virgo": [201, -11],
+    "libra": [228, -15], "scorpius": [250, -35], "sagittarius": [286, -25],
+    "capricornus": [315, -20], "aquarius": [335, -10], "pisces": [5, 15],
+    "hercules": [250, 27], "draco": [255, 67], "sirius": [101.28, -16.71],
+    "vega": [279.23, 38.78], "arcturus": [213.91, 19.18], "polaris": [37.95, 89.26]
 }
 
 def generate_star_map(lat, lon, user_name):
     try:
+        # 1. Время с часовым поясом (Исправляет ошибку timezone_aware)
         dt = datetime.now(timezone.utc)
         observer = Observer(dt=dt, lat=float(lat), lon=float(lon))
         
@@ -51,67 +59,65 @@ def generate_star_map(lat, lon, user_name):
 
         target_key = random.choice(list(TARGETS.keys()))
         target_pos = TARGETS[target_key]
-        target_name_rus = db[target_key]['name'].split('(')[0].strip().upper()
+        target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
+        # 2. Настройка стиля (Безопасно для Pydantic)
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         
-        # Калибровка шрифтов
+        # Ручная калибровка шрифтов (используем try, чтобы не падать)
         try:
-            style.star.label.font_size = 11
-            style.constellation.label.font_size = 16
-            style.constellation.line.stroke_width = 2.5
-            style.planet.label.font_size = 14
+            style.star.label.font_size = 12
+            style.constellation.label.font_size = 18
+            style.constellation.line.stroke_width = 3.0
+            style.planet.label.font_size = 16
         except: pass
 
         p = ZenithPlot(observer=observer, style=style, resolution=2400, autoscale=True)
 
+        # 3. Отрисовка слоев
         p.horizon()
         p.milky_way()
         p.ecliptic()
-        
-        # РИСУЕМ СОЗВЕЗДИЯ И ПЕРЕВОДИМ
         p.constellations()
+
+        # ПЕРЕВОД (88 созвездий)
         labels = p.constellation_labels()
-        if labels:
+        if labels is not None:
             for l in labels:
                 if l.text in RU_NAMES: l.text = RU_NAMES[l.text]
 
-        # ЗВЕЗДЫ С ПЕРЕВОДОМ
-        p.stars(where=[_.magnitude < 5.0], where_labels=[_.magnitude < 2.2])
-        # (Опционально: ручной перевод меток звезд можно добавить тут, но пока оставим так)
-
+        p.stars(where=[_.magnitude < 5.2], where_labels=[_.magnitude < 2.5])
         p.planets()
-        p.sun(label="СОЛНЦЕ")
-        p.moon(label="ЛУНА")
+        p.sun(label="СОЛНЦЕ"); p.moon(label="ЛУНА")
 
-        # МАРКЕР ЦЕЛИ
+        # 4. МАРКЕР ЦЕЛИ
         p.marker(
             ra=target_pos[0], dec=target_pos[1],
             label="[ ЦЕЛЬ ]",
             style={
-                "marker": {"size": 80, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 3, "line_style": [1, [5, 5]]},
-                "label": {"font_size": 24, "font_weight": 800, "font_color": "#FF00FF", "offset_y": 50}
+                "marker": {"size": 95, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4, "line_style": [1, [6, 6]]},
+                "label": {"font_size": 28, "font_weight": 800, "font_color": "#FF00FF", "offset_y": 60}
             }
         )
 
-        temp_file = "zenith_calibrated.png"
-        p.export(temp_file, transparent=True, padding=0)
+        temp_file = "final_zenith.png"
+        p.export(temp_file, transparent=True, padding=0.05)
 
-        # === ТОЧНАЯ КАЛИБРОВКА НАЛОЖЕНИЯ ===
+        # 5. СБОРКА И ЦЕНТРОВКА
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        # Уменьшаем размер неба, чтобы оно вписалось в кольцо
-        sky_img = sky_img.resize((1020, 1020))
+        # Калибровка размера (увеличим чуть-чуть до 1040)
+        sky_img = sky_img.resize((1040, 1040))
         
-        # ЦЕНТРИРОВАНИЕ: (X=30, Y=660) - подобрано по твоему скриншоту
-        bg_img.paste(sky_img, (30, 660), sky_img)
+        # Координаты вставки (X, Y) - подправлено для центровки
+        bg_img.paste(sky_img, (200, 360), sky_img)
 
         dpi = 100
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
 
-        # Расчет данных для текста
+        # РАСЧЕТ ДАННЫХ ДЛЯ ТЕКСТА (ephem)
         e_obs = ephem.Observer(); e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), dt.strftime('%Y/%m/%d %H:%M:%S')
         moon, sun = ephem.Moon(), ephem.Sun()
         moon.compute(e_obs); sun.compute(e_obs)
@@ -131,7 +137,7 @@ def generate_star_map(lat, lon, user_name):
         fig.text(0.74, 0.067, sset, color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_fixed.png"
+        path = f"sky_final_v14.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0); plt.close()
         if os.path.exists(temp_file): os.remove(temp_file)
         return True, path, target_name_rus, ""
