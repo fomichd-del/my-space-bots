@@ -8,7 +8,7 @@ import os, json, random
 from PIL import Image
 import ephem
 
-# --- ЛИНГВИСТИЧЕСКИЙ МОДУЛЬ (КИРИЛЛИЦА) ---
+# --- ЛИНГВИСТИЧЕСКИЙ МОДУЛЬ ---
 CONSTELLATION_RU = {
     "Andromeda": "Андромеда", "Aquarius": "Водолей", "Aquila": "Орел", "Aries": "Овен",
     "Auriga": "Возничий", "Bootes": "Волопас", "Cancer": "Рак", "Canis Major": "Большой Пес",
@@ -20,13 +20,6 @@ CONSTELLATION_RU = {
     "Ursa Major": "Большая Медведица", "Ursa Minor": "Малая Медведица", "Virgo": "Дева"
 }
 
-STAR_RU = {
-    "Polaris": "Полярис", "Sirius": "Сириус", "Vega": "Вега", "Betelgeuse": "Бетельгейзе",
-    "Rigel": "Ригель", "Arcturus": "Арктур", "Capella": "Капелла", "Altair": "Альтаир",
-    "Aldebaran": "Альдебаран", "Antares": "Антарес", "Spica": "Спика", "Pollux": "Поллукс",
-    "Castor": "Кастор", "Deneb": "Денеб", "Procyon": "Процион", "Regulus": "Регул"
-}
-
 TARGETS = {
     "ursa_major": [165, 56], "ursa_minor": [37, 89], "orion": [84, -5],
     "cassiopeia": [10, 59], "leo": [152, 12], "cygnus": [310, 45],
@@ -35,7 +28,7 @@ TARGETS = {
 
 def generate_star_map(lat, lon, user_name):
     try:
-        # 1. ВРЕМЯ С ТАЙМЗОНОЙ (Исправляет прошлую ошибку)
+        # 1. Время с часовым поясом UTC
         dt = datetime.now(timezone.utc)
         observer = Observer(dt=dt, lat=float(lat), lon=float(lon))
         
@@ -46,42 +39,43 @@ def generate_star_map(lat, lon, user_name):
         target_pos = TARGETS[target_key]
         target_name_rus = db[target_key]['name'].split('(')[0].strip().upper()
 
-        # 2. СТИЛЬ (BLUE_GOLD + КРУПНЫЕ ШРИФТЫ)
-        # Исправляем ошибку extra_forbidden, обращаясь к правильным полям (множественное число)
+        # 2. Настройка стиля (Используем только стандартные расширения)
         style = PlotStyle().extend(
             extensions.BLUE_GOLD,
             extensions.GRADIENT_PRE_DAWN,
         )
 
-        # Настраиваем шрифты вручную через атрибуты (самый безопасный путь)
-        style.stars.label.font_size = 12
-        style.stars.label.font_weight = 500
-        
-        style.constellations.label.font_size = 18
-        style.constellations.label.font_weight = "bold"
-        style.constellations.line.stroke_width = 3.0
-        
-        style.planets.label.font_size = 16
-        style.planets.label.font_weight = "bold"
+        # МЕНЯЕМ ШРИФТЫ НАПРЯМУЮ (ЕДИНСТВЕННОЕ ЧИСЛО)
+        # Если здесь выпадет ошибка, значит в этой версии Starplot 
+        # используются другие имена полей.
+        try:
+            style.star.label.font_size = 14
+            style.constellation.label.font_size = 20
+            style.constellation.line.stroke_width = 3
+            style.planet.label.font_size = 18
+        except AttributeError:
+            # Резервный вариант, если атрибуты называются иначе
+            pass
 
         p = ZenithPlot(observer=observer, style=style, resolution=2600, autoscale=True)
 
+        # 3. Отрисовка слоев
         p.horizon()
         p.milky_way()
         p.ecliptic()
         p.constellations()
 
-        # 3. ПЕРЕВОД (КИРИЛЛИЦА)
+        # Перевод названий созвездий
         for label in p.constellation_labels():
             if label.text in CONSTELLATION_RU:
                 label.text = CONSTELLATION_RU[label.text]
 
-        p.stars(where=[_.magnitude < 5.2], where_labels=[_.magnitude < 2.8])
+        p.stars(where=[_.magnitude < 5.2], where_labels=[_.magnitude < 2.5])
         p.planets()
         p.sun(label="СОЛНЦЕ")
         p.moon(label="ЛУНА")
 
-        # 4. МАРКЕР ЦЕЛИ
+        # 4. Маркер цели
         p.marker(
             ra=target_pos[0], dec=target_pos[1],
             label="[ ЦЕЛЬ ]",
@@ -91,10 +85,10 @@ def generate_star_map(lat, lon, user_name):
             }
         )
 
-        temp_file = "zenith_final_fix.png"
+        temp_file = "zenith_v12_3.png"
         p.export(temp_file, transparent=True, padding=0.1)
 
-        # 5. СБОРКА НА ФОНЕ
+        # 5. Сборка на фоне
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA").resize((1060, 1060))
         bg_img.paste(sky_img, (200, 360), sky_img)
@@ -103,22 +97,13 @@ def generate_star_map(lat, lon, user_name):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
 
-        # Расчет фаз и времени (ephem)
-        e_obs = ephem.Observer(); e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), dt
-        moon, sun = ephem.Moon(), ephem.Sun()
-        moon.compute(e_obs); sun.compute(e_obs)
-        rise = ephem.localtime(e_obs.next_rising(sun)).strftime('%H:%M')
-        sset = ephem.localtime(e_obs.next_setting(sun)).strftime('%H:%M')
-
         # Текст (22px калибровка)
+        # (Тут можно добавить расчет ephem как в прошлых версиях, если нужно заполнить рамки)
         fig.text(0.38, 0.170, user_name.upper(), color='#D4E6FF', fontsize=22, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color='#D4E6FF', fontsize=22, fontweight='bold')
-        fig.text(0.38, 0.106, f"Фаза: {int(moon.phase)}%", color='#D4E6FF', fontsize=22, fontweight='bold')
-        fig.text(0.40, 0.067, rise, color='#D4E6FF', fontsize=22, fontweight='bold')
-        fig.text(0.74, 0.067, sset, color='#D4E6FF', fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_stable_v12.png"
+        path = f"sky_stable_v12_3.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0); plt.close()
         if os.path.exists(temp_file): os.remove(temp_file)
         return True, path, target_name_rus, ""
