@@ -33,7 +33,7 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         obs.lat, obs.lon = str(lat), str(lon)
         obs.date = datetime.utcnow()
 
-        # 1. Загружаем твой идеальный фон
+        # 1. Загружаем фон
         try:
             bg_img = Image.open('background1.png')
         except FileNotFoundError:
@@ -42,19 +42,18 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         dpi = 100
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
 
-        # Кладем фон
         ax_bg = fig.add_axes([0, 0, 1, 1])
         ax_bg.imshow(bg_img)
         ax_bg.axis('off')
 
-        # 2. ПРОЗРАЧНАЯ КАРТА НЕБА (Сжали круг, чтобы не вылезал на неон)
+        # 2. КАРТА НЕБА (Круг уже откалиброван идеально)
         ax = fig.add_axes([0.14, 0.32, 0.72, 0.46], projection='polar')
         ax.set_facecolor('none')
         ax.set_theta_zero_location('N')
         ax.set_theta_direction(-1)
         ax.axis('off')
 
-        # --- ЗВЕЗДНОЕ НЕБО ---
+        # --- ЗВЕЗДЫ ---
         np.random.seed(int(float(lat) * 100))
         fx = np.random.uniform(0, 2*np.pi, 3000)
         fy = np.random.uniform(0, np.pi/2, 3000)
@@ -62,13 +61,13 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         ax.scatter(fx, fy, s=sizes, c='#D4E6FF', alpha=0.8, edgecolors='none')
 
         # --- СОЗВЕЗДИЯ И ЛИНИИ ---
-        c_color = '#FFD700' # Золотой
+        c_color = '#FFD700'
         uma = ['Alkaid', 'Mizar', 'Alioth', 'Megrez', 'Phecda', 'Merak', 'Dubhe']
         for i in range(len(uma)-1): draw_line(ax, obs, uma[i], uma[i+1], color=c_color)
         cas = ['Segin', 'Ruchbah', 'Gamma Cassiopeiae', 'Schedar', 'Caph']
         for i in range(len(cas)-1): draw_line(ax, obs, cas[i], cas[i+1], color=c_color)
         
-        o_color = '#4DA8DA' # Голубой для Ориона
+        o_color = '#4DA8DA'
         draw_line(ax, obs, 'Betelgeuse', 'Bellatrix', color=o_color)
         draw_line(ax, obs, 'Bellatrix', 'Rigel', color=o_color)
         draw_line(ax, obs, 'Rigel', 'Saiph', color=o_color)
@@ -76,7 +75,6 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         draw_line(ax, obs, 'Alnitak', 'Alnilam', color='white', lw=2)
         draw_line(ax, obs, 'Alnilam', 'Mintaka', color='white', lw=2)
 
-        # РУССКИЕ ПОДПИСИ на карте
         labels = [('Dubhe', 'Б. Медведица', c_color), ('Schedar', 'Кассиопея', c_color), 
                   ('Betelgeuse', 'Орион', 'white'), ('Vega', 'Вега', '#A5B4D9')]
         for star, name, color in labels:
@@ -88,7 +86,6 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
                     ax.text(s.az, np.pi/2 - s.alt + 0.08, f" {name}", color=color, fontsize=12, fontweight='bold')
             except: pass
 
-        # --- ПЛАНЕТЫ И ЛУНА ---
         planets = [(ephem.Mars(), 'Марс ♂', '#FF5733'), (ephem.Jupiter(), 'Юпитер ♃', '#4DA8DA')]
         for p, name, color in planets:
             p.compute(obs)
@@ -101,23 +98,24 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         if moon.alt > 0:
             ax.scatter(moon.az, np.pi/2 - moon.alt, s=350, c='#F4F6F0', alpha=0.9)
 
-        # 3. ВПЕЧАТЫВАЕМ ТЕКСТ В ПАНЕЛИ (Новая точная калибровка)
+        # 3. ВПЕЧАТЫВАЕМ ТЕКСТ (Новая точная калибровка)
         sun = ephem.Sun()
         next_rise = ephem.localtime(obs.next_rising(sun)).strftime('%H:%M')
         next_set = ephem.localtime(obs.next_setting(sun)).strftime('%H:%M')
 
-        t_color = '#D4E6FF' # Сделал цвет ярче
-        f_size = 20 # Увеличил размер шрифта!
+        t_color = '#D4E6FF'
+        f_size = 22 # Сделали крупнее!
 
-        # Сдвинул координаты вверх и вправо. ha='left' гарантирует, что текст не налезет на иконки
-        fig.text(0.40, 0.200, user_name.upper(), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
-        fig.text(0.52, 0.165, f"{float(lat):.2f}°N, {float(lon):.2f}°E", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
-        fig.text(0.38, 0.130, get_moon_phase(obs), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        # Значительно опустили по оси Y (вторая цифра)
+        fig.text(0.38, 0.160, user_name.upper(), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.46, 0.133, f"{float(lat):.2f}°N, {float(lon):.2f}°E", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.38, 0.106, get_moon_phase(obs), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
         
-        fig.text(0.40, 0.095, next_rise, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
-        fig.text(0.77, 0.095, next_set, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        # Поля Восход / Закат
+        fig.text(0.38, 0.079, next_rise, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.68, 0.079, next_set, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
         
-        fig.text(0.38, 0.060, "ГЛУБОКИЙ КОСМОС", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.38, 0.052, "ГЛУБОКИЙ КОСМОС", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
 
         # Сохранение
         path = f"sky_{datetime.now().strftime('%H%M%S')}.png"
