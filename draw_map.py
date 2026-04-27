@@ -98,7 +98,7 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         if moon.alt > 0:
             ax.scatter(moon.az, np.pi/2 - moon.alt, s=350, c='#F4F6F0', alpha=0.9)
 
-        # 3. ВПЕЧАТЫВАЕМ ТЕКСТ (Ювелирная калибровка)
+        # 3. ВПЕЧАТЫВАЕМ ТЕКСТ (Ювелирная калибровка 3.0)
         sun = ephem.Sun()
         next_rise = ephem.localtime(obs.next_rising(sun)).strftime('%H:%M')
         next_set = ephem.localtime(obs.next_setting(sun)).strftime('%H:%M')
@@ -106,21 +106,22 @@ def generate_star_map(lat, lon, user_name="Навигатор"):
         t_color = '#D4E6FF'
         f_size = 22 
 
-        # ПИЛОТ: подняли выше
-        fig.text(0.38, 0.182, user_name.upper(), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        # Координаты откорректированы по твоему скриншоту
+        fig.text(0.38, 0.167, user_name.upper(), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
         
-        # КООРДИНАТЫ: подняли выше и сдвинули правее
-        fig.text(0.48, 0.153, f"{float(lat):.2f}°N, {float(lon):.2f}°E", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        # Сдвинул координаты немного левее, чтобы красиво выровнять по краю
+        fig.text(0.46, 0.135, f"{float(lat):.2f}°N, {float(lon):.2f}°E", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
         
-        # ЛУНА: подняли
-        fig.text(0.38, 0.124, get_moon_phase(obs), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.38, 0.106, get_moon_phase(obs), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
         
-        # ВОСХОД / ЗАКАТ: опустили ниже и сдвинули правее
-        fig.text(0.40, 0.075, next_rise, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
-        fig.text(0.70, 0.075, next_set, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        # Восход опущен
+        fig.text(0.40, 0.065, next_rise, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
         
-        # ЦЕЛЬ: опустили сильно ниже
-        fig.text(0.38, 0.042, "ГЛУБОКИЙ КОСМОС", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        # Закат опущен и сдвинут вправо
+        fig.text(0.74, 0.065, next_set, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        
+        # Цель уронили на дно окошка
+        fig.text(0.38, 0.028, "ГЛУБОКИЙ КОСМОС", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
 
         # Сохранение
         path = f"sky_{datetime.now().strftime('%H%M%S')}.png"
