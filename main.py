@@ -17,7 +17,7 @@ wiki_wiki = wikipediaapi.Wikipedia(
 
 app = Flask(__name__)
 @app.route('/')
-def keep_alive(): return "Марти 10.0 Зодиак активен! 🚀"
+def keep_alive(): return "Марти 11.5 Обсерватория активна! 🛰️"
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -28,22 +28,22 @@ def send_welcome(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("📡 Мое небо", request_location=True))
     markup.add(KeyboardButton("📖 Инструкция"))
-    bot.send_message(message.chat.id, "🛰 <b>Бортовой компьютер «Зодиак 10.0» запущен!</b>\n\nШтурман, я загрузил полный атлас Зодиака и основные созвездия.", reply_markup=markup, parse_mode='HTML')
+    bot.send_message(message.chat.id, "🛰 <b>Бортовой компьютер Starplot 11.5 запущен!</b>\n\nШтурман, я откалибровал шрифты под максимальную видимость. Жми «Мое небо».", reply_markup=markup, parse_mode='HTML')
 
 @bot.message_handler(func=lambda m: m.text == "📖 Инструкция")
 def show_help(message):
-    bot.send_message(message.chat.id, (
-        "📖 <b>ИНСТРУКЦИЯ ЗОДИАКАЛЬНОГО АТЛАСА</b>\n\n"
-        "♌ <b>Зодиак:</b> Все 12 созвездий отрисованы полностью.\n"
-        "✨ <b>Сияние:</b> Звезды имеют дифракционные лучи (кресты).\n"
-        "🪐 <b>Планеты:</b> Отмечены крупными знаками ♂, ♃, ♄.\n"
-        "☀️ <b>Солнце:</b> Яркий оранжевый диск с подписью.\n"
-        "🎯 <b>Цель:</b> Подсвечена розовым неоном."
-    ), parse_mode='HTML')
+    help_text = (
+        "📖 <b>ИНСТРУКЦИЯ ПО НАВИГАЦИИ</b>\n\n"
+        "🌌 <b>Млечный Путь:</b> Пылевая полоса нашей Галактики.\n"
+        "🏛 <b>Созвездия:</b> Отрисованы по научному стандарту.\n"
+        "🎯 <b>Маркер:</b> Розовый круг указывает на твою цель.\n"
+        "🔭 <b>Шрифты:</b> Все названия увеличены для лучшей читаемости."
+    )
+    bot.send_message(message.chat.id, help_text, parse_mode='HTML')
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    loading_msg = bot.send_message(message.chat.id, "🔭 <i>Идет рендеринг Гранд-Атласа... Подключение к Википедии...</i>", parse_mode='HTML')
+    loading_msg = bot.send_message(message.chat.id, "🔭 <i>Синхронизация со Starplot-сервером... Рендеринг атласа...</i>", parse_mode='HTML')
     success, result, target_name, _ = generate_star_map(message.location.latitude, message.location.longitude, message.from_user.first_name)
     bot.delete_message(message.chat.id, loading_msg.message_id)
 
@@ -51,10 +51,10 @@ def handle_location(message):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(f"📚 База данных: {target_name}", callback_data=f"wiki_{target_name}"))
         with open(result, 'rb') as photo:
-            bot.send_photo(message.chat.id, photo, caption=f"✨ Карта готова, Штурман!\n🎯 Изучаем созвездие: <b>{target_name}</b>", reply_markup=markup, parse_mode='HTML')
+            bot.send_photo(message.chat.id, photo, caption=f"✨ Твое небо, Штурман!\n🎯 Изучаем: <b>{target_name}</b>", reply_markup=markup, parse_mode='HTML')
         os.remove(result)
     else:
-        bot.send_message(message.chat.id, f"❌ Ошибка рендеринга: {result}")
+        bot.send_message(message.chat.id, f"❌ Ошибка в расчетах: {result}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
@@ -63,12 +63,11 @@ def callback_wiki(call):
     search_term = subject.capitalize()
     page = wiki_wiki.page(f"{search_term} (созвездие)")
     if not page.exists(): page = wiki_wiki.page(search_term)
-    
     if page.exists():
-        bot.send_message(call.message.chat.id, f"📖 <b>{search_term.upper()}</b>\n\n{page.summary[:1500]}...\n\n🔗 <a href='{page.fullurl}'>Читать далее</a>", parse_mode='HTML')
+        bot.send_message(call.message.chat.id, f"📖 <b>{search_term.upper()}</b>\n\n{page.summary[:1500]}...\n\n🔗 <a href='{page.fullurl}'>Открыть статью</a>", parse_mode='HTML')
     else:
         bot.send_message(call.message.chat.id, f"⚠️ Данные не найдены.")
 
 if __name__ == "__main__":
     Thread(target=run_server).start()
-    bot.infinity_polling(timeout=30)
+    bot.infinity_polling(timeout=40)
