@@ -1,71 +1,130 @@
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from skyfield.api import Star, load, wgs84
-from skyfield.projections import build_stereographic_projection
 import numpy as np
+import ephem
 from datetime import datetime
+import os
 import json
 import random
+from PIL import Image
+
+# Звезды-Якоря для наведения прицела
+ANCHOR_STARS = {
+    "andromeda": "Alpheratz", "aquarius": "Sadalmelik", "aquila": "Altair",
+    "aries": "Hamal", "auriga": "Capella", "bootes": "Arcturus",
+    "canes_venatici": "Cor Caroli", "canis_major": "Sirius", "canis_minor": "Procyon",
+    "capricornus": "Deneb Algedi", "carina": "Canopus", "cassiopeia": "Schedar",
+    "centaurus": "Rigil Kentaurus", "cepheus": "Alderamin", "cetus": "Menkar",
+    "columba": "Phact", "corona_borealis": "Alphecca", "corvus": "Alchiba",
+    "crater": "Alkes", "crux": "Acrux", "cygnus": "Deneb", "delphinus": "Sualocin",
+    "draco": "Thuban", "eridanus": "Achernar", "gemini": "Pollux", "grus": "Alnair",
+    "hercules": "Rasalgethi", "hydra": "Alphard", "leo": "Regulus", "lepus": "Arneb",
+    "libra": "Zubenelgenubi", "lyra": "Vega", "ophiuchus": "Rasalhague",
+    "orion": "Betelgeuse", "pavo": "Peacock", "pegasus": "Markab", "perseus": "Mirfak",
+    "phoenix": "Ankaa", "pisces": "Alrescha", "piscis_austrinus": "Fomalhaut",
+    "puppis": "Naos", "sagittarius": "Nunki", "scorpius": "Antares", "serpens": "Unukalhai",
+    "taurus": "Aldebaran", "triangulum_australe": "Atria", "ursa_major": "Dubhe",
+    "ursa_minor": "Polaris", "vela": "Suhail", "virgo": "Spica"
+}
+
+def get_moon_phase(obs):
+    try:
+        m = ephem.Moon(obs)
+        p = m.phase / 100
+        if p < 0.05: return "Новолуние"
+        elif p < 0.45: return f"Растущая ({int(p*100)}%)"
+        elif p < 0.55: return "1-я четверть"
+        elif p < 0.95: return f"Растущая ({int(p*100)}%)"
+        else: return "Полнолуние"
+    except: return "Расчет..."
+
+def draw_line(ax, obs, star1, star2, color='white', lw=1):
+    try:
+        s1, s2 = ephem.star(star1), ephem.star(star2)
+        s1.compute(obs)
+        s2.compute(obs)
+        if s1.alt > 0 and s2.alt > 0:
+            ax.plot([s1.az, s2.az], [np.pi/2 - s1.alt, np.pi/2 - s2.alt], color=color, lw=lw, alpha=0.6)
+    except: pass
 
 def generate_star_map(lat, lon, user_name):
     try:
-        # 1. Загрузка данных созвездий
+        obs = ephem.Observer()
+        obs.lat, obs.lon = str(lat), str(lon)
+        obs.date = datetime.utcnow()
+
+        # Загрузка базы
         with open('constellations.json', 'r', encoding='utf-8') as f:
-            const_data = json.load(f)
-        
-        # Выбираем случайную цель (включая зодиакальные)
-        target_id = random.choice(list(const_data.keys()))
-        target = const_data[target_id]
-        
-        # 2. Астрономические вычисления
-        ts = load.timescale()
-        t = ts.now()
-        eph = load('de421.bsp')
-        earth = eph['earth']
-        location = earth + wgs84.latlon(lat, lon)
-        
-        # Создаем проекцию неба
-        observer = location.at(t)
-        center = observer.from_altaz(alt_degrees=90, az_degrees=0)
-        projection = build_stereographic_projection(center)
-        
-        # Загружаем звезды (каталог Hipparcos)
-        with load.open('hip_main.dat') as f:
-            stars = load.hip(f)
+            db = json.load(f)
 
-        # 3. Рисование
-        fig, ax = plt.subplots(figsize=(10, 10), facecolor='#0B0D14')
-        ax.set_facecolor('#0B0D14')
+        # Выбор цели
+        visible = []
+        for key, anchor in ANCHOR_STARS.items():
+            if key in db:
+                try:
+                    s = ephem.star(anchor)
+                    s.compute(obs)
+                    if s.alt > 0: visible.append(key)
+                except: pass
         
-        # Проецируем звезды
-        star_positions = observer.observe(stars)
-        x, y = projection(star_positions)
+        target_key = random.choice(visible) if visible else None
         
-        # Рисуем звезды (размер зависит от яркости)
-        m = stars.magnitude
-        ax.scatter(x, y, s=(12 - m)**2, c='white', alpha=0.8, edgecolors='none')
-        
-        # ПОДСВЕТКА ЦЕЛИ (Красный неон)
-        # Ищем звезду-якорь для созвездия
-        anchor_star = stars[target['anchor_hip']]
-        tx, ty = projection(observer.observe(anchor_star))
-        
-        ax.scatter(tx, ty, s=400, facecolors='none', edgecolors='#FF0033', linewidth=2, alpha=0.6)
-        ax.text(tx, ty + 0.02, "[ ЦЕЛЬ ]", color='#FF0033', fontsize=10, fontweight='bold', ha='center')
+        # Рендеринг
+        bg_img = Image.open('background1.png')
+        dpi = 100
+        fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
+        ax_bg = fig.add_axes([0, 0, 1, 1])
+        ax_bg.imshow(bg_img)
+        ax_bg.axis('off')
 
-        # Оформление
-        ax.set_xlim(-1.1, 1.1)
-        ax.set_ylim(-1.1, 1.1)
+        # Слой неба (твоя калибровка)
+        ax = fig.add_axes([0.14, 0.32, 0.72, 0.46], projection='polar')
+        ax.set_facecolor('none')
+        ax.set_theta_zero_location('N')
+        ax.set_theta_direction(-1)
         ax.axis('off')
-        
-        plt.title(f"СЕКТОР: {user_name.upper()} | {datetime.now().strftime('%d.%m.%Y %H:%M')}", 
-                  color='#4A90E2', fontsize=12, pad=-20)
 
-        # Сохранение
-        filename = f"map_{random.randint(1000, 9999)}.png"
-        plt.savefig(filename, bbox_inches='tight', pad_inches=0.2, dpi=150)
-        plt.close()
+        # Звезды
+        np.random.seed(int(float(lat)*100))
+        fx = np.random.uniform(0, 2*np.pi, 2500)
+        fy = np.random.uniform(0, np.pi/2, 2500)
+        ax.scatter(fx, fy, s=np.random.uniform(0.5, 3), c='#D4E6FF', alpha=0.6)
 
-        return True, filename, target['name'], target['fact']
+        # Ориентиры (Медведицы, Орион)
+        c_color = '#FFD700'
+        uma = ['Alkaid', 'Mizar', 'Alioth', 'Megrez', 'Phecda', 'Merak', 'Dubhe']
+        for i in range(len(uma)-1): draw_line(ax, obs, uma[i], uma[i+1], color=c_color)
 
+        # ПОДСВЕТКА ЦЕЛИ
+        target_name = "ГЛУБОКИЙ КОСМОС"
+        target_fact = "Космос полон тайн!"
+        if target_key:
+            anchor_name = ANCHOR_STARS[target_key]
+            s = ephem.star(anchor_name)
+            s.compute(obs)
+            ax.scatter(s.az, np.pi/2 - s.alt, s=150, c='#FF3366', edgecolors='white', zorder=10)
+            ax.text(s.az, np.pi/2 - s.alt + 0.08, " [ЦЕЛЬ]", color='#FF3366', fontweight='bold')
+            target_name = db[target_key]['name'].split('(')[0].strip().upper()
+            target_fact = f"{db[target_key]['description']}\n{db[target_key]['secret']}"
+
+        # Текст (твоя идеальная калибровка)
+        sun = ephem.Sun()
+        next_rise = ephem.localtime(obs.next_rising(sun)).strftime('%H:%M')
+        next_set = ephem.localtime(obs.next_setting(sun)).strftime('%H:%M')
+        t_color = '#D4E6FF'
+        f_size = 22
+
+        fig.text(0.38, 0.170, user_name.upper(), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.38, 0.106, get_moon_phase(obs), color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.40, 0.067, next_rise, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.74, 0.067, next_set, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+        fig.text(0.38, 0.028, target_name, color=t_color, fontsize=f_size, fontweight='bold', ha='left', va='center')
+
+        path = f"sky_{datetime.now().strftime('%H%M%S')}.png"
+        plt.savefig(path, bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+        return True, path, target_name, target_fact
     except Exception as e:
         return False, str(e), None, None
