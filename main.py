@@ -17,7 +17,7 @@ wiki_wiki = wikipediaapi.Wikipedia(
 
 app = Flask(__name__)
 @app.route('/')
-def keep_alive(): return "Марти 6.0 в эфире! 🚀"
+def keep_alive(): return "Марти 7.0 Сияние активен! 🚀"
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -28,22 +28,22 @@ def send_welcome(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("📡 Мое небо", request_location=True))
     markup.add(KeyboardButton("📖 Инструкция"))
-    bot.send_message(message.chat.id, "🛰 <b>Системы Ultra-Vivid 6.0 запущены!</b>\n\nШтурман, я расширил атлас. Теперь созвездия видны полностью.", reply_markup=markup, parse_mode='HTML')
+    bot.send_message(message.chat.id, "🛰 <b>Системы Ultra-Vivid 7.0 «Сияние» активированы!</b>\n\nШтурман, я откалибровал линзы для эффекта горения звезд.", reply_markup=markup, parse_mode='HTML')
 
 @bot.message_handler(func=lambda m: m.text == "📖 Инструкция")
 def show_help(message):
     help_text = (
-        "📖 <b>ГАЙД ШТУРМАНА</b>\n\n"
-        "🏛 <b>Созвездия:</b> Теперь отрисованы полностью (туловище, лапы, головы).\n"
-        "🎯 <b>Цель:</b> Яркий розовый неон.\n"
-        "🌕 <b>Луна и ☀️ Солнце:</b> Огромные маркеры для ориентации.\n"
-        "📚 <b>База данных:</b> Подтягивает полную статью из Википедии."
+        "📖 <b>ГАЙД ПО НАВИГАЦИИ 7.0</b>\n\n"
+        "✨ <b>Сияющие звезды:</b> Звезды с лучами — это ключевые точки созвездий.\n"
+        "🏛 <b>Полные контуры:</b> Созвездия теперь отрисованы максимально подробно.\n"
+        "🎯 <b>Розовый неон:</b> Твоя текущая цель.\n"
+        "🪐 <b>Символы:</b> Планеты отмечены знаками (♂, ♃) для быстрой идентификации."
     )
     bot.send_message(message.chat.id, help_text, parse_mode='HTML')
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    loading_msg = bot.send_message(message.chat.id, "🔭 <i>Полное сканирование сектора...</i>", parse_mode='HTML')
+    loading_msg = bot.send_message(message.chat.id, "🔭 <i>Запуск глубокого рендеринга...</i>", parse_mode='HTML')
     success, result, target_name, _ = generate_star_map(message.location.latitude, message.location.longitude, message.from_user.first_name)
     bot.delete_message(message.chat.id, loading_msg.message_id)
 
@@ -54,23 +54,20 @@ def handle_location(message):
             bot.send_photo(message.chat.id, photo, caption=f"✨ Карта готова!\n🎯 Сегодня изучаем: <b>{target_name}</b>", reply_markup=markup, parse_mode='HTML')
         os.remove(result)
     else:
-        bot.send_message(message.chat.id, f"❌ Ошибка: {result}")
+        bot.send_message(message.chat.id, f"❌ Ошибка связи: {result}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '')
-    bot.answer_callback_query(call.id, "Запрос к архивам...")
-    
-    # ИСПРАВЛЕНИЕ: Делаем первую букву заглавной, остальные строчные (для Википедии)
+    bot.answer_callback_query(call.id, "Запрос к Википедии...")
     search_term = subject.capitalize()
-    
     page = wiki_wiki.page(f"{search_term} (созвездие)")
     if not page.exists(): page = wiki_wiki.page(search_term)
     
     if page.exists():
-        bot.send_message(call.message.chat.id, f"📖 <b>{search_term.upper()}</b>\n\n{page.summary[:1000]}...\n\n🔗 <a href='{page.fullurl}'>Читать далее</a>", parse_mode='HTML')
+        bot.send_message(call.message.chat.id, f"📖 <b>{search_term.upper()}</b>\n\n{page.summary[:1200]}...\n\n🔗 <a href='{page.fullurl}'>Читать далее</a>", parse_mode='HTML')
     else:
-        bot.send_message(call.message.chat.id, f"⚠️ Данные о «{search_term}» не найдены.")
+        bot.send_message(call.message.chat.id, f"⚠️ Сектор «{search_term}» не найден.")
 
 if __name__ == "__main__":
     Thread(target=run_server).start()
