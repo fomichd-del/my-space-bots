@@ -1,112 +1,135 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from starplot import MapProjection, ZenithMap
-from starplot.styles import PlotStyle, l_blue, set_style
+from starplot import ZenithPlot, Observer, _
+from starplot.styles import PlotStyle, extensions
 from datetime import datetime
 import os, json, random
 from PIL import Image
 import ephem
 
-# Список созвездий для выбора цели (названия по стандарту IAU)
-IAU_CONSTELLATIONS = [
-    "Ursa Major", "Ursa Minor", "Orion", "Cassiopeia", "Leo", "Cygnus", 
-    "Gemini", "Taurus", "Lyra", "Aquila", "Andromeda", "Pegasus", 
-    "Perseus", "Auriga", "Bootes", "Virgo", "Aries", "Scorpius"
-]
-
-def get_moon_phase(obs):
-    m = ephem.Moon(obs)
-    return int(m.phase)
+# База координат целей (RA, DEC)
+TARGETS = {
+    "ursa_major": [165.0, 56.0], "ursa_minor": [37.0, 89.0], "orion": [84.0, -5.0],
+    "cassiopeia": [10.0, 59.0], "leo": [152.0, 12.0], "cygnus": [310.0, 45.0],
+    "gemini": [114.0, 28.0], "taurus": [69.0, 16.0], "lyra": [279.0, 39.0],
+    "andromeda": [10.0, 41.0], "pegasus": [345.0, 15.0], "bootes": [214.0, 19.0]
+}
 
 def generate_star_map(lat, lon, user_name):
     try:
-        now = datetime.utcnow()
-        obs = ephem.Observer()
-        obs.lat, obs.lon = str(lat), str(lon)
-        obs.date = now
+        dt = datetime.utcnow()
+        observer = Observer(dt=dt, lat=float(lat), lon=float(lon))
 
-        # Загружаем твои описания
         with open('constellations.json', 'r', encoding='utf-8') as f:
             db = json.load(f)
 
-        # Выбираем случайную цель из тех, что мы знаем в JSON
-        target_key = random.choice(list(db.keys()))
+        target_key = random.choice(list(TARGETS.keys()))
+        target_pos = TARGETS[target_key]
         target_name_rus = db[target_key]['name'].split('(')[0].strip().upper()
 
-        # Настройка стилей Starplot (Неоновый стиль)
-        style = PlotStyle().extend(
-            set_style.BIG_CITY, # Базовый стиль для яркости
+        # --- СТИЛЬ BLUE_GOLD С КРУПНЫМИ ШРИФТАМИ ---
+        custom_style = PlotStyle().extend(
+            extensions.BLUE_GOLD,
+            extensions.GRADIENT_PRE_DAWN,
             {
                 "star": {
-                    "label": {"font_size": 10, "font_color": "#ffffff", "font_alpha": 0.7},
-                    "marker": {"fill_color": "#ffffff", "alpha": 0.9}
+                    "label": {"font_size": 12, "font_weight": 500} # Крупные имена звезд
                 },
                 "constellation": {
-                    "line": {"stroke_color": "#FFD700", "stroke_width": 2.5, "extra_glow": True},
-                    "label": {"font_size": 16, "font_color": "#FFD700", "font_weight": "bold"}
+                    "label": {"font_size": 18, "font_weight": 700}, # Крупные созвездия
+                    "line": {"stroke_width": 3.0} # Жирные линии
                 },
-                "background_color": "#0B0D14"
+                "planet": {
+                    "label": {"font_size": 16, "font_weight": 700} # Крупные планеты
+                }
             }
         )
 
-        # Создаем карту Зенита (то, что прямо над головой)
-        p = ZenithMap(
-            lat=float(lat),
-            lon=float(lon),
-            dt=now,
-            style=style,
-            resolution=2000,
-            hide_colliding_labels=True
+        p = ZenithPlot(
+            observer=observer,
+            style=custom_style,
+            resolution=2800, # Ультра-качество
+            autoscale=True,
         )
 
-        # Рисуем всё сразу: звезды, созвездия, границы
-        p.draw_stars(mag_limit=5.5) # Видим даже не очень яркие звезды
-        p.draw_constellations()
-        p.draw_constellation_borders(stroke_color="#4A90E2", alpha=0.2)
+        # РИСУЕМ СЛОИ
+        p.horizon()
+        p.constellations()
+        p.constellation_labels()
+        p.milky_way()      # Космическая пыль
+        p.ecliptic()       # Линия эклиптики
         
-        # Подсвечиваем планеты
-        p.draw_planets(label_font_size=14, marker_size=100)
+        # Звезды (видимость до 5.5 звездной величины)
+        p.stars(where=[_.magnitude < 5.5], where_labels=[_.magnitude < 3.0])
+        
+        # DSO (Галактики и скопления)
+        p.galaxies(where=[_.magnitude < 9], where_labels=[False])
+        p.open_clusters(where=[_.magnitude < 9], where_labels=[False])
 
-        # Сохраняем временный файл
-        temp_sky = "temp_sky.png"
-        p.export(temp_sky)
+        p.sun(label="СОЛНЦЕ")
+        p.moon(label="ЛУНА")
+        p.planets()
 
-        # Накладываем на твой фон background1.png
+        # ЦЕЛЬ (Маркер-прицел)
+        p.marker(
+            ra=target_pos[0],
+            dec=target_pos[1],
+            style={
+                "marker": {
+                    "size": 90,
+                    "symbol": "circle",
+                    "fill": "none",
+                    "edge_color": "#FF00FF",
+                    "edge_width": 4,
+                    "line_style": [1, [6, 6]],
+                    "zorder": 500,
+                },
+                "label": {
+                    "font_size": 28,
+                    "font_weight": 800,
+                    "font_color": "#FF00FF",
+                    "offset_y": 60,
+                },
+            },
+            label="[ ЦЕЛЬ ]",
+        )
+
+        # ЭКСПОРТ И СБОРКА
+        temp_sky = "zenith_sky.png"
+        p.export(temp_sky, transparent=True, padding=0.1)
+
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_sky).convert("RGBA")
-        
-        # Изменяем размер неба под твой круг
-        sky_img = sky_img.resize((1200, 1200)) # Примерный размер круга
-        bg_img.paste(sky_img, (150, 320), sky_img) # Позиция круга на фоне
+        sky_img = sky_img.resize((1060, 1060))
+        bg_img.paste(sky_img, (200, 360), sky_img) # Точная центровка
 
-        # Добавляем твой текст (Калибровка 22px)
-        # Для простоты используем matplotlib поверх финальной картинки
+        # Финальный текст (Твоя калибровка 22px)
         dpi = 100
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax_bg = fig.add_axes([0, 0, 1, 1])
         ax_bg.imshow(bg_img)
         ax_bg.axis('off')
 
-        moon = ephem.Moon(); moon.compute(obs)
-        sun = ephem.Sun(); sun.compute(obs)
-        rise = ephem.localtime(obs.next_rising(sun)).strftime('%H:%M')
-        sset = ephem.localtime(obs.next_setting(sun)).strftime('%H:%M')
+        # Данные для рамок
+        e_obs = ephem.Observer(); e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), dt
+        moon, sun = ephem.Moon(), ephem.Sun()
+        moon.compute(e_obs); sun.compute(e_obs)
+        rise = ephem.localtime(e_obs.next_rising(sun)).strftime('%H:%M')
+        sset = ephem.localtime(e_obs.next_setting(sun)).strftime('%H:%M')
 
-        # Твои рамки текста
-        t_color = '#D4E6FF'
-        fig.text(0.38, 0.170, user_name.upper(), color=t_color, fontsize=22, fontweight='bold')
-        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_color, fontsize=22, fontweight='bold')
-        fig.text(0.38, 0.106, f"Фаза: {int(moon.phase)}%", color=t_color, fontsize=22, fontweight='bold')
-        fig.text(0.40, 0.067, rise, color=t_color, fontsize=22, fontweight='bold')
-        fig.text(0.74, 0.067, sset, color=t_color, fontsize=22, fontweight='bold')
+        fig.text(0.38, 0.170, user_name.upper(), color='#D4E6FF', fontsize=22, fontweight='bold')
+        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color='#D4E6FF', fontsize=22, fontweight='bold')
+        fig.text(0.38, 0.106, f"Фаза: {int(moon.phase)}%", color='#D4E6FF', fontsize=22, fontweight='bold')
+        fig.text(0.40, 0.067, rise, color='#D4E6FF', fontsize=22, fontweight='bold')
+        fig.text(0.74, 0.067, sset, color='#D4E6FF', fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_{datetime.now().strftime('%H%M%S')}.png"
+        path = f"sky_{dt.strftime('%H%M%S')}.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0)
         plt.close()
         
-        os.remove(temp_sky)
+        if os.path.exists(temp_sky): os.remove(temp_sky)
         return True, path, target_name_rus, ""
 
     except Exception as e:
