@@ -1,98 +1,111 @@
-import numpy as np
-import ephem
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import numpy as np
+import ephem
 from datetime import datetime
 import os
+from PIL import Image
 
 def get_moon_phase(obs):
     try:
         m = ephem.Moon(obs)
         p = m.phase / 100
-        if p < 0.05: return "New Moon"
-        elif p < 0.45: return "Waxing Crescent"
-        elif p < 0.55: return "First Quarter"
-        elif p < 0.95: return "Waxing Gibbous"
-        else: return "Full Moon"
+        if p < 0.05: return "Новолуние"
+        elif p < 0.45: return f"Растущая ({int(p*100)}%)"
+        elif p < 0.55: return "1-я четверть"
+        elif p < 0.95: return f"Растущая ({int(p*100)}%)"
+        else: return "Полнолуние"
     except:
-        return "Waxing Luna"
+        return "Расчет..."
 
-def generate_star_map(lat, lon, user_name="Navigator"):
+def draw_line(ax, obs, star1, star2, color='white', lw=1.5):
     try:
-        # Настройка обсерватории
+        s1, s2 = ephem.star(star1), ephem.star(star2)
+        s1.compute(obs); s2.compute(obs)
+        if s1.alt > 0 and s2.alt > 0:
+            ax.plot([s1.az, s2.az], [np.pi/2 - s1.alt, np.pi/2 - s2.alt], color=color, lw=lw, alpha=0.8)
+    except: pass
+
+def generate_star_map(lat, lon, user_name="Навигатор"):
+    try:
         obs = ephem.Observer()
         obs.lat, obs.lon = str(lat), str(lon)
         obs.date = datetime.utcnow()
 
-        # Создаем вертикальный холст (9:16)
-        fig = plt.figure(figsize=(10, 16), facecolor='#010515')
+        # 1. Загружаем твой идеальный фон
+        try:
+            bg_img = Image.open('background.png')
+        except FileNotFoundError:
+            return False, "⚠️ Файл background.png не найден на сервере!"
+
+        dpi = 100
+        fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
+
+        # Кладем фон на холст
+        ax_bg = fig.add_axes([0, 0, 1, 1])
+        ax_bg.imshow(bg_img)
+        ax_bg.axis('off')
+
+        # 2. Накладываем прозрачную карту звездного неба поверх круга
+        # Координаты [left, bottom, width, height] подогнаны под твой шаблон
+        ax = fig.add_axes([0.165, 0.41, 0.67, 0.42], projection='polar')
+        ax.set_facecolor('none') # Карта прозрачная, видно черный круг шаблона
         
-        # Карта (верхняя часть)
-        ax = fig.add_axes([0.1, 0.35, 0.8, 0.6], projection='polar')
-        ax.set_facecolor('#010515')
+        # Настройка ориентации Севера
+        ax.set_theta_zero_location('N')
+        ax.set_theta_direction(-1)
+        ax.axis('off') # Отключаем системную сетку и рамки
 
-        # 1. ЯРКИЙ фон глубокого космоса (узор привязан к координатам)
-        np.random.seed(int(float(lat) * 100)) 
-        fx = np.random.uniform(0, 2*np.pi, 6000)
-        fy = np.random.uniform(0, np.pi/2, 6000)
-        sizes = np.random.uniform(0.1, 3.0, 6000)
-        ax.scatter(fx, fy, s=sizes, c='white', alpha=0.9, edgecolors='none')
+        # --- ЗВЕЗДЫ ---
+        np.random.seed(int(float(lat) * 100))
+        fx = np.random.uniform(0, 2*np.pi, 2500)
+        fy = np.random.uniform(0, np.pi/2, 2500)
+        sizes = np.random.uniform(0.5, 2.5, 2500)
+        ax.scatter(fx, fy, s=sizes, c='#D4E6FF', alpha=0.7, edgecolors='none')
 
-        # 2. Рисуем созвездие ОРИОН (БЕЗ ТЕКСТА)
-        stars = ['Sirius', 'Rigel', 'Betelgeuse', 'Alnitak', 'Alnilam', 'Mintaka', 'Bellatrix', 'Saiph']
-        points = {}
-        for s_name in stars:
-            try:
-                s = ephem.star(s_name)
-                s.compute(obs)
-                if s.alt > 0:
-                    ax.scatter(s.az, np.pi/2 - s.alt, s=50, c='#FFFACD', alpha=0.95)
-                    points[s_name] = (s.az, np.pi/2 - s.alt)
-                    if s_name in ['Sirius', 'Rigel', 'Betelgeuse']:
-                         ax.text(s.az, np.pi/2 - s.alt, f" {s_name}", color='white', fontsize=9, alpha=0.6)
-            except: pass
+        # --- СОЗВЕЗДИЯ ---
+        c_color = '#FFD700'
+        uma = ['Alkaid', 'Mizar', 'Alioth', 'Megrez', 'Phecda', 'Merak', 'Dubhe']
+        for i in range(len(uma)-1): draw_line(ax, obs, uma[i], uma[i+1], color=c_color)
+        cas = ['Segin', 'Ruchbah', 'Gamma Cassiopeiae', 'Schedar', 'Caph']
+        for i in range(len(cas)-1): draw_line(ax, obs, cas[i], cas[i+1], color=c_color)
+        
+        draw_line(ax, obs, 'Betelgeuse', 'Bellatrix', color='#4DA8DA')
+        draw_line(ax, obs, 'Bellatrix', 'Rigel', color='#4DA8DA')
+        draw_line(ax, obs, 'Rigel', 'Saiph', color='#4DA8DA')
+        draw_line(ax, obs, 'Saiph', 'Betelgeuse', color='#4DA8DA')
+        draw_line(ax, obs, 'Alnitak', 'Alnilam', color='white', lw=2)
+        draw_line(ax, obs, 'Alnilam', 'Mintaka', color='white', lw=2)
 
-        # Линии пояса Ориона
-        belt = ['Alnitak', 'Alnilam', 'Mintaka']
-        belt_points = [points[s] for s in belt if s in points]
-        if len(belt_points) > 1:
-            bz, br = zip(*belt_points)
-            ax.plot(bz, br, c='gold', lw=1, alpha=0.3)
-
-        # 3. Рисуем ЛУНУ (Она яркая и большая)
+        # Луна
         moon = ephem.Moon()
         moon.compute(obs)
         if moon.alt > 0:
             ax.scatter(moon.az, np.pi/2 - moon.alt, s=400, c='#F4F6F0', alpha=0.9)
-            ax.text(moon.az, np.pi/2 - moon.alt, ' MOON', color='#F4F6F0', fontsize=12, fontweight='bold')
 
-        # 4. Стороны света (используем стандартные буквы)
-        for az, label in zip([0, np.pi/2, np.pi, 3*np.pi/2], ['N', 'E', 'S', 'W']):
-            ax.text(az, 1.65, label, color='white', fontsize=22, fontweight='bold', ha='center')
-
-        # Убираем рамки
-        ax.set_theta_zero_location('N')
-        ax.set_theta_direction(-1)
-        ax.set_axis_off()
-
-        # 5. Золотая инфо-панель (русский текст без сложных шрифтов)
+        # 3. ВПЕЧАТЫВАЕМ ТЕКСТ В ПАНЕЛИ
         sun = ephem.Sun()
-        info = (
-            f"МАРТИ АСТРОНОМ: ТВОЁ НЕБО\n"
-            f"───────────────────────────\n\n"
-            f"👤 ПИЛОТ: {user_name[:15].upper()}\n"
-            f"📍 КООРДИНАТЫ: {float(lat):.2f}N, {float(lon):.2f}E\n"
-            f"🌗 ЛУНА: {get_moon_phase(obs)}\n\n"
-            f"🎯 ЦЕЛЬ: СОЗВЕЗДИЕ ОРИОН"
-        )
-        # fig.text — это самый надежный метод для Render
-        plt.figtext(0.12, 0.12, info, color='#FFD700', fontsize=18, 
-                    family='monospace', linespacing=2, va='bottom')
+        next_rise = ephem.localtime(obs.next_rising(sun)).strftime('%H:%M')
+        next_set = ephem.localtime(obs.next_setting(sun)).strftime('%H:%M')
 
-        # Сохранение файла
+        t_color = '#A5B4D9' # Голубой неон для текста
+        f_size = 18
+
+        # Точные координаты (x, y), где x - ширина, y - высота
+        # Если текст немного съедет, мы просто подкорректируем эти цифры
+        fig.text(0.38, 0.285, user_name.upper(), color=t_color, fontsize=f_size, fontweight='bold', va='center')
+        fig.text(0.50, 0.233, f"{float(lat):.2f}°N, {float(lon):.2f}°E", color=t_color, fontsize=f_size, fontweight='bold', va='center')
+        fig.text(0.38, 0.180, get_moon_phase(obs), color=t_color, fontsize=f_size, fontweight='bold', va='center')
+        
+        fig.text(0.35, 0.128, next_rise, color=t_color, fontsize=f_size, fontweight='bold', va='center')
+        fig.text(0.75, 0.128, next_set, color=t_color, fontsize=f_size, fontweight='bold', va='center')
+        
+        fig.text(0.38, 0.075, "СОЗВЕЗДИЯ И ПЛАНЕТЫ", color=t_color, fontsize=f_size, fontweight='bold', va='center')
+
+        # Сохраняем готовую красоту
         path = f"sky_{datetime.now().strftime('%H%M%S')}.png"
-        plt.savefig(path, bbox_inches='tight', facecolor='#010515', dpi=120)
+        plt.savefig(path, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
 
         return True, path
