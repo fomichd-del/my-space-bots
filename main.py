@@ -10,103 +10,109 @@ import wikipediaapi
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Инициализация Википедии (на русском языке)
-# User-agent нужен для соблюдения правил Википедии
+# Инициализация Википедии (русский язык)
 wiki_wiki = wikipediaapi.Wikipedia(
     user_agent='MartyAstrobot/1.0 (https://t.me/vladislav_space)',
     language='ru'
 )
 
-# === МИНИ ВЕБ-СЕРВЕР ДЛЯ RENDER (МАЯК) ===
+# Текст инструкции для штурманов
+INSTRUCTIONS_TEXT = (
+    "📖 <b>ИНСТРУКЦИЯ ПО НАВИГАЦИИ</b> 🚀\n\n"
+    "<b>Как читать карту:</b>\n"
+    "🧭 <b>Внешнее кольцо:</b> Твой горизонт. С — Север, Ю — Юг, В — Восток, З — Запад.\n"
+    "🎯 <b>[ЦЕЛЬ]:</b> Созвездие, выделенное розовым. Это твой главный объект для поиска.\n"
+    "🌕 <b>ЛУНА:</b> Белый круг. Самый яркий ориентир в ночном небе.\n"
+    "☀️ <b>СОЛНЦЕ:</b> Оранжевый круг (виден, если солнце еще не ушло глубоко за горизонт).\n"
+    "🪐 <b>ПЛАНЕТЫ:</b> Подписаны и отмечены цветными точками (Марс, Юпитер и др.).\n"
+    "✨ <b>ЛИНИИ:</b> Золотистые контуры созвездий.\n\n"
+    "<i>Совет: Повернись лицом в сторону нужной буквы (например, Ю — Юг) и подними телефон к небу. Объекты на экране совпадут с реальностью!</i>"
+)
+
+# === ВЕБ-СЕРВЕР (МАЯК ДЛЯ RENDER) ===
 app = Flask(__name__)
 
 @app.route('/')
 def keep_alive():
-    return "Марти на связи! Модуль Википедии активен. 🚀"
+    return "Марти на связи! Модули навигации и энциклопедии активны. 🚀"
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# === ЛОГИКА БОТА ===
+# === ОБРАБОТКА КОМАНД ===
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    item = KeyboardButton("📡 Мое небо", request_location=True)
-    markup.add(item)
+    markup.add(KeyboardButton("📡 Мое небо", request_location=True))
+    markup.add(KeyboardButton("📖 Инструкция"))
     
-    welcome_text = (
-        "🛰 <b>Бортовой компьютер активирован.</b>\n\n"
-        "Штурман, я подключился к глобальным архивам знаний. "
-        "Запроси «Мое небо», и я не только отрисую карту, но и смогу рассказать всё о любой цели!"
+    welcome_msg = (
+        "🛰 <b>Бортовой компьютер приветствует тебя, Штурман!</b>\n\n"
+        "Системы синхронизированы. Жми «Мое небо», чтобы получить карту своего сектора, "
+        "или загляни в «Инструкцию», если нужно откалибровать зрение."
     )
-    bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode='HTML')
+    bot.send_message(message.chat.id, welcome_msg, reply_markup=markup, parse_mode='HTML')
+
+@bot.message_handler(func=lambda m: m.text == "📖 Инструкция")
+def show_help(message):
+    bot.send_message(message.chat.id, INSTRUCTIONS_TEXT, parse_mode='HTML')
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    lat = message.location.latitude
-    lon = message.location.longitude
-    user_name = message.from_user.first_name
     chat_id = message.chat.id
+    loading_msg = bot.send_message(chat_id, "🔭 <i>Синхронизация с орбитальными телескопами...</i>", parse_mode='HTML')
 
-    loading_msg = bot.send_message(
-        chat_id, 
-        "🔭 <i>Захват координат... Подключение к спутникам связи...</i>",
-        parse_mode='HTML'
+    # Генерация карты
+    success, result, target_name, target_fact = generate_star_map(
+        message.location.latitude, 
+        message.location.longitude, 
+        message.from_user.first_name
     )
-
-    # Запуск генератора (аргументы и возвращаемые значения те же)
-    success, result, target_name, target_fact = generate_star_map(lat, lon, user_name)
 
     bot.delete_message(chat_id, loading_msg.message_id)
 
     if success:
-        # Мы больше не храним факт в USER_FACTS, 
-        # вместо этого мы будем искать информацию по target_name
         markup = InlineKeyboardMarkup()
-        # Кнопка теперь вызывает поиск в Википедии
-        fact_btn = InlineKeyboardButton(f"📜 Глубокое сканирование: {target_name}", callback_data=f"wiki_{target_name}")
-        markup.add(fact_btn)
+        # Кнопка «База данных» теперь ведет в Википедию
+        markup.add(InlineKeyboardButton(f"📚 База данных: {target_name}", callback_data=f"wiki_{target_name}"))
 
         with open(result, 'rb') as photo:
             bot.send_photo(
                 chat_id, 
                 photo, 
-                caption=f"✨ Карта сектора готова, Штурман!\n🎯 Навигатор сфокусирован на: <b>{target_name}</b>",
+                caption=f"✨ Сектор просканирован!\n🎯 Твоя цель сегодня: <b>{target_name}</b>",
                 reply_markup=markup,
                 parse_mode='HTML'
             )
         os.remove(result)
     else:
-        bot.send_message(chat_id, f"❌ Сбой систем: {result}")
+        bot.send_message(chat_id, f"❌ Ошибка связи: {result}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
-    # Извлекаем название созвездия из callback_data
     subject = call.data.replace('wiki_', '')
-    chat_id = call.message.chat.id
-    
     bot.answer_callback_query(call.id, "Запрашиваю архивы Википедии...")
     
-    # Ищем страницу
     page = wiki_wiki.page(subject)
-    
     if page.exists():
-        # Берем краткое содержание (summary)
-        # Ограничиваем длину, чтобы не превысить лимит сообщения Telegram
-        description = page.summary[:1500] + "..."
-        
+        # Берем первые 1200 символов описания
+        summary = page.summary[:1200] + "..."
         response = (
-            f"📖 <b>АРХИВНЫЕ ДАННЫЕ: {subject.upper()}</b>\n\n"
-            f"{description}\n\n"
+            f"📖 <b>{subject.upper()}</b>\n\n"
+            f"{summary}\n\n"
             f"🔗 <a href='{page.fullurl}'>Читать полную статью в Википедии</a>"
         )
     else:
-        response = f"⚠️ В текущем секторе архивы пусты. Попробуйте просканировать другую цель!"
+        response = "⚠️ В открытых архивах данные об этом объекте отсутствуют."
 
-    bot.send_message(chat_id, response, parse_mode='HTML', disable_web_page_preview=False)
+    bot.send_message(call.message.chat.id, response, parse_mode='HTML')
 
 if __name__ == "__main__":
+    # Запуск маяка
     Thread(target=run_server).start()
-    print("🚀 Маяк и Вики-модуль запущены!")
+    print("🚀 Маяк в эфире!")
+    
+    # Запуск бота
+    print("🚀 Марти Астроном запущен!")
     bot.infinity_polling(timeout=20, long_polling_timeout=10)
