@@ -17,7 +17,7 @@ wiki_wiki = wikipediaapi.Wikipedia(
 
 app = Flask(__name__)
 @app.route('/')
-def keep_alive(): return "Марти 7.0 Сияние активен! 🚀"
+def keep_alive(): return "Марти 10.0 Зодиак активен! 🚀"
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
@@ -28,22 +28,22 @@ def send_welcome(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("📡 Мое небо", request_location=True))
     markup.add(KeyboardButton("📖 Инструкция"))
-    bot.send_message(message.chat.id, "🛰 <b>Системы Ultra-Vivid 7.0 «Сияние» активированы!</b>\n\nШтурман, я откалибровал линзы для эффекта горения звезд.", reply_markup=markup, parse_mode='HTML')
+    bot.send_message(message.chat.id, "🛰 <b>Бортовой компьютер «Зодиак 10.0» запущен!</b>\n\nШтурман, я загрузил полный атлас Зодиака и основные созвездия.", reply_markup=markup, parse_mode='HTML')
 
 @bot.message_handler(func=lambda m: m.text == "📖 Инструкция")
 def show_help(message):
-    help_text = (
-        "📖 <b>ГАЙД ПО НАВИГАЦИИ 7.0</b>\n\n"
-        "✨ <b>Сияющие звезды:</b> Звезды с лучами — это ключевые точки созвездий.\n"
-        "🏛 <b>Полные контуры:</b> Созвездия теперь отрисованы максимально подробно.\n"
-        "🎯 <b>Розовый неон:</b> Твоя текущая цель.\n"
-        "🪐 <b>Символы:</b> Планеты отмечены знаками (♂, ♃) для быстрой идентификации."
-    )
-    bot.send_message(message.chat.id, help_text, parse_mode='HTML')
+    bot.send_message(message.chat.id, (
+        "📖 <b>ИНСТРУКЦИЯ ЗОДИАКАЛЬНОГО АТЛАСА</b>\n\n"
+        "♌ <b>Зодиак:</b> Все 12 созвездий отрисованы полностью.\n"
+        "✨ <b>Сияние:</b> Звезды имеют дифракционные лучи (кресты).\n"
+        "🪐 <b>Планеты:</b> Отмечены крупными знаками ♂, ♃, ♄.\n"
+        "☀️ <b>Солнце:</b> Яркий оранжевый диск с подписью.\n"
+        "🎯 <b>Цель:</b> Подсвечена розовым неоном."
+    ), parse_mode='HTML')
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    loading_msg = bot.send_message(message.chat.id, "🔭 <i>Запуск глубокого рендеринга...</i>", parse_mode='HTML')
+    loading_msg = bot.send_message(message.chat.id, "🔭 <i>Идет рендеринг Гранд-Атласа... Подключение к Википедии...</i>", parse_mode='HTML')
     success, result, target_name, _ = generate_star_map(message.location.latitude, message.location.longitude, message.from_user.first_name)
     bot.delete_message(message.chat.id, loading_msg.message_id)
 
@@ -51,23 +51,23 @@ def handle_location(message):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(f"📚 База данных: {target_name}", callback_data=f"wiki_{target_name}"))
         with open(result, 'rb') as photo:
-            bot.send_photo(message.chat.id, photo, caption=f"✨ Карта готова!\n🎯 Сегодня изучаем: <b>{target_name}</b>", reply_markup=markup, parse_mode='HTML')
+            bot.send_photo(message.chat.id, photo, caption=f"✨ Карта готова, Штурман!\n🎯 Изучаем созвездие: <b>{target_name}</b>", reply_markup=markup, parse_mode='HTML')
         os.remove(result)
     else:
-        bot.send_message(message.chat.id, f"❌ Ошибка связи: {result}")
+        bot.send_message(message.chat.id, f"❌ Ошибка рендеринга: {result}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '')
-    bot.answer_callback_query(call.id, "Запрос к Википедии...")
+    bot.answer_callback_query(call.id, "Запрос к архивам...")
     search_term = subject.capitalize()
     page = wiki_wiki.page(f"{search_term} (созвездие)")
     if not page.exists(): page = wiki_wiki.page(search_term)
     
     if page.exists():
-        bot.send_message(call.message.chat.id, f"📖 <b>{search_term.upper()}</b>\n\n{page.summary[:1200]}...\n\n🔗 <a href='{page.fullurl}'>Читать далее</a>", parse_mode='HTML')
+        bot.send_message(call.message.chat.id, f"📖 <b>{search_term.upper()}</b>\n\n{page.summary[:1500]}...\n\n🔗 <a href='{page.fullurl}'>Читать далее</a>", parse_mode='HTML')
     else:
-        bot.send_message(call.message.chat.id, f"⚠️ Сектор «{search_term}» не найден.")
+        bot.send_message(call.message.chat.id, f"⚠️ Данные не найдены.")
 
 if __name__ == "__main__":
     Thread(target=run_server).start()
