@@ -8,16 +8,17 @@ from threading import Thread
 # === НАСТРОЙКИ ===
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
-USER_FACTS = {} # Временное хранилище фактов для кнопок
+USER_FACTS = {} 
 
-# === МИНИ ВЕБ-СЕРВЕР ДЛЯ RENDER ===
+# === МИНИ ВЕБ-СЕРВЕР ДЛЯ RENDER (МАЯК) ===
 app = Flask(__name__)
 
 @app.route('/')
 def keep_alive():
-    return "Марти на связи! Системы работают. 🚀"
+    return "Марти на связи! Все системы работают штатно. 🚀"
 
 def run_server():
+    # Render передает порт через переменную PORT
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
@@ -29,8 +30,8 @@ def send_welcome(message):
     markup.add(item)
     
     welcome_text = (
-        "🛰 <b>Навигационные системы инициализированы.</b>\n\n"
-        "Штурман, нажми «Мое небо», чтобы я просканировал твой сектор."
+        "🛰 <b>Добро пожаловать на мостик, Штурман!</b>\n\n"
+        "Системы навигации в норме. Запроси «Мое небо», и я выведу данные сканирования сектора."
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode='HTML')
 
@@ -41,9 +42,13 @@ def handle_location(message):
     user_name = message.from_user.first_name
     chat_id = message.chat.id
 
-    loading_msg = bot.send_message(chat_id, "🔭 <i>Сканирую глубокий космос...</i>", parse_mode='HTML')
+    loading_msg = bot.send_message(
+        chat_id, 
+        "🔭 <i>Позиция зафиксирована. Обработка данных глубокого космоса...</i>",
+        parse_mode='HTML'
+    )
 
-    # Генерируем карту
+    # Вызываем генератор карты
     success, result, target_name, target_fact = generate_star_map(lat, lon, user_name)
 
     bot.delete_message(chat_id, loading_msg.message_id)
@@ -52,33 +57,35 @@ def handle_location(message):
         USER_FACTS[chat_id] = target_fact
         
         markup = InlineKeyboardMarkup()
-        fact_btn = InlineKeyboardButton(f"📖 Факт: {target_name}", callback_data="show_fact")
+        fact_btn = InlineKeyboardButton(f"📖 Узнать факт: {target_name}", callback_data="show_fact")
         markup.add(fact_btn)
 
         with open(result, 'rb') as photo:
             bot.send_photo(
                 chat_id, 
                 photo, 
-                caption=f"✨ Сектор готов!\n🎯 Сегодня изучаем: <b>{target_name}</b>",
+                caption=f"✨ Твоя звездная карта готова!\n🎯 Сегодня изучаем: <b>{target_name}</b>",
                 reply_markup=markup,
                 parse_mode='HTML'
             )
-        os.remove(result) # Удаляем временный файл
+        os.remove(result)
     else:
-        bot.send_message(chat_id, f"❌ Ошибка радара: {result}")
+        bot.send_message(chat_id, f"❌ Ошибка: {result}")
 
 @bot.callback_query_handler(func=lambda call: call.data == "show_fact")
 def callback_fact(call):
     chat_id = call.message.chat.id
     if chat_id in USER_FACTS:
-        bot.answer_callback_query(call.id)
-        bot.send_message(chat_id, f"📖 <b>ИНФО-БЛОК:</b>\n«{USER_FACTS[chat_id]}»", parse_mode='HTML')
+        bot.answer_callback_query(call.id) 
+        bot.send_message(chat_id, f"📖 <b>СЕКРЕТНЫЙ ФАКТ:</b>\n«{USER_FACTS[chat_id]}»", parse_mode='HTML')
     else:
-        bot.answer_callback_query(call.id, "Данные устарели, запроси карту снова.")
+        bot.answer_callback_query(call.id, "Данные устарели. Запроси карту снова!")
 
-# === ЗАПУСК ===
 if __name__ == "__main__":
-    # Запускаем сервер "будильник"
+    # Запуск маяка
     Thread(target=run_server).start()
-    print("🚀 Маяк запущен. Бот выходит на орбиту...")
+    print("🚀 Маяк запущен!")
+    
+    # Запуск бота
+    print("🚀 Бот Астроном в эфире!")
     bot.infinity_polling()
