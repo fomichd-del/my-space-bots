@@ -7,42 +7,57 @@ from datetime import datetime
 import os, json, random
 from PIL import Image
 
-# Расширенный словарь звезд (теперь их больше)
 STAR_NAMES = {
     "Dubhe": "Дубхе", "Merak": "Мерак", "Phecda": "Фекда", "Megrez": "Мегрец", "Alioth": "Алиот", "Mizar": "Мицар", "Alkaid": "Бенетнаш",
     "Polaris": "Полярная", "Kochab": "Кохаб", "Pherkad": "Феркад", "Betelgeuse": "Бетельгейзе", "Rigel": "Ригель", "Bellatrix": "Беллатрикс",
     "Saiph": "Саиф", "Alnitak": "Альнитак", "Alnilam": "Альнилам", "Mintaka": "Минтака", "Schedar": "Шедар", "Caph": "Каф", "Regulus": "Регул", 
     "Denebola": "Денебола", "Deneb": "Денеб", "Pollux": "Поллукс", "Castor": "Кастор", "Aldebaran": "Альдебаран", "Elnath": "Элнат", 
-    "Markab": "Маркаб", "Alpheratz": "Альферац", "Vega": "Вега", "Procyon": "Процион", "Altair": "Альтаир", "Spica": "Спика", "Arcturus": "Арктур",
-    "Sadr": "Садр", "Albireo": "Альбирео", "Gienah": "Гиена", "Hamal": "Хамаль", "Sheratan": "Шератан"
+    "Markab": "Маркаб", "Alpheratz": "Альферац", "Vega": "Вега", "Procyon": "Процион", "Altair": "Альтаир", "Spica": "Спика", "Arcturus": "Арктур"
 }
 
 ANCHOR_STARS = {
     "ursa_major": "Dubhe", "ursa_minor": "Polaris", "orion": "Betelgeuse", "cassiopeia": "Schedar",
-    "leo": "Regulus", "cygnus": "Deneb", "gemini": "Pollux", "taurus": "Aldebaran", "lyra": "Vega", "aries": "Hamal"
+    "leo": "Regulus", "cygnus": "Deneb", "gemini": "Pollux", "taurus": "Aldebaran", "lyra": "Vega"
 }
 
-# ПОЛНЫЙ АТЛАС (Достроены тела и лапы)
+# МАКСИМАЛЬНО ПОЛНЫЙ АТЛАС (Достроены все "хвосты" и "ноги")
 CONSTELLATION_LINES = {
     "ursa_major": [
-        ("Dubhe", "Merak"), ("Merak", "Phecda"), ("Phecda", "Megrez"), ("Megrez", "Dubhe"), # Ковш
-        ("Megrez", "Alioth"), ("Alioth", "Mizar"), ("Mizar", "Alkaid"), # Хвост
-        ("Dubhe", "Theta Ursae Majoris"), ("Theta Ursae Majoris", "Kappa Ursae Majoris"), # Голова
-        ("Phecda", "Psi Ursae Majoris"), ("Psi Ursae Majoris", "Nu Ursae Majoris") # Лапа
+        ("Dubhe", "Merak"), ("Merak", "Phecda"), ("Phecda", "Megrez"), ("Megrez", "Dubhe"), 
+        ("Megrez", "Alioth"), ("Alioth", "Mizar"), ("Mizar", "Alkaid")
     ],
-    "ursa_minor": [("Polaris", "Kochab"), ("Kochab", "Pherkad"), ("Pherkad", "Zeta Ursae Minoris"), ("Zeta Ursae Minoris", "Polaris")],
+    "ursa_minor": [
+        ("Polaris", "Delta Ursae Minoris"), ("Delta Ursae Minoris", "Epsilon Ursae Minoris"), 
+        ("Epsilon Ursae Minoris", "Zeta Ursae Minoris"), ("Zeta Ursae Minoris", "Kochab"), 
+        ("Kochab", "Pherkad"), ("Pherkad", "Zeta Ursae Minoris")
+    ],
     "orion": [
-        ("Betelgeuse", "Bellatrix"), ("Bellatrix", "Rigel"), ("Rigel", "Saiph"), ("Saiph", "Betelgeuse"), # Туловище
-        ("Alnitak", "Alnilam"), ("Alnilam", "Mintaka"), # Пояс
-        ("Betelgeuse", "Meissa"), ("Meissa", "Bellatrix") # Голова
+        ("Betelgeuse", "Bellatrix"), ("Bellatrix", "Rigel"), ("Rigel", "Saiph"), ("Saiph", "Betelgeuse"),
+        ("Alnitak", "Alnilam"), ("Alnilam", "Mintaka"), ("Betelgeuse", "Meissa"), ("Meissa", "Bellatrix")
+    ],
+    "cassiopeia": [
+        ("Caph", "Schedar"), ("Schedar", "Gamma Cassiopeiae"), ("Gamma Cassiopeiae", "Ruchbah"), ("Ruchbah", "Segin")
     ],
     "leo": [
-        ("Regulus", "Algieba"), ("Algieba", "Adhafera"), ("Adhafera", "Rasalas"), ("Rasalas", "Epsilon Leonis"), # Голова
-        ("Regulus", "Denebola"), ("Denebola", "Zosma"), ("Zosma", "Algieba") # Тело
+        ("Regulus", "Eta Leonis"), ("Eta Leonis", "Algieba"), ("Algieba", "Adhafera"), ("Adhafera", "Rasalas"), 
+        ("Regulus", "Chertan"), ("Chertan", "Denebola"), ("Denebola", "Zosma"), ("Zosma", "Chertan")
     ],
-    "cassiopeia": [("Segin", "Ruchbah"), ("Ruchbah", "Gamma Cassiopeiae"), ("Gamma Cassiopeiae", "Schedar"), ("Schedar", "Caph")],
-    "cygnus": [("Deneb", "Sadr"), ("Sadr", "Albireo"), ("Sadr", "Gienah"), ("Sadr", "Delta Cygni")]
+    "cygnus": [
+        ("Deneb", "Sadr"), ("Sadr", "Albireo"), ("Sadr", "Gienah"), ("Sadr", "Delta Cygni"), ("Sadr", "Eta Cygni")
+    ],
+    "lyra": [("Vega", "Sheliak"), ("Sheliak", "Sulafat"), ("Sulafat", "Delta2 Lyrae"), ("Delta2 Lyrae", "Vega")]
 }
+
+def draw_shining_star(ax, az, alt_r, color, size, is_target):
+    # Эффект горения (слои)
+    glow_size = size * (15 if is_target else 8)
+    ax.scatter(az, alt_r, s=glow_size*3, c=color, alpha=0.1, zorder=2) # Гало
+    ax.scatter(az, alt_r, s=glow_size, c=color, alpha=0.3, zorder=3)   # Свечение
+    ax.scatter(az, alt_r, s=size*2, c='white', zorder=4)              # Ядро
+    # Лучи горения (дифракционные шипы)
+    ray_color = color if is_target else 'white'
+    ax.scatter(az, alt_r, s=glow_size*4, c=ray_color, marker='+', alpha=0.4, linewidths=0.5, zorder=2)
+    ax.scatter(az, alt_r, s=glow_size*4, c=ray_color, marker='x', alpha=0.2, linewidths=0.3, zorder=2)
 
 def draw_constellation(ax, obs, lines, color, lw, alpha, name, is_target):
     coords = []
@@ -54,24 +69,21 @@ def draw_constellation(ax, obs, lines, color, lw, alpha, name, is_target):
             s1.compute(obs); s2.compute(obs)
             if s1.alt > 0 and s2.alt > 0:
                 ax.plot([s1.az, s2.az], [np.pi/2 - s1.alt, np.pi/2 - s2.alt], color=color, lw=lw, alpha=alpha, zorder=3)
-                ax.plot([s1.az, s2.az], [np.pi/2 - s1.alt, np.pi/2 - s2.alt], color=color, lw=lw*3, alpha=alpha*0.3, zorder=2)
                 coords.append((s1.az, np.pi/2 - s1.alt))
         except: pass
     
-    # Имена звезд
     for s_name in unique_stars:
         try:
             st = ephem.star(s_name); st.compute(obs)
             if st.alt > 0:
-                ax.scatter(st.az, np.pi/2 - st.alt, s=15, c='white', edgecolors=color, zorder=4)
-                ax.text(st.az, np.pi/2 - st.alt + 0.04, STAR_NAMES.get(s_name, s_name), color='white', fontsize=7, alpha=0.6, ha='center', zorder=5)
+                draw_shining_star(ax, st.az, np.pi/2 - st.alt, color, 10, is_target)
+                ax.text(st.az, np.pi/2 - st.alt + 0.05, STAR_NAMES.get(s_name, s_name), color='white', fontsize=6, alpha=0.5, ha='center', zorder=5)
         except: pass
 
-    # Имя созвездия (Центрирование)
     if coords and name:
         avg_az = np.mean([c[0] for c in coords])
         avg_alt = np.mean([c[1] for c in coords])
-        ax.text(avg_az, avg_alt - 0.12, name, color=color, fontsize=12 if is_target else 9, fontweight='bold', ha='center', zorder=6)
+        ax.text(avg_az, avg_alt - 0.12, name, color=color, fontsize=12 if is_target else 8, fontweight='bold', ha='center', zorder=6)
 
 def generate_star_map(lat, lon, user_name):
     try:
@@ -88,24 +100,25 @@ def generate_star_map(lat, lon, user_name):
         ax = fig.add_axes([0.14, 0.32, 0.72, 0.46], projection='polar')
         ax.set_facecolor('none'); ax.set_theta_zero_location('N'); ax.set_theta_direction(-1); ax.axis('off')
 
-        # Отрисовка всех созвездий
+        # Уплотненная звездная пыль
+        np.random.seed(int(float(lat)*100))
+        ax.scatter(np.random.uniform(0, 2*np.pi, 4000), np.random.uniform(0, np.pi/2, 4000), s=np.random.uniform(0.1, 1.2), c='white', alpha=0.3)
+
         for cid, lines in CONSTELLATION_LINES.items():
             is_target = (cid == target_key)
             name = db[cid]['name'].split('(')[0].strip().upper() if cid in db else cid.upper()
-            draw_constellation(ax, obs, lines, '#FF00FF' if is_target else '#FFD700', 5.0 if is_target else 1.8, 0.9 if is_target else 0.4, name, is_target)
+            draw_constellation(ax, obs, lines, '#FF00FF' if is_target else '#FFD700', 4.0 if is_target else 1.2, 0.8 if is_target else 0.3, name, is_target)
 
-        # Ориентиры
         moon = ephem.Moon(); moon.compute(obs)
         if moon.alt > 0:
-            ax.scatter(moon.az, np.pi/2 - moon.alt, s=400, c='#F4F6F0', edgecolors='white', alpha=0.9, zorder=7)
+            ax.scatter(moon.az, np.pi/2 - moon.alt, s=400, c='#F4F6F0', edgecolors='white', alpha=0.8, zorder=7)
             ax.text(moon.az, np.pi/2 - moon.alt + 0.15, f"ЛУНА ({int(moon.phase)}%)", color='white', fontsize=10, fontweight='bold', ha='center')
 
         sun = ephem.Sun(); sun.compute(obs)
         if sun.alt > -0.2:
             ax.scatter(sun.az, np.pi/2 - sun.alt, s=600, c='#FFCC33', edgecolors='#FF6600', zorder=7)
-            ax.text(sun.az, np.pi/2 - sun.alt + 0.2, "СОЛНЦЕ", color='#FFCC33', fontsize=12, fontweight='bold', ha='center')
 
-        # Калибровка текста (22px)
+        # Текст
         t_key = target_key if target_key in db else "ursa_major"
         target_name = db[t_key]['name'].split('(')[0].strip().upper()
         rise = ephem.localtime(obs.next_rising(ephem.Sun())).strftime('%H:%M')
