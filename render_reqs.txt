@@ -5,3 +5,4 @@ Pillow
 requests
 matplotlib
 skyfield
+numpy
