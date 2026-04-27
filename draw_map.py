@@ -9,7 +9,7 @@ import json
 import random
 from PIL import Image
 
-# Звезды-Якоря для наведения прицела (оставляем для выбора цели)
+# Звезды-Якоря для выбора цели
 ANCHOR_STARS = {
     "andromeda": "Alpheratz", "aquarius": "Sadalmelik", "aquila": "Altair",
     "aries": "Hamal", "auriga": "Capella", "bootes": "Arcturus",
@@ -22,8 +22,7 @@ ANCHOR_STARS = {
     "ursa_minor": "Polaris", "virgo": "Spica"
 }
 
-# СЛОВАРЬ ЛИНИЙ (Соединяем звезды в фигуры)
-# Каждое созвездие — это список пар звезд, которые нужно соединить палочкой
+# Схемы созвездий (соединяем звезды линиями)
 CONSTELLATION_LINES = {
     "ursa_major": [("Dubhe", "Merak"), ("Merak", "Phecda"), ("Phecda", "Megrez"), ("Megrez", "Dubhe"), ("Megrez", "Alioth"), ("Alioth", "Mizar"), ("Mizar", "Alkaid")],
     "ursa_minor": [("Polaris", "Kochab"), ("Kochab", "Pherkad"), ("Pherkad", "Delta Ursae Minoris"), ("Delta Ursae Minoris", "Polaris")],
@@ -37,12 +36,7 @@ CONSTELLATION_LINES = {
     "andromeda": [("Alpheratz", "Mirach"), ("Mirach", "Almach")],
     "bootes": [("Arcturus", "Izar"), ("Izar", "Seginus"), ("Seginus", "Nekkar"), ("Nekkar", "Arcturus")],
     "aquila": [("Altair", "Alshain"), ("Altair", "Tarazed")],
-    "lyra": [("Vega", "Sheliak"), ("Sheliak", "Sulafat"), ("Sulafat", "Delta2 Lyrae"), ("Delta2 Lyrae", "Vega")],
-    "scorpius": [("Antares", "Graffias"), ("Antares", "Shaula"), ("Antares", "Dschubba")],
-    "virgo": [("Spica", "Porrima"), ("Porrima", "Auva"), ("Auva", "Vindemiatrix")],
-    "auriga": [("Capella", "Menkalinan"), ("Menkalinan", "Elnath"), ("Elnath", "Theta Aurigae"), ("Theta Aurigae", "Capella")],
-    "hercules": [("Rasalgethi", "Kornephoros"), ("Kornephoros", "Sarin")],
-    "draco": [("Thuban", "Eltanin"), ("Eltanin", "Rastaban"), ("Rastaban", "Altais")]
+    "lyra": [("Vega", "Sheliak"), ("Sheliak", "Sulafat"), ("Sulafat", "Delta2 Lyrae"), ("Delta2 Lyrae", "Vega")]
 }
 
 BRIGHT_STARS = [
@@ -80,7 +74,7 @@ def generate_star_map(lat, lon, user_name):
         with open('constellations.json', 'r', encoding='utf-8') as f:
             db = json.load(f)
 
-        # Выбираем цель
+        # Выбор цели
         visible_keys = []
         for key, anchor in ANCHOR_STARS.items():
             if key in db:
@@ -106,31 +100,20 @@ def generate_star_map(lat, lon, user_name):
         ax.set_yticklabels([]); ax.set_xticklabels([])
         ax.spines['polar'].set_visible(False)
 
-        # Звезды (фон)
+        # Звездный фон
         np.random.seed(int(float(lat)*100))
         fx = np.random.uniform(0, 2*np.pi, 2500)
         fy = np.random.uniform(0, np.pi/2, 2500)
         ax.scatter(fx, fy, s=np.random.uniform(0.3, 2), c='#D4E6FF', alpha=0.4, zorder=1)
 
-        # --- ОТРИСОВКА ВСЕХ СОЗВЕЗДИЙ ---
+        # Отрисовка линий созвездий
         for const_id, lines in CONSTELLATION_LINES.items():
             is_target = (const_id == target_key)
             l_color = '#FF3366' if is_target else '#FFD700'
-            l_alpha = 0.9 if is_target else 0.25
+            l_alpha = 0.8 if is_target else 0.2
             l_width = 2.5 if is_target else 0.8
-            
             for s1, s2 in lines:
                 draw_line(ax, obs, s1, s2, color=l_color, lw=l_width, alpha=l_alpha)
-
-        # Подписи ярких звезд
-        for eng_name, rus_name in BRIGHT_STARS:
-            try:
-                s = ephem.star(eng_name)
-                s.compute(obs)
-                if s.alt > 5:
-                    ax.scatter(s.az, np.pi/2 - s.alt, s=12, c='white', alpha=0.7, zorder=4)
-                    ax.text(s.az, np.pi/2 - s.alt + 0.04, rus_name, color='white', fontsize=7, alpha=0.5, ha='center', zorder=5)
-            except: pass
 
         # Планеты
         planets_data = [(ephem.Mars(), "Марс ♂", "#FF5733"), (ephem.Jupiter(), "Юпитер ♃", "#4DA8DA"), (ephem.Venus(), "Венера ♀", "#E2B13C"), (ephem.Saturn(), "Сатурн ♄", "#C5B358")]
@@ -138,18 +121,16 @@ def generate_star_map(lat, lon, user_name):
             p.compute(obs)
             if p.alt > 0:
                 ax.scatter(p.az, np.pi/2 - p.alt, s=45, c=p_color, edgecolors='white', linewidth=0.5, zorder=6)
-                ax.text(p.az, np.pi/2 - p.alt - 0.07, name, color=p_color, fontsize=8, fontweight='bold', ha='center', zorder=7)
+                ax.text(p.az, np.pi/2 - p.alt - 0.07, name, color=p_color, fontsize=8, fontweight='bold', ha='center')
 
         # Луна
         moon = ephem.Moon(); moon.compute(obs)
         phase_str = get_moon_phase(obs)
         if moon.alt > 0:
             ax.scatter(moon.az, np.pi/2 - moon.alt, s=200, c='#F4F6F0', alpha=0.9, zorder=8)
-            ax.text(moon.az, np.pi/2 - moon.alt + 0.12, "ЛУНА", color='#F4F6F0', fontsize=8, ha='center', fontweight='bold')
 
-        # Финализация ЦЕЛИ
-        target_name = "ГЛУБОКИЙ КОСМОС"
-        target_fact = "Космос полон тайн!"
+        # Финализация цели
+        target_name, target_fact = "ГЛУБОКИЙ КОСМОС", "Космос полон тайн!"
         if target_key:
             anchor_name = ANCHOR_STARS[target_key]
             s = ephem.star(anchor_name)
@@ -157,9 +138,9 @@ def generate_star_map(lat, lon, user_name):
             ax.scatter(s.az, np.pi/2 - s.alt, s=150, c='#FF3366', edgecolors='white', zorder=10)
             ax.text(s.az, np.pi/2 - s.alt + 0.12, "[ ЦЕЛЬ ]", color='#FF3366', fontweight='bold', fontsize=10, ha='center')
             target_name = db[target_key]['name'].split('(')[0].strip().upper()
-            target_fact = f"{db[target_key]['description']}\n{db[target_key]['history']}\n{db[target_key]['secret']}"
+            target_fact = f"{db[target_key]['description']}\n{db[target_key]['secret']}"
 
-        # Телеметрия (Твоя калибровка)
+        # Калибровка текста
         sun = ephem.Sun()
         next_rise = ephem.localtime(obs.next_rising(sun)).strftime('%H:%M')
         next_set = ephem.localtime(obs.next_setting(sun)).strftime('%H:%M')
