@@ -8,6 +8,7 @@ import os
 
 def generate_star_map(lat, lon, user_name="Navigator"):
     try:
+        print("Начинаю отрисовку карты (безопасный режим)...")
         obs = ephem.Observer()
         obs.lat, obs.lon = str(lat), str(lon)
         obs.date = datetime.utcnow()
@@ -17,9 +18,10 @@ def generate_star_map(lat, lon, user_name="Navigator"):
         ax = fig.add_axes([0.1, 0.1, 0.8, 0.8], projection='polar')
         ax.set_facecolor('#010515')
         
-        # Находим звезды
+        # Собираем и рисуем звезды (БЕЗ ТЕКСТА)
         stars_x = []
         stars_y = []
+        sizes = []
         for (mag, name, db) in ephem.stars._stars:
             try:
                 s = ephem.star(name)
@@ -27,23 +29,23 @@ def generate_star_map(lat, lon, user_name="Navigator"):
                 if s.alt > 0 and s.mag < 4.0:
                     stars_x.append(s.az)
                     stars_y.append(np.pi/2 - s.alt)
+                    sizes.append((5-s.mag)**2) # Размер зависит от яркости
             except: continue
         
-        # Рисуем все звезды одним махом (так быстрее и надежнее)
         if stars_x:
-            ax.scatter(stars_x, stars_y, s=10, c='white', alpha=0.8)
+            ax.scatter(stars_x, stars_y, s=sizes, c='white', alpha=0.8)
 
-        # Убираем всё лишнее
+        # Выключаем оси и рамки
         ax.set_axis_off()
-        
-        # Добавляем подпись внизу
-        plt.figtext(0.5, 0.05, f"SKY FOR {user_name.upper()}\n{lat:.2f}, {lon:.2f}", 
-                    color='gold', ha='center', fontsize=12)
 
-        path = f"sky_{datetime.now().strftime('%H%M%S')}.png"
+        # Сохраняем картинку
+        path = f"sky_safe_{datetime.now().strftime('%H%M%S')}.png"
         plt.savefig(path, bbox_inches='tight', facecolor='#010515')
         plt.close(fig)
+        
+        print(f"Карта успешно сохранена: {path}")
         return path
+        
     except Exception as e:
-        print(f"ERROR: {e}")
+        print(f"КРИТИЧЕСКАЯ ОШИБКА РИСОВАНИЯ: {e}")
         return None
