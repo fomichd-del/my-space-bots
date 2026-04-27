@@ -7,3 +7,5 @@ matplotlib
 skyfield
 numpy
 wikipedia-api
+starplot
+pandas
