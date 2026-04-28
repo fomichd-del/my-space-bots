@@ -8,7 +8,7 @@ import os, json, random, gc
 from PIL import Image
 import warnings
 
-# Глушим технический шум
+# Глушим технические предупреждения
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # --- ГЛОБАЛЬНЫЙ РУСИФИКАТОР (88 СОЗВЕЗДИЙ) ---
@@ -41,7 +41,7 @@ TARGETS = {
     "ursa_major": [165, 56], "ursa_minor": [37, 89], "orion": [84, -5],
     "cassiopeia": [10, 59], "cygnus": [310, 45], "lyra": [279, 39],
     "aries": [31, 23], "taurus": [69, 16], "gemini": [114, 28],
-    "leo": [152, 12], "virgo": [201, -11]
+    "cancer": [130, 20], "leo": [152, 12], "virgo": [201, -11]
 }
 
 def generate_star_map(lat, lon, user_name):
@@ -62,66 +62,76 @@ def generate_star_map(lat, lon, user_name):
         
         # Настройка шрифтов (700 = Bold)
         try:
-            style.star.label.font_size = 10
-            style.constellation.label.font_size = 18
+            style.star.label.font_size = 12
+            style.star.label.font_weight = 500
+            style.constellation.label.font_size = 20
             style.constellation.label.font_weight = 700
-            style.constellation.line.stroke_width = 3.5
+            style.constellation.line.stroke_width = 4.0
+            style.planet.label.font_size = 18
+            style.planet.label.font_weight = 700
         except: pass
 
-        # resolution=1100 - БЕЗОПАСНО ДЛЯ 512MB RAM
+        # resolution=1100 - ОПТИМИЗИРОВАНО ДЛЯ ПАМЯТИ (как в v20.0)
         p = ZenithPlot(observer=observer, style=style, resolution=1100, autoscale=True)
 
         p.horizon(); p.milky_way(); p.ecliptic(); p.constellations()
 
-        # ПЕРЕВОД
+        # ПРИНУДИТЕЛЬНЫЙ РУССКИЙ ЯЗЫК
+        # 1. Заменяем через API Starplot
         labels = p.constellation_labels()
         if labels:
             for l in labels:
                 if l.text in RU_NAMES: l.text = RU_NAMES[l.text]
         
+        # 2. Дублируем через прямой доступ к тексту Matplotlib
         for text_obj in p.ax.texts:
             txt = text_obj.get_text()
             if txt in RU_NAMES: text_obj.set_text(RU_NAMES[txt])
 
-        p.stars(where=[_.magnitude < 5.0], where_labels=[_.magnitude < 2.0])
+        p.stars(where=[_.magnitude < 5.3], where_labels=[_.magnitude < 2.3])
         p.planets(); p.sun(label="СОЛНЦЕ"); p.moon(label="ЛУНА")
 
+        # Маркер цели
         p.marker(
             ra=target_pos[0], dec=target_pos[1],
             label="[ ЦЕЛЬ ]",
             style={
-                "marker": {"size": 80, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 3, "line_style": [1, [5, 5]]},
-                "label": {"font_size": 24, "font_weight": 800, "font_color": "#FF00FF", "offset_y": 55}
+                "marker": {"size": 100, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4, "line_style": [1, [5, 5]]},
+                "label": {"font_size": 28, "font_weight": 800, "font_color": "#FF00FF", "offset_y": 65}
             }
         )
 
-        temp_file = "v20_tmp.png"
+        temp_file = "v21_tmp.png"
         p.export(temp_file, transparent=True, padding=0.01)
         
-        # Сразу закрываем фигуру Starplot, чтобы освободить RAM
+        # Закрываем фигуру Starplot, чтобы освободить RAM
         plt.close('all')
 
-        # === СБОРКА ЧЕРЕЗ PILLOW (Она легче, чем Matplotlib) ===
+        # === СБОРКА И КОРРЕКЦИЯ: ВЛЕВО И ВВЕРХ (PIL) ===
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        # Масштаб и позиция (как мы откалибровали в прошлый раз)
+        # Масштаб 1750px (перекрывает фоновые кольца)
         sky_size = 1750
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        bg_img.paste(sky_img, (150, 750), sky_img)
+        # НОВЫЕ КООРДИНАТЫ (ВЛЕВО И ВВЕРХ)
+        # y_offset = 650 (сдвиг вверх на ~150 пикселей / 1.5 см от визуальной базы 800)
+        # x_offset = -500 (сдвиг влево на ~150 пикселей / 1.5 см от визуальной базы -350)
+        bg_img.paste(sky_img, (-500, 650), sky_img)
         
-        # Финальный текст рисуем через Matplotlib на маленьком холсте
-        dpi = 80 # Уменьшаем DPI для экономии памяти
+        # Финальный текст рисуем через Matplotlib на маленьком холсте (защита OOM)
+        dpi = 80
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
 
+        # Информационные данные (22px)
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_v20.png"
+        path = f"sky_final_v21.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=dpi)
         
         # ТОТАЛЬНАЯ ОЧИСТКА
