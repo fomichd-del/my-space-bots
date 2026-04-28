@@ -11,7 +11,7 @@ import warnings
 # Глушим технические предупреждения
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# --- ГЛОБАЛЬНЫЙ РУСИФИКАТОР (88 СОЗВЕЗДИЙ) ---
+# --- ГЛОБАЛЬНЫЙ РУСИФИКАТОР (88 СОЗВЕЗДИЙ + ЗВЕЗДЫ) ---
 RU_NAMES = {
     "Andromeda": "Андромеда", "Antlia": "Насос", "Apus": "Райская Птица", "Aquarius": "Водолей",
     "Aquila": "Орел", "Ara": "Жертвенник", "Aries": "Овен", "Auriga": "Возничий", "Bootes": "Волопас",
@@ -92,22 +92,25 @@ def generate_star_map(lat, lon, user_name):
             }
         )
 
-        temp_file = "v25_tmp.png"
+        temp_file = "v26_tmp.png"
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
-        # === СБОРКА: ФИНАЛЬНЫЕ КООРДИНАТЫ v25 ===
+        # === СБОРКА: ФИНАЛЬНЫЕ КООРДИНАТЫ v26 (Микронная правка) ===
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        sky_size = 1750
+        # ЮВЕЛИРНАЯ ПРАВКА 1: Уменьшить диаметр на 1мм (conceptually 10px)
+        # Было: 1750
+        # Стало: 1740
+        sky_size = 1740
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # СМЕЩЕНИЕ: Аналитическая правка для image_9.png
-        # Сдвиг вправо на 15px и вниз на 15px
-        # Было: (-250, 400)
-        # Стало: (-235, 415)
-        bg_img.paste(sky_img, (-235, 415), sky_img)
+        # ЮВЕЛИРНАЯ ПРАВКА 2 & 3: Вправо на 1мм, Ниже на 1мм
+        # (концептуально +10px к каждой координате)
+        # Было: (-235, 415)
+        # Стало: (-225, 425)
+        bg_img.paste(sky_img, (-225, 425), sky_img)
         
         dpi = 80
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
@@ -118,7 +121,7 @@ def generate_star_map(lat, lon, user_name):
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_v25.png"
+        path = f"sky_final_v26.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=dpi)
         
         plt.close('all')
