@@ -9,10 +9,10 @@ from PIL import Image
 import ephem
 import warnings
 
-# Глушим технический шум в логах
+# Отключаем технический шум
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# --- ПОЛНЫЙ ЛИНГВИСТИЧЕСКИЙ МОДУЛЬ (88 СОЗВЕЗДИЙ) ---
+# --- ГЛОБАЛЬНЫЙ РУСИФИКАТОР (88 СОЗВЕЗДИЙ + ЗВЕЗДЫ) ---
 RU_NAMES = {
     "Andromeda": "Андромеда", "Antlia": "Насос", "Apus": "Райская Птица", "Aquarius": "Водолей",
     "Aquila": "Орел", "Ara": "Жертвенник", "Aries": "Овен", "Auriga": "Возничий", "Bootes": "Волопас",
@@ -42,7 +42,8 @@ TARGETS = {
     "ursa_major": [165, 56], "ursa_minor": [37, 89], "orion": [84, -5],
     "cassiopeia": [10, 59], "cygnus": [310, 45], "lyra": [279, 39],
     "aries": [31, 23], "taurus": [69, 16], "gemini": [114, 28],
-    "cancer": [130, 20], "leo": [152, 12], "virgo": [201, -11]
+    "cancer": [130, 20], "leo": [152, 12], "virgo": [201, -11],
+    "scorpius": [250, -35], "sagittarius": [286, -25]
 }
 
 def generate_star_map(lat, lon, user_name):
@@ -57,33 +58,37 @@ def generate_star_map(lat, lon, user_name):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # ШАГ 1: Создаем чистый стиль (Pydantic не видит наших правок здесь)
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         
-        # ШАГ 2: Меняем атрибуты напрямую (используем цифры вместо 'bold')
         try:
             style.star.label.font_size = 12
             style.star.label.font_weight = 500
-            
-            style.constellation.label.font_size = 18
-            style.constellation.label.font_weight = 700  # 700 = Bold
-            style.constellation.line.stroke_width = 3.0
-            
-            style.planet.label.font_size = 16
+            style.constellation.label.font_size = 20  # Крупнее для большого масштаба
+            style.constellation.label.font_weight = 700
+            style.constellation.line.stroke_width = 4.0
+            style.planet.label.font_size = 18
             style.planet.label.font_weight = 700
         except: pass
 
+        # Разрешение 1800 - золотой стандарт
         p = ZenithPlot(observer=observer, style=style, resolution=1800, autoscale=True)
 
         p.horizon(); p.milky_way(); p.ecliptic(); p.constellations()
 
-        # ПЕРЕВОД (88 созвездий)
+        # ПРИНУДИТЕЛЬНЫЙ РУССКИЙ ЯЗЫК
+        # 1. Заменяем через API Starplot
         labels = p.constellation_labels()
-        if labels is not None:
+        if labels:
             for l in labels:
                 if l.text in RU_NAMES: l.text = RU_NAMES[l.text]
+        
+        # 2. Дублируем через прямой доступ к тексту Matplotlib
+        for text_obj in p.ax.texts:
+            txt = text_obj.get_text()
+            if txt in RU_NAMES:
+                text_obj.set_text(RU_NAMES[txt])
 
-        p.stars(where=[_.magnitude < 5.2], where_labels=[_.magnitude < 2.5])
+        p.stars(where=[_.magnitude < 5.5], where_labels=[_.magnitude < 2.5])
         p.planets(); p.sun(label="СОЛНЦЕ"); p.moon(label="ЛУНА")
 
         # Маркер цели
@@ -91,37 +96,40 @@ def generate_star_map(lat, lon, user_name):
             ra=target_pos[0], dec=target_pos[1],
             label="[ ЦЕЛЬ ]",
             style={
-                "marker": {"size": 85, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 3.5, "line_style": [1, [5, 5]]},
-                "label": {"font_size": 26, "font_weight": 800, "font_color": "#FF00FF", "offset_y": 55}
+                "marker": {"size": 100, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4, "line_style": [1, [5, 5]]},
+                "label": {"font_size": 28, "font_weight": 800, "font_color": "#FF00FF", "offset_y": 65}
             }
         )
 
-        temp_file = "zenith_v16.png"
-        p.export(temp_file, transparent=True, padding=0.03)
+        temp_file = "zenith_v18.png"
+        p.export(temp_file, transparent=True, padding=0.01)
 
-        # ШАГ 3: СБОРКА И КАЛИБРОВКА (Ниже и крупнее)
+        # === ФИНАЛЬНАЯ СБОРКА И КАЛИБРОВКА (ПРАВО И ВНИЗ) ===
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        # УВЕЛИЧИВАЕМ ДИАМЕТР до 1400px (почти на всю ширину фона)
-        sky_img = sky_img.resize((1400, 1400))
+        # 1. ДИАМЕТР: Делаем карту огромной (1750px), чтобы перекрыла всё
+        sky_size = 1750
+        sky_img = sky_img.resize((sky_size, sky_size))
         
-        # СМЕЩАЕМ НИЖЕ: Y = 650 (это примерно на 3-4 см ниже прошлого варианта)
-        # Центровка по X: (1440 - 1400) / 2 = 20
-        bg_img.paste(sky_img, (20, 650), sky_img)
+        # 2. ПОЗИЦИЯ: Смещаем ВПРАВО (x) и ВНИЗ (y)
+        # x=450 - сильный сдвиг вправо
+        # y=950 - опускаем ниже, под верхние элементы интерфейса
+        bg_img.paste(sky_img, (450, 950), sky_img)
 
         dpi = 100
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
 
-        # Текст (22px калибровка)
+        # Информационные данные (22px)
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_v16.png"
+        path = f"sky_final_v18.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0); plt.close()
+        
         if os.path.exists(temp_file): os.remove(temp_file)
         return True, path, target_name_rus, ""
 
