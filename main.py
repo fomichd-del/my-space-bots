@@ -8,7 +8,7 @@ from threading import Thread
 import wikipediaapi
 
 # === КОНФИГУРАЦИЯ ===
-# Версия: 25.0 "Точная стыковка"
+# Версия: 26.0 "Точная стыковка"
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
 
