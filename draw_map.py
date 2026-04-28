@@ -45,7 +45,7 @@ TARGETS = {
 }
 
 def generate_star_map(lat, lon, user_name):
-    gc.collect()
+    gc.collect() # Очистка памяти
     try:
         dt = datetime.now(timezone.utc)
         observer = Observer(dt=dt, lat=float(lat), lon=float(lon))
@@ -92,21 +92,21 @@ def generate_star_map(lat, lon, user_name):
             }
         )
 
-        temp_file = "v22_tmp.png"
+        temp_file = "v23_tmp.png"
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
-        # === СБОРКА: КОРРЕКЦИЯ ЮВЕЛИРНАЯ ===
+        # === СБОРКА: КОРРЕКЦИЯ ЮВЕЛИРНАЯ v23 ===
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
         sky_size = 1750
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # НОВЫЕ КООРДИНАТЫ (Вправо на 0.5см / Вверх на 0.5см)
-        # x_offset: -500 + 50 = -450
-        # y_offset: 650 - 50 = 600
-        bg_img.paste(sky_img, (-450, 600), sky_img)
+        # НОВЫЕ КООРДИНАТЫ (+1см вправо / -1см вверх)
+        # x_offset: -450 + 100 = -350
+        # y_offset: 600 - 100 = 500
+        bg_img.paste(sky_img, (-350, 500), sky_img)
         
         dpi = 80
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
@@ -117,7 +117,7 @@ def generate_star_map(lat, lon, user_name):
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_v22.png"
+        path = f"sky_final_v23.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=dpi)
         
         plt.close('all')
