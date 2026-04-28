@@ -17,7 +17,7 @@ wiki_wiki = wikipediaapi.Wikipedia(user_agent='MartySpaceBot/1.1', language='ru'
 app = Flask(__name__)
 @app.route('/')
 def keep_alive(): 
-    return "Командный центр Марти 25.0 в эфире! 🛰️"
+    return "Командный центр Марти v24.0 — RAM-Friendly в эфире! 🛰️"
 
 def run_server():
     port = int(os.environ.get("PORT", 10000))
