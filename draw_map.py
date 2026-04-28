@@ -45,7 +45,6 @@ TARGETS = {
 }
 
 def generate_star_map(lat, lon, user_name):
-    # Очистка памяти перед стартом
     gc.collect()
     try:
         dt = datetime.now(timezone.utc)
@@ -60,30 +59,23 @@ def generate_star_map(lat, lon, user_name):
 
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         
-        # Настройка шрифтов (700 = Bold)
         try:
             style.star.label.font_size = 12
-            style.star.label.font_weight = 500
             style.constellation.label.font_size = 20
             style.constellation.label.font_weight = 700
             style.constellation.line.stroke_width = 4.0
-            style.planet.label.font_size = 18
-            style.planet.label.font_weight = 700
         except: pass
 
-        # resolution=1100 - ОПТИМИЗИРОВАНО ДЛЯ ПАМЯТИ (как в v20.0)
         p = ZenithPlot(observer=observer, style=style, resolution=1100, autoscale=True)
 
         p.horizon(); p.milky_way(); p.ecliptic(); p.constellations()
 
-        # ПРИНУДИТЕЛЬНЫЙ РУССКИЙ ЯЗЫК
-        # 1. Заменяем через API Starplot
+        # ПЕРЕВОД
         labels = p.constellation_labels()
         if labels:
             for l in labels:
                 if l.text in RU_NAMES: l.text = RU_NAMES[l.text]
         
-        # 2. Дублируем через прямой доступ к тексту Matplotlib
         for text_obj in p.ax.texts:
             txt = text_obj.get_text()
             if txt in RU_NAMES: text_obj.set_text(RU_NAMES[txt])
@@ -91,7 +83,6 @@ def generate_star_map(lat, lon, user_name):
         p.stars(where=[_.magnitude < 5.3], where_labels=[_.magnitude < 2.3])
         p.planets(); p.sun(label="СОЛНЦЕ"); p.moon(label="ЛУНА")
 
-        # Маркер цели
         p.marker(
             ra=target_pos[0], dec=target_pos[1],
             label="[ ЦЕЛЬ ]",
@@ -101,40 +92,34 @@ def generate_star_map(lat, lon, user_name):
             }
         )
 
-        temp_file = "v21_tmp.png"
+        temp_file = "v22_tmp.png"
         p.export(temp_file, transparent=True, padding=0.01)
-        
-        # Закрываем фигуру Starplot, чтобы освободить RAM
         plt.close('all')
 
-        # === СБОРКА И КОРРЕКЦИЯ: ВЛЕВО И ВВЕРХ (PIL) ===
+        # === СБОРКА: КОРРЕКЦИЯ ЮВЕЛИРНАЯ ===
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        # Масштаб 1750px (перекрывает фоновые кольца)
         sky_size = 1750
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # НОВЫЕ КООРДИНАТЫ (ВЛЕВО И ВВЕРХ)
-        # y_offset = 650 (сдвиг вверх на ~150 пикселей / 1.5 см от визуальной базы 800)
-        # x_offset = -500 (сдвиг влево на ~150 пикселей / 1.5 см от визуальной базы -350)
-        bg_img.paste(sky_img, (-500, 650), sky_img)
+        # НОВЫЕ КООРДИНАТЫ (Вправо на 0.5см / Вверх на 0.5см)
+        # x_offset: -500 + 50 = -450
+        # y_offset: 650 - 50 = 600
+        bg_img.paste(sky_img, (-450, 600), sky_img)
         
-        # Финальный текст рисуем через Matplotlib на маленьком холсте (защита OOM)
         dpi = 80
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
 
-        # Информационные данные (22px)
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_v21.png"
+        path = f"sky_final_v22.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=dpi)
         
-        # ТОТАЛЬНАЯ ОЧИСТКА
         plt.close('all')
         bg_img.close(); sky_img.close()
         if os.path.exists(temp_file): os.remove(temp_file)
