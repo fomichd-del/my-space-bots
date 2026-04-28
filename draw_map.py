@@ -9,7 +9,7 @@ from PIL import Image
 import ephem
 import warnings
 
-# Отключаем технические уведомления в логах
+# Глушим технический шум в логах
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # --- ПОЛНЫЙ ЛИНГВИСТИЧЕСКИЙ МОДУЛЬ (88 СОЗВЕЗДИЙ) ---
@@ -42,9 +42,7 @@ TARGETS = {
     "ursa_major": [165, 56], "ursa_minor": [37, 89], "orion": [84, -5],
     "cassiopeia": [10, 59], "cygnus": [310, 45], "lyra": [279, 39],
     "aries": [31, 23], "taurus": [69, 16], "gemini": [114, 28],
-    "leo": [152, 12], "virgo": [201, -11], "libra": [228, -15],
-    "scorpius": [250, -35], "sagittarius": [286, -25], "capricornus": [315, -20],
-    "aquarius": [335, -10], "pisces": [5, 15]
+    "cancer": [130, 20], "leo": [152, 12], "virgo": [201, -11]
 }
 
 def generate_star_map(lat, lon, user_name):
@@ -59,22 +57,27 @@ def generate_star_map(lat, lon, user_name):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # ИСПРАВЛЕНИЕ: Используем множественное число (stars, constellations, planets)
-        style = PlotStyle().extend(
-            extensions.BLUE_GOLD,
-            extensions.GRADIENT_PRE_DAWN,
-            {
-                "stars": {"label": {"font_size": 11, "font_weight": 500}},
-                "constellations": {"label": {"font_size": 16, "font_weight": "bold"}, "line": {"stroke_width": 2.5}},
-                "planets": {"label": {"font_size": 16, "font_weight": "bold"}}
-            }
-        )
+        # ШАГ 1: Создаем чистый стиль (Pydantic не видит наших правок здесь)
+        style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
+        
+        # ШАГ 2: Меняем атрибуты напрямую (используем цифры вместо 'bold')
+        try:
+            style.star.label.font_size = 12
+            style.star.label.font_weight = 500
+            
+            style.constellation.label.font_size = 18
+            style.constellation.label.font_weight = 700  # 700 = Bold
+            style.constellation.line.stroke_width = 3.0
+            
+            style.planet.label.font_size = 16
+            style.planet.label.font_weight = 700
+        except: pass
 
         p = ZenithPlot(observer=observer, style=style, resolution=1800, autoscale=True)
 
         p.horizon(); p.milky_way(); p.ecliptic(); p.constellations()
 
-        # Перевод созвездий
+        # ПЕРЕВОД (88 созвездий)
         labels = p.constellation_labels()
         if labels is not None:
             for l in labels:
@@ -93,31 +96,31 @@ def generate_star_map(lat, lon, user_name):
             }
         )
 
-        temp_file = "zenith_v15.png"
+        temp_file = "zenith_v16.png"
         p.export(temp_file, transparent=True, padding=0.03)
 
-        # СБОРКА И КАЛИБРОВКА (Крупнее и ниже)
+        # ШАГ 3: СБОРКА И КАЛИБРОВКА (Ниже и крупнее)
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        # 1. ДИАМЕТР КРУПНЕЕ: Увеличиваем до 1320px
-        sky_img = sky_img.resize((1320, 1320))
+        # УВЕЛИЧИВАЕМ ДИАМЕТР до 1400px (почти на всю ширину фона)
+        sky_img = sky_img.resize((1400, 1400))
         
-        # 2. ПОЗИЦИЯ НИЖЕ: Смещаем Y с 360 на 520 (опускаем примерно на 3-4 см)
-        # Центровка по X: (ширина фона 1440 - ширина неба 1320) / 2 = 60
-        bg_img.paste(sky_img, (60, 520), sky_img)
+        # СМЕЩАЕМ НИЖЕ: Y = 650 (это примерно на 3-4 см ниже прошлого варианта)
+        # Центровка по X: (1440 - 1400) / 2 = 20
+        bg_img.paste(sky_img, (20, 650), sky_img)
 
         dpi = 100
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
 
-        # Информационные рамки (22px)
+        # Текст (22px калибровка)
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_v15.png"
+        path = f"sky_final_v16.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0); plt.close()
         if os.path.exists(temp_file): os.remove(temp_file)
         return True, path, target_name_rus, ""
