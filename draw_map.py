@@ -130,12 +130,12 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         t_col = '#D4E6FF'
         # Увеличили размер шрифта данных в рамках для лучшей читаемости (fontsize=26)
-        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=26, fontweight='bold')
-        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=20, fontweight='bold')
-        fig.text(0.38, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=20, fontweight='bold')
-        fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=20, fontweight='bold')
-        fig.text(0.74, 0.067, set_time, color=t_col, fontsize=23, fontweight='bold')
-        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=26, fontweight='bold')
+        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=20, fontweight='bold')
+        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=15, fontweight='bold')
+        fig.text(0.35, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=15, fontweight='bold')
+        fig.text(0.35, 0.067, rise_time, color=t_col, fontsize=15, fontweight='bold')
+        fig.text(0.74, 0.067, set_time, color=t_col, fontsize=15, fontweight='bold')
+        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=20, fontweight='bold')
 
         # Финальный экспорт
         tmp_png = final_path.replace(".jpg", ".png")
