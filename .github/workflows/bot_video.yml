@@ -1,31 +1,27 @@
-name: Bot-video v173
+name: Bot-video v180
 
 on:
   schedule:
-    # Время в UTC (Украина -3 часа):
-    # 07:00 -> 04:00
-    # 12:00 -> 09:00
-    # 17:00 -> 14:00
-    # 21:00 -> 18:00
     - cron: '0 4,9,14,18 * * *'
   workflow_dispatch:
 
 jobs:
   mission-launch:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
+    permissions:
+      contents: write
     steps:
       - name: 🛰 Копирование систем
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: 🐍 Подготовка Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: 🟢 Установка Node.js (Для разгадки JS-загадок)
+      - name: 🟢 Установка Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -35,24 +31,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: 📦 Установка системного набора 'Titanium+'
+      - name: 📦 Установка библиотек
         run: |
-          pip install requests openai-whisper deep_translator
-          # 🔥 Ставим чистый yt-dlp со всеми скриптами EJS
-          pip install -U "yt-dlp[default]"
+          pip install requests openai-whisper deep_translator yt-dlp
 
-      - name: 🚀 Запуск v172.2 'Grandmaster v2.9'
+      - name: 🚀 Запуск v180.0 'Deep Memory'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: python bot_video.py
 
-      - name: 💾 Сохранение журнала
+      - name: 💾 Сохранение журнала (Sync & Push)
         if: always()
         run: |
           git config --global user.name "Space-Bot"
           git config --global user.email "bot@vladislav_space"
+          git pull origin main # Забираем свежие изменения перед пушем
           git add last_video_date.txt last_source.txt || true
-          git commit -m "📊 Реестр v172.2 [Final Update]" || echo "Нет данных"
+          git commit -m "📊 Реестр v180.0 [Anti-Repeat Update]" || echo "Нет данных"
           git push origin main
