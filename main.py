@@ -1,6 +1,6 @@
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-import os, time, signal
+import os, time, concurrent.futures
 from draw_map import generate_star_map
 from flask import Flask
 from threading import Thread
@@ -16,69 +16,113 @@ app = Flask(__name__)
 def keep_alive(): return "Марти Астроном в эфире! 🛰️"
 def run_server(): app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 
-# Функция для прерывания зависших процессов
-def timeout_handler(signum, frame):
-    raise Exception("Космический тайм-аут: расчет занял слишком много времени!")
-
+# --- ПРИВЕТСТВИЕ (ВЕРНУЛИ ПОЛНЫЙ ТЕКСТ) ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("📡 Мое небо", request_location=True))
     markup.add(KeyboardButton("❓ Помощь и Инструкция"))
-    bot.send_message(message.chat.id, f"Привет, {message.from_user.first_name}! 🐾\nЖми <b>«📡 Мое небо»</b>!", parse_mode='HTML', reply_markup=markup)
+    
+    welcome_text = (
+        f"Привет, {message.from_user.first_name}! 🐾 Я — <b>Марти Астроном</b> 🎓\n\n"
+        "Моя главная задача — показать тебе точную копию звездного неба, которое находится прямо сейчас над твоей головой. "
+        "Я умею рассчитывать орбиты планет, фазы Луны и время захода Солнца.\n\n"
+        "Жми <b>«📡 Мое небо»</b>, делись локацией, и я соберу для тебя персональную звездную карту! 🚀"
+    )
+    bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode='HTML')
 
+# --- ИНСТРУКЦИЯ (ВЕРНУЛИ ПОЛНЫЙ ТЕКСТ) ---
+@bot.message_handler(func=lambda message: message.text == "❓ Помощь и Инструкция")
+def send_help(message):
+    help_text = (
+        "🧭 <b>КАК ЧИТАТЬ ЗВЕЗДНУЮ КАРТУ?</b>\n\n"
+        "🔹 <b>Почему Восток (E) слева, а Запад (W) справа?</b>\n"
+        "Это не ошибка! Обычную карту мы кладем на землю и смотрим <i>сверху вниз</i>. Звездную карту мы поднимаем над головой и смотрим <i>снизу вверх</i>. Встань лицом на Юг (S), подними телефон, и восток окажется точно по левую руку!\n\n"
+        "🔹 <b>Центр карты</b> — это Зенит (точка прямо над твоей макушкой).\n"
+        "🔹 <b>Края круга</b> — это линия горизонта вокруг тебя.\n"
+        "🔹 <b>[🎯 ЦЕЛЬ]</b> — при каждом сканировании я выбираю случайное созвездие и выделяю его на карте. Нажми кнопку под картой, чтобы узнать о нем секретные данные из архивов!\n\n"
+        "Попробуй прямо сейчас: жми «📡 Мое небо»!"
+    )
+    bot.send_message(message.chat.id, help_text, parse_mode='HTML')
+
+# --- ОБРАБОТКА ЛОКАЦИИ (ТЕХНИЧЕСКИЙ ИДЕАЛ) ---
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
-    # Устанавливаем таймер на 60 секунд (если бот зависнет — он выдаст ошибку и сбросится)
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(60) 
-    
     try:
-        loading_msg = bot.send_message(message.chat.id, "📡 <b>Координаты получены!</b> Построение карты...", parse_mode='HTML')
-        
-        # Передаем ID пользователя для уникальности файла
-        success, result, target_name, err_msg = generate_star_map(
-            message.location.latitude, 
-            message.location.longitude, 
-            message.from_user.first_name,
-            message.from_user.id
+        loading_msg = bot.send_message(
+            message.chat.id, 
+            "📡 <b>Координаты получены!</b> Навожу линзы телескопов...\n\n"
+            "<i>⏳ Построение точной карты и расчет орбит планет занимает 30-40 секунд. Если я не отвечаю дольше минуты — просто нажми кнопку еще раз.</i>", 
+            parse_mode='HTML'
         )
         
+        # Запускаем генерацию в отдельном потоке с таймаутом 70 секунд
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                generate_star_map, 
+                message.location.latitude, 
+                message.location.longitude, 
+                message.from_user.first_name,
+                message.from_user.id # Уникальный ID для файла
+            )
+            try:
+                success, result, target_name, err_msg = future.result(timeout=70)
+            except concurrent.futures.TimeoutError:
+                bot.delete_message(message.chat.id, loading_msg.message_id)
+                bot.send_message(message.chat.id, "⏳ <b>Космический таймаут!</b> Расчет занял слишком много времени. Попробуй еще раз.")
+                return
+
         bot.delete_message(message.chat.id, loading_msg.message_id)
 
         if success:
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton(f"🌌 Архивы: {target_name}", callback_data=f"wiki_{target_name}"))
+            markup.add(InlineKeyboardButton(f"🌌 Рассекретить архивы: {target_name}", callback_data=f"wiki_{target_name}"))
             
             with open(result, 'rb') as photo:
                 bot.send_photo(
-                    message.chat.id, photo, 
-                    caption=f"🎯 Цель: <b>{target_name}</b>", 
-                    reply_markup=markup, parse_mode='HTML', 
-                    timeout=120 # Увеличенное время ожидания для загрузки
+                    message.chat.id, 
+                    photo, 
+                    caption=f"✨ Твоя персональная проекция орбиты!\n🎯 Миссия на сегодня: найти созвездие <b>{target_name}</b>", 
+                    reply_markup=markup, 
+                    parse_mode='HTML',
+                    timeout=120 # Даем время на загрузку
                 )
             if os.path.exists(result): os.remove(result)
         else:
-            bot.send_message(message.chat.id, f"❌ Ошибка калибровки: {result}")
+            bot.send_message(message.chat.id, f"❌ Ошибка калибровки линз: {result}")
+            
     except Exception as e:
         bot.send_message(message.chat.id, f"🆘 Космические помехи: {str(e)}")
-    finally:
-        signal.alarm(0) # Отключаем таймер в любом случае
 
-# Википедия (оставляем твою рабочую логику)
+# --- ВИКИПЕДИЯ (ВЕРНУЛИ ПОДРОБНОЕ ОПИСАНИЕ) ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '')
-    bot.answer_callback_query(call.id, "Загружаю данные...")
-    page = wiki_wiki.page(f"{subject} (созвездие)")
-    if not page.exists(): page = wiki_wiki.page(subject)
+    bot.answer_callback_query(call.id, "Загружаю данные из Галактической Библиотеки...")
+    
+    search_term = subject.capitalize()
+    page = wiki_wiki.page(f"{search_term} (созвездие)")
+    if not page.exists(): page = wiki_wiki.page(search_term)
+    
     if page.exists():
-        bot.send_message(call.message.chat.id, f"🌌 <b>{subject.upper()}</b>\n\n{page.summary[:600]}...", parse_mode='HTML')
+        summary = page.summary
+        short_desc = summary[:300] + "..." if len(summary) > 300 else summary
+        history_desc = summary[300:900] + "..." if len(summary) > 300 else ""
+        
+        wiki_text = (
+            f"🌌 <b>ДОСЬЕ: {search_term.upper()}</b>\n\n"
+            f"📖 <b>Что это такое:</b>\n{short_desc}\n\n"
+        )
+        if history_desc:
+            wiki_text += f"📜 <b>Научные факты и мифология:</b>\n{history_desc}\n\n"
+            
+        wiki_text += f"🔗 <a href='{page.fullurl}'>[ Открыть полный архив ]</a>"
+        bot.send_message(call.message.chat.id, wiki_text, parse_mode='HTML')
     else:
-        bot.send_message(call.message.chat.id, "⚠️ Данные отсутствуют.")
+        bot.send_message(call.message.chat.id, f"⚠️ Данные о «{search_term}» засекречены.")
 
 if __name__ == "__main__":
     Thread(target=run_server).start()
     bot.remove_webhook()
-    # Более настойчивый режим опроса
+    time.sleep(2)
     bot.infinity_polling(timeout=90, long_polling_timeout=90, skip_pending=True)
