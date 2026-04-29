@@ -1,7 +1,8 @@
-name: Bot-video v181
+name: Bot-video v182.5 Supernova
 
 on:
   schedule:
+    # 07:00, 12:00, 17:00, 21:00 по Украине
     - cron: '0 4,9,14,18 * * *'
   workflow_dispatch:
 
@@ -21,7 +22,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 🟢 Установка Node.js (Критично для захвата!)
+      - name: 🟢 Установка Node.js (Критично для дешифровки YouTube)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -35,7 +36,7 @@ jobs:
         run: |
           pip install requests openai-whisper deep_translator yt-dlp
 
-      - name: 🚀 Запуск v181.0 'Omega Prime'
+      - name: 🚀 Запуск v182.5 'Supernova'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -47,7 +48,7 @@ jobs:
         run: |
           git config --global user.name "Space-Bot"
           git config --global user.email "bot@vladislav_space"
-          git pull origin main || echo "Нет изменений для pull"
+          git pull --rebase origin main || echo "Нет изменений для pull"
           git add last_video_date.txt last_source.txt || true
-          git commit -m "📊 Реестр v181.0 [Final Stability]" || echo "Нет новых данных"
+          git commit -m "📊 Реестр v182.5 [Supernova Stability]" || echo "Нет новых данных"
           git push origin main
