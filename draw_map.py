@@ -34,8 +34,11 @@ RU_NAMES = {
     "Telescopium": "Телескоп", "Triangulum": "Треугольник", "Triangulum Australe": "Южный Треугольник",
     "Tucana": "Тукан", "Ursa Major": "Большая Медведица", "Ursa Minor": "Малая Медведица",
     "Vela": "Паруса", "Virgo": "Дева", "Volans": "Летучая Рыба", "Vulpecula": "Лисичка",
-    "Vega": "Вега", "Polaris": "Полярис", "Sirius": "Сириус", "Arcturus": "Арктур", "Capella": "Капелла"
+    "Vega": "Вега", "Polaris": "Полярис", "Sirius": "Сириус", "Arcturus": "Арктур", "Capella": "Капелла",
+    "Sun": "Солнце", "Moon": "Луна"
 }
+# Создаем словарь для нечувствительности к регистру
+RU_NAMES_UPPER = {k.upper(): v.upper() for k, v in RU_NAMES.items()}
 
 TARGETS = {
     "ursa_major": [165, 56], "ursa_minor": [37, 89], "orion": [84, -5],
@@ -57,64 +60,67 @@ def generate_star_map(lat, lon, user_name):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # Абсолютно безопасное создание стиля
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
+        
+        try:
+            style.star.label.font_size = 11
+            style.constellation.label.font_size = 14
+            style.constellation.label.font_weight = 700
+            style.constellation.line.stroke_width = 2.5
+        except: pass
 
         p = ZenithPlot(observer=observer, style=style, resolution=1100, autoscale=True)
-        p.horizon()
-        p.milky_way()
-        p.ecliptic()
-        p.constellations()
 
-        # ПЕРЕВОД
-        labels = p.constellation_labels()
-        if labels:
-            for l in labels:
-                if l.text in RU_NAMES: l.text = RU_NAMES[l.text]
-        
+        p.horizon(); p.milky_way(); p.ecliptic(); p.constellations()
+
+        # АГРЕССИВНЫЙ ПЕРЕВОД (Игнорируем регистр)
         for text_obj in p.ax.texts:
-            txt = text_obj.get_text()
-            if txt in RU_NAMES: text_obj.set_text(RU_NAMES[txt])
+            txt = text_obj.get_text().strip().upper()
+            if txt in RU_NAMES_UPPER:
+                text_obj.set_text(RU_NAMES_UPPER[txt])
 
         p.stars(where=[_.magnitude < 5.3], where_labels=[_.magnitude < 2.3])
-        p.planets()
-        p.sun(label="СОЛНЦЕ")
-        p.moon(label="ЛУНА")
+        p.planets(); p.sun(label="СОЛНЦЕ"); p.moon(label="ЛУНА")
 
-        # Маркер
         p.marker(
             ra=target_pos[0], dec=target_pos[1],
             label="[ ЦЕЛЬ ]",
             style={
-                "marker": {"size": 100, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
-                "label": {"font_size": 28, "font_color": "#FF00FF", "offset_y": 65}
+                "marker": {"size": 60, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 3, "line_style": [1, [5, 5]]},
+                "label": {"font_size": 20, "font_weight": 800, "font_color": "#FF00FF", "offset_y": 45}
             }
         )
 
-        temp_file = f"v24_tmp_{random.randint(100, 999)}.png"
+        temp_file = "v27_tmp.png"
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
-        # === СБОРКА: КОРРЕКЦИЯ ЮВЕЛИРНАЯ ===
+        # === СБОРКА И ИДЕАЛЬНАЯ ЦЕНТРОВКА ===
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        sky_size = 1750
+        # 1. Уменьшаем диаметр (860px идеально ложится в кольца)
+        sky_size = 860
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # НОВЫЕ КООРДИНАТЫ: -350, 500 (смещение вправо и вверх по запросу)
-        bg_img.paste(sky_img, (-350, 500), sky_img)
+        # 2. Автоматическая центровка по горизонтали
+        x_offset = (bg_img.width - sky_size) // 2
+        # 3. Поднимаем точно под надпись "МАРТИ АСТРОНОМ"
+        y_offset = 350
+        
+        bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
         
         dpi = 80
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
 
+        # Возвращаем текстовые блоки в нижние рамки
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_{random.randint(100, 999)}.png"
+        path = f"sky_final_v27.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=dpi)
         
         plt.close('all')
@@ -127,4 +133,4 @@ def generate_star_map(lat, lon, user_name):
     except Exception as e:
         plt.close('all')
         gc.collect()
-        return False, f"Ошибка рендеринга: {str(e)}", "", ""
+        return False, str(e), "", ""
