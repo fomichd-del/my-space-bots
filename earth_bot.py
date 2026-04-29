@@ -1,7 +1,6 @@
 import requests
 import os
 import random
-import json
 from datetime import datetime
 from deep_translator import GoogleTranslator
 
@@ -54,6 +53,10 @@ def get_epic_data():
             f"Прием! Этот кадр передал аппарат <b>DSCOVR</b>. Мы видим планету целиком, как хрупкий оазис в пустоте.\n\n"
             f"📍 <b>Ракурс:</b> Точка Лагранжа L1 (1.5 млн км от нас).\n"
             f"📅 <b>Дата:</b> {last_date}\n\n"
+            f"🛰 <b>ИНСТРУМЕНТЫ ШТУРМАНА:</b>\n"
+            f"├ 📥 <a href='{original}'>Скачать оригинал (Hi-Res PNG)</a>\n"
+            f"├ 📹 <a href='https://www.n2yo.com/space-station/'>МКС: Прямой эфир + Карта</a>\n"
+            f"└ 🌐 <a href='https://eyes.nasa.gov/apps/earth/'>Глаза Земли (3D Карта)</a>\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
         return preview, original, caption, img_id
@@ -61,7 +64,6 @@ def get_epic_data():
 
 def get_extensive_library_data():
     """Источник 2: Эпические виды с орбиты и МКС (Максимум разнообразия)"""
-    # Расширенный список запросов для сочного контента
     queries = [
         "Earth night lights ISS", "Earth aurora space station", 
         "Hurricane from space", "Earth limb atmosphere",
@@ -83,7 +85,6 @@ def get_extensive_library_data():
                 asset_url = item['href']
                 assets = requests.get(asset_url).json()
                 
-                # Ищем лучшее превью и оригинал
                 original = next((a for a in assets if "~orig" in a), assets[0])
                 preview = next((a for a in assets if "~large" in a), original)
                 
@@ -91,14 +92,17 @@ def get_extensive_library_data():
                 desc_en = item['data'][0].get('description', '')
 
                 title_ru = translator.translate(title_en)
-                # Берем самое сочное из описания
                 desc_ru = translator.translate('. '.join(desc_en.split('.')[:2]) + '.')
                 
                 caption = (
                     f"🛰 <b>ОРБИТАЛЬНЫЙ РЕПОРТАЖ: {title_ru.upper()}</b>\n"
                     f"─────────────────────\n\n"
-                    f"📖 <b>О КМДРЕ:</b> {desc_ru}\n\n"
-                    f"✨ <i>С этой высоты Земля кажется живым существом. Каждое фото — это напоминание о том, как прекрасен наш дом.</i>\n\n"
+                    f"📖 <b>О КАДРЕ:</b> {desc_ru}\n\n"
+                    f"✨ <i>С этой высоты Земля кажется живым существом. Каждое фото — напоминание о том, как прекрасен наш дом.</i>\n\n"
+                    f"🛰 <b>ИНСТРУМЕНТЫ ШТУРМАНА:</b>\n"
+                    f"├ 📥 <a href='{original}'>Скачать оригинал (Hi-Res)</a>\n"
+                    f"├ 📹 <a href='https://www.n2yo.com/space-station/'>МКС: Прямой эфир + Карта</a>\n"
+                    f"└ 🌐 <a href='https://eyes.nasa.gov/apps/earth/'>Глаза Земли (3D Карта)</a>\n\n"
                     f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
                 )
                 return preview, original, caption, nasa_id
@@ -110,34 +114,35 @@ def get_extensive_library_data():
 # ============================================================
 
 def post_to_telegram():
-    # 70% шанса на Library (там больше разнообразия) и 30% на EPIC
     mode = random.choices(["EPIC", "LIBRARY"], weights=[30, 70])[0]
     print(f"📡 Режим: {mode}")
     
     provider = get_epic_data if mode == "EPIC" else get_extensive_library_data
     preview, original, cap, img_id = provider()
     
-    if not preview: # План Б
+    if not preview:
         preview, original, cap, img_id = get_extensive_library_data() if mode == "EPIC" else get_epic_data()
 
     if preview and img_id:
-        keyboard = {
-            "inline_keyboard": [
-                [{"text": "🖼 СКАЧАТЬ ОРИГИНАЛ (Hi-Res)", "url": original}],
-                [{"text": "🛰 МКС: ПРЯМОЙ ЭФИР", "url": "https://www.n2yo.com/space-station/"}],
-                [{"text": "🌍 ГЛАЗА ЗЕМЛИ (3D КАРТА)", "url": "https://eyes.nasa.gov/apps/earth/"}]
-            ]
-        }
-
+        # Кнопки убраны, ссылки перенесены в текст (cap)
         payload = {
-            'chat_id': CHANNEL_NAME, 'photo': preview, 
-            'caption': cap, 'parse_mode': 'HTML',
-            'reply_markup': json.dumps(keyboard)
+            'chat_id': CHANNEL_NAME, 
+            'photo': preview, 
+            'caption': cap, 
+            'parse_mode': 'HTML'
         }
         
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
-        save_sent_id(img_id)
-        print(f"✅ Готово: {img_id}")
+        try:
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
+            if r.status_code == 200:
+                save_sent_id(img_id)
+                print(f"✅ Успешно опубликовано: {img_id}")
+            else:
+                print(f"❌ Ошибка Telegram: {r.text}")
+        except Exception as e:
+            print(f"❌ Ошибка сети: {e}")
+    else:
+        print("📭 Новых кадров не найдено.")
 
 if __name__ == '__main__':
     post_to_telegram()
