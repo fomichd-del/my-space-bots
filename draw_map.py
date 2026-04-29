@@ -33,7 +33,7 @@ def generate_star_map(lat, lon, user_name, user_id):
             db = json.load(f)
 
         target_key = random.choice(list(TARGETS.keys()))
-        target_pos = TARGETS[target_key]
+        target_pos = ЦЕЛЬ![target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
