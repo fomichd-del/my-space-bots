@@ -6,34 +6,42 @@ import sys
 from base_fact_star import CONSTELLATIONS
 
 # ============================================================
-# ⚙️ НАСТРОЙКИ
+# ⚙️ НАСТРОЙКИ (ПОЛНЫЕ КООРДИНАТЫ)
 # ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space' 
 BOT_USERNAME   = 'MartyAstrobot' 
 
-# Ссылки на твои фото в GitHub
-GITHUB_PHOTO_BASE = "https://raw.githubusercontent.com/USER/REPO/main/photos/"
-PHOTO_COUNT = 5 
+# Твои данные GitHub
+GITHUB_USER = "fomichd-del" 
+REPO_NAME   = "my-space-bots"
+FOLDER_NAME = "photo"
+
+# Формируем ПРЯМУЮ ссылку для серверов Telegram
+GITHUB_PHOTO_BASE = f"https://raw.githubusercontent.com/{GITHUB_USER}/{REPO_NAME}/main/{FOLDER_NAME}/"
+
+# Укажи здесь количество фото, которые ты реально загрузил в папку
+PHOTO_COUNT = 4 
 
 def post_star_guide():
-    print("🛰 [СИСТЕМА] Подготовка раздельного пакета данных...")
+    print("🛰 [СИСТЕМА] Запуск раздельной трансляции...")
 
     if not TELEGRAM_TOKEN:
-        print("❌ [ОШИБКА] Токен не найден!")
+        print("❌ [ОШИБКА] TELEGRAM_TOKEN не найден в секретах GitHub!")
         return
 
+    # Выбираем случайную цель из базы
     item = random.choice(CONSTELLATIONS)
     bot_link = f"https://t.me/{BOT_USERNAME}?start=get_map"
     
-    # 1. Короткий заголовок для фото (до 1024 знаков)
+    # 1. ЗАГОЛОВОК ДЛЯ ФОТО (не более 1024 символов)
     photo_caption = (
         f"🚀 <b>ВНИМАНИЕ! КОСМИЧЕСКИЙ ПАТРУЛЬ!</b> 🚀\n"
         f"🌟✨🌟✨🌟✨🌟✨🌟✨🌟✨🌟\n\n"
         f"🛰 <i>Прием, юные штурманы! Обнаружена новая цель:</i> <b>{item['name_ru']} ({item['name_latin']})</b>"
     )
 
-    # 2. Основной массив данных (до 4096 знаков)
+    # 2. ОСНОВНОЙ ТЕКСТ (не более 4096 символов)
     main_text = (
         f"📖 <b>А ВЫ ЗНАЛИ?</b>\n"
         f"{item['fact']}\n\n"
@@ -47,11 +55,12 @@ def post_star_guide():
         f"🛸 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    # Выбираем фото
+    # Выбираем случайное фото
     photo_num = random.randint(1, PHOTO_COUNT)
     photo_url = f"{GITHUB_PHOTO_BASE}{photo_num}.jpg"
+    
+    print(f"📸 [ИНФО] Пытаюсь отправить фото: {photo_url}")
 
-    # --- ОТПРАВКА ---
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
     try:
@@ -65,9 +74,9 @@ def post_star_guide():
         r_photo = requests.post(f"{base_url}/sendPhoto", json=photo_payload, timeout=25)
         
         if r_photo.status_code == 200:
-            print(f"✅ [1/2] Фото цели {item['name_ru']} отправлено.")
+            print(f"✅ [1/2] Фото успешно передано в канал.")
             
-            # ШАГ 2: Отправляем подробный текст вторым сообщением
+            # ШАГ 2: Отправляем текст вторым сообщением
             text_payload = {
                 'chat_id': CHANNEL_NAME,
                 'text': main_text,
@@ -77,14 +86,16 @@ def post_star_guide():
             r_text = requests.post(f"{base_url}/sendMessage", json=text_payload, timeout=25)
             
             if r_text.status_code == 200:
-                print(f"✅ [2/2] Подробные данные переданы в эфир!")
+                print(f"✅ [2/2] Текст с фактами опубликован!")
             else:
                 print(f"❌ [ОШИБКА ТЕКСТА] {r_text.text}")
         else:
             print(f"❌ [ОШИБКА ФОТО] {r_photo.text}")
+            print("🔄 Пробую отправить только текст без фото...")
+            requests.post(f"{base_url}/sendMessage", json={'chat_id': CHANNEL_NAME, 'text': main_text, 'parse_mode': 'HTML'})
             
     except Exception as e:
-        print(f"💥 Критическая ошибка связи: {e}")
+        print(f"💥 Критический сбой: {e}")
 
 if __name__ == '__main__':
     post_star_guide()
