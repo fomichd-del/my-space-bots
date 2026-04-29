@@ -15,64 +15,78 @@ GITHUB_USER = "fomichd-del"
 REPO_NAME   = "my-space-bots"
 FOLDER_NAME = "photo"
 
-# Прямая ссылка для Telegram
+# Прямая ссылка для серверов Telegram
 GITHUB_PHOTO_BASE = f"https://raw.githubusercontent.com/{GITHUB_USER}/{REPO_NAME}/main/{FOLDER_NAME}/"
 
-# ❗ ВАЖНО: На твоем скрине всего 2 фото. Поставь столько, сколько реально лежит в папке!
+# ❗ ВАЖНО: На скрине было 2 фото. Если добавишь еще — поменяй цифру.
 PHOTO_COUNT = 2 
 
 def post_star_guide():
-    print("🛰 [СИСТЕМА] Старт трансляции v2.4...")
+    print("🛰 [СИСТЕМА] Запуск звёздной охоты v2.5...")
 
     if not TELEGRAM_TOKEN:
-        print("❌ [ОШИБКА] Токен не найден!")
+        print("❌ [ОШИБКА] Токен не найден в секретах!")
         return
 
+    # Выбираем случайное созвездие из базы
     item = random.choice(CONSTELLATIONS)
     bot_link = f"https://t.me/{BOT_USERNAME}?start=get_map"
     
-    # 1. ЗАГОЛОВОК ДЛЯ ФОТО (Лаконичный)
+    # 1. ЗАГОЛОВОК ДЛЯ ФОТО
     photo_caption = f"🚀 <b>КОСМИЧЕСКИЙ ПАТРУЛЬ: ОБЪЕКТ ОБНАРУЖЕН!</b> 🚀"
 
-    # 2. ОСНОВНОЙ ТЕКСТ (С названием в самом начале)
+    # 2. ОСНОВНОЙ ТЕКСТ (Вариант 2: Звёздная охота)
     main_text = (
         f"🔭 <b>СЕГОДНЯ ИЗУЧАЕМ: {item['name_ru'].upper()} ({item['name_latin'].upper()})</b>\n"
         f"🌟✨🌟✨🌟✨🌟✨🌟✨🌟✨🌟\n\n"
+        f"🐾 <b>МАРТИ ОБЪЯВЛЯЕТ ЗВЕЗДНУЮ ОХОТУ!</b>\n\n"
         f"📖 <b>А ВЫ ЗНАЛИ?</b>\n"
         f"{item['fact']}\n\n"
-        f"🎯 <b>МИССИЯ НА СЕГОДНЯ:</b>\n"
-        f"Активируйте радар, получите координаты и найдите цель на небе!\n\n"
-        f"⚠️ <i>Соблюдайте осторожность на балконах и у окон!</i>\n\n"
+        f"🔭 <b>ВАШ ПЛАН ДЕЙСТВИЙ:</b>\n"
+        f"Жмите на кнопку радара ниже, берите смартфоны и выходите на охоту! Как только поймаете нашу цель в кадр — сразу выкладывайте фото в комментарии. 📸\n\n"
+        f"Ждем ваши личные снимки неба! Давайте соберём свою карту созвездий прямо здесь в комментариях! 👇\n\n"
+        f"⚠️ <b>ВАЖНОЕ НАПОМИНАНИЕ:</b>\n"
+        f"Друзья, космос огромен, но балкон — нет. Держитесь крепче и не перегибайтесь через перила. Безопасность превыше всего! 🛡\n\n"
         f"🛰 <b><a href='{bot_link}'>[ 📡 АКТИВИРОВАТЬ ОРБИТАЛЬНЫЙ РАДАР ]</a></b>\n\n"
         f"🛸 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
     )
 
-    # Случайное фото (теперь точно из тех, что есть)
+    # Случайное фото
     photo_num = random.randint(1, PHOTO_COUNT)
     photo_url = f"{GITHUB_PHOTO_BASE}{photo_num}.jpg"
     
-    print(f"📸 [ИНФО] Пытаюсь отправить: {photo_url}")
+    print(f"📸 [ИНФО] Пытаюсь отправить цель: {item['name_ru']} (Фото: {photo_num}.jpg)")
 
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
     try:
         # Отправка фото
-        photo_payload = {'chat_id': CHANNEL_NAME, 'photo': photo_url, 'caption': photo_caption, 'parse_mode': 'HTML'}
+        photo_payload = {
+            'chat_id': CHANNEL_NAME, 
+            'photo': photo_url, 
+            'caption': photo_caption, 
+            'parse_mode': 'HTML'
+        }
         r_photo = requests.post(f"{base_url}/sendPhoto", json=photo_payload, timeout=25)
         
         if r_photo.status_code == 200:
-            print(f"✅ Фото прошло.")
-            # Отправка текста
-            text_payload = {'chat_id': CHANNEL_NAME, 'text': main_text, 'parse_mode': 'HTML', 'link_preview_options': {'is_disabled': True}}
+            print(f"✅ Фото отправлено успешно.")
+            # Отправка подробного текста
+            text_payload = {
+                'chat_id': CHANNEL_NAME, 
+                'text': main_text, 
+                'parse_mode': 'HTML', 
+                'link_preview_options': {'is_disabled': True}
+            }
             requests.post(f"{base_url}/sendMessage", json=text_payload, timeout=25)
-            print(f"✅ Текст с названием опубликован.")
+            print(f"✅ Текст квеста опубликован.")
         else:
             print(f"❌ Ошибка фото: {r_photo.text}")
-            # Если фото упало — шлем текст с названием в начале
+            # Резервная отправка только текста, если фото подвело
             requests.post(f"{base_url}/sendMessage", json={'chat_id': CHANNEL_NAME, 'text': main_text, 'parse_mode': 'HTML'})
             
     except Exception as e:
-        print(f"💥 Сбой системы: {e}")
+        print(f"💥 Критический сбой: {e}")
 
 if __name__ == '__main__':
     post_star_guide()
