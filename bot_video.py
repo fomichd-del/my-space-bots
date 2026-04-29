@@ -181,7 +181,7 @@ async def process_mission(v_url, title, desc_raw, is_russian=False, source_name=
     except Exception as e: print(f"⚠️ Сбой миссии: {e}"); return False
 
 async def main():
-    db = open(DB_FILE, 'r').read() if os.path.exists(DB_FILE) else ""
+    db = set(open(DB_FILE, 'r').read().splitlines()) if os.path.exists(DB_FILE) else set()
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     time_limit = datetime.now(timezone.utc) - timedelta(days=30)
     
