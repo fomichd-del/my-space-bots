@@ -64,16 +64,17 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # 1. УЛУЧШЕНИЕ КАЧЕСТВА: Поднимаем разрешение рендеринга до 2000
+        # Настройки стиля для 1000px
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
-            style.star.label.font_size = 14           # Сделали шрифт звезд крупнее
-            style.constellation.label.font_size = 20   # Созвездия стали заметнее
+            style.star.label.font_size = 11
+            style.constellation.label.font_size = 16
             style.constellation.label.font_weight = 700
-            style.constellation.line.stroke_width = 3.5 # Линии созвездий толще
+            style.constellation.line.stroke_width = 2.5
         except: pass
 
-        p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
+        # РЕЗОЛЮЦИЯ 1000 (Золотая середина)
+        p = ZenithPlot(observer=observer, style=style, resolution=1000, autoscale=True)
 
         p.horizon(); p.milky_way(); p.ecliptic(); p.constellations()
         try: p.constellation_borders()
@@ -84,42 +85,36 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.stars(where=[_.magnitude < 6.0], where_labels=[_.magnitude < 2.5]) 
         p.planets(); p.sun(); p.moon()
 
-        # МОЩНЫЙ МАРКЕР ЦЕЛИ
+        # МАРКЕР ЦЕЛИ
         p.marker(
             ra=target_pos[0], dec=target_pos[1],
             label="ЦЕЛЬ!",
             style={
-                "marker": {
-                    "size": 140, "symbol": "circle", "fill": "none", 
-                    "edge_color": "#FF00FF", "edge_width": 6, "line_style": [1, [5, 5]]
-                },
-                "label": {
-                    "font_size": 42, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 80
-                }
+                "marker": {"size": 100, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
+                "label": {"font_size": 32, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 60}
             }
         )
 
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
+        del p
 
-        # Сборка финального изображения (High Density)
+        # Сборка финала
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        # 2. УВЕЛИЧЕННЫЙ РАЗМЕР: Планета стала больше (1050px) и четче
-        sky_size = 1000 
+        sky_size = 920 # Оптимальный размер для центровки
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
         x_offset = (bg_img.width - sky_size) // 2
-        y_offset = 360 - ((sky_size - 880) // 2) # Автоматическая центровка
+        y_offset = 360 - ((sky_size - 880) // 2)
         bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
         
-        # 3. DPI: Поднимаем до 150 для четкости шрифтов на панели
-        dpi = 150 
+        dpi = 120 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
-        ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
+        ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # Расчет эфемерид
+        # Эфемериды для панели
         moon = ephem.Moon(); moon.compute(e_obs)
         sun = ephem.Sun(); sun.compute(e_obs)
         moon_phase = int(moon.phase)
@@ -129,25 +124,20 @@ def generate_star_map(lat, lon, user_name, user_id):
         except: rise_time, set_time = "--:--", "--:--"
 
         t_col = '#D4E6FF'
-        # Увеличили размер шрифта данных в рамках для лучшей читаемости (fontsize=26)
-        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=20, fontweight='bold')
-        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=15, fontweight='bold')
-        fig.text(0.35, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=15, fontweight='bold')
-        fig.text(0.35, 0.067, rise_time, color=t_col, fontsize=15, fontweight='bold')
-        fig.text(0.74, 0.067, set_time, color=t_col, fontsize=15, fontweight='bold')
-        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=20, fontweight='bold')
+        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=18, fontweight='bold')
+        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=14, fontweight='bold')
+        fig.text(0.35, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=14, fontweight='bold')
+        fig.text(0.35, 0.067, rise_time, color=t_col, fontsize=14, fontweight='bold')
+        fig.text(0.74, 0.067, set_time, color=t_col, fontsize=14, fontweight='bold')
+        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=18, fontweight='bold')
 
-        # Финальный экспорт
-        tmp_png = final_path.replace(".jpg", ".png")
-        plt.savefig(tmp_png, bbox_inches='tight', pad_inches=0, dpi=dpi)
-        plt.close('all')
+        # Сохранение сразу в JPG
+        plt.savefig(final_path, format="jpg", bbox_inches='tight', pad_inches=0, dpi=dpi, quality=85)
         
-        final_img = Image.open(tmp_png).convert("RGB")
-        final_img.save(final_path, "JPEG", quality=95, optimize=True)
-        
-        bg_img.close(); sky_img.close(); final_img.close()
+        plt.clf()
+        plt.close(fig)
+        bg_img.close(); sky_img.close()
         if os.path.exists(temp_file): os.remove(temp_file)
-        if os.path.exists(tmp_png): os.remove(tmp_png)
         gc.collect()
         
         return True, final_path, target_name_rus, ""
