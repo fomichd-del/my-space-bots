@@ -18,12 +18,12 @@ TARGETS = {
     "cancer": [130, 20], "leo": [152, 12], "virgo": [201, -11]
 }
 
-# Добавлен параметр user_id для уникальности файлов
+# Добавлен параметр user_id
 def generate_star_map(lat, lon, user_name, user_id):
     gc.collect() 
-    # Уникальные имена файлов для каждого пользователя
+    # Уникальные имена файлов для каждого штурмана
     temp_file = f"tmp_{user_id}.png"
-    final_path = f"sky_{user_id}.png"
+    final_path = f"sky_{user_id}.jpg" # Перешли на JPG для легкости
     
     try:
         dt = datetime.now(timezone.utc)
@@ -46,10 +46,7 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         p = ZenithPlot(observer=observer, style=style, resolution=1400, autoscale=True)
 
-        p.horizon()
-        p.milky_way()
-        p.ecliptic()
-        p.constellations()
+        p.horizon(); p.milky_way(); p.ecliptic(); p.constellations()
         try: p.constellation_borders()
         except: pass
         p.constellation_labels() 
@@ -70,7 +67,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
-        # Расчет эфемерид
         e_obs = ephem.Observer()
         e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), datetime.now()
         moon = ephem.Moon(); moon.compute(e_obs)
@@ -81,7 +77,6 @@ def generate_star_map(lat, lon, user_name, user_id):
             set_time = ephem.localtime(e_obs.next_setting(sun)).strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
-        # Сборка изображения
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         sky_size = 880
@@ -103,11 +98,18 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig.text(0.74, 0.067, set_time, color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        plt.savefig(final_path, bbox_inches='tight', pad_inches=0, dpi=dpi)
-        
+        # Сохраняем как JPG (уменьшаем вес в 5-7 раз)
+        # Сначала конвертируем всё в RGB, так как JPG не поддерживает прозрачность
+        plt.savefig(final_path.replace(".jpg", ".png"), bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close('all')
-        bg_img.close(); sky_img.close()
+        
+        final_img = Image.open(final_path.replace(".jpg", ".png")).convert("RGB")
+        final_img.save(final_path, "JPEG", quality=85, optimize=True)
+        
+        # Удаляем лишние хвосты
+        bg_img.close(); sky_img.close(); final_img.close()
         if os.path.exists(temp_file): os.remove(temp_file)
+        if os.path.exists(final_path.replace(".jpg", ".png")): os.remove(final_path.replace(".jpg", ".png"))
         gc.collect()
         
         return True, final_path, target_name_rus, ""
