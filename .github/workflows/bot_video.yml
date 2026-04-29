@@ -1,4 +1,4 @@
-name: Bot-video v180
+name: Bot-video v181
 
 on:
   schedule:
@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: 🟢 Установка Node.js
+      - name: 🟢 Установка Node.js (Критично для захвата!)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -35,7 +35,7 @@ jobs:
         run: |
           pip install requests openai-whisper deep_translator yt-dlp
 
-      - name: 🚀 Запуск v180.0 'Deep Memory'
+      - name: 🚀 Запуск v181.0 'Omega Prime'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -47,7 +47,7 @@ jobs:
         run: |
           git config --global user.name "Space-Bot"
           git config --global user.email "bot@vladislav_space"
-          git pull origin main # Забираем свежие изменения перед пушем
+          git pull origin main || echo "Нет изменений для pull"
           git add last_video_date.txt last_source.txt || true
-          git commit -m "📊 Реестр v180.0 [Anti-Repeat Update]" || echo "Нет данных"
+          git commit -m "📊 Реестр v181.0 [Final Stability]" || echo "Нет новых данных"
           git push origin main
