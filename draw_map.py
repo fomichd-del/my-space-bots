@@ -9,7 +9,6 @@ from PIL import Image
 import ephem
 import warnings
 
-# Глушим технические предупреждения
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 TARGETS = {
@@ -19,8 +18,13 @@ TARGETS = {
     "cancer": [130, 20], "leo": [152, 12], "virgo": [201, -11]
 }
 
-def generate_star_map(lat, lon, user_name):
+# Добавлен параметр user_id для уникальности файлов
+def generate_star_map(lat, lon, user_name, user_id):
     gc.collect() 
+    # Уникальные имена файлов для каждого пользователя
+    temp_file = f"tmp_{user_id}.png"
+    final_path = f"sky_{user_id}.png"
+    
     try:
         dt = datetime.now(timezone.utc)
         observer = Observer(dt=dt, lat=float(lat), lon=float(lon))
@@ -30,10 +34,8 @@ def generate_star_map(lat, lon, user_name):
 
         target_key = random.choice(list(TARGETS.keys()))
         target_pos = TARGETS[target_key]
-        # Русское название берем только для нижней панели (из твоего JSON)
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # Базовый стиль + настройка шрифтов для читаемости
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.star.label.font_size = 11
@@ -42,37 +44,20 @@ def generate_star_map(lat, lon, user_name):
             style.constellation.line.stroke_width = 2.5
         except: pass
 
-        # Создаем карту в высоком качестве
         p = ZenithPlot(observer=observer, style=style, resolution=1400, autoscale=True)
 
-        # === ВКЛЮЧАЕМ ВСЕ СЛОИ ДЛЯ МАКСИМАЛЬНОЙ ДЕТАЛИЗАЦИИ ===
         p.horizon()
         p.milky_way()
         p.ecliptic()
         p.constellations()
-        
-        # Границы созвездий (как на эталоне)
-        try:
-            p.constellation_borders()
+        try: p.constellation_borders()
         except: pass
-        
-        # Названия созвездий в оригинале
         p.constellation_labels() 
-        
-        # Объекты глубокого космоса (Туманности, галактики)
-        try:
-            p.dsos(where=[_.magnitude < 6.0], labels=True)
+        try: p.dsos(where=[_.magnitude < 6.0], labels=True)
         except: pass
-
-        # Больше звезд (порог 6.0 вместо 5.3)
         p.stars(where=[_.magnitude < 6.0], where_labels=[_.magnitude < 2.5]) 
-        
-        # Планеты, Солнце и Луна в оригинале
-        p.planets()
-        p.sun()
-        p.moon()
+        p.planets(); p.sun(); p.moon()
 
-        # Розовый целеуказатель
         p.marker(
             ra=target_pos[0], dec=target_pos[1],
             label="[ TARGET ]",
@@ -82,35 +67,26 @@ def generate_star_map(lat, lon, user_name):
             }
         )
 
-        temp_file = "v31_tmp.png"
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
-        # --- РАСЧЕТ ЭФЕМЕРИД ДЛЯ НИЖНЕЙ ПАНЕЛИ ---
+        # Расчет эфемерид
         e_obs = ephem.Observer()
         e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), datetime.now()
-        
-        moon = ephem.Moon()
-        moon.compute(e_obs)
+        moon = ephem.Moon(); moon.compute(e_obs)
+        sun = ephem.Sun(); sun.compute(e_obs)
         moon_phase = int(moon.phase)
-        
-        sun = ephem.Sun()
-        sun.compute(e_obs)
         try:
             rise_time = ephem.localtime(e_obs.next_rising(sun)).strftime('%H:%M')
             set_time = ephem.localtime(e_obs.next_setting(sun)).strftime('%H:%M')
-        except:
-            rise_time, set_time = "--:--", "--:--"
+        except: rise_time, set_time = "--:--", "--:--"
 
-        # === ФИНАЛЬНАЯ СБОРКА И ИДЕАЛЬНАЯ ЦЕНТРОВКА ===
+        # Сборка изображения
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
-        
-        # Идеальный размер
         sky_size = 880
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # Идеальная центровка по рамкам
         x_offset = (bg_img.width - sky_size) // 2
         y_offset = 360
         bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
@@ -120,8 +96,6 @@ def generate_star_map(lat, lon, user_name):
         ax_bg = fig.add_axes([0, 0, 1, 1]); ax_bg.imshow(bg_img); ax_bg.axis('off')
 
         t_col = '#D4E6FF'
-        
-        # Данные в нижние рамки
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=22, fontweight='bold')
@@ -129,17 +103,17 @@ def generate_star_map(lat, lon, user_name):
         fig.text(0.74, 0.067, set_time, color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_v31.png"
-        plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=dpi)
+        plt.savefig(final_path, bbox_inches='tight', pad_inches=0, dpi=dpi)
         
         plt.close('all')
         bg_img.close(); sky_img.close()
         if os.path.exists(temp_file): os.remove(temp_file)
         gc.collect()
         
-        return True, path, target_name_rus, ""
+        return True, final_path, target_name_rus, ""
 
     except Exception as e:
         plt.close('all')
+        if os.path.exists(temp_file): os.remove(temp_file)
         gc.collect()
         return False, str(e), "", ""
