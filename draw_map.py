@@ -30,24 +30,49 @@ def generate_star_map(lat, lon, user_name):
 
         target_key = random.choice(list(TARGETS.keys()))
         target_pos = TARGETS[target_key]
-        # Берем русское название только для вывода в рамку "ЦЕЛЬ"
+        # Русское название берем только для нижней панели (из твоего JSON)
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # Базовый стиль, который гарантированно работает
+        # Базовый стиль + настройка шрифтов для читаемости
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
+        try:
+            style.star.label.font_size = 11
+            style.constellation.label.font_size = 16
+            style.constellation.label.font_weight = 700
+            style.constellation.line.stroke_width = 2.5
+        except: pass
 
-        # Рисуем саму карту в высоком качестве
+        # Создаем карту в высоком качестве
         p = ZenithPlot(observer=observer, style=style, resolution=1400, autoscale=True)
 
-        # Выводим все слои в оригинале
+        # === ВКЛЮЧАЕМ ВСЕ СЛОИ ДЛЯ МАКСИМАЛЬНОЙ ДЕТАЛИЗАЦИИ ===
         p.horizon()
         p.milky_way()
         p.ecliptic()
-        p.constellations() # Названия созвездий на английском
-        p.stars(where=[_.magnitude < 5.3], where_labels=[_.magnitude < 2.3]) # Звезды на английском
-        p.planets() # Планеты на английском
+        p.constellations()
+        
+        # Границы созвездий (как на эталоне)
+        try:
+            p.constellation_borders()
+        except: pass
+        
+        # Названия созвездий в оригинале
+        p.constellation_labels() 
+        
+        # Объекты глубокого космоса (Туманности, галактики)
+        try:
+            p.dsos(where=[_.magnitude < 6.0], labels=True)
+        except: pass
 
-        # Целеуказатель
+        # Больше звезд (порог 6.0 вместо 5.3)
+        p.stars(where=[_.magnitude < 6.0], where_labels=[_.magnitude < 2.5]) 
+        
+        # Планеты, Солнце и Луна в оригинале
+        p.planets()
+        p.sun()
+        p.moon()
+
+        # Розовый целеуказатель
         p.marker(
             ra=target_pos[0], dec=target_pos[1],
             label="[ TARGET ]",
@@ -57,7 +82,7 @@ def generate_star_map(lat, lon, user_name):
             }
         )
 
-        temp_file = "v30_tmp.png"
+        temp_file = "v31_tmp.png"
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
@@ -81,11 +106,11 @@ def generate_star_map(lat, lon, user_name):
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         
-        # Оставляем идеальный размер из v29 (880px)
+        # Идеальный размер
         sky_size = 880
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # Оставляем идеальную центровку из v29
+        # Идеальная центровка по рамкам
         x_offset = (bg_img.width - sky_size) // 2
         y_offset = 360
         bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
@@ -99,12 +124,12 @@ def generate_star_map(lat, lon, user_name):
         # Данные в нижние рамки
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=22, fontweight='bold')
-        fig.text(0.38, 0.106, f"{moon_phase}%", color=t_col, fontsize=22, fontweight='bold')
+        fig.text(0.38, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.74, 0.067, set_time, color=t_col, fontsize=22, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=22, fontweight='bold')
 
-        path = f"sky_final_v30.png"
+        path = f"sky_final_v31.png"
         plt.savefig(path, bbox_inches='tight', pad_inches=0, dpi=dpi)
         
         plt.close('all')
