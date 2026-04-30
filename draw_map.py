@@ -11,7 +11,7 @@ import warnings
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# ТВОЙ ПОЛНЫЙ СПИСОК ЦЕЛЕЙ (88 созвездий)
+# ПОЛНЫЙ КАТАЛОГ: 88 СОЗВЕЗДИЙ (RA, DEC)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -49,9 +49,11 @@ def generate_star_map(lat, lon, user_name, user_id):
         with open('constellations.json', 'r', encoding='utf-8') as f:
             db = json.load(f)
 
+        # Настраиваем PyEphem для расчета видимости
         e_obs = ephem.Observer()
         e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), datetime.now()
         
+        # Фильтруем созвездия: берем только те, что выше 10 градусов над горизонтом
         visible_targets = []
         for key, pos in TARGETS.items():
             body = ephem.FixedBody()
@@ -59,36 +61,45 @@ def generate_star_map(lat, lon, user_name, user_id):
             body.compute(e_obs)
             if math.degrees(body.alt) > 10: visible_targets.append(key)
 
+        # Если ничего не видно (бывает и такое!), берем Большую Медведицу как дефолт
         target_key = random.choice(visible_targets) if visible_targets else "ursa_major"
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # Настройки для разрешения 1000
+        # Настраиваем яркий стиль
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
-            style.star.label.font_size = 11
-            style.constellation.label.font_size = 16
+            style.star.label.font_size = 12
+            style.constellation.label.font_size = 18
             style.constellation.label.font_weight = 700
-            style.constellation.line.stroke_width = 2.5
+            style.constellation.line.stroke_width = 3.0
+            style.constellation.line.color = "#5c9dff" # Небесно-голубой
         except: pass
 
-        p = ZenithPlot(observer=observer, style=style, resolution=1000, autoscale=True)
+        # Создаем карту (Зенитная проекция)
+        p = ZenithPlot(observer=observer, style=style, resolution=1400, autoscale=True)
 
-        p.horizon(); p.milky_way(); p.ecliptic(); p.constellations()
-        try: p.constellation_borders()
+        p.horizon()
+        p.milky_way() # Прорисовка из milky_way.parquet
+        p.constellations()
+        try: p.constellation_borders() # Границы созвездий
         except: pass
         p.constellation_labels() 
-        try: p.dsos(where=[_.magnitude < 6.0], labels=True)
+        
+        # Включаем глубокий космос (DSO) - Туманности и галактики
+        try: p.dsos(where=[_.magnitude < 6.5], labels=True)
         except: pass
-        p.stars(where=[_.magnitude < 6.0], where_labels=[_.magnitude < 2.5]) 
+
+        # Рисуем звезды: яркие с именами, тусклые - точками
+        p.stars(where=[_.magnitude < 6.0], where_labels=[_.magnitude < 3.8]) 
         p.planets(); p.sun(); p.moon()
 
+        # Ставим яркий розовый маркер на нашу цель
         p.marker(
-            ra=target_pos[0], dec=target_pos[1],
-            label="ЦЕЛЬ!",
+            ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
             style={
-                "marker": {"size": 100, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
-                "label": {"font_size": 32, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 60}
+                "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
+                "label": {"font_size": 34, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 65}
             }
         )
 
@@ -96,20 +107,23 @@ def generate_star_map(lat, lon, user_name, user_id):
         plt.close('all')
         del p
 
-        # Сборка финального изображения
+        # ФИНАЛЬНАЯ СБОРКА ИЗОБРАЖЕНИЯ
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
-        sky_size = 920 
+        
+        # Масштабируем карту под размер "иллюминатора" в шаблоне
+        sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
         x_offset = (bg_img.width - sky_size) // 2
         y_offset = 360 - ((sky_size - 880) // 2)
         bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
         
-        dpi = 120 
+        dpi = 130 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
+        # Рассчитываем фазу Луны и время Солнца
         moon = ephem.Moon(); moon.compute(e_obs)
         sun = ephem.Sun(); sun.compute(e_obs)
         moon_phase = int(moon.phase)
@@ -118,6 +132,7 @@ def generate_star_map(lat, lon, user_name, user_id):
             set_time = ephem.localtime(e_obs.next_setting(sun)).strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
+        # Наносим текст на карточку
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=18, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=14, fontweight='bold')
@@ -126,13 +141,13 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig.text(0.74, 0.067, set_time, color=t_col, fontsize=14, fontweight='bold')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=18, fontweight='bold')
 
-        # Исправленное сохранение в JPG через Pillow
+        # Сохраняем результат в высоком качестве
         tmp_png = f"fin_{user_id}.png"
         plt.savefig(tmp_png, bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close(fig)
         
         with Image.open(tmp_png) as img:
-            img.convert("RGB").save(final_path, "JPEG", quality=85, optimize=True)
+            img.convert("RGB").save(final_path, "JPEG", quality=95, optimize=True)
         
         bg_img.close(); sky_img.close()
         if os.path.exists(temp_file): os.remove(temp_file)
