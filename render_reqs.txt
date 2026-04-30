@@ -10,3 +10,5 @@ wikipedia-api
 starplot
 pandas
 pyephem
+timezonefinder
+pytz
