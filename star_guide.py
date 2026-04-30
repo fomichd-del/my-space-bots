@@ -33,7 +33,7 @@ def post_star_guide():
     bot_link = f"https://t.me/{BOT_USERNAME}?start=get_map"
     
     # 1. ЗАГОЛОВОК ДЛЯ ФОТО
-    photo_caption = f"🚀 <b>КОСМИЧЕСКИЙ ПАТРУЛЬ: ОБЪЕКТ ОБНАРУЖЕН!</b> 🚀"
+    photo_caption = f"🛰 <b><a href='{bot_link}'>[ 📡 КОСМИЧЕСКИЙ ПАТРУЛЬ: ОБЪЕКТ ОБНАРУЖЕН!]</a></b>\n\n"
 
     # 2. ОСНОВНОЙ ТЕКСТ (Вариант 2: Звёздная охота)
     main_text = (
