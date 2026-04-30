@@ -8,6 +8,9 @@ import os, json, random, gc, math
 from PIL import Image
 import ephem
 import warnings
+# Добавляем библиотеки для работы с часовыми поясами
+from timezonefinder import TimezoneFinder
+import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -85,7 +88,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         # 2. Небесный экватор (Синий пунктир)
         p.celestial_equator(color="#4c4cff", linestyle="dashed", linewidth=1.2, alpha=0.7)
         # 3. Дип-скай объекты (Те самые кружочки)
-        # Ставим labels=False, чтобы были только значки без текста
         try: p.dsos(where=[_.magnitude < 5.5], labels=False)
         except: pass
 
@@ -120,18 +122,36 @@ def generate_star_map(lat, lon, user_name, user_id):
         y_offset = 360 - ((sky_size - 880) // 2)
         bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
         
-        # Поднимаем DPI для четкости текста
         dpi = 180 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
+        # --- [ РАСЧЕТ МЕСТНОГО ВРЕМЕНИ ] ---
         moon = ephem.Moon(); moon.compute(e_obs)
         sun = ephem.Sun(); sun.compute(e_obs)
         moon_phase = int(moon.phase)
+        
         try:
-            rise_time = ephem.localtime(e_obs.next_rising(sun)).strftime('%H:%M')
-            set_time = ephem.localtime(e_obs.next_setting(sun)).strftime('%H:%M')
-        except: rise_time, set_time = "--:--", "--:--"
+            # Получаем время в UTC
+            rise_utc = e_obs.next_rising(sun).datetime()
+            set_utc = e_obs.next_setting(sun).datetime()
+            
+            # Определяем часовой пояс (in_memory=False для экономии RAM на Render)
+            tf = TimezoneFinder(in_memory=False)
+            timezone_str = tf.timezone_at(lng=float(lon), lat=float(lat))
+            
+            if timezone_str:
+                user_tz = pytz.timezone(timezone_str)
+                # Переводим из UTC в пояс пользователя
+                rise_local = pytz.utc.localize(rise_utc).astimezone(user_tz)
+                set_local = pytz.utc.localize(set_utc).astimezone(user_tz)
+                rise_time = rise_local.strftime('%H:%M')
+                set_time = set_local.strftime('%H:%M')
+            else:
+                rise_time = rise_utc.strftime('%H:%M')
+                set_time = set_utc.strftime('%H:%M')
+        except: 
+            rise_time, set_time = "--:--", "--:--"
 
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=16, fontweight='bold')
