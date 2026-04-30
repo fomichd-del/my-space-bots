@@ -6,18 +6,18 @@ from flask import Flask
 from threading import Thread
 import wikipediaapi
 
-# --- [КОСМИЧЕСКАЯ НАСТРОЙКА ПУТЕЙ] ---
-# Мы указываем Марти, что все тяжелые атласы лежат в папке 'data'
+# --- [КОСМИЧЕСКАЯ НАСТРОЙКА] ---
 DATA_DIR = os.path.join(os.getcwd(), "data")
 os.environ["STARPLOT_CACHE_DIR"] = DATA_DIR
-# Указываем путь к эфемеридам NASA для точного расчета планет
 os.environ["SOLAR_SYSTEM_EPHEMERIS"] = os.path.join(DATA_DIR, "de421.bsp")
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
 
+# Википедия для расшифровки созвездий
 wiki_wiki = wikipediaapi.Wikipedia(user_agent='MartySpaceBot/1.1', language='ru')
 
+# Flask для поддержания жизни на Render
 app = Flask(__name__)
 @app.route('/')
 def keep_alive(): return "Марти Астроном в эфире! 🛰️"
@@ -31,33 +31,45 @@ def send_welcome(message):
     
     welcome_text = (
         f"Привет, {message.from_user.first_name}! 🐾 Я — <b>Марти Астроном</b> 🎓\n\n"
-        "Моя главная задача — показать тебе точную копию звездного неба, которое находится прямо сейчас над твоей головой. "
-        "Я использую данные NASA и высокоточные атласы глубокого космоса.\n\n"
-        "Жми <b>«📡 Мое небо»</b>, делись локацией, и я соберу для тебя персональную звездную карту! 🚀"
+        "Я помогу тебе увидеть звезды, которые находятся прямо над тобой в эту секунду. "
+        "Мои карты строятся на основе данных NASA и точных астрономических атласов.\n\n"
+        "<b>Что ты получишь:</b>\n"
+        "✅ Точное положение планет, Солнца и Луны.\n"
+        "✅ Линии эклиптики и небесного экватора.\n"
+        "✅ Объекты глубокого космоса (DSO).\n\n"
+        "Жми <b>«📡 Мое небо»</b>, делись локацией, и начнем наше путешествие! 🚀"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode='HTML')
-
-# ... [Остальной код main.py остается без изменений, так как он идеален] ...
 
 @bot.message_handler(func=lambda message: message.text == "❓ Помощь и Инструкция")
 def send_help(message):
     help_text = (
-        "🧭 <b>КАК ЧИТАТЬ ЗВЕЗДНУЮ КАРТУ?</b>\n\n"
-        "🔹 <b>Почему Восток (E) слева, а Запад (W) справа?</b>\n"
-        "Это не ошибка! Обычную карту мы кладем на землю и смотрим <i>сверху вниз</i>. Звездную карту мы поднимаем над головой и смотрим <i>снизу вверх</i>. Встань лицом на Юг (S), подними телефон, и восток окажется точно по левую руку!\n\n"
-        "🔹 <b>Центр карты</b> — это Зенит (точка прямо над твоей макушкой).\n"
-        "🔹 <b>Края круга</b> — это линия горизонта вокруг тебя.\n\n"
-        "Попробуй прямо сейчас: жми «📡 Мое небо»!"
+        "📖 <b>ГИД ПО ЗВЕЗДНОЙ КАРТЕ</b>\n\n"
+        "1️⃣ <b>Ориентация:</b> На карте Восток (E) и Запад (W) поменяны местами. "
+        "Это не ошибка! Звездную карту нужно держать <i>над головой</i>, а не смотреть на нее сверху вниз.\n\n"
+        "2️⃣ <b>Линии на карте:</b>\n"
+        "🔴 <b>Красный пунктир (Эклиптика)</b> — это видимый путь Солнца среди звезд в течение года. Вдоль этой линии можно найти планеты.\n"
+        "🔵 <b>Синий пунктир (Небесный экватор)</b> — проекция земного экватора на небо. Он делит небо на северное и южное полушария.\n\n"
+        "3️⃣ <b>Символы:</b>\n"
+        "⚪️ <b>Маленькие кружочки</b> — это DSO (Deep Sky Objects). Сюда входят далекие галактики, туманности и звездные скопления.\n"
+        "💫 <b>Размер звезд</b> на карте зависит от их яркости.\n\n"
+        "Если карта кажется мелкой, используй кнопку <b>«Скачать оригинал»</b> под сообщением! 🔭"
     )
     bot.send_message(message.chat.id, help_text, parse_mode='HTML')
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
+    user_id = message.from_user.id
+    old_file = f"sky_{user_id}.jpg"
+    if os.path.exists(old_file):
+        try: os.remove(old_file)
+        except: pass
+
     try:
         loading_msg = bot.send_message(
             message.chat.id, 
-            "📡 <b>Координаты получены!</b> Навожу линзы телескопов...\n\n"
-            "<i>⏳ Благодаря новым атласам на борту, я строю карту быстрее и точнее!</i>", 
+            "📡 <b>Навожу телескопы...</b>\n\n"
+            "<i>Рассчитываю положение планет, наношу сетку эклиптики и ищу объекты глубокого космоса специально для тебя!</i>", 
             parse_mode='HTML'
         )
         
@@ -66,59 +78,88 @@ def handle_location(message):
                 generate_star_map, 
                 message.location.latitude, 
                 message.location.longitude, 
-                message.from_user.first_name,
-                message.from_user.id
+                message.from_user.first_name, 
+                user_id
             )
             try:
-                success, result, target_name, err_msg = future.result(timeout=90)
+                success, result, target_name, err_msg = future.result(timeout=110)
             except concurrent.futures.TimeoutError:
-                bot.delete_message(message.chat.id, loading_msg.message_id)
-                bot.send_message(message.chat.id, "⏳ <b>Космический таймаут!</b> Карта строится слишком долго. Попробуй еще раз.")
+                bot.send_message(message.chat.id, "⏳ Космический таймаут! Попробуй повторить запрос.")
                 return
 
         bot.delete_message(message.chat.id, loading_msg.message_id)
 
         if success:
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton(f"🌌 Рассекретить архивы: {target_name}", callback_data=f"wiki_{target_name}"))
+            markup.add(InlineKeyboardButton(f"🌌 Досье на {target_name}", callback_data=f"wiki_{target_name}"))
+            markup.add(InlineKeyboardButton("🖼️ Скачать оригинал (Full HD)", callback_data=f"orig_{user_id}"))
+            
+            caption = (
+                f"✨ <b>Твое персональное небо готово!</b>\n\n"
+                f"🎯 Твоя цель сегодня: созвездие <b>{target_name}</b> (отмечено розовым маркером).\n\n"
+                "💡 <i>Совет: Найди на карте красную линию эклиптики — именно там сейчас «прогуливаются» планеты нашей системы.</i>"
+            )
+            
             with open(result, 'rb') as photo:
                 bot.send_photo(
                     message.chat.id, photo, 
-                    caption=f"✨ Твоя персональная проекция неба!\n🎯 Миссия на сегодня: найти созвездие <b>{target_name}</b>", 
-                    reply_markup=markup, parse_mode='HTML', timeout=120
+                    caption=caption, 
+                    reply_markup=markup, parse_mode='HTML'
                 )
-            if os.path.exists(result): os.remove(result)
         else:
-            bot.send_message(message.chat.id, f"❌ Ошибка линз: {result}")
+            bot.send_message(message.chat.id, f"❌ Системный сбой: {result}")
             
     except Exception as e:
         bot.send_message(message.chat.id, f"🆘 Космические помехи: {str(e)}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('orig_'))
+def callback_original(call):
+    user_id = call.data.replace('orig_', '')
+    file_path = f"sky_{user_id}.jpg"
+    
+    if os.path.exists(file_path):
+        bot.answer_callback_query(call.id, "Подключаюсь к архиву высокого качества...")
+        with open(file_path, 'rb') as doc:
+            bot.send_document(
+                call.message.chat.id, 
+                doc, 
+                caption="📂 <b>Оригинал твоей карты.</b>\nБез сжатия Telegram, специально для детального изучения на большом экране! 💻",
+                parse_mode='HTML'
+            )
+    else:
+        bot.answer_callback_query(call.id, "⚠️ Карта устарела. Запроси локацию заново!", show_alert=True)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '')
     bot.answer_callback_query(call.id, "Загружаю данные из Галактической Библиотеки...")
-    search_term = subject.capitalize()
-    page = wiki_wiki.page(f"{search_term} (созвездие)")
-    if not page.exists(): page = wiki_wiki.page(search_term)
+    
+    # Пытаемся найти страницу именно как созвездие
+    page = wiki_wiki.page(f"{subject.capitalize()} (созвездие)")
+    if not page.exists(): page = wiki_wiki.page(subject.capitalize())
     
     if page.exists():
-        summary = page.summary
-        short_desc = summary[:400] + "..." if len(summary) > 400 else summary
-        wiki_text = (f"🌌 <b>ДОСЬЕ: {search_term.upper()}</b>\n\n📖 <b>Краткая сводка:</b>\n{short_desc}\n\n")
-        wiki_text += f"🔗 <a href='{page.fullurl}'>[ Открыть полный архив ]</a>"
-        bot.send_message(call.message.chat.id, wiki_text, parse_mode='HTML')
+        summary = page.summary[:500] + "..."
+        text = (
+            f"🌌 <b>ОБЪЕКТ: {subject.upper()}</b>\n\n"
+            f"{summary}\n\n"
+            f"🔗 <a href='{page.fullurl}'>Читать полную историю</a>"
+        )
+        bot.send_message(call.message.chat.id, text, parse_mode='HTML', disable_web_page_preview=False)
     else:
-        bot.send_message(call.message.chat.id, f"⚠️ Данные о «{search_term}» засекречены.")
+        bot.send_message(call.message.chat.id, f"⚠️ Информации о созвездии «{subject}» в архивах нет.")
 
 if __name__ == "__main__":
+    # Запуск Flask в отдельном потоке
     Thread(target=run_server).start()
+    
+    # Запуск Telegram бота
     bot.remove_webhook()
-    time.sleep(2)
+    time.sleep(1)
     while True:
         try:
-            print("📡 [СИСТЕМА] Слушаю эфир...")
-            bot.polling(non_stop=True, interval=2, timeout=60)
+            print("📡 [СИСТЕМА] Марти слушает эфир...")
+            bot.polling(non_stop=True, interval=2, timeout=90)
         except Exception as e:
-            print(f"💥 [ОШИБКА] Рестарт: {e}")
+            print(f"🔄 [РЕСТАРТ] Ошибка: {e}")
             time.sleep(5)
