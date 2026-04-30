@@ -9,3 +9,4 @@ numpy
 wikipedia-api
 starplot
 pandas
+pyephem
