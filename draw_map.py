@@ -13,6 +13,7 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# База координат целей (в градусах)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -56,14 +57,17 @@ def generate_star_map(lat, lon, user_name, user_id):
         visible_targets = []
         for key, pos in TARGETS.items():
             body = ephem.FixedBody()
-            body._ra = math.radians(pos[0]); body._dec = math.radians(pos[1])
+            body._ra = math.radians(pos[0])
+            body._dec = math.radians(pos[1])
             body.compute(e_obs)
-            if math.degrees(body.alt) > 10: visible_targets.append(key)
+            if math.degrees(body.alt) > 10: 
+                visible_targets.append(key)
 
         target_key = random.choice(visible_targets) if visible_targets else "ursa_major"
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
+        # Настройка стиля
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.stars.label.font_size = 11
@@ -72,13 +76,14 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellations.line.color = "#5c9dff"
         except: pass
 
-        p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
+        # ВАЖНО: Убрали autoscale=True, чтобы карта не искажалась из-за объектов за горизонтом
+        p = ZenithPlot(observer=observer, style=style, resolution=2000)
 
         p.horizon()
         p.milky_way() 
         p.constellations()
         
-        # --- [ ЛИНИИ ДИНАМИКИ ] ---
+        # Линии динамики
         p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.0, "alpha": 0.85}})
         p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.0, "alpha": 0.85}})
         
@@ -87,16 +92,17 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: ПРАВИЛЬНЫЕ ГРАДУСЫ (БЕЗ ДЕЛЕНИЯ НА 15!) ] ---
+        # --- [ СВЕТИЛА: ПЕРЕВОД В ЧАСЫ (ДЕЛЕНИЕ НА 15) ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ (Теперь 100% в Овне и 100% на красной линии)
+        # СОЛНЦЕ (RA / 15)
         p.marker(
-            ra=math.degrees(sun_j2000.ra), dec=math.degrees(sun_j2000.dec), 
+            ra=math.degrees(sun_j2000.ra) / 15.0, 
+            dec=math.degrees(sun_j2000.dec), 
             label="СОЛНЦЕ",
             style={
                 "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
@@ -104,9 +110,10 @@ def generate_star_map(lat, lon, user_name, user_id):
             }
         )
         
-        # ЛУНА (С текстом)
+        # ЛУНА (RA / 15)
         p.marker(
-            ra=math.degrees(moon_j2000.ra), dec=math.degrees(moon_j2000.dec), 
+            ra=math.degrees(moon_j2000.ra) / 15.0, 
+            dec=math.degrees(moon_j2000.dec), 
             label="ЛУНА",
             style={
                 "marker": {"size": 36, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
@@ -114,9 +121,11 @@ def generate_star_map(lat, lon, user_name, user_id):
             }
         )
 
-        # ЦЕЛЬ (Вернули текст на место)
+        # ЦЕЛЬ (RA / 15)
         p.marker(
-            ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
+            ra=target_pos[0] / 15.0, 
+            dec=target_pos[1], 
+            label="ЦЕЛЬ!",
             style={
                 "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
                 "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}
@@ -126,6 +135,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
+        # Обработка изображений (PIL)
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         sky_size = 940 
@@ -136,6 +146,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
+        # Расчет времени восхода/заката
         try:
             rise_utc = e_obs.next_rising(sun_e).datetime()
             set_utc = e_obs.next_setting(sun_e).datetime()
@@ -149,21 +160,13 @@ def generate_star_map(lat, lon, user_name, user_id):
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
-        # --- [ БАР: ЮВЕЛИРНАЯ НАСТРОЙКА КООРДИНАТ ] ---
+        # Отрисовка текста на плашке
         t_col = '#D4E6FF'
-        
-        # Имя пилота: сместили вверх (0.170 -> 0.175)
         fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
-        
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.35, 0.106, f"Фаза: {int(moon_e.phase)}%", color=t_col, fontsize=8, fontweight='normal')
-        
-        # Восход: сместили влево (0.40 -> 0.385) и вверх (0.067 -> 0.072)
         fig.text(0.385, 0.072, rise_time, color=t_col, fontsize=8, fontweight='normal')
-        
-        # Закат: сместили вправо (0.68 -> 0.705) и вверх (0.067 -> 0.072)
         fig.text(0.705, 0.072, set_time, color=t_col, fontsize=8, fontweight='normal')
-        
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='normal')
 
         tmp_png = f"fin_{user_id}.png"
