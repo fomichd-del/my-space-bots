@@ -64,6 +64,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
+        # --- [ ВОЗВРАЩАЕМ ТВОЙ ЛЮБИМЫЙ СТИЛЬ ] ---
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.stars.label.font_size = 11
@@ -72,8 +73,7 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellations.line.color = "#5c9dff"
         except: pass
 
-        # --- [ ФИКС: УБРАЛИ AUTOSCALE, ЧТОБЫ КАРТА НЕ СЖИМАЛАСЬ ] ---
-        p = ZenithPlot(observer=observer, style=style, resolution=2000)
+        p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
 
         p.horizon()
         p.milky_way() 
@@ -87,17 +87,17 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: РАСЧЕТ И ПРОВЕРКА ВИДИМОСТИ ] ---
+        # --- [ СВЕТИЛА: ФИКС КООРДИНАТ (ДЕЛЕНИЕ НА 15) ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ (Рисуем только если выше горизонта)
+        # Рисуем СОЛНЦЕ только если оно ВЫШЕ горизонта (alt > 0)
         if math.degrees(sun_e.alt) > 0:
             p.marker(
-                ra=math.degrees(sun_j2000.ra) / 15.0, # Перевод в часы
+                ra=math.degrees(sun_j2000.ra) / 15.0, 
                 dec=math.degrees(sun_j2000.dec), 
                 label="СОЛНЦЕ",
                 style={
@@ -106,10 +106,10 @@ def generate_star_map(lat, lon, user_name, user_id):
                 }
             )
         
-        # ЛУНА (Рисуем только если выше горизонта)
+        # Рисуем ЛУНУ только если она ВЫШЕ горизонта
         if math.degrees(moon_e.alt) > 0:
             p.marker(
-                ra=math.degrees(moon_j2000.ra) / 15.0, # Перевод в часы
+                ra=math.degrees(moon_j2000.ra) / 15.0, 
                 dec=math.degrees(moon_j2000.dec), 
                 label="ЛУНА",
                 style={
@@ -118,9 +118,9 @@ def generate_star_map(lat, lon, user_name, user_id):
                 }
             )
 
-        # ЦЕЛЬ (RA тоже в часы)
+        # ЦЕЛЬ (RA тоже делим на 15)
         p.marker(
-            ra=target_pos[0] / 15.0, # Перевод в часы
+            ra=target_pos[0] / 15.0, 
             dec=target_pos[1], 
             label="ЦЕЛЬ!",
             style={
