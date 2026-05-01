@@ -13,7 +13,6 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# База координат целей (в градусах)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -57,89 +56,82 @@ def generate_star_map(lat, lon, user_name, user_id):
         visible_targets = []
         for key, pos in TARGETS.items():
             body = ephem.FixedBody()
-            body._ra = math.radians(pos[0])
-            body._dec = math.radians(pos[1])
+            body._ra = math.radians(pos[0]); body._dec = math.radians(pos[1])
             body.compute(e_obs)
-            if math.degrees(body.alt) > 10: 
-                visible_targets.append(key)
+            if math.degrees(body.alt) > 10: visible_targets.append(key)
 
         target_key = random.choice(visible_targets) if visible_targets else "ursa_major"
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # --- [ ЮВЕЛИРНАЯ НАСТРОЙКА СТИЛЯ ] ---
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
-            style.stars.label.font_size = 9 # Уменьшили для четкости
-            style.constellations.label.font_size = 14
-            style.constellations.label.font_alpha = 0.6 # Делаем названия созвездий мягче
-            style.constellations.line.width = 1.8 # Тоньше линии (было 2.5)
+            style.stars.label.font_size = 11
+            style.constellations.label.font_size = 16
+            style.constellations.line.width = 2.5
             style.constellations.line.color = "#5c9dff"
         except: pass
 
+        # --- [ ФИКС: УБРАЛИ AUTOSCALE, ЧТОБЫ КАРТА НЕ СЖИМАЛАСЬ ] ---
         p = ZenithPlot(observer=observer, style=style, resolution=2000)
 
         p.horizon()
         p.milky_way() 
         p.constellations()
         
-        # Линии динамики (сделали тоньше и прозрачнее)
-        p.ecliptic(style={"line": {"color": "#FF4444", "width": 1.2, "alpha": 0.6}})
-        p.celestial_equator(style={"line": {"color": "#4477FF", "width": 1.2, "alpha": 0.6}})
+        p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.0, "alpha": 0.85}})
+        p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.0, "alpha": 0.85}})
         
         p.constellation_labels() 
-        
-        # ПРОПОЛКА: Рисуем много звезд, но подписываем только самые яркие (порог 2.1)
-        p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 2.1]) 
+        p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: ПРОВЕРКА ВИДИМОСТИ ] ---
+        # --- [ СВЕТИЛА: РАСЧЕТ И ПРОВЕРКА ВИДИМОСТИ ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # Рисуем СОЛНЦЕ только если оно над горизонтом
-        if math.degrees(sun_e.alt) > -1:
+        # СОЛНЦЕ (Рисуем только если выше горизонта)
+        if math.degrees(sun_e.alt) > 0:
             p.marker(
-                ra=math.degrees(sun_j2000.ra) / 15.0, 
+                ra=math.degrees(sun_j2000.ra) / 15.0, # Перевод в часы
                 dec=math.degrees(sun_j2000.dec), 
                 label="СОЛНЦЕ",
                 style={
-                    "marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                    "label": {"font_size": 16, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 25}
+                    "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
+                    "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 30}
                 }
             )
         
-        # Рисуем ЛУНУ только если она над горизонтом
-        if math.degrees(moon_e.alt) > -1:
+        # ЛУНА (Рисуем только если выше горизонта)
+        if math.degrees(moon_e.alt) > 0:
             p.marker(
-                ra=math.degrees(moon_j2000.ra) / 15.0, 
+                ra=math.degrees(moon_j2000.ra) / 15.0, # Перевод в часы
                 dec=math.degrees(moon_j2000.dec), 
                 label="ЛУНА",
                 style={
-                    "marker": {"size": 34, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
-                    "label": {"font_size": 14, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 20}
+                    "marker": {"size": 36, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
+                    "label": {"font_size": 16, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 25}
                 }
             )
 
-        # ЦЕЛЬ (RA / 15)
+        # ЦЕЛЬ (RA тоже в часы)
         p.marker(
-            ra=target_pos[0] / 15.0, 
+            ra=target_pos[0] / 15.0, # Перевод в часы
             dec=target_pos[1], 
             label="ЦЕЛЬ!",
             style={
-                "marker": {"size": 100, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 3},
-                "label": {"font_size": 22, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 60}
+                "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
+                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}
             }
         )
 
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
-        # --- [ ОБРАБОТКА PIL ] ---
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         sky_size = 940 
@@ -150,7 +142,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # Расчет времени восхода/заката
         try:
             rise_utc = e_obs.next_rising(sun_e).datetime()
             set_utc = e_obs.next_setting(sun_e).datetime()
@@ -164,7 +155,6 @@ def generate_star_map(lat, lon, user_name, user_id):
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
-        # Отрисовка текста на плашке
         t_col = '#D4E6FF'
         fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
