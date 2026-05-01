@@ -13,6 +13,7 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# База координат целей (в градусах)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -64,7 +65,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # --- [ ТВОИ ИСХОДНЫЕ НАСТРОЙКИ СТИЛЯ ] ---
+        # --- [ ТВОИ ОРИГИНАЛЬНЫЕ НАСТРОЙКИ СТИЛЯ ] ---
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.stars.label.font_size = 11
@@ -87,45 +88,45 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: ТОЧНЫЙ РАСЧЕТ И ОТОБРАЖЕНИЕ ] ---
+        # --- [ СВЕТИЛА: РАСЧЕТ И ОТОБРАЖЕНИЕ ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ (Рисуем только если выше горизонта)
+        # СОЛНЦЕ (Если видно)
         if math.degrees(sun_e.alt) > 0:
             p.marker(
                 ra=math.degrees(sun_j2000.ra) / 15.0, 
                 dec=math.degrees(sun_j2000.dec), 
                 label="СОЛНЦЕ",
                 style={
-                    "marker": {"size": 50, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                    "label": {"font_size": 20, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 30}
+                    "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
+                    "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 30}
                 }
             )
         
-        # ЛУНА (Теперь крупно и с жирной подписью)
-        if math.degrees(moon_e.alt) > 0:
+        # ЛУНА (Теперь ЖЕЛТАЯ и с ЖИРНЫМ текстом)
+        if math.degrees(moon_e.alt) > -1: # Немного расширили порог горизонта
             p.marker(
                 ra=math.degrees(moon_j2000.ra) / 15.0, 
                 dec=math.degrees(moon_j2000.dec), 
                 label="ЛУНА",
                 style={
-                    "marker": {"size": 48, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#FFFFFF", "edge_width": 2},
-                    "label": {"font_size": 18, "font_weight": 900, "font_color": "#F0F0F0", "offset_y": 28}
+                    "marker": {"size": 52, "symbol": "circle", "color": "#FFFACD", "edge_color": "#FFFFFF", "edge_width": 2},
+                    "label": {"font_size": 20, "font_weight": 900, "font_color": "#FFFACD", "offset_y": 35}
                 }
             )
 
-        # ЦЕЛЬ (Рисуем поверх всего, чтобы не пропала)
+        # ЦЕЛЬ (В самый конец, чтобы была поверх всего)
         p.marker(
             ra=target_pos[0] / 15.0, 
             dec=target_pos[1], 
             label="ЦЕЛЬ!",
             style={
-                "marker": {"size": 120, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 5},
-                "label": {"font_size": 28, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 70}
+                "marker": {"size": 120, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 6},
+                "label": {"font_size": 28, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 75}
             }
         )
 
