@@ -13,7 +13,6 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# КАТАЛОГ СОЗВЕЗДИЙ (RA, DEC)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -45,14 +44,14 @@ def generate_star_map(lat, lon, user_name, user_id):
     final_path = f"sky_{user_id}.jpg"
     
     try:
-        dt = datetime.now(timezone.utc)
-        observer = Observer(dt=dt, lat=float(lat), lon=float(lon))
+        dt_now = datetime.now(timezone.utc)
+        observer = Observer(dt=dt_now, lat=float(lat), lon=float(lon))
         
         with open('constellations.json', 'r', encoding='utf-8') as f:
             db = json.load(f)
 
         e_obs = ephem.Observer()
-        e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), datetime.now()
+        e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), dt_now
         
         visible_targets = []
         for key, pos in TARGETS.items():
@@ -74,16 +73,15 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellation.line.color = "#5c9dff"
         except: pass
 
-        # Высокое разрешение для качественного оригинала
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
 
         p.horizon()
         p.milky_way() 
         p.constellations()
         
-        # --- [ ЛИНИИ: МАКСИМАЛЬНАЯ ЯРКОСТЬ ] ---
-        p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.2, "alpha": 1.0}})
-        p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.2, "alpha": 1.0}})
+        # --- [ ЛИНИИ: МАКСИМАЛЬНАЯ ВЫРАЗИТЕЛЬНОСТЬ ] ---
+        p.ecliptic(style={"line": {"color": "#FF2222", "width": 2.2, "alpha": 1.0}})
+        p.celestial_equator(style={"line": {"color": "#2266FF", "width": 2.2, "alpha": 1.0}})
         
         try: p.dsos(where=[_.magnitude < 5.5], labels=False)
         except: pass
@@ -91,29 +89,30 @@ def generate_star_map(lat, lon, user_name, user_id):
         try: p.constellation_borders() 
         except: pass
         p.constellation_labels() 
-        
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
         p.planets()
         
-        # --- [ СОЛНЦЕ И ЛУНА С ПОДПИСЯМИ ] ---
+        # --- [ СИНХРОНИЗАЦИЯ СОЛНЦА И ЛУНЫ (ЭПОХА ДАТЫ -> J2000) ] ---
         sun_obj = ephem.Sun(); sun_obj.compute(e_obs)
+        sun_j2000 = ephem.Equatorial(sun_obj, epoch='2000') # Конвертация для попадания в линии
         p.marker(
-            ra=math.degrees(sun_obj.ra)/15, dec=math.degrees(sun_obj.dec), 
+            ra=math.degrees(sun_j2000.ra)/15, dec=math.degrees(sun_j2000.dec), 
             label="СОЛНЦЕ",
             style={
-                "marker": {"size": 40, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                "label": {"font_size": 22, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 30}
+                "marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
+                "label": {"font_size": 22, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 32}
             }
         )
 
         moon_obj = ephem.Moon(); moon_obj.compute(e_obs)
+        moon_j2000 = ephem.Equatorial(moon_obj, epoch='2000')
         p.marker(
-            ra=math.degrees(moon_obj.ra)/15, dec=math.degrees(moon_obj.dec), 
+            ra=math.degrees(moon_j2000.ra)/15, dec=math.degrees(moon_j2000.dec), 
             label="ЛУНА",
             style={
-                "marker": {"size": 30, "symbol": "circle", "color": "#E0E0E0", "edge_color": "#999999", "edge_width": 1},
-                "label": {"font_size": 20, "font_weight": 700, "font_color": "#E0E0E0", "offset_y": 25}
+                "marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
+                "label": {"font_size": 20, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 28}
             }
         )
 
@@ -134,17 +133,12 @@ def generate_star_map(lat, lon, user_name, user_id):
         sky_img = Image.open(temp_file).convert("RGBA")
         sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
+        bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
         
-        x_offset = (bg_img.width - sky_size) // 2
-        y_offset = 360 - ((sky_size - 880) // 2)
-        bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
-        
-        # Финальный DPI для четкости
         dpi = 300 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        moon_phase = int(moon_obj.phase)
         try:
             rise_utc = e_obs.next_rising(sun_obj).datetime()
             set_utc = e_obs.next_setting(sun_obj).datetime()
@@ -159,20 +153,15 @@ def generate_star_map(lat, lon, user_name, user_id):
         except: 
             rise_time, set_time = "--:--", "--:--"
 
-        # --- [ НАСТРОЙКА НИЖНЕГО БАРА ] ---
+        # --- [ ФИНАЛЬНАЯ НАСТРОЙКА ТЕКСТА (РАЗМЕР 8, NORMAL) ] ---
         t_col = '#D4E6FF'
-        # Имя (размер 10)
-        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=10, fontweight='bold')
-        # Координаты (размер 9)
-        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=9, fontweight='bold')
-        # Фаза (размер 9)
-        fig.text(0.35, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=9, fontweight='bold')
+        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
+        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
+        fig.text(0.35, 0.106, f"Фаза: {int(moon_obj.phase)}%", color=t_col, fontsize=8, fontweight='normal')
         
-        # Время (размер 9, ювелирный сдвиг)
-        fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=9, fontweight='bold')
-        fig.text(0.68, 0.067, set_time, color=t_col, fontsize=9, fontweight='bold')
+        fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=8, fontweight='normal')
+        fig.text(0.68, 0.067, set_time, color=t_col, fontsize=8, fontweight='normal')
         
-        # Цель (крупно)
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=16, fontweight='bold')
 
         tmp_png = f"fin_{user_id}.png"
@@ -183,14 +172,13 @@ def generate_star_map(lat, lon, user_name, user_id):
             img.convert("RGB").save(final_path, "JPEG", quality=98, optimize=True)
         
         bg_img.close(); sky_img.close()
-        if os.path.exists(temp_file): os.remove(temp_file)
-        if os.path.exists(tmp_png): os.remove(tmp_png)
+        for f in [temp_file, tmp_png]:
+            if os.path.exists(f): os.remove(f)
         gc.collect()
         
         return True, final_path, target_name_rus, ""
 
     except Exception as e:
         plt.close('all')
-        if 'temp_file' in locals() and os.path.exists(temp_file): os.remove(temp_file)
         gc.collect()
         return False, str(e), "", ""
