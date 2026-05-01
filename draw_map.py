@@ -13,7 +13,6 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# База координат целей (в градусах)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -53,7 +52,7 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         e_obs = ephem.Observer()
         e_obs.lat, e_obs.lon = str(lat), str(lon)
-        e_obs.date = dt_now # ФИКС: Передаем объект даты напрямую
+        e_obs.date = dt_now # Важно: передаем объект даты напрямую
         
         visible_targets = []
         for key, pos in TARGETS.items():
@@ -66,7 +65,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # --- [ СТИЛЬ ИЗ ТВОЕГО ЛУЧШЕГО КОДА ] ---
+        # --- [ ТВОЙ ОРИГИНАЛЬНЫЙ СТИЛЬ: ВОЗВРАЩАЕМ КАК БЫЛО ] ---
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.stars.label.font_size = 11
@@ -75,8 +74,7 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellations.line.color = "#5c9dff"
         except: pass
 
-        # ФИКС: Убрали autoscale=True, чтобы не обрезало края горизонта
-        p = ZenithPlot(observer=observer, style=style, resolution=2000)
+        p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
 
         p.horizon()
         p.milky_way() 
@@ -97,10 +95,10 @@ def generate_star_map(lat, lon, user_name, user_id):
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ
+        # СОЛНЦЕ (Рисуем только если оно в небе)
         if math.degrees(sun_e.alt) > 0:
             p.marker(
-                ra=math.degrees(sun_j2000.ra) / 15.0, 
+                ra=math.degrees(sun_j2000.ra) / 15.0, # ГРАДУСЫ В ЧАСЫ
                 dec=math.degrees(sun_j2000.dec), 
                 label="СОЛНЦЕ",
                 style={
@@ -109,25 +107,25 @@ def generate_star_map(lat, lon, user_name, user_id):
                 }
             )
         
-        # ЛУНА (Сделали крупнее и ярче)
-        if math.degrees(moon_e.alt) > -2: # Немного запаса для горизонта
+        # ЛУНА (Теперь с подписью и правильным местом)
+        if math.degrees(moon_e.alt) > 0:
             p.marker(
-                ra=math.degrees(moon_j2000.ra) / 15.0, 
+                ra=math.degrees(moon_j2000.ra) / 15.0, # ГРАДУСЫ В ЧАСЫ
                 dec=math.degrees(moon_j2000.dec), 
                 label="ЛУНА",
                 style={
-                    "marker": {"size": 52, "symbol": "circle", "color": "#FFFFA0", "edge_color": "#FFFFFF", "edge_width": 2},
-                    "label": {"font_size": 20, "font_weight": 900, "font_color": "#FFFFA0", "offset_y": 35}
+                    "marker": {"size": 36, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
+                    "label": {"font_size": 16, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 25}
                 }
             )
 
-        # ЦЕЛЬ (Обязательно рисуем поверх всего)
+        # ЦЕЛЬ (Розовый круг с жирной подписью)
         p.marker(
-            ra=target_pos[0] / 15.0, 
+            ra=target_pos[0] / 15.0, # ГРАДУСЫ В ЧАСЫ
             dec=target_pos[1], 
             label="ЦЕЛЬ!",
             style={
-                "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 5},
+                "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
                 "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}
             }
         )
