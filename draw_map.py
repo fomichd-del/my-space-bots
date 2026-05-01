@@ -78,7 +78,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.milky_way() 
         p.constellations()
         
-        # Линии J2000 отключены ради точности и чистоты карты на 2026 год
         p.constellation_labels() 
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
@@ -87,17 +86,17 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.sun(style={"marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2}})
         p.moon(style={"marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1}})
 
-        # Подписи к Солнцу и Луне через расчеты ephem
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
+        # ИСПРАВЛЕНИЕ: Вместо "bold" используем числовое значение 700
         p.text("СОЛНЦЕ", ra=math.degrees(sun_e.ra)/15, dec=math.degrees(sun_e.dec), 
-               style={"font_size": 20, "font_color": "#FFCC00", "font_weight": "bold", "offset_y": 35})
+               style={"font_size": 20, "font_color": "#FFCC00", "font_weight": 700, "offset_y": 35})
         
         p.text("ЛУНА", ra=math.degrees(moon_e.ra)/15, dec=math.degrees(moon_e.dec), 
-               style={"font_size": 18, "font_color": "#F0F0F0", "font_weight": "bold", "offset_y": 30})
+               style={"font_size": 18, "font_color": "#F0F0F0", "font_weight": 700, "offset_y": 30})
 
-        # Маркер цели
+        # Маркер цели (здесь 900 проходит проверку, так как это число)
         p.marker(
             ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
             style={
@@ -119,7 +118,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # Расчет времени для бара
         try:
             rise_utc = e_obs.next_rising(sun_e).datetime()
             set_utc = e_obs.next_setting(sun_e).datetime()
@@ -133,8 +131,8 @@ def generate_star_map(lat, lon, user_name, user_id):
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
-        # --- [ ФИНАЛЬНАЯ НАСТРОЙКА БАРА: ВСЁ РАЗМЕРОМ 8, NORMAL ] ---
         t_col = '#D4E6FF'
+        # В matplotlib можно использовать 'normal', тут всё ок
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.35, 0.106, f"Фаза: {int(moon_e.phase)}%", color=t_col, fontsize=8, fontweight='normal')
