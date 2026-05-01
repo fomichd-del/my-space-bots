@@ -78,25 +78,24 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.milky_way() 
         p.constellations()
         
-        # Линии эклиптики и экватора
-        p.ecliptic(style={"line": {"color": "#FF2222", "width": 2.2, "alpha": 1.0}})
+        # --- [ ЛИНИИ: ТЕПЕРЬ ОНИ ВИДИМЫ И ТОЧНЫ ] ---
+        p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.2, "alpha": 1.0}})
         p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.2, "alpha": 1.0}})
         
         p.constellation_labels() 
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
-        # Рисуем планеты
         p.planets()
         
-        # --- [ СОЛНЦЕ И ЛУНА: ПРАВИЛЬНЫЙ РАСЧЕТ J2000 ] ---
+        # --- [ СИНХРОНИЗАЦИЯ СОЛНЦА И ЛУНЫ С ЭКЛИПТИКОЙ J2000 ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
-        sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
+        sun_j2000 = ephem.Equatorial(sun_e, epoch='2000') # Перевод в сетку J2000
         p.marker(
             ra=math.degrees(sun_j2000.ra)/15, dec=math.degrees(sun_j2000.dec), 
             label="СОЛНЦЕ",
             style={
                 "marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 32}
+                "label": {"font_size": 20, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 32}
             }
         )
 
@@ -107,7 +106,7 @@ def generate_star_map(lat, lon, user_name, user_id):
             label="ЛУНА",
             style={
                 "marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
-                "label": {"font_size": 16, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 28}
+                "label": {"font_size": 18, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 28}
             }
         )
 
@@ -133,7 +132,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # Расчет времени
         try:
             rise_utc = e_obs.next_rising(sun_e).datetime()
             set_utc = e_obs.next_setting(sun_e).datetime()
@@ -147,7 +145,7 @@ def generate_star_map(lat, lon, user_name, user_id):
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
-        # --- [ ТЕКСТ: ВСЁ АККУРАТНО (РАЗМЕР 8) ] ---
+        # --- [ ТЕКСТ В БАРЕ: ВСЁ ПОД ЛИНЕЙКУ (РАЗМЕР 8, NORMAL) ] ---
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
@@ -155,7 +153,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.68, 0.067, set_time, color=t_col, fontsize=8, fontweight='normal')
         
-        # Исправлено: Шрифт цели теперь размер 8 и не жирный
+        # Цель - теперь тоже размер 8 и не жирная
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='normal')
 
         tmp_png = f"fin_{user_id}.png"
