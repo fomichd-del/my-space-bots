@@ -87,7 +87,7 @@ def handle_location(message):
             # Цикл смены статусов, пока работает draw_map.py
             status_index = 1
             while not future.done():
-                time.sleep(4)
+                time.sleep(11)
                 if status_index < len(statuses):
                     try:
                         bot.edit_message_text(
