@@ -13,7 +13,7 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# КАТАЛОГ СОЗВЕЗДИЙ
+# КАТАЛОГ СОЗВЕЗДИЙ (RA, DEC)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -74,16 +74,16 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellation.line.color = "#5c9dff"
         except: pass
 
-        # Повышенное разрешение для высокого качества оригинала
+        # Высокое разрешение для качественного оригинала
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
 
         p.horizon()
         p.milky_way() 
         p.constellations()
         
-        # --- [ ЛИНИИ С МАКСИМАЛЬНОЙ ВЫРАЗИТЕЛЬНОСТЬЮ ] ---
-        p.ecliptic(style={"line": {"color": "#FF3333", "width": 2.0, "alpha": 1.0}})
-        p.celestial_equator(style={"line": {"color": "#3366FF", "width": 2.0, "alpha": 1.0}})
+        # --- [ ЛИНИИ: МАКСИМАЛЬНАЯ ЯРКОСТЬ ] ---
+        p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.2, "alpha": 1.0}})
+        p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.2, "alpha": 1.0}})
         
         try: p.dsos(where=[_.magnitude < 5.5], labels=False)
         except: pass
@@ -130,7 +130,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         plt.close('all')
         del p
 
-        # СБОРКА ФИНАЛЬНОЙ КАРТОЧКИ
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         sky_size = 940 
@@ -140,7 +139,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         y_offset = 360 - ((sky_size - 880) // 2)
         bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
         
-        # Высокий DPI для профессионального качества
+        # Финальный DPI для четкости
         dpi = 300 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
@@ -160,20 +159,20 @@ def generate_star_map(lat, lon, user_name, user_id):
         except: 
             rise_time, set_time = "--:--", "--:--"
 
-        # --- [ КОМПАКТНЫЙ И АККУРАТНЫЙ ТЕКСТ ] ---
+        # --- [ НАСТРОЙКА НИЖНЕГО БАРА ] ---
         t_col = '#D4E6FF'
-        # Имя (меньше шрифт)
+        # Имя (размер 10)
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=10, fontweight='bold')
-        # Координаты
+        # Координаты (размер 9)
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=9, fontweight='bold')
-        # Фаза
+        # Фаза (размер 9)
         fig.text(0.35, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=9, fontweight='bold')
         
-        # Восход и Закат (раздвинуты по рамкам)
+        # Время (размер 9, ювелирный сдвиг)
         fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=9, fontweight='bold')
         fig.text(0.68, 0.067, set_time, color=t_col, fontsize=9, fontweight='bold')
         
-        # Цель (оставляем крупно)
+        # Цель (крупно)
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=16, fontweight='bold')
 
         tmp_png = f"fin_{user_id}.png"
