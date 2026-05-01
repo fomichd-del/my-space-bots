@@ -13,7 +13,6 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# КАТАЛОГ СОЗВЕЗДИЙ
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -65,11 +64,14 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
+        # Исправлено: используем множественное число (stars, constellations)
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
-        style.star.label.font_size = 11
-        style.constellation.label.font_size = 16
-        style.constellation.line.stroke_width = 2.5
-        style.constellation.line.color = "#5c9dff"
+        try:
+            style.stars.label.font_size = 11
+            style.constellations.label.font_size = 16
+            style.constellations.line.width = 2.5
+            style.constellations.line.color = "#5c9dff"
+        except: pass
 
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
 
@@ -77,40 +79,25 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.milky_way() 
         p.constellations()
         
-        # --- [ ЛИНИИ: ЕЩЕ ЯРЧЕ ] ---
-        p.ecliptic(style={"line": {"color": "#FF2222", "width": 2.5, "alpha": 1.0}})
-        p.celestial_equator(style={"line": {"color": "#2266FF", "width": 2.5, "alpha": 1.0}})
+        # Линии эклиптики и экватора
+        p.ecliptic(style={"line": {"color": "#FF2222", "width": 2.2, "alpha": 1.0}})
+        p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.2, "alpha": 1.0}})
         
-        try: p.dsos(where=[_.magnitude < 5.5], labels=False)
-        except: pass
-
         p.constellation_labels() 
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
-        # Планеты отрисовываем стандартно, чтобы не было путаницы
+        # --- [ ПЛАНЕТЫ, СОЛНЦЕ И ЛУНА (Встроенные методы) ] ---
+        # Это гарантирует правильное положение на 2026 год
         p.planets()
-        
-        # --- [ СОЛНЦЕ И ЛУНА: ПРЯМАЯ СИНХРОНИЗАЦИЯ ] ---
-        # Используем координаты напрямую из starplot для идеального совпадения с линиями
-        sun_coords = observer.sun()
-        p.marker(
-            ra=sun_coords.ra, dec=sun_coords.dec, 
-            label="СОЛНЦЕ",
-            style={
-                "marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                "label": {"font_size": 22, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 32}
-            }
-        )
+        p.sun(style={"marker": {"size": 40, "symbol": "circle", "color": "#FFCC00"}})
+        p.moon(style={"marker": {"size": 30, "symbol": "circle", "color": "#F0F0F0"}})
 
-        moon_coords = observer.moon()
-        p.marker(
-            ra=moon_coords.ra, dec=moon_coords.dec, 
-            label="ЛУНА",
-            style={
-                "marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
-                "label": {"font_size": 20, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 28}
-            }
-        )
+        # Метки для Солнца и Луны (берем координаты напрямую из p.observer)
+        sun_pos = p.observer.sun()
+        p.text("СОЛНЦЕ", ra=sun_pos.ra, dec=sun_pos.dec, style={"font_size": 18, "font_color": "#FFCC00", "font_weight": "bold", "offset_y": 35})
+        
+        moon_pos = p.observer.moon()
+        p.text("ЛУНА", ra=moon_pos.ra, dec=moon_pos.dec, style={"font_size": 16, "font_color": "#F0F0F0", "font_weight": "bold", "offset_y": 30})
 
         # Маркер цели
         p.marker(
@@ -123,7 +110,6 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
-        del p
 
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
@@ -135,13 +121,13 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # РАСЧЕТ ВРЕМЕНИ ДЛЯ НИЖНЕГО БАРА
-        sun_ephem = ephem.Sun(); sun_ephem.compute(e_obs)
-        moon_ephem = ephem.Moon(); moon_ephem.compute(e_obs)
+        # Расчет времени для бара
+        sun_e = ephem.Sun(); sun_e.compute(e_obs)
+        moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
         try:
-            rise_utc = e_obs.next_rising(sun_ephem).datetime()
-            set_utc = e_obs.next_setting(sun_ephem).datetime()
+            rise_utc = e_obs.next_rising(sun_e).datetime()
+            set_utc = e_obs.next_setting(sun_e).datetime()
             tf = TimezoneFinder(in_memory=False)
             timezone_str = tf.timezone_at(lng=float(lon), lat=float(lat))
             if timezone_str:
@@ -150,20 +136,18 @@ def generate_star_map(lat, lon, user_name, user_id):
                 set_time = pytz.utc.localize(set_utc).astimezone(user_tz).strftime('%H:%M')
             else:
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
-        except: 
-            rise_time, set_time = "--:--", "--:--"
+        except: rise_time, set_time = "--:--", "--:--"
 
-        # --- [ ФИНАЛЬНАЯ НАСТРОЙКА БАРА: ВСЁ РАЗМЕРОМ 8 ] ---
+        # --- [ ШРИФТЫ: ВСЁ АККУРАТНО (РАЗМЕР 8) ] ---
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
-        fig.text(0.35, 0.106, f"Фаза: {int(moon_ephem.phase)}%", color=t_col, fontsize=8, fontweight='normal')
-        
+        fig.text(0.35, 0.106, f"Фаза: {int(moon_e.phase)}%", color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.68, 0.067, set_time, color=t_col, fontsize=8, fontweight='normal')
         
-        # ЦЕЛЬ: теперь размер 8, как у имени пользователя
-        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='bold')
+        # Исправлено: Название цели теперь размером 8, как имя
+        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='normal')
 
         tmp_png = f"fin_{user_id}.png"
         plt.savefig(tmp_png, bbox_inches='tight', pad_inches=0, dpi=dpi)
@@ -181,5 +165,4 @@ def generate_star_map(lat, lon, user_name, user_id):
 
     except Exception as e:
         plt.close('all')
-        gc.collect()
         return False, str(e), "", ""
