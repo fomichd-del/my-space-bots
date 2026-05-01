@@ -81,10 +81,9 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.constellation_labels() 
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
-        # Планеты
         p.planets() 
 
-        # --- [ НАДЕЖНЫЕ МАРКЕРЫ: ИКОНКА + ТЕКСТ ВМЕСТЕ ] ---
+        # --- [ СВЕТИЛА С НАДЕЖНЫМИ ПОДПИСЯМИ ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
@@ -93,8 +92,8 @@ def generate_star_map(lat, lon, user_name, user_id):
             ra=math.degrees(sun_e.ra)/15, dec=math.degrees(sun_e.dec), 
             label="СОЛНЦЕ",
             style={
-                "marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": -12}
+                "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
+                "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": -14}
             }
         )
         
@@ -103,17 +102,17 @@ def generate_star_map(lat, lon, user_name, user_id):
             ra=math.degrees(moon_e.ra)/15, dec=math.degrees(moon_e.dec), 
             label="ЛУНА",
             style={
-                "marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
+                "marker": {"size": 36, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
                 "label": {"font_size": 16, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": -12}
             }
         )
 
-        # ЦЕЛЬ (Уменьшили отступ, чтобы текст не пропадал)
+        # ЦЕЛЬ
         p.marker(
             ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
             style={
                 "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
-                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": -20}
+                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": -22}
             }
         )
 
@@ -143,6 +142,7 @@ def generate_star_map(lat, lon, user_name, user_id):
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
+        # --- [ БАР: ШРИФТ 8 ] ---
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
