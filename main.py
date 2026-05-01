@@ -6,6 +6,9 @@ from flask import Flask
 from threading import Thread
 import wikipediaapi
 
+# --- [ ИМПОРТ БАЗЫ КОСМИЧЕСКОГО ПАТРУЛЯ ] ---
+from base_fact_star import CONSTELLATIONS
+
 # --- [ КОСМИЧЕСКИЕ НАСТРОЙКИ ] ---
 DATA_DIR = os.path.join(os.getcwd(), "data")
 os.environ["STARPLOT_CACHE_DIR"] = DATA_DIR
@@ -14,7 +17,7 @@ os.environ["SOLAR_SYSTEM_EPHEMERIS"] = os.path.join(DATA_DIR, "de421.bsp")
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
 
-# Википедия для глубокого погружения
+# Википедия для глубокого погружения (как запасной вариант)
 wiki_wiki = wikipediaapi.Wikipedia(user_agent='MartySpaceBot/1.1', language='ru')
 
 # Flask для поддержания "жизни" сервера на Render
@@ -143,22 +146,44 @@ def callback_original(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
-    subject = call.data.replace('wiki_', '')
-    bot.answer_callback_query(call.id, "Открываю архивы...")
+    # Получаем имя цели (оно приходит капсом из draw_map.py, например "ОРИОН")
+    subject = call.data.replace('wiki_', '').strip()
+    bot.answer_callback_query(call.id, "Открываю архивы Патруля...")
     
-    page = wiki_wiki.page(f"{subject.capitalize()} (созвездие)")
-    if not page.exists(): page = wiki_wiki.page(subject.capitalize())
-    
-    if page.exists():
-        summary = page.summary[:500] + "..."
+    # 1. Сначала ищем в нашей авторской базе CONSTELLATIONS
+    found_fact = None
+    for item in CONSTELLATIONS:
+        # Сравниваем в верхнем регистре, чтобы избежать ошибок с большими/маленькими буквами
+        if item['name_ru'].upper() == subject.upper():
+            found_fact = item
+            break
+            
+    if found_fact:
+        # Если нашли — формируем красивое сообщение с эмодзи
         text = (
-            f"🌌 <b>ИЗУЧАЕМ: {subject.upper()}</b>\n\n"
-            f"{summary}\n\n"
-            f"🔗 <a href='{page.fullurl}'>Читать полную историю</a>"
+            f"🌌 <b>{found_fact['name_ru'].upper()} ({found_fact['name_latin']})</b>\n\n"
+            f"{found_fact['fact']}"
         )
-        bot.send_message(call.message.chat.id, text, parse_mode='HTML', disable_web_page_preview=False)
+        bot.send_message(call.message.chat.id, text, parse_mode='HTML')
     else:
-        bot.send_message(call.message.chat.id, "⚠️ К сожалению, подробностей об этом объекте пока нет.")
+        # 2. Если в нашей базе созвездия нет — используем Википедию как запасной вариант
+        try:
+            page = wiki_wiki.page(f"{subject.capitalize()} (созвездие)")
+            if not page.exists(): 
+                page = wiki_wiki.page(subject.capitalize())
+            
+            if page.exists():
+                summary = page.summary[:500] + "..."
+                text = (
+                    f"🌌 <b>ИЗУЧАЕМ: {subject.upper()}</b>\n\n"
+                    f"{summary}\n\n"
+                    f"🔗 <a href='{page.fullurl}'>Читать полную историю</a>"
+                )
+                bot.send_message(call.message.chat.id, text, parse_mode='HTML', disable_web_page_preview=False)
+            else:
+                bot.send_message(call.message.chat.id, "⚠️ К сожалению, подробностей об этом объекте пока нет.")
+        except Exception as e:
+            bot.send_message(call.message.chat.id, "📡 Ошибка связи с глубоким космосом.")
 
 if __name__ == "__main__":
     Thread(target=run_server).start()
