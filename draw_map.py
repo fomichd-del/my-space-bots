@@ -149,13 +149,21 @@ def generate_star_map(lat, lon, user_name, user_id):
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
-        # --- [ БАР: ШРИФТ 8 ] ---
+        # --- [ БАР: ЮВЕЛИРНАЯ НАСТРОЙКА КООРДИНАТ ] ---
         t_col = '#D4E6FF'
-        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
+        
+        # Имя пилота: сместили вверх (0.170 -> 0.175)
+        fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
+        
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.35, 0.106, f"Фаза: {int(moon_e.phase)}%", color=t_col, fontsize=8, fontweight='normal')
-        fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=8, fontweight='normal')
-        fig.text(0.68, 0.067, set_time, color=t_col, fontsize=8, fontweight='normal')
+        
+        # Восход: сместили влево (0.40 -> 0.385) и вверх (0.067 -> 0.072)
+        fig.text(0.385, 0.072, rise_time, color=t_col, fontsize=8, fontweight='normal')
+        
+        # Закат: сместили вправо (0.68 -> 0.705) и вверх (0.067 -> 0.072)
+        fig.text(0.705, 0.072, set_time, color=t_col, fontsize=8, fontweight='normal')
+        
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='normal')
 
         tmp_png = f"fin_{user_id}.png"
