@@ -81,27 +81,39 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.constellation_labels() 
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
-        # --- [ ЧЕСТНЫЙ 2026 ГОД: ПЛАНЕТЫ, СОЛНЦЕ И ЛУНА ] ---
+        # Планеты
         p.planets() 
-        p.sun(style={"marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2}})
-        p.moon(style={"marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1}})
 
+        # --- [ НАДЕЖНЫЕ МАРКЕРЫ: ИКОНКА + ТЕКСТ ВМЕСТЕ ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
-        # ИСПРАВЛЕНИЕ: Вместо "bold" используем числовое значение 700
-        p.text("СОЛНЦЕ", ra=math.degrees(sun_e.ra)/15, dec=math.degrees(sun_e.dec), 
-               style={"font_size": 20, "font_color": "#FFCC00", "font_weight": 700, "offset_y": 35})
+        # СОЛНЦЕ
+        p.marker(
+            ra=math.degrees(sun_e.ra)/15, dec=math.degrees(sun_e.dec), 
+            label="СОЛНЦЕ",
+            style={
+                "marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
+                "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": -12}
+            }
+        )
         
-        p.text("ЛУНА", ra=math.degrees(moon_e.ra)/15, dec=math.degrees(moon_e.dec), 
-               style={"font_size": 18, "font_color": "#F0F0F0", "font_weight": 700, "offset_y": 30})
+        # ЛУНА
+        p.marker(
+            ra=math.degrees(moon_e.ra)/15, dec=math.degrees(moon_e.dec), 
+            label="ЛУНА",
+            style={
+                "marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
+                "label": {"font_size": 16, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": -12}
+            }
+        )
 
-        # Маркер цели (здесь 900 проходит проверку, так как это число)
+        # ЦЕЛЬ (Уменьшили отступ, чтобы текст не пропадал)
         p.marker(
             ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
             style={
                 "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
-                "label": {"font_size": 30, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 65}
+                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": -20}
             }
         )
 
@@ -132,7 +144,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         except: rise_time, set_time = "--:--", "--:--"
 
         t_col = '#D4E6FF'
-        # В matplotlib можно использовать 'normal', тут всё ок
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.35, 0.106, f"Фаза: {int(moon_e.phase)}%", color=t_col, fontsize=8, fontweight='normal')
