@@ -3,7 +3,7 @@ name: Star Guide Post
 on:
   schedule:
     # 17:00 UTC = 20:00 по времени Киева/Мск
-    - cron: '0 15 * * *'
+    - cron: '0 17 * * *'
   workflow_dispatch: # Позволяет запустить бота вручную кнопкой на GitHub
 
 jobs:
