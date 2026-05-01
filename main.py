@@ -1,5 +1,6 @@
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from telebot import apihelper  # Для настройки глубоких таймаутов
 import os, time, concurrent.futures
 from draw_map import generate_star_map
 from flask import Flask
@@ -15,6 +16,12 @@ os.environ["STARPLOT_CACHE_DIR"] = DATA_DIR
 os.environ["SOLAR_SYSTEM_EPHEMERIS"] = os.path.join(DATA_DIR, "de421.bsp")
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+
+# --- [ ФИКС ТАЙМАУТОВ ] ---
+# Увеличиваем время ожидания, чтобы тяжелые карты успевали загрузиться на сервер Telegram
+apihelper.CONNECT_TIMEOUT = 60
+apihelper.READ_TIMEOUT = 90
+
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
 
 # Википедия для глубокого погружения (как запасной вариант)
@@ -111,8 +118,26 @@ def handle_location(message):
                 f"Я отметил его розовым маркером. Попробуй найти его сегодня на небе!"
             )
             
-            with open(result, 'rb') as photo:
-                bot.send_photo(message.chat.id, photo, caption=caption, reply_markup=markup, parse_mode='HTML')
+            # --- [ ФИКС ТАЙМАУТОВ: ЦИКЛ ПОВТОРОВ ] ---
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                try:
+                    with open(result, 'rb') as photo:
+                        bot.send_photo(
+                            message.chat.id, 
+                            photo, 
+                            caption=caption, 
+                            reply_markup=markup, 
+                            parse_mode='HTML',
+                            timeout=60  # Даем 60 секунд именно на эту отправку
+                        )
+                    break # Если улетело — выходим из цикла
+                except Exception as e:
+                    if attempt < max_attempts - 1:
+                        print(f"⚠️ Попытка {attempt+1} сорвалась, пробую еще раз...")
+                        time.sleep(3)
+                    else:
+                        raise e # Если все 3 раза мимо — выдаем ошибку
         else:
             bot.send_message(message.chat.id, f"❌ <b>Сбой связи:</b> {result}")
             
@@ -147,26 +172,24 @@ def callback_wiki(call):
         repo_user = "fomichd-del"
         repo_name = "my-space-bots"
         folder = "photo_space"
-        # Заменяем пробелы на %20 для корректной работы URL
         safe_name = found_fact['name_latin'].replace(" ", "%20")
         github_photo_url = f"https://raw.githubusercontent.com/{repo_user}/{repo_name}/main/{folder}/{safe_name}.png"
         
         text = f"🌌 <b>{found_fact['name_ru'].upper()} ({found_fact['name_latin']})</b>\n\n{found_fact['fact']}"
         
         try:
-            # Отправляем неоновый арт с брендингом
+            # Отправка фото с таймаутом
             bot.send_photo(
                 call.message.chat.id, 
                 github_photo_url, 
                 caption="⭐️ Специально для канала: <b>Дневник юного космонавта</b>", 
-                parse_mode='HTML'
+                parse_mode='HTML',
+                timeout=40
             )
             bot.send_message(call.message.chat.id, text, parse_mode='HTML')
         except:
-            # Если фото еще не загружено, шлем только текст
             bot.send_message(call.message.chat.id, text, parse_mode='HTML')
     else:
-        # Резервный поиск в Википедии
         try:
             page = wiki_wiki.page(f"{subject.capitalize()} (созвездие)")
             if not page.exists(): page = wiki_wiki.page(subject.capitalize())
@@ -183,6 +206,6 @@ if __name__ == "__main__":
     while True:
         try:
             print("📡 [СИСТЕМА] Марти слушает эфир...")
-            bot.polling(non_stop=True, interval=2)
+            bot.polling(non_stop=True, interval=2, timeout=60) # Увеличили таймаут и здесь
         except Exception as e:
             time.sleep(5)
