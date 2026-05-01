@@ -78,7 +78,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.milky_way() 
         p.constellations()
         
-        # --- [ ВОЗВРАЩАЕМ ЛИНИИ ДЛЯ НАГЛЯДНОСТИ ] ---
+        # --- [ ЛИНИИ ДИНАМИКИ ] ---
         p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.0, "alpha": 0.85}})
         p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.0, "alpha": 0.85}})
         
@@ -87,40 +87,39 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: РАСЧЕТ 2026 -> ПРОЕКЦИЯ J2000 ДЛЯ ИДЕАЛЬНОЙ СТЫКОВКИ ] ---
+        # --- [ СВЕТИЛА: ПРАВИЛЬНЫЕ ГРАДУСЫ (БЕЗ ДЕЛЕНИЯ НА 15!) ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
-        # Пересчитываем координаты в сетку J2000, чтобы Солнце село точно на красную линию
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ (Идеально на красной линии)
+        # СОЛНЦЕ (Теперь 100% в Овне и 100% на красной линии)
         p.marker(
-            ra=math.degrees(sun_j2000.ra)/15, dec=math.degrees(sun_j2000.dec), 
+            ra=math.degrees(sun_j2000.ra), dec=math.degrees(sun_j2000.dec), 
             label="СОЛНЦЕ",
             style={
                 "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": -14}
+                "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 30}
             }
         )
         
-        # ЛУНА (Рядом с линией)
+        # ЛУНА (С текстом)
         p.marker(
-            ra=math.degrees(moon_j2000.ra)/15, dec=math.degrees(moon_j2000.dec), 
+            ra=math.degrees(moon_j2000.ra), dec=math.degrees(moon_j2000.dec), 
             label="ЛУНА",
             style={
                 "marker": {"size": 36, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
-                "label": {"font_size": 16, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": -12}
+                "label": {"font_size": 16, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 25}
             }
         )
 
-        # ЦЕЛЬ (Вариант с твоими отступами)
+        # ЦЕЛЬ (Вернули текст на место)
         p.marker(
             ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
             style={
                 "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
-                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": -22}
+                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}
             }
         )
 
@@ -150,14 +149,13 @@ def generate_star_map(lat, lon, user_name, user_id):
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
-        # --- [ НИЖНИЙ БАР: АККУРАТНЫЙ ШРИФТ 8 ] ---
+        # --- [ БАР: ШРИФТ 8 ] ---
         t_col = '#D4E6FF'
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.35, 0.106, f"Фаза: {int(moon_e.phase)}%", color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.68, 0.067, set_time, color=t_col, fontsize=8, fontweight='normal')
-        # Цель тоже размер 8 и не жирная
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='normal')
 
         tmp_png = f"fin_{user_id}.png"
