@@ -67,59 +67,63 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # Настройка стиля
+        # --- [ ЮВЕЛИРНАЯ НАСТРОЙКА СТИЛЯ ] ---
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
-            style.stars.label.font_size = 11
-            style.constellations.label.font_size = 16
-            style.constellations.line.width = 2.5
+            style.stars.label.font_size = 9 # Уменьшили для четкости
+            style.constellations.label.font_size = 14
+            style.constellations.label.font_alpha = 0.6 # Делаем названия созвездий мягче
+            style.constellations.line.width = 1.8 # Тоньше линии (было 2.5)
             style.constellations.line.color = "#5c9dff"
         except: pass
 
-        # ВАЖНО: Убрали autoscale=True, чтобы карта не искажалась из-за объектов за горизонтом
         p = ZenithPlot(observer=observer, style=style, resolution=2000)
 
         p.horizon()
         p.milky_way() 
         p.constellations()
         
-        # Линии динамики
-        p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.0, "alpha": 0.85}})
-        p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.0, "alpha": 0.85}})
+        # Линии динамики (сделали тоньше и прозрачнее)
+        p.ecliptic(style={"line": {"color": "#FF4444", "width": 1.2, "alpha": 0.6}})
+        p.celestial_equator(style={"line": {"color": "#4477FF", "width": 1.2, "alpha": 0.6}})
         
         p.constellation_labels() 
-        p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
+        
+        # ПРОПОЛКА: Рисуем много звезд, но подписываем только самые яркие (порог 2.1)
+        p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 2.1]) 
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: ПЕРЕВОД В ЧАСЫ (ДЕЛЕНИЕ НА 15) ] ---
+        # --- [ СВЕТИЛА: ПРОВЕРКА ВИДИМОСТИ ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ (RA / 15)
-        p.marker(
-            ra=math.degrees(sun_j2000.ra) / 15.0, 
-            dec=math.degrees(sun_j2000.dec), 
-            label="СОЛНЦЕ",
-            style={
-                "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 30}
-            }
-        )
+        # Рисуем СОЛНЦЕ только если оно над горизонтом
+        if math.degrees(sun_e.alt) > -1:
+            p.marker(
+                ra=math.degrees(sun_j2000.ra) / 15.0, 
+                dec=math.degrees(sun_j2000.dec), 
+                label="СОЛНЦЕ",
+                style={
+                    "marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
+                    "label": {"font_size": 16, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 25}
+                }
+            )
         
-        # ЛУНА (RA / 15)
-        p.marker(
-            ra=math.degrees(moon_j2000.ra) / 15.0, 
-            dec=math.degrees(moon_j2000.dec), 
-            label="ЛУНА",
-            style={
-                "marker": {"size": 36, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
-                "label": {"font_size": 16, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 25}
-            }
-        )
+        # Рисуем ЛУНУ только если она над горизонтом
+        if math.degrees(moon_e.alt) > -1:
+            p.marker(
+                ra=math.degrees(moon_j2000.ra) / 15.0, 
+                dec=math.degrees(moon_j2000.dec), 
+                label="ЛУНА",
+                style={
+                    "marker": {"size": 34, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
+                    "label": {"font_size": 14, "font_weight": 700, "font_color": "#F0F0F0", "offset_y": 20}
+                }
+            )
 
         # ЦЕЛЬ (RA / 15)
         p.marker(
@@ -127,15 +131,15 @@ def generate_star_map(lat, lon, user_name, user_id):
             dec=target_pos[1], 
             label="ЦЕЛЬ!",
             style={
-                "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
-                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}
+                "marker": {"size": 100, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 3},
+                "label": {"font_size": 22, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 60}
             }
         )
 
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
-        # Обработка изображений (PIL)
+        # --- [ ОБРАБОТКА PIL ] ---
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         sky_size = 940 
