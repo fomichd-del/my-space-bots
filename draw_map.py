@@ -74,18 +74,16 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellation.line.color = "#5c9dff"
         except: pass
 
-        p = ZenithPlot(observer=observer, style=style, resolution=1600, autoscale=True)
+        # Поднимаем разрешение до 1800 (для лучшей детализации)
+        p = ZenithPlot(observer=observer, style=style, resolution=1800, autoscale=True)
 
         p.horizon()
         p.milky_way() 
         p.constellations()
         
-        # --- [ ИСПРАВЛЕНО: БЕЗ linestyle ] ---
-        # Эклиптика (Красная линия)
-        p.ecliptic(style={"line": {"color": "#ff4c4c", "width": 0.8, "alpha": 0.5}})
-        
-        # Небесный экватор (Синяя линия)
-        p.celestial_equator(style={"line": {"color": "#4c4cff", "width": 0.8, "alpha": 0.5}})
+        # --- [ ЯРКИЕ ЛИНИИ ] ---
+        p.ecliptic(style={"line": {"color": "#ff4c4c", "width": 1.5, "alpha": 0.9}})
+        p.celestial_equator(style={"line": {"color": "#4c4cff", "width": 1.5, "alpha": 0.9}})
         
         try: p.dsos(where=[_.magnitude < 5.5], labels=False)
         except: pass
@@ -96,16 +94,16 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
-        # Рисуем планеты, Солнце и Луну
         p.planets()
-        p.sun(style={"marker": {"size": 15, "symbol": "circle", "color": "#FFD700"}})
-        p.moon(style={"marker": {"size": 12, "symbol": "circle", "color": "#FFFFFF"}})
+        # Крупное Солнце
+        p.sun(style={"marker": {"size": 30, "symbol": "circle", "color": "#FFD700"}})
+        p.moon(style={"marker": {"size": 15, "symbol": "circle", "color": "#FFFFFF"}})
 
         p.marker(
             ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
             style={
-                "marker": {"size": 100, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 3},
-                "label": {"font_size": 30, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 60}
+                "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
+                "label": {"font_size": 30, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 65}
             }
         )
 
@@ -122,11 +120,11 @@ def generate_star_map(lat, lon, user_name, user_id):
         y_offset = 360 - ((sky_size - 880) // 2)
         bg_img.paste(sky_img, (x_offset, y_offset), sky_img)
         
-        dpi = 180 
+        # Поднимаем DPI до 250 для высокой четкости оригинала
+        dpi = 250 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # РАСЧЕТ ВРЕМЕНИ
         moon_obj = ephem.Moon(); moon_obj.compute(e_obs)
         sun_obj = ephem.Sun(); sun_obj.compute(e_obs)
         moon_phase = int(moon_obj.phase)
@@ -134,10 +132,8 @@ def generate_star_map(lat, lon, user_name, user_id):
         try:
             rise_utc = e_obs.next_rising(sun_obj).datetime()
             set_utc = e_obs.next_setting(sun_obj).datetime()
-            
             tf = TimezoneFinder(in_memory=False)
             timezone_str = tf.timezone_at(lng=float(lon), lat=float(lat))
-            
             if timezone_str:
                 user_tz = pytz.timezone(timezone_str)
                 rise_time = pytz.utc.localize(rise_utc).astimezone(user_tz).strftime('%H:%M')
@@ -147,12 +143,17 @@ def generate_star_map(lat, lon, user_name, user_id):
         except: 
             rise_time, set_time = "--:--", "--:--"
 
+        # --- [ КОРРЕКЦИЯ ТЕКСТА ] ---
         t_col = '#D4E6FF'
-        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=16, fontweight='bold')
+        # Имя чуть меньше (fontsize=14)
+        fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=14, fontweight='bold')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=12, fontweight='bold')
         fig.text(0.35, 0.106, f"Фаза: {moon_phase}%", color=t_col, fontsize=12, fontweight='bold')
-        fig.text(0.35, 0.067, rise_time, color=t_col, fontsize=12, fontweight='bold')
-        fig.text(0.74, 0.067, set_time, color=t_col, fontsize=12, fontweight='bold')
+        
+        # Сдвиг восхода вправо (x=0.37) и заката влево (x=0.71)
+        fig.text(0.37, 0.067, rise_time, color=t_col, fontsize=12, fontweight='bold')
+        fig.text(0.71, 0.067, set_time, color=t_col, fontsize=12, fontweight='bold')
+        
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=16, fontweight='bold')
 
         tmp_png = f"fin_{user_id}.png"
@@ -160,7 +161,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         plt.close(fig)
         
         with Image.open(tmp_png) as img:
-            img.convert("RGB").save(final_path, "JPEG", quality=95, optimize=True)
+            img.convert("RGB").save(final_path, "JPEG", quality=98, optimize=True)
         
         bg_img.close(); sky_img.close()
         if os.path.exists(temp_file): os.remove(temp_file)
