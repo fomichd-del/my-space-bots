@@ -1,1 +1,175 @@
+Andromeda: /imagine prompt: Andromeda constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a chained princess, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
 
+Antlia: /imagine prompt: Antlia constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of an air pump, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Apus: /imagine prompt: Apus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a bird of paradise, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Aquarius: /imagine prompt: Aquarius constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a water bearer, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Aquila: /imagine prompt: Aquila constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of an eagle, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Ara: /imagine prompt: Ara constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of an altar, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Aries: /imagine prompt: Aries constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a ram, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Auriga: /imagine prompt: Auriga constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a charioteer, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Bootes: /imagine prompt: Bootes constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a herdsman, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Caelum: /imagine prompt: Caelum constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a chisel, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Camelopardalis: /imagine prompt: Camelopardalis constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a giraffe, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Cancer: /imagine prompt: Cancer constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a crab, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Canes Venatici: /imagine prompt: Canes Venatici constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of hunting dogs, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Canis Major: /imagine prompt: Canis Major constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a great dog, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Canis Minor: /imagine prompt: Canis Minor constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a small dog, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Capricornus: /imagine prompt: Capricornus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a sea-goat, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Carina: /imagine prompt: Carina constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a ship's keel, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Cassiopeia: /imagine prompt: Cassiopeia constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a queen on a throne, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Centaurus: /imagine prompt: Centaurus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a centaur, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Cepheus: /imagine prompt: Cepheus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a king, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Cetus: /imagine prompt: Cetus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a sea monster, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Chamaeleon: /imagine prompt: Chamaeleon constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a chameleon, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Circinus: /imagine prompt: Circinus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a compass, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Columba: /imagine prompt: Columba constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a dove, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Coma Berenices: /imagine prompt: Coma Berenices constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of long hair, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Corona Australis: /imagine prompt: Corona Australis constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a wreath, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Corona Borealis: /imagine prompt: Corona Borealis constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a crown, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Corvus: /imagine prompt: Corvus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a raven, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Crater: /imagine prompt: Crater constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a cup, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Crux: /imagine prompt: Crux constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a cross, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Cygnus: /imagine prompt: Cygnus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a swan, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Delphinus: /imagine prompt: Delphinus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a dolphin, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Dorado: /imagine prompt: Dorado constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a swordfish, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Draco: /imagine prompt: Draco constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a dragon, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Equuleus: /imagine prompt: Equuleus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a small horse, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Eridanus: /imagine prompt: Eridanus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a river, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Fornax: /imagine prompt: Fornax constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a furnace, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Gemini: /imagine prompt: Gemini constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of twins, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Grus: /imagine prompt: Grus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a crane bird, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Hercules: /imagine prompt: Hercules constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a kneeling hero, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Horologium: /imagine prompt: Horologium constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a clock, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Hydra: /imagine prompt: Hydra constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a water snake, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Hydrus: /imagine prompt: Hydrus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a male water snake, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Indus: /imagine prompt: Indus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of an indian, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Lacerta: /imagine prompt: Lacerta constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a lizard, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Leo: /imagine prompt: Leo constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a lion, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Leo Minor: /imagine prompt: Leo Minor constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a smaller lion, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Lepus: /imagine prompt: Lepus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a hare, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Libra: /imagine prompt: Libra constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of scales, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Lupus: /imagine prompt: Lupus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a wolf, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Lynx: /imagine prompt: Lynx constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a lynx, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Lyra: /imagine prompt: Lyra constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a lyre, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Mensa: /imagine prompt: Mensa constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a table mountain, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Microscopium: /imagine prompt: Microscopium constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a microscope, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Monoceros: /imagine prompt: Monoceros constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a unicorn, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Musca: /imagine prompt: Musca constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a fly, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Norma: /imagine prompt: Norma constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a square, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Octans: /imagine prompt: Octans constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of an octant, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Ophiuchus: /imagine prompt: Ophiuchus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a serpent-bearer, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Orion: /imagine prompt: Orion constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a hunter, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Pavo: /imagine prompt: Pavo constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a peacock, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Pegasus: /imagine prompt: Pegasus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a winged horse, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Perseus: /imagine prompt: Perseus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a hero, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Phoenix: /imagine prompt: Phoenix constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a phoenix bird, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Pictor: /imagine prompt: Pictor constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of an easel, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Pisces: /imagine prompt: Pisces constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of fishes, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Piscis Austrinus: /imagine prompt: Piscis Austrinus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a southern fish, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Puppis: /imagine prompt: Puppis constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a ship's stern, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Pyxis: /imagine prompt: Pyxis constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a mariner's compass, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Reticulum: /imagine prompt: Reticulum constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a reticle, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Sagitta: /imagine prompt: Sagitta constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of an arrow, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Sagittarius: /imagine prompt: Sagittarius constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of an archer, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Scorpius: /imagine prompt: Scorpius constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a scorpion, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Sculptor: /imagine prompt: Sculptor constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a sculptor's studio, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Scutum: /imagine prompt: Scutum constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a shield, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Serpens: /imagine prompt: Serpens constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a serpent, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Sextans: /imagine prompt: Sextans constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a sextant, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Taurus: /imagine prompt: Taurus constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a bull, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Telescopium: /imagine prompt: Telescopium constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a telescope, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Triangulum: /imagine prompt: Triangulum constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a triangle, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Triangulum Australe: /imagine prompt: Triangulum Australe constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a southern triangle, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Tucana: /imagine prompt: Tucana constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a toucan bird, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Ursa Major: /imagine prompt: Ursa Major constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a great bear, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Ursa Minor: /imagine prompt: Ursa Minor constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a little bear, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Vela: /imagine prompt: Vela constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of ship's sails, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Virgo: /imagine prompt: Virgo constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a virgin, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Volans: /imagine prompt: Volans constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a flying fish, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
+
+Vulpecula: /imagine prompt: Vulpecula constellation, professional astronomical star chart, technically accurate star positions, stars with varying magnitude, transparent ethereal glowing blueprint of a little fox, minimalist cyan neon aesthetic, coordinate grid, high precision --no clouds, painting, 3d, thick lines --ar 16:9
