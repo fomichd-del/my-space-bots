@@ -13,6 +13,7 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# КАТАЛОГ СОЗВЕЗДИЙ
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -79,9 +80,12 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.milky_way() 
         p.constellations()
         
-        # --- [ СЕТКА И ЛИНИИ С ПРАВИЛЬНЫМ СТИЛЕМ ] ---
-        p.ecliptic(style={"line": {"color": "#ff4c4c", "linestyle": "dashed", "width": 1.2, "alpha": 0.6}})
-        p.celestial_equator(style={"line": {"color": "#4c4cff", "linestyle": "dashed", "width": 1.2, "alpha": 0.6}})
+        # --- [ ИСПРАВЛЕНО: БЕЗ linestyle ] ---
+        # Эклиптика (Красная линия)
+        p.ecliptic(style={"line": {"color": "#ff4c4c", "width": 0.8, "alpha": 0.5}})
+        
+        # Небесный экватор (Синяя линия)
+        p.celestial_equator(style={"line": {"color": "#4c4cff", "width": 0.8, "alpha": 0.5}})
         
         try: p.dsos(where=[_.magnitude < 5.5], labels=False)
         except: pass
@@ -92,10 +96,10 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
-        # Небесные тела
+        # Рисуем планеты, Солнце и Луну
         p.planets()
-        p.sun(style={"marker": {"size": 15, "symbol": "o", "fill": "full", "color": "#FFD700"}})
-        p.moon(style={"marker": {"size": 12, "symbol": "o", "fill": "full", "color": "#FFFFFF"}})
+        p.sun(style={"marker": {"size": 15, "symbol": "circle", "color": "#FFD700"}})
+        p.moon(style={"marker": {"size": 12, "symbol": "circle", "color": "#FFFFFF"}})
 
         p.marker(
             ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
@@ -122,16 +126,18 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # ВРЕМЯ
-        moon = ephem.Moon(); moon.compute(e_obs)
-        sun = ephem.Sun(); sun.compute(e_obs)
-        moon_phase = int(moon.phase)
+        # РАСЧЕТ ВРЕМЕНИ
+        moon_obj = ephem.Moon(); moon_obj.compute(e_obs)
+        sun_obj = ephem.Sun(); sun_obj.compute(e_obs)
+        moon_phase = int(moon_obj.phase)
         
         try:
-            rise_utc = e_obs.next_rising(sun).datetime()
-            set_utc = e_obs.next_setting(sun).datetime()
+            rise_utc = e_obs.next_rising(sun_obj).datetime()
+            set_utc = e_obs.next_setting(sun_obj).datetime()
+            
             tf = TimezoneFinder(in_memory=False)
             timezone_str = tf.timezone_at(lng=float(lon), lat=float(lat))
+            
             if timezone_str:
                 user_tz = pytz.timezone(timezone_str)
                 rise_time = pytz.utc.localize(rise_utc).astimezone(user_tz).strftime('%H:%M')
