@@ -52,7 +52,8 @@ def generate_star_map(lat, lon, user_name, user_id):
             db = json.load(f)
 
         e_obs = ephem.Observer()
-        e_obs.lat, e_obs.lon, e_obs.date = str(lat), str(lon), dt_now
+        e_obs.lat, e_obs.lon = str(lat), str(lon)
+        e_obs.date = dt_now # ФИКС: Передаем объект даты напрямую
         
         visible_targets = []
         for key, pos in TARGETS.items():
@@ -65,7 +66,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # --- [ ТВОИ ОРИГИНАЛЬНЫЕ НАСТРОЙКИ СТИЛЯ ] ---
+        # --- [ СТИЛЬ ИЗ ТВОЕГО ЛУЧШЕГО КОДА ] ---
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.stars.label.font_size = 11
@@ -74,7 +75,8 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellations.line.color = "#5c9dff"
         except: pass
 
-        p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
+        # ФИКС: Убрали autoscale=True, чтобы не обрезало края горизонта
+        p = ZenithPlot(observer=observer, style=style, resolution=2000)
 
         p.horizon()
         p.milky_way() 
@@ -95,7 +97,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ (Если видно)
+        # СОЛНЦЕ
         if math.degrees(sun_e.alt) > 0:
             p.marker(
                 ra=math.degrees(sun_j2000.ra) / 15.0, 
@@ -107,26 +109,26 @@ def generate_star_map(lat, lon, user_name, user_id):
                 }
             )
         
-        # ЛУНА (Теперь ЖЕЛТАЯ и с ЖИРНЫМ текстом)
-        if math.degrees(moon_e.alt) > -1: # Немного расширили порог горизонта
+        # ЛУНА (Сделали крупнее и ярче)
+        if math.degrees(moon_e.alt) > -2: # Немного запаса для горизонта
             p.marker(
                 ra=math.degrees(moon_j2000.ra) / 15.0, 
                 dec=math.degrees(moon_j2000.dec), 
                 label="ЛУНА",
                 style={
-                    "marker": {"size": 52, "symbol": "circle", "color": "#FFFACD", "edge_color": "#FFFFFF", "edge_width": 2},
-                    "label": {"font_size": 20, "font_weight": 900, "font_color": "#FFFACD", "offset_y": 35}
+                    "marker": {"size": 52, "symbol": "circle", "color": "#FFFFA0", "edge_color": "#FFFFFF", "edge_width": 2},
+                    "label": {"font_size": 20, "font_weight": 900, "font_color": "#FFFFA0", "offset_y": 35}
                 }
             )
 
-        # ЦЕЛЬ (В самый конец, чтобы была поверх всего)
+        # ЦЕЛЬ (Обязательно рисуем поверх всего)
         p.marker(
             ra=target_pos[0] / 15.0, 
             dec=target_pos[1], 
             label="ЦЕЛЬ!",
             style={
-                "marker": {"size": 120, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 6},
-                "label": {"font_size": 28, "font_weight": 900, "font_color": "#FF00FF", "offset_y": 75}
+                "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 5},
+                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}
             }
         )
 
