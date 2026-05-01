@@ -8,13 +8,11 @@ import os, json, random, gc, math
 from PIL import Image
 import ephem
 import warnings
-# Добавляем библиотеки для работы с часовыми поясами
 from timezonefinder import TimezoneFinder
 import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# КАТАЛОГ СОЗВЕЗДИЙ (RA, DEC)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -75,19 +73,16 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellation.line.color = "#5c9dff"
         except: pass
 
-        # Создаем карту (Разрешение 1600 - безопасно для памяти)
         p = ZenithPlot(observer=observer, style=style, resolution=1600, autoscale=True)
 
         p.horizon()
         p.milky_way() 
         p.constellations()
         
-        # --- [ НОВЫЕ ДЕТАЛИ ] ---
-        # 1. Эклиптика (Красный пунктир)
-        p.ecliptic(color="#ff4c4c", linestyle="dashed", linewidth=1.2, alpha=0.7)
-        # 2. Небесный экватор (Синий пунктир)
-        p.celestial_equator(color="#4c4cff", linestyle="dashed", linewidth=1.2, alpha=0.7)
-        # 3. Дип-скай объекты (Те самые кружочки)
+        # --- [ СЕТКА И ЛИНИИ С ПРАВИЛЬНЫМ СТИЛЕМ ] ---
+        p.ecliptic(style={"line": {"color": "#ff4c4c", "linestyle": "dashed", "width": 1.2, "alpha": 0.6}})
+        p.celestial_equator(style={"line": {"color": "#4c4cff", "linestyle": "dashed", "width": 1.2, "alpha": 0.6}})
+        
         try: p.dsos(where=[_.magnitude < 5.5], labels=False)
         except: pass
 
@@ -96,9 +91,12 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.constellation_labels() 
         
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
-        p.planets(); p.sun(); p.moon()
+        
+        # Небесные тела
+        p.planets()
+        p.sun(style={"marker": {"size": 15, "symbol": "o", "fill": "full", "color": "#FFD700"}})
+        p.moon(style={"marker": {"size": 12, "symbol": "o", "fill": "full", "color": "#FFFFFF"}})
 
-        # Маркер цели
         p.marker(
             ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
             style={
@@ -111,10 +109,8 @@ def generate_star_map(lat, lon, user_name, user_id):
         plt.close('all')
         del p
 
-        # СБОРКА ФИНАЛЬНОЙ КАРТОЧКИ
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
-        
         sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
@@ -126,30 +122,22 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # --- [ РАСЧЕТ МЕСТНОГО ВРЕМЕНИ ] ---
+        # ВРЕМЯ
         moon = ephem.Moon(); moon.compute(e_obs)
         sun = ephem.Sun(); sun.compute(e_obs)
         moon_phase = int(moon.phase)
         
         try:
-            # Получаем время в UTC
             rise_utc = e_obs.next_rising(sun).datetime()
             set_utc = e_obs.next_setting(sun).datetime()
-            
-            # Определяем часовой пояс (in_memory=False для экономии RAM на Render)
             tf = TimezoneFinder(in_memory=False)
             timezone_str = tf.timezone_at(lng=float(lon), lat=float(lat))
-            
             if timezone_str:
                 user_tz = pytz.timezone(timezone_str)
-                # Переводим из UTC в пояс пользователя
-                rise_local = pytz.utc.localize(rise_utc).astimezone(user_tz)
-                set_local = pytz.utc.localize(set_utc).astimezone(user_tz)
-                rise_time = rise_local.strftime('%H:%M')
-                set_time = set_local.strftime('%H:%M')
+                rise_time = pytz.utc.localize(rise_utc).astimezone(user_tz).strftime('%H:%M')
+                set_time = pytz.utc.localize(set_utc).astimezone(user_tz).strftime('%H:%M')
             else:
-                rise_time = rise_utc.strftime('%H:%M')
-                set_time = set_utc.strftime('%H:%M')
+                rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: 
             rise_time, set_time = "--:--", "--:--"
 
