@@ -72,31 +72,30 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellations.line.color = "#5c9dff"
         except: pass
 
-        # Создаем карту на текущее время (dt_now)
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
 
         p.horizon()
         p.milky_way() 
         p.constellations()
         
-        # --- [ ПУТЬ ПЕРФЕКЦИОНИСТА: ЛИНИИ ОТКЛЮЧЕНЫ ] ---
-        # Мы убрали p.ecliptic() и p.celestial_equator(), чтобы карта была чистой и современной
-        
+        # Линии J2000 отключены ради точности и чистоты карты на 2026 год
         p.constellation_labels() 
-        # Отрисовываем звезды на J2000 сетке, но на текущее время
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         
-        # --- [ ЧЕСТНЫЙ 2026 ГОД: ВСЕ ОБЪЕКТЫ НА СВОИХ МЕСТАХ ] ---
-        p.planets() # Планеты на сегодня
-        p.sun(style={"marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2}}) # Солнце на сегодня
-        p.moon(style={"marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1}}) # Луна на сегодня
+        # --- [ ЧЕСТНЫЙ 2026 ГОД: ПЛАНЕТЫ, СОЛНЦЕ И ЛУНА ] ---
+        p.planets() 
+        p.sun(style={"marker": {"size": 42, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2}})
+        p.moon(style={"marker": {"size": 32, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1}})
 
-        # Добавляем подписи к Солнцу и Луне, используя встроенные координаты starplot
-        sun_coords = p.observer.sun()
-        p.text("СОЛНЦЕ", ra=sun_coords.ra, dec=sun_coords.dec, style={"font_size": 20, "font_color": "#FFCC00", "font_weight": "bold", "offset_y": 35})
+        # Подписи к Солнцу и Луне через расчеты ephem
+        sun_e = ephem.Sun(); sun_e.compute(e_obs)
+        moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
-        moon_coords = p.observer.moon()
-        p.text("ЛУНА", ra=moon_coords.ra, dec=moon_coords.dec, style={"font_size": 18, "font_color": "#F0F0F0", "font_weight": "bold", "offset_y": 30})
+        p.text("СОЛНЦЕ", ra=math.degrees(sun_e.ra)/15, dec=math.degrees(sun_e.dec), 
+               style={"font_size": 20, "font_color": "#FFCC00", "font_weight": "bold", "offset_y": 35})
+        
+        p.text("ЛУНА", ra=math.degrees(moon_e.ra)/15, dec=math.degrees(moon_e.dec), 
+               style={"font_size": 18, "font_color": "#F0F0F0", "font_weight": "bold", "offset_y": 30})
 
         # Маркер цели
         p.marker(
@@ -120,10 +119,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # Расчет времени для бара через ephem (используем dt_now)
-        sun_e = ephem.Sun(); sun_e.compute(e_obs)
-        moon_e = ephem.Moon(); moon_e.compute(e_obs)
-        
+        # Расчет времени для бара
         try:
             rise_utc = e_obs.next_rising(sun_e).datetime()
             set_utc = e_obs.next_setting(sun_e).datetime()
@@ -139,17 +135,11 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         # --- [ ФИНАЛЬНАЯ НАСТРОЙКА БАРА: ВСЁ РАЗМЕРОМ 8, NORMAL ] ---
         t_col = '#D4E6FF'
-        # Имя
         fig.text(0.38, 0.170, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
-        # Координаты
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
-        # Фаза
         fig.text(0.35, 0.106, f"Фаза: {int(moon_e.phase)}%", color=t_col, fontsize=8, fontweight='normal')
-        # Время
         fig.text(0.40, 0.067, rise_time, color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.68, 0.067, set_time, color=t_col, fontsize=8, fontweight='normal')
-        
-        # Цель - теперь тоже размер 8 и не жирная
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='normal')
 
         tmp_png = f"fin_{user_id}.png"
