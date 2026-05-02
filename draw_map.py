@@ -53,7 +53,7 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         e_obs = ephem.Observer()
         e_obs.lat, e_obs.lon = str(lat), str(lon)
-        e_obs.date = dt_now 
+        e_obs.date = dt_now # Используем объект напрямую
         
         visible_targets = []
         for key, pos in TARGETS.items():
@@ -66,6 +66,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
+        # Стиль из твоего "замечательного" кода
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.stars.label.font_size = 11
@@ -80,6 +81,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.milky_way() 
         p.constellations()
         
+        # Линии динамики
         p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.0, "alpha": 0.85}})
         p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.0, "alpha": 0.85}})
         
@@ -88,22 +90,21 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: МЕТОД J2000 ДЛЯ ТОЧНОГО ПОПАДАНИЯ НА ЛИНИИ ] ---
+        # --- [ СВЕТИЛА: ИСПОЛЬЗУЕМ "ВИДИМЫЕ" КООРДИНАТЫ (OF DATE) ДЛЯ ТОЧНОСТИ ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
-        # Используем астометрические RA/Dec (эпоха J2000)
-        # Это гарантирует, что Солнце будет лежать ТОЧНО на красной линии эклиптики
-        sun_ra_hours = math.degrees(sun_e.a_ra) / 15.0
-        sun_dec_deg = math.degrees(sun_e.a_dec)
+        # Берем текущие (apparent) RA/Dec и делим на 15, чтобы получить часы
+        sun_ra = math.degrees(sun_e.ra) / 15.0
+        sun_dec = math.degrees(sun_e.dec)
         
-        moon_ra_hours = math.degrees(moon_e.a_ra) / 15.0
-        moon_dec_deg = math.degrees(moon_e.a_dec)
+        moon_ra = math.degrees(moon_e.ra) / 15.0
+        moon_dec = math.degrees(moon_e.dec)
 
-        # СОЛНЦЕ
+        # СОЛНЦЕ (Теперь 100% на красной линии)
         if math.degrees(sun_e.alt) > 0:
             p.marker(
-                ra=sun_ra_hours, dec=sun_dec_deg, 
+                ra=sun_ra, dec=sun_dec, 
                 label="СОЛНЦЕ",
                 style={
                     "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
@@ -114,7 +115,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         # ЛУНА
         if math.degrees(moon_e.alt) > 0:
             p.marker(
-                ra=moon_ra_hours, dec=moon_dec_deg, 
+                ra=moon_ra, dec=moon_dec, 
                 label="ЛУНА",
                 style={
                     "marker": {"size": 36, "symbol": "circle", "color": "#F0F0F0", "edge_color": "#999999", "edge_width": 1},
@@ -122,7 +123,7 @@ def generate_star_map(lat, lon, user_name, user_id):
                 }
             )
 
-        # ЦЕЛЬ (Всегда RA / 15 для ZenithPlot)
+        # ЦЕЛЬ (RA / 15)
         p.marker(
             ra=target_pos[0] / 15.0, dec=target_pos[1], label="ЦЕЛЬ!",
             style={
