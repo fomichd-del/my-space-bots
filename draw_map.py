@@ -5,11 +5,12 @@ from starplot import ZenithPlot, Observer, _
 from starplot.styles import PlotStyle, extensions
 from datetime import datetime, timezone
 import os, json, random, gc, math
-from PIL import Image
+from PIL import Image, ImageDraw, ImageChops
 import ephem
 import warnings
 from timezonefinder import TimezoneFinder
 import pytz
+import requests # НОВАЯ БИБЛИОТЕКА ДЛЯ ПОГОДЫ
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -38,10 +39,22 @@ TARGETS = {
     "vela": [140, -50], "virgo": [200, -5], "volans": [115, -70], "vulpecula": [302, 25]
 }
 
+def get_weather(lat, lon):
+    try:
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=cloud_cover"
+        resp = requests.get(url, timeout=5)
+        data = resp.json()
+        return int(data['current']['cloud_cover'])
+    except:
+        return 0 # Если сервер погоды недоступен, считаем что небо ясное
+
 def generate_star_map(lat, lon, user_name, user_id):
     gc.collect() 
     temp_file = f"tmp_{user_id}.png"
     final_path = f"sky_{user_id}.jpg"
+    
+    # Получаем погоду
+    cloud_cover = get_weather(lat, lon)
     
     try:
         dt_now = datetime.now(timezone.utc)
@@ -87,14 +100,13 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: ПРАВИЛЬНЫЕ ГРАДУСЫ (БЕЗ ДЕЛЕНИЯ НА 15!) ] ---
+        # --- [ СВЕТИЛА: ТВОЙ ЗАБЕТОНИРОВАННЫЙ КОД ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ (Полностью твой рабочий код координат)
         p.marker(
             ra=math.degrees(sun_j2000.ra), 
             dec=math.degrees(sun_j2000.dec), 
@@ -105,7 +117,6 @@ def generate_star_map(lat, lon, user_name, user_id):
             }
         )
         
-        # ЛУНА (Без деления на 15, но с крупным размером и подписью)
         p.marker(
             ra=math.degrees(moon_j2000.ra), 
             dec=math.degrees(moon_j2000.dec), 
@@ -116,7 +127,6 @@ def generate_star_map(lat, lon, user_name, user_id):
             }
         )
 
-        # ЦЕЛЬ (Без деления на 15)
         p.marker(
             ra=target_pos[0], 
             dec=target_pos[1], 
@@ -130,10 +140,40 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
+        # --- [ МАГИЯ СЛОЕВ И ПОГОДЫ ] ---
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
+        
+        # Накладываем облака, если они есть
+        if cloud_cover > 5 and os.path.exists('clouds.png'):
+            try:
+                # Читаем текстуру облаков и переводим в ЧБ (для маски)
+                cloud_tex = Image.open('clouds.png').convert('L')
+                cloud_tex = cloud_tex.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
+                
+                # Создаем круглую маску, чтобы облака не вылезали за пределы карты неба
+                circle_mask = Image.new('L', (sky_size, sky_size), 0)
+                draw = ImageDraw.Draw(circle_mask)
+                draw.ellipse((0, 0, sky_size, sky_size), fill=255)
+                
+                # Расчет прозрачности: от 0.0 до 0.85 максимум (чтобы звезды чуть просвечивали даже в шторм)
+                opacity_factor = (cloud_cover / 100.0) * 0.85
+                cloud_alpha = cloud_tex.point(lambda p: int(p * opacity_factor))
+                
+                # Применяем круглую границу к облакам
+                final_cloud_mask = ImageChops.darker(cloud_alpha, circle_mask)
+                
+                # Создаем слой с белым цветом (тучи) и нашей прозрачностью
+                cloud_layer = Image.new('RGBA', (sky_size, sky_size), (240, 240, 245, 255))
+                cloud_layer.putalpha(final_cloud_mask)
+                
+                # Накладываем тучи поверх звезд
+                sky_img = Image.alpha_composite(sky_img, cloud_layer)
+            except Exception as e:
+                print(f"Ошибка наложения облаков: {e}")
+
         bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
         
         dpi = 300 
@@ -153,10 +193,14 @@ def generate_star_map(lat, lon, user_name, user_id):
                 rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
         except: rise_time, set_time = "--:--", "--:--"
 
+        # --- [ ОБНОВЛЕННЫЙ ИНФО-БАР ] ---
         t_col = '#D4E6FF'
         fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
-        fig.text(0.35, 0.106, f"Фаза: {int(moon_e.phase)}%", color=t_col, fontsize=8, fontweight='normal')
+        
+        # Выводим Фазу и Погоду в одной строке по центру
+        fig.text(0.32, 0.106, f"Фаза: {int(moon_e.phase)}%  |  Облачность: {cloud_cover}%", color=t_col, fontsize=8, fontweight='normal')
+        
         fig.text(0.385, 0.072, rise_time, color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.705, 0.072, set_time, color=t_col, fontsize=8, fontweight='normal')
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='normal')
