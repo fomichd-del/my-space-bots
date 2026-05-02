@@ -6,7 +6,7 @@ from draw_map import generate_star_map
 from flask import Flask
 from threading import Thread
 import wikipediaapi
-import requests # НОВАЯ БИБЛИОТЕКА ДЛЯ ПРОВЕРКИ ФОТО
+import requests # БИБЛИОТЕКА ДЛЯ БРОНЕБОЙНОЙ ПРОВЕРКИ И СКАЧИВАНИЯ ФОТО
 
 # --- [ ИМПОРТ БАЗЫ КОСМИЧЕСКОГО ПАТРУЛЯ ] ---
 from base_fact_star import CONSTELLATIONS
@@ -175,45 +175,47 @@ def callback_wiki(call):
         folder = "photo_space"
         base_url = f"https://raw.githubusercontent.com/{repo_user}/{repo_name}/main/{folder}/"
         
-        # --- [ УМНЫЙ ЛОКАТОР ФОТОГРАФИЙ ] ---
-        # Проверяем разные форматы и написания (с пробелом, с подчеркиванием, строчные буквы)
-        formats = [".png", ".jpg", ".jpeg"]
+        # --- [ УМНЫЙ ЛОКАТОР ФОТОГРАФИЙ (БРОНЕБОЙНАЯ ВЕРСИЯ) ] ---
+        # Добавили форматы капсом, так как GitHub чувствителен к регистру
+        formats = [".png", ".jpg", ".jpeg", ".PNG", ".JPG"] 
         name_variants = [
             name_latin, 
+            name_latin.title(), # Принудительно Делает Первую Букву Заглавной (Perseus)
             name_latin.lower(), 
             name_latin.replace(" ", "_"), 
-            name_latin.replace(" ", "_").lower()
+            name_latin.replace(" ", "_").title()
         ]
         
-        valid_photo_url = None
+        valid_photo_data = None
         for variant in name_variants:
             for ext in formats:
                 test_url = f"{base_url}{variant}{ext}".replace(" ", "%20")
                 try:
-                    # Быстрый ping URL
-                    response = requests.head(test_url, timeout=3)
+                    # Используем GET, чтобы сразу скачать картинку в память бота!
+                    response = requests.get(test_url, timeout=5)
                     if response.status_code == 200:
-                        valid_photo_url = test_url
+                        valid_photo_data = response.content # Сохраняем САМУ картинку, а не ссылку
                         break
                 except:
                     continue
-            if valid_photo_url:
+            if valid_photo_data:
                 break
         
         text = f"🌌 <b>{found_fact['name_ru'].upper()} ({found_fact['name_latin']})</b>\n\n{found_fact['fact']}"
         
-        if valid_photo_url:
+        if valid_photo_data:
             try:
-                # Отправка найденного фото
+                # Отправляем БАЙТЫ картинки! Так Telegram гарантированно ее примет.
                 bot.send_photo(
                     call.message.chat.id, 
-                    valid_photo_url, 
+                    valid_photo_data, 
                     caption="⭐️ Специально для канала: <b>Дневник юного космонавта</b>", 
                     parse_mode='HTML',
                     timeout=40
                 )
-            except:
-                pass # Если фото вдруг не ушло (например, Telegram заглючил), игнорируем, текст отправится ниже
+            except Exception as e:
+                print(f"Ошибка отправки фото: {e}")
+                pass # Если фото не ушло, текст все равно будет отправлен ниже
                 
         # Текст отправляем всегда
         bot.send_message(call.message.chat.id, text, parse_mode='HTML')
