@@ -172,7 +172,7 @@ def generate_star_map(lat, lon, user_name, user_id):
                 draw = ImageDraw.Draw(circle_mask)
                 
                 # Отступ 10 пикселей, чтобы тучи не ложились на буквы компаса (N, S, E, W)
-                offset = 30 
+                offset = 50
                 draw.ellipse((offset, offset, sky_size - offset, sky_size - offset), fill=255)
 
                 # --- 2. Скрещиваем маску облаков и круглый трафарет ---
