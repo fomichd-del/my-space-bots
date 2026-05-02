@@ -13,7 +13,9 @@ from deep_translator import GoogleTranslator
 
 print("🚀 [ЦУП] Системы v177.0 'Multiverse' активны. Режим: YouTube + Резервные источники.")
 
-# Настройки (Золотой стандарт канала КОСМОС)
+# ============================================================
+# ⚙️ КОНФИГУРАЦИЯ
+# ============================================================
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY') 
 YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES') 
@@ -86,8 +88,8 @@ async def process_mission(v_url, title, desc_raw, is_russian=False, source_name=
         if not any(word in search_text for word in SPACE_KEYWORDS): 
             print(f"⏭ [ЦУП] Объект {v_id} не прошел космо-фильтр."); return False
             
-    f_raw, f_final, f_thumb, f_cookies = "raw_video.mp4", "final_video.mp4", "thumb.jpg", "cookies.txt"
-    for f in [f_raw, f_final, "subs.srt", f_thumb, f_cookies]:
+    f_raw, f_final, f_thumb, f_cookies, f_subs = "raw_video.mp4", "final_video.mp4", "thumb.jpg", "cookies.txt", "subs.srt"
+    for f in [f_raw, f_final, f_subs, f_thumb, f_cookies]:
         if os.path.exists(f): os.remove(f)
 
     if YOUTUBE_COOKIES and 'youtube.com' in v_url:
@@ -135,30 +137,46 @@ async def process_mission(v_url, title, desc_raw, is_russian=False, source_name=
         
         has_subs = False
         if not is_russian:
-            print("🧠 Whisper...")
+            print("🧠 [Whisper] Генерация субтитров...")
             if whisper_model is None:
                 whisper_model = whisper.load_model("base")
             res = whisper_model.transcribe(f_raw)
             segments = res.get('segments', [])
             if segments:
                 srt_data = []
+                translator = GoogleTranslator(source='auto', target='ru')
                 for i, seg in enumerate(segments):
                     t_start = time.strftime('%H:%M:%S,000', time.gmtime(seg['start']))
                     t_end = time.strftime('%H:%M:%S,000', time.gmtime(seg['end']))
-                    text = GoogleTranslator(source='auto', target='ru').translate(seg['text'].strip())
-                    srt_data.append(f"{i+1}\n{t_start} --> {t_end}\n{text}\n\n")
-                with open("subs.srt", "w", encoding="utf-8") as fs: fs.write("".join(srt_data))
+                    raw_text = seg['text'].strip()
+                    if not raw_text: continue
+                    try:
+                        translated_text = translator.translate(raw_text)
+                    except:
+                        translated_text = raw_text
+                    srt_data.append(f"{i+1}\n{t_start} --> {t_end}\n{translated_text}\n\n")
+                
+                with open(f_subs, "w", encoding="utf-8") as fs:
+                    fs.write("".join(srt_data))
                 has_subs = True
+                print(f"📝 Субтитры сформированы: {len(srt_data)} сегментов.")
 
         print("🎬 Финальный монтаж...")
         target_total_bps = int((44 * 1024 * 1024 * 8) / (duration + 4))
         v_br = max(40000, min(target_total_bps - 32000, 2000000))
         
+        # Подготовка пути к субтитрам для FFmpeg (экранирование путей)
+        subs_path = os.path.abspath(f_subs).replace('\\', '/').replace(':', '\\:')
+        sub_filter = f"subtitles='{subs_path}'" if has_subs else ""
+        
         if os.path.exists(INTRO_FILE) and os.path.exists(OUTRO_FILE):
             filter_pad = f"scale={w_limit}:{h_limit}:force_original_aspect_ratio=decrease,pad={w_limit}:{h_limit}:(ow-iw)/2:(oh-ih)/2,setsar=1"
-            ff_cmd = ['ffmpeg', '-y', '-loop', '1', '-t', '2', '-i', INTRO_FILE, '-i', f_raw, '-loop', '1', '-t', '2', '-i', OUTRO_FILE, '-filter_complex', f"[0:v]{filter_pad}[v0];[1:v]{'subtitles=subs.srt:' if has_subs else ''}{filter_pad}[v1];[2:v]{filter_pad}[v2];[v0][v1][v2]concat=n=3:v=1:a=0[v];[1:a]adelay=2000|2000:all=1[a]", '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '32k', '-ar', '44100', f_final]
+            # Собираем цепочку фильтров для основного видео
+            v1_filter = f"{sub_filter}{',' if has_subs else ''}{filter_pad}"
+            
+            ff_cmd = ['ffmpeg', '-y', '-loop', '1', '-t', '2', '-i', INTRO_FILE, '-i', f_raw, '-loop', '1', '-t', '2', '-i', OUTRO_FILE, '-filter_complex', f"[0:v]{filter_pad}[v0];[1:v]{v1_filter}[v1];[2:v]{filter_pad}[v2];[v0][v1][v2]concat=n=3:v=1:a=0[v];[1:a]adelay=2000|2000:all=1[a]", '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '32k', '-ar', '44100', f_final]
         else:
-            vf = f"{'subtitles=subs.srt:' if has_subs else ''}scale=-2:{h_limit}"
+            vf = f"{sub_filter}{',' if has_subs else ''}scale=-2:{h_limit}"
             ff_cmd = ['ffmpeg', '-y', '-i', f_raw, '-vf', vf, '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '32k', f_final]
         
         subprocess.run(ff_cmd)
@@ -185,16 +203,9 @@ async def main():
     last_s = open(SOURCE_LOG, 'r').read().strip() if os.path.exists(SOURCE_LOG) else ""
     time_limit = datetime.now(timezone.utc) - timedelta(days=30)
     
-    # 🌟 YouTube Источники
     YT_SOURCES = [{'n': 'ADME_RU', 'cid': '@ADME_RU', 'ru': True}, {'n': 'SpaceX Fan', 'cid': '@spacexfan420', 'ru': True}, {'n': 'NFS2081', 'cid': '@NFS2081', 'ru': True}, {'n': 'Rocket Hub', 'cid': '@rockethubspace', 'ru': True}, {'n': 'NASA', 'cid': '@NASAJPL', 'ru': False}, {'n': 'KOSMO', 'cid': '@off_kosmo', 'ru': True}, {'n': 'EVLSPACE', 'cid': '@EVLSPACE', 'ru': True}, {'n': 'ночнаянаука-ц4ш', 'cid': '@ночнаянаука-ц4ш', 'ru': True}, {'n': 'Hubbler', 'cid': '@Hubbler', 'ru': True}, {'n': 'Cosmosprosto', 'cid': '@cosmosprosto', 'ru': True}]
-    
-    # 🛰 РЕЗЕРВНЫЕ ИСТОЧНИКИ (RSS NASA & ESA) - работают без API YouTube
-    RESERVE_SOURCES = [
-        {'n': 'NASA_Breaking', 'url': 'https://www.nasa.gov/rss/dyn/breaking_news.rss', 'ru': False},
-        {'n': 'ESA_Videos', 'url': 'https://www.esa.int/rssfeed/Videos', 'ru': False}
-    ]
+    RESERVE_SOURCES = [{'n': 'NASA_Breaking', 'url': 'https://www.nasa.gov/rss/dyn/breaking_news.rss', 'ru': False}, {'n': 'ESA_Videos', 'url': 'https://www.esa.int/rssfeed/Videos', 'ru': False}]
 
-    # Сначала пробуем YouTube
     random.shuffle(YT_SOURCES)
     for s in YT_SOURCES:
         if s['n'] == last_s: continue
@@ -214,8 +225,7 @@ async def main():
                     with open(SOURCE_LOG, 'w') as f: f.write(s['n']); return
         except: continue
 
-    # Если YouTube не сработал (блокировка или нет видео) - активируем Резерв
-    print("🛰 [ЦУП] YouTube недоступен или пуст. Переход на Резервные Каналы...")
+    print("🛰 [ЦУП] YouTube недоступен. Переход на Резерв...")
     for s in RESERVE_SOURCES:
         try:
             resp = requests.get(s['url'], timeout=10).text
