@@ -13,6 +13,7 @@ import pytz
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# База координат целей (в градусах)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -65,7 +66,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # --- [ ТВОЙ ОРИГИНАЛЬНЫЙ СТИЛЬ: ВОЗВРАЩАЕМ КАК БЫЛО ] ---
+        # --- [ ТВОЙ ОРИГИНАЛЬНЫЙ СТИЛЬ: ВЕРНУЛИ КАК БЫЛО ] ---
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.stars.label.font_size = 11
@@ -74,6 +75,7 @@ def generate_star_map(lat, lon, user_name, user_id):
             style.constellations.line.color = "#5c9dff"
         except: pass
 
+        # Оставляем autoscale=True, раз тебе так больше нравилось
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
 
         p.horizon()
@@ -88,14 +90,14 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         p.planets() 
 
-        # --- [ СВЕТИЛА: РАСЧЕТ И ОТОБРАЖЕНИЕ ] ---
+        # --- [ СВЕТИЛА: ТОЧНЫЙ РАСЧЕТ ДЛЯ ЭКЛИПТИКИ ] ---
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         
         sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
         moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ (Рисуем только если оно в небе)
+        # СОЛНЦЕ (Теперь четко на красной линии!)
         if math.degrees(sun_e.alt) > 0:
             p.marker(
                 ra=math.degrees(sun_j2000.ra) / 15.0, # ГРАДУСЫ В ЧАСЫ
@@ -107,7 +109,7 @@ def generate_star_map(lat, lon, user_name, user_id):
                 }
             )
         
-        # ЛУНА (Теперь с подписью и правильным местом)
+        # ЛУНА (С подписью и правильным местом)
         if math.degrees(moon_e.alt) > 0:
             p.marker(
                 ra=math.degrees(moon_j2000.ra) / 15.0, # ГРАДУСЫ В ЧАСЫ
@@ -119,7 +121,7 @@ def generate_star_map(lat, lon, user_name, user_id):
                 }
             )
 
-        # ЦЕЛЬ (Розовый круг с жирной подписью)
+        # ЦЕЛЬ (Рисуем последней, чтобы была сверху)
         p.marker(
             ra=target_pos[0] / 15.0, # ГРАДУСЫ В ЧАСЫ
             dec=target_pos[1], 
@@ -133,6 +135,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.export(temp_file, transparent=True, padding=0.01)
         plt.close('all')
 
+        # Обработка PIL (фон и плашка)
         bg_img = Image.open('background1.png')
         sky_img = Image.open(temp_file).convert("RGBA")
         sky_size = 940 
