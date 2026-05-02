@@ -1,6 +1,6 @@
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from telebot import apihelper  # Для настройки глубоких таймаутов
+from telebot import apihelper
 import os, time, concurrent.futures
 from draw_map import generate_star_map
 from flask import Flask
@@ -8,7 +8,7 @@ from threading import Thread
 import wikipediaapi
 import requests
 import io
-from PIL import Image, ImageDraw, ImageFont # ДОБАВЛЕНО ДЛЯ ШТАМПА
+from PIL import Image
 
 # --- [ ИМПОРТ БАЗЫ КОСМИЧЕСКОГО ПАТРУЛЯ ] ---
 from base_fact_star import CONSTELLATIONS
@@ -26,10 +26,10 @@ apihelper.READ_TIMEOUT = 90
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
 
-# Википедия для глубокого погружения
+# Википедия
 wiki_wiki = wikipediaapi.Wikipedia(user_agent='MartySpaceBot/1.1', language='ru')
 
-# Flask для поддержания "жизни" сервера на Render
+# Flask
 app = Flask(__name__)
 @app.route('/')
 def keep_alive(): return "Марти Астроном в эфире! 🛰️"
@@ -135,7 +135,6 @@ def handle_location(message):
                     break 
                 except Exception as e:
                     if attempt < max_attempts - 1:
-                        print(f"⚠️ Попытка {attempt+1} сорвалась, пробую еще раз...")
                         time.sleep(3)
                     else:
                         raise e 
@@ -202,45 +201,50 @@ def callback_wiki(call):
         
         if valid_photo_data:
             try:
-                # --- [ НАНОСИМ ВОДЯНОЙ ЗНАК КАНАЛА ] ---
-                img = Image.open(io.BytesIO(valid_photo_data)).convert("RGBA")
-                txt_layer = Image.new('RGBA', img.size, (255, 255, 255, 0))
-                draw = ImageDraw.Draw(txt_layer)
-                
-                # Текст штампа
-                watermark_text = "@vladislav_space"
-                
-                # Если в папке будет лежать файл шрифта font.ttf, скрипт использует его
-                # Если нет - сработает встроенный резервный шрифт
-                try:
-                    font = ImageFont.truetype("font.ttf", int(img.height / 25))
-                except IOError:
-                    font = ImageFont.load_default()
-                
-                # Вычисляем размеры текста
-                try:
-                    bbox = draw.textbbox((0, 0), watermark_text, font=font)
-                    text_w = bbox[2] - bbox[0]
-                    text_h = bbox[3] - bbox[1]
-                except AttributeError:
-                    text_w, text_h = draw.textsize(watermark_text, font=font)
-                
-                # Позиция: правый нижний угол с отступом 20 пикселей
-                margin = 20
-                x = img.width - text_w - margin
-                y = img.height - text_h - margin
-                
-                # Рисуем черную тень (смещение на 2 пикселя)
-                draw.text((x + 2, y + 2), watermark_text, fill=(0, 0, 0, 180), font=font)
-                # Рисуем полупрозрачный белый текст
-                draw.text((x, y), watermark_text, fill=(255, 255, 255, 180), font=font)
-                
-                # Склеиваем и сохраняем обратно в байты
-                watermarked_img = Image.alpha_composite(img, txt_layer).convert("RGB")
-                output_bytes = io.BytesIO()
-                watermarked_img.save(output_bytes, format='JPEG', quality=95)
-                final_photo_data = output_bytes.getvalue()
-                
+                # --- [ УМНЫЙ ШТАМП: ПРОЗРАЧНОСТЬ И ТОЧНОЕ ПОЗИЦИОНИРОВАНИЕ ] ---
+                base_img = Image.open(io.BytesIO(valid_photo_data)).convert("RGBA")
+                stamp_path = "watermark.png" 
+
+                if os.path.exists(stamp_path):
+                    stamp_img = Image.open(stamp_path).convert("RGBA")
+
+                    # 1. МАГИЯ: Превращаем БЕЛЫЙ фон штампа в ПРОЗРАЧНЫЙ
+                    datas = stamp_img.getdata()
+                    new_data = []
+                    for item in datas:
+                        # Если пиксель светлый (почти белый), делаем его прозрачным
+                        if item[0] > 230 and item[1] > 230 and item[2] > 230:
+                            new_data.append((255, 255, 255, 0)) # 0 = полная прозрачность
+                        else:
+                            new_data.append(item)
+                    stamp_img.putdata(new_data)
+
+                    # 2. РАЗМЕР: 12% от ширины картинки созвездия (чтобы влез в ромбик)
+                    target_width_percent = 0.12
+                    scale_factor = (base_img.width * target_width_percent) / stamp_img.width
+                    new_w = int(stamp_img.width * scale_factor)
+                    new_h = int(stamp_img.height * scale_factor)
+                    stamp_img = stamp_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+                    # 3. ПОЗИЦИЯ: Устанавливаем прямо в угол
+                    # Если нужно сдвинуть левее/выше, увеличь цифру 0.02
+                    margin_x = int(base_img.width * 0.02) 
+                    margin_y = int(base_img.height * 0.02) 
+                    
+                    x = base_img.width - stamp_img.width - margin_x
+                    y = base_img.height - stamp_img.height - margin_y
+
+                    # Накладываем прозрачный штамп
+                    base_img.paste(stamp_img, (x, y), mask=stamp_img)
+
+                    # Готовим к отправке
+                    watermarked_img = base_img.convert("RGB")
+                    output_bytes = io.BytesIO()
+                    watermarked_img.save(output_bytes, format='JPEG', quality=95)
+                    final_photo_data = output_bytes.getvalue()
+                else:
+                    final_photo_data = valid_photo_data
+
                 bot.send_photo(
                     call.message.chat.id, 
                     final_photo_data, 
@@ -249,8 +253,7 @@ def callback_wiki(call):
                     timeout=40
                 )
             except Exception as e:
-                print(f"Ошибка нанесения штампа: {e}")
-                # Если со штампом что-то пошло не так, отправляем чистое фото как резерв
+                print(f"Ошибка штампа: {e}")
                 bot.send_photo(call.message.chat.id, valid_photo_data, caption="⭐️ Специально для канала: <b>Дневник юного космонавта</b>", parse_mode='HTML')
                 
         bot.send_message(call.message.chat.id, text, parse_mode='HTML')
