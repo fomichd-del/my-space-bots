@@ -6,6 +6,7 @@ from draw_map import generate_star_map
 from flask import Flask
 from threading import Thread
 import wikipediaapi
+import requests # НОВАЯ БИБЛИОТЕКА ДЛЯ ПРОВЕРКИ ФОТО
 
 # --- [ ИМПОРТ БАЗЫ КОСМИЧЕСКОГО ПАТРУЛЯ ] ---
 from base_fact_star import CONSTELLATIONS
@@ -168,27 +169,54 @@ def callback_wiki(call):
             break
             
     if found_fact:
-        # --- [ АВТОМАТИЗАЦИЯ ФОТО ИЗ GITHUB ] ---
+        name_latin = found_fact['name_latin']
         repo_user = "fomichd-del"
         repo_name = "my-space-bots"
         folder = "photo_space"
-        safe_name = found_fact['name_latin'].replace(" ", "%20")
-        github_photo_url = f"https://raw.githubusercontent.com/{repo_user}/{repo_name}/main/{folder}/{safe_name}.png"
+        base_url = f"https://raw.githubusercontent.com/{repo_user}/{repo_name}/main/{folder}/"
+        
+        # --- [ УМНЫЙ ЛОКАТОР ФОТОГРАФИЙ ] ---
+        # Проверяем разные форматы и написания (с пробелом, с подчеркиванием, строчные буквы)
+        formats = [".png", ".jpg", ".jpeg"]
+        name_variants = [
+            name_latin, 
+            name_latin.lower(), 
+            name_latin.replace(" ", "_"), 
+            name_latin.replace(" ", "_").lower()
+        ]
+        
+        valid_photo_url = None
+        for variant in name_variants:
+            for ext in formats:
+                test_url = f"{base_url}{variant}{ext}".replace(" ", "%20")
+                try:
+                    # Быстрый ping URL
+                    response = requests.head(test_url, timeout=3)
+                    if response.status_code == 200:
+                        valid_photo_url = test_url
+                        break
+                except:
+                    continue
+            if valid_photo_url:
+                break
         
         text = f"🌌 <b>{found_fact['name_ru'].upper()} ({found_fact['name_latin']})</b>\n\n{found_fact['fact']}"
         
-        try:
-            # Отправка фото с таймаутом
-            bot.send_photo(
-                call.message.chat.id, 
-                github_photo_url, 
-                caption="⭐️ Специально для канала: <b>Дневник юного космонавта</b>", 
-                parse_mode='HTML',
-                timeout=40
-            )
-            bot.send_message(call.message.chat.id, text, parse_mode='HTML')
-        except:
-            bot.send_message(call.message.chat.id, text, parse_mode='HTML')
+        if valid_photo_url:
+            try:
+                # Отправка найденного фото
+                bot.send_photo(
+                    call.message.chat.id, 
+                    valid_photo_url, 
+                    caption="⭐️ Специально для канала: <b>Дневник юного космонавта</b>", 
+                    parse_mode='HTML',
+                    timeout=40
+                )
+            except:
+                pass # Если фото вдруг не ушло (например, Telegram заглючил), игнорируем, текст отправится ниже
+                
+        # Текст отправляем всегда
+        bot.send_message(call.message.chat.id, text, parse_mode='HTML')
     else:
         try:
             page = wiki_wiki.page(f"{subject.capitalize()} (созвездие)")
