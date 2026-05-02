@@ -5,7 +5,7 @@ from starplot import ZenithPlot, Observer, _
 from starplot.styles import PlotStyle, extensions
 from datetime import datetime, timezone
 import os, json, random, gc, math
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageDraw, ImageChops
 import ephem
 import warnings
 from timezonefinder import TimezoneFinder
@@ -149,7 +149,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # --- [ МАГИЯ ПОГОДЫ: НАЛОЖЕНИЕ ОБЛАКОВ ] ---
+        # --- [ МАГИЯ ПОГОДЫ: НАЛОЖЕНИЕ ОБЛАКОВ С ТРАФАРЕТОМ ] ---
         if cloud_cover > 5 and os.path.exists('clouds.png'):
             try:
                 # Открываем текстуру пользователя
@@ -159,18 +159,29 @@ def generate_star_map(lat, lon, user_name, user_id):
                 # Делаем из неё маску (переводим в ЧБ)
                 gray = clouds_tex.convert('L')
                 
-                # Увеличиваем контраст, чтобы темно-серый фон текстуры стал АБСОЛЮТНО черным (прозрачным)
+                # Увеличиваем контраст, чтобы фон стал черным
                 enhancer = ImageEnhance.Contrast(gray)
-                mask = enhancer.enhance(1.8) 
+                cloud_mask = enhancer.enhance(1.8) 
                 
-                # Прозрачность зависит от % облачности на улице
-                # (делим на 100, чтобы получить коэффициент от 0 до 1)
+                # Прозрачность зависит от погоды
                 opacity_factor = cloud_cover / 100.0
-                mask = mask.point(lambda p: int(p * opacity_factor))
+                cloud_mask = cloud_mask.point(lambda p: int(p * opacity_factor))
+
+                # --- 1. Создаем круглый трафарет для обрезки туч ---
+                circle_mask = Image.new("L", (sky_size, sky_size), 0)
+                draw = ImageDraw.Draw(circle_mask)
                 
-                # Создаем слой дымки (светло-серый) и применяем к нему нашу вырезанную текстуру туч
+                # Отступ 10 пикселей, чтобы тучи не ложились на буквы компаса (N, S, E, W)
+                offset = 10 
+                draw.ellipse((offset, offset, sky_size - offset, sky_size - offset), fill=255)
+
+                # --- 2. Скрещиваем маску облаков и круглый трафарет ---
+                # Всё, что выходит за пределы круга, становится 100% прозрачным
+                final_mask = ImageChops.multiply(cloud_mask, circle_mask)
+                
+                # Создаем слой дымки и применяем к нему нашу обрезанную маску
                 cloud_overlay = Image.new('RGBA', (sky_size, sky_size), (240, 240, 245))
-                cloud_overlay.putalpha(mask)
+                cloud_overlay.putalpha(final_mask)
                 
                 # Накладываем поверх звезд
                 sky_img = Image.alpha_composite(sky_img, cloud_overlay)
