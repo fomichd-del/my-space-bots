@@ -6,7 +6,9 @@ from draw_map import generate_star_map
 from flask import Flask
 from threading import Thread
 import wikipediaapi
-import requests # БИБЛИОТЕКА ДЛЯ БРОНЕБОЙНОЙ ПРОВЕРКИ И СКАЧИВАНИЯ ФОТО
+import requests
+import io
+from PIL import Image, ImageDraw, ImageFont # ДОБАВЛЕНО ДЛЯ ШТАМПА
 
 # --- [ ИМПОРТ БАЗЫ КОСМИЧЕСКОГО ПАТРУЛЯ ] ---
 from base_fact_star import CONSTELLATIONS
@@ -19,13 +21,12 @@ os.environ["SOLAR_SYSTEM_EPHEMERIS"] = os.path.join(DATA_DIR, "de421.bsp")
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 # --- [ ФИКС ТАЙМАУТОВ ] ---
-# Увеличиваем время ожидания, чтобы тяжелые карты успевали загрузиться на сервер Telegram
 apihelper.CONNECT_TIMEOUT = 60
 apihelper.READ_TIMEOUT = 90
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
 
-# Википедия для глубокого погружения (как запасной вариант)
+# Википедия для глубокого погружения
 wiki_wiki = wikipediaapi.Wikipedia(user_agent='MartySpaceBot/1.1', language='ru')
 
 # Flask для поддержания "жизни" сервера на Render
@@ -119,7 +120,6 @@ def handle_location(message):
                 f"Я отметил его розовым маркером. Попробуй найти его сегодня на небе!"
             )
             
-            # --- [ ФИКС ТАЙМАУТОВ: ЦИКЛ ПОВТОРОВ ] ---
             max_attempts = 3
             for attempt in range(max_attempts):
                 try:
@@ -130,15 +130,15 @@ def handle_location(message):
                             caption=caption, 
                             reply_markup=markup, 
                             parse_mode='HTML',
-                            timeout=60  # Даем 60 секунд именно на эту отправку
+                            timeout=60
                         )
-                    break # Если улетело — выходим из цикла
+                    break 
                 except Exception as e:
                     if attempt < max_attempts - 1:
                         print(f"⚠️ Попытка {attempt+1} сорвалась, пробую еще раз...")
                         time.sleep(3)
                     else:
-                        raise e # Если все 3 раза мимо — выдаем ошибку
+                        raise e 
         else:
             bot.send_message(message.chat.id, f"❌ <b>Сбой связи:</b> {result}")
             
@@ -175,12 +175,10 @@ def callback_wiki(call):
         folder = "photo_space"
         base_url = f"https://raw.githubusercontent.com/{repo_user}/{repo_name}/main/{folder}/"
         
-        # --- [ УМНЫЙ ЛОКАТОР ФОТОГРАФИЙ (БРОНЕБОЙНАЯ ВЕРСИЯ) ] ---
-        # Добавили форматы капсом, так как GitHub чувствителен к регистру
         formats = [".png", ".jpg", ".jpeg", ".PNG", ".JPG"] 
         name_variants = [
             name_latin, 
-            name_latin.title(), # Принудительно Делает Первую Букву Заглавной (Perseus)
+            name_latin.title(),
             name_latin.lower(), 
             name_latin.replace(" ", "_"), 
             name_latin.replace(" ", "_").title()
@@ -191,10 +189,9 @@ def callback_wiki(call):
             for ext in formats:
                 test_url = f"{base_url}{variant}{ext}".replace(" ", "%20")
                 try:
-                    # Используем GET, чтобы сразу скачать картинку в память бота!
                     response = requests.get(test_url, timeout=5)
                     if response.status_code == 200:
-                        valid_photo_data = response.content # Сохраняем САМУ картинку, а не ссылку
+                        valid_photo_data = response.content
                         break
                 except:
                     continue
@@ -205,19 +202,57 @@ def callback_wiki(call):
         
         if valid_photo_data:
             try:
-                # Отправляем БАЙТЫ картинки! Так Telegram гарантированно ее примет.
+                # --- [ НАНОСИМ ВОДЯНОЙ ЗНАК КАНАЛА ] ---
+                img = Image.open(io.BytesIO(valid_photo_data)).convert("RGBA")
+                txt_layer = Image.new('RGBA', img.size, (255, 255, 255, 0))
+                draw = ImageDraw.Draw(txt_layer)
+                
+                # Текст штампа
+                watermark_text = "@vladislav_space"
+                
+                # Если в папке будет лежать файл шрифта font.ttf, скрипт использует его
+                # Если нет - сработает встроенный резервный шрифт
+                try:
+                    font = ImageFont.truetype("font.ttf", int(img.height / 25))
+                except IOError:
+                    font = ImageFont.load_default()
+                
+                # Вычисляем размеры текста
+                try:
+                    bbox = draw.textbbox((0, 0), watermark_text, font=font)
+                    text_w = bbox[2] - bbox[0]
+                    text_h = bbox[3] - bbox[1]
+                except AttributeError:
+                    text_w, text_h = draw.textsize(watermark_text, font=font)
+                
+                # Позиция: правый нижний угол с отступом 20 пикселей
+                margin = 20
+                x = img.width - text_w - margin
+                y = img.height - text_h - margin
+                
+                # Рисуем черную тень (смещение на 2 пикселя)
+                draw.text((x + 2, y + 2), watermark_text, fill=(0, 0, 0, 180), font=font)
+                # Рисуем полупрозрачный белый текст
+                draw.text((x, y), watermark_text, fill=(255, 255, 255, 180), font=font)
+                
+                # Склеиваем и сохраняем обратно в байты
+                watermarked_img = Image.alpha_composite(img, txt_layer).convert("RGB")
+                output_bytes = io.BytesIO()
+                watermarked_img.save(output_bytes, format='JPEG', quality=95)
+                final_photo_data = output_bytes.getvalue()
+                
                 bot.send_photo(
                     call.message.chat.id, 
-                    valid_photo_data, 
+                    final_photo_data, 
                     caption="⭐️ Специально для канала: <b>Дневник юного космонавта</b>", 
                     parse_mode='HTML',
                     timeout=40
                 )
             except Exception as e:
-                print(f"Ошибка отправки фото: {e}")
-                pass # Если фото не ушло, текст все равно будет отправлен ниже
+                print(f"Ошибка нанесения штампа: {e}")
+                # Если со штампом что-то пошло не так, отправляем чистое фото как резерв
+                bot.send_photo(call.message.chat.id, valid_photo_data, caption="⭐️ Специально для канала: <b>Дневник юного космонавта</b>", parse_mode='HTML')
                 
-        # Текст отправляем всегда
         bot.send_message(call.message.chat.id, text, parse_mode='HTML')
     else:
         try:
@@ -236,6 +271,6 @@ if __name__ == "__main__":
     while True:
         try:
             print("📡 [СИСТЕМА] Марти слушает эфир...")
-            bot.polling(non_stop=True, interval=2, timeout=60) # Увеличили таймаут и здесь
+            bot.polling(non_stop=True, interval=2, timeout=60)
         except Exception as e:
             time.sleep(5)
