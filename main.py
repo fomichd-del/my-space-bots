@@ -201,22 +201,26 @@ def callback_wiki(call):
         
         if valid_photo_data:
             try:
-                # --- [ УМНЫЙ ШТАМП: ПРОЗРАЧНОСТЬ И ТОЧНОЕ ПОЗИЦИОНИРОВАНИЕ ] ---
+                # --- [ УМНЫЙ ШТАМП: ПРОЗРАЧНОСТЬ И ОДНОТОННЫЙ БЕЛЫЙ ЦВЕТ ] ---
                 base_img = Image.open(io.BytesIO(valid_photo_data)).convert("RGBA")
                 stamp_path = "watermark.png" 
 
                 if os.path.exists(stamp_path):
                     stamp_img = Image.open(stamp_path).convert("RGBA")
 
-                    # 1. МАГИЯ: Превращаем БЕЛЫЙ фон штампа в ПРОЗРАЧНЫЙ
+                    # 1. МАГИЯ ПРОЗРАЧНОСТИ + МАГИЯ БЕЛОГО
                     datas = stamp_img.getdata()
                     new_data = []
                     for item in datas:
-                        # Если пиксель светлый (почти белый), делаем его прозрачным
+                        # Проверка на белый фон (чтобы вырезать его)
                         if item[0] > 230 and item[1] > 230 and item[2] > 230:
                             new_data.append((255, 255, 255, 0)) # 0 = полная прозрачность
                         else:
-                            new_data.append(item)
+                            # --- [ СЕКРЕТ ИНЖЕНЕРА: ПРИНУДИТЕЛЬНЫЙ БЕЛЫЙ ] ---
+                            # Если пиксель *не* фон, делаем его solid white (255, 255, 255).
+                            # Но мы сохраняем его оригинальный альфа-канал (item[3])!
+                            # Это сохраняет плавность краев и прозрачность.
+                            new_data.append((255, 255, 255, item[3]))
                     stamp_img.putdata(new_data)
 
                     # 2. РАЗМЕР: 12% от ширины картинки созвездия (чтобы влез в ромбик)
@@ -227,14 +231,13 @@ def callback_wiki(call):
                     stamp_img = stamp_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
                     # 3. ПОЗИЦИЯ: Устанавливаем прямо в угол
-                    # Если нужно сдвинуть левее/выше, увеличь цифру 0.02
                     margin_x = int(base_img.width * 0.02) 
                     margin_y = int(base_img.height * 0.02) 
                     
                     x = base_img.width - stamp_img.width - margin_x
                     y = base_img.height - stamp_img.height - margin_y
 
-                    # Накладываем прозрачный штамп
+                    # Накладываем прозрачный белый штамп
                     base_img.paste(stamp_img, (x, y), mask=stamp_img)
 
                     # Готовим к отправке
