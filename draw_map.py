@@ -136,24 +136,26 @@ def generate_star_map(lat, lon, user_name, user_id):
         watermark_p = BASE_DIR / 'watermark.png'
         if watermark_p.exists():
             with Image.open(watermark_p).convert("RGBA") as wm:
-                # 1. Убираем белый фон программно (делаем его прозрачным)
+                # 1. Жесткое удаление фона (обрабатываем каждый пиксель)
                 datas = wm.getdata()
                 newData = []
                 for item in datas:
-                    # Если пиксель белый или почти белый (порог 240), делаем его прозрачным
-                    if item[0] > 240 and item[1] > 240 and item[2] > 240:
+                    # Увеличиваем порог: если сумма каналов RGB высокая (светлые пиксели)
+                    # или если пиксель почти белый (больше 200), делаем его прозрачным
+                    if item[0] > 200 and item[1] > 200 and item[2] > 200:
                         newData.append((255, 255, 255, 0))
                     else:
                         newData.append(item)
                 wm.putdata(newData)
 
-                # 2. Уменьшаем штамп (делаем его аккуратным, например 280 пикселей)
-                wm_size = 280 
+                # 2. Делаем штамп еще меньше (например, 220 пикселей)
+                wm_size = 220 
                 wm = wm.resize((wm_size, wm_size), Image.Resampling.LANCZOS)
 
-                # 3. Смещаем в правый нижний угол
-                # Позиция: отступаем 30 пикселей от правого края и 100 от низа (чтобы быть над текстом)
-                position = (bg_img.width - wm_size - 30, bg_img.height - wm_size - 100)
+                # 3. Прижимаем в самый низ и вправо
+                # bg_img.width - wm_size - 10 (отступ справа)
+                # bg_img.height - wm_size - 10 (отступ снизу)
+                position = (bg_img.width - wm_size - 10, bg_img.height - wm_size - 10)
                 bg_img.alpha_composite(wm, position)
 
         dpi = 300 
