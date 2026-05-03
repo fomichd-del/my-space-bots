@@ -14,6 +14,9 @@ HISTORY_FILE   = 'last_earth_id.txt'
 
 translator = GoogleTranslator(source='auto', target='ru')
 
+# Ссылка на нового бота эксперта
+EXPERT_LINK = "https://t.me/Marty_Help_Bot?start=channel_post"
+
 def is_already_sent(image_id):
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
@@ -53,6 +56,8 @@ def get_epic_data():
             f"Прием! Этот кадр передал аппарат <b>DSCOVR</b>. Мы видим планету целиком, как хрупкий оазис в пустоте.\n\n"
             f"📍 <b>Ракурс:</b> Точка Лагранжа L1 (1.5 млн км от нас).\n"
             f"📅 <b>Дата:</b> {last_date}\n\n"
+            f"📡 <b>СВЯЗЬ С БАЗОЙ:</b>\n"
+            f"└ 🤖 <a href='{EXPERT_LINK}'><b>Спросить эксперта Марти о Земле</b></a>\n\n"
             f"🛰 <b>ИНСТРУМЕНТЫ ШТУРМАНА:</b>\n"
             f"├ 📥 <a href='{original}'>Скачать оригинал (Hi-Res PNG)</a>\n"
             f"├ 📹 <a href='https://www.n2yo.com/space-station/'>МКС: Прямой эфир + Карта</a>\n"
@@ -99,6 +104,8 @@ def get_extensive_library_data():
                     f"─────────────────────\n\n"
                     f"📖 <b>О КАДРЕ:</b> {desc_ru}\n\n"
                     f"✨ <i>С этой высоты Земля кажется живым существом. Каждое фото — напоминание о том, как прекрасен наш дом.</i>\n\n"
+                    f"📡 <b>СВЯЗЬ С БАЗОЙ:</b>\n"
+                    f"└ 🤖 <a href='{EXPERT_LINK}'><b>Спросить эксперта Марти о кадре</b></a>\n\n"
                     f"🛰 <b>ИНСТРУМЕНТЫ ШТУРМАНА:</b>\n"
                     f"├ 📥 <a href='{original}'>Скачать оригинал (Hi-Res)</a>\n"
                     f"├ 📹 <a href='https://www.n2yo.com/space-station/'>МКС: Прямой эфир + Карта</a>\n"
@@ -124,7 +131,6 @@ def post_to_telegram():
         preview, original, cap, img_id = get_extensive_library_data() if mode == "EPIC" else get_epic_data()
 
     if preview and img_id:
-        # Кнопки убраны, ссылки перенесены в текст (cap)
         payload = {
             'chat_id': CHANNEL_NAME, 
             'photo': preview, 
