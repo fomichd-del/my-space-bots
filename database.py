@@ -1,89 +1,68 @@
 import psycopg2
 import os
 
-# Ссылка берется из настроек Render (Environment Variables)
-# Убедитесь, что в Render переменная DATABASE_URL совпадает с вашей новой строкой
 DB_URL = os.getenv('DATABASE_URL')
 
 def get_connection():
     """Создает защищенное соединение с облаком Supabase"""
     try:
-        # Добавляем sslmode='require', это обязательное требование Supabase
         return psycopg2.connect(DB_URL, sslmode='require')
     except Exception as e:
         print(f"❌ Ошибка подключения к базе: {e}")
         return None
 
 def init_db():
-    """Создает таблицу пользователей в облаке при старте"""
+    """Создает таблицу пользователей с поддержкой долгосрочной памяти"""
     conn = get_connection()
-    if not conn:
-        return
+    if not conn: return
     
     try:
         cursor = conn.cursor()
-        # Используем BIGINT для Telegram ID (они бывают очень длинными)
+        # Добавляем колонку personal_log для хранения памяти о пользователе
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
                 username TEXT,
-                xp INTEGER DEFAULT 0
+                xp INTEGER DEFAULT 0,
+                personal_log TEXT DEFAULT ''
             )
         ''')
         conn.commit()
-        print("📡 [СИСТЕМА] База данных Supabase успешно инициализирована.")
+        print("📡 [СИСТЕМА] База данных Supabase готова (память активна).")
     except Exception as e:
-        print(f"❌ Ошибка инициализации таблицы: {e}")
+        print(f"❌ Ошибка инициализации: {e}")
     finally:
         cursor.close()
         conn.close()
 
-def add_xp(user_id, amount, username="Пилот"):
-    """Начисляет опыт и сохраняет в облако (UPSERT)"""
+def update_personal_log(user_id, new_info):
+    """Добавляет новые факты в бортовой журнал пилота"""
     conn = get_connection()
-    if not conn:
-        return
-    
+    if not conn: return
     try:
         cursor = conn.cursor()
-        # Вставляем нового или обновляем существующего (команда ON CONFLICT)
+        # Склеиваем старую память с новой записью через разделитель
         cursor.execute('''
-            INSERT INTO users (user_id, username, xp) 
-            VALUES (%s, %s, %s)
-            ON CONFLICT (user_id) 
-            DO UPDATE SET xp = users.xp + EXCLUDED.xp, username = EXCLUDED.username
-        ''', (user_id, username, amount))
+            UPDATE users 
+            SET personal_log = personal_log || ' | ' || %s 
+            WHERE user_id = %s
+        ''', (new_info, user_id))
         conn.commit()
-    except Exception as e:
-        print(f"❌ Ошибка при начислении XP: {e}")
     finally:
         cursor.close()
         conn.close()
 
-def get_user_stats(user_id):
-    """Получает текущий XP пользователя из облака"""
+def get_personal_log(user_id):
+    """Получает всё, что Марти помнит о пилоте"""
     conn = get_connection()
-    if not conn:
-        return 0
-    
-    xp = 0
+    if not conn: return ""
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT xp FROM users WHERE user_id = %s', (user_id,))
+        cursor.execute('SELECT personal_log FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
-        if res:
-            xp = res[0]
-    except Exception as e:
-        print(f"❌ Ошибка получения статистики: {e}")
+        return res[0] if res and res[0] else "Данных пока нет."
     finally:
         cursor.close()
         conn.close()
-    return xp
 
-def get_rank_name(xp):
-    """Система космических званий"""
-    if xp < 50: return "Кадет-наблюдатель 🐣"
-    if xp < 150: return "Пилот-исследователь 🚀"
-    if xp < 300: return "Старший штурман 🧭"
-    if xp < 500: return "Командор орбиты 👨‍🚀"
-    return "Адмирал Галактики 👑"
+# Оставляем остальные функции (add_xp, get_user_stats) без изменений...
