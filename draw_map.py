@@ -80,7 +80,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # ВОЗВРАЩАЕМ МНОЖЕСТВЕННОЕ ЧИСЛО (stars, constellations)
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
             style.stars.label.font_size = 11
@@ -114,7 +113,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.export(str(temp_raw), transparent=True, padding=0.01)
         plt.clf(); plt.close('all')
 
-        bg_img = Image.open(BASE_DIR / 'background1.png')
+        bg_img = Image.open(BASE_DIR / 'background1.png').convert("RGBA")
         sky_img = Image.open(temp_raw).convert("RGBA")
         sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
@@ -132,7 +131,17 @@ def generate_star_map(lat, lon, user_name, user_id):
             sky_img = Image.alpha_composite(sky_img, cloud_ov)
 
         bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
-        
+
+        # --- [ НАЛОЖЕНИЕ ШТАМПА ] ---
+        # Штамп накладывается перед отрисовкой текста, чтобы закрыть ромб
+        watermark_p = BASE_DIR / 'watermark.png'
+        if watermark_p.exists():
+            with Image.open(watermark_p).convert("RGBA") as wm:
+                # Вставляем в правый нижний угол
+                bg_img.alpha_composite(wm, (0, 0)) # Если watermark.png уже размером с фон и прозрачный
+                # Или если штамп маленький и его нужно прижать в угол:
+                # bg_img.alpha_composite(wm, (bg_img.width - wm.width, bg_img.height - wm.height))
+
         dpi = 300 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
@@ -159,7 +168,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         if temp_raw.exists(): os.remove(temp_raw)
         bg_img.close(); sky_img.close()
         
-        # ВОЗВРАЩАЕМ 5 ЗНАЧЕНИЙ
         return True, str(final_jpg), str(final_png), target_name_rus, ""
 
     except Exception as e:
