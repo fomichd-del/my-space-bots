@@ -4,14 +4,15 @@ import google.generativeai as genai
 
 # --- [ НАСТРОЙКИ НЕЙРОСЕТИ ] ---
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-genai.configure(api_key=GEMINI_API_KEY)
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # Инструкция, задающая характер и ограничения бота
 SYSTEM_PROMPT = (
     "Ты — Марти, дружелюбный бортовой компьютер и космический гид Telegram-канала 'Дневник юного космонавта'. "
     "Твоя задача — увлекательно, но научно достоверно рассказывать про космос, планеты, звезды, МКС, экспедиции и астрономию. "
-    "Твои ответы должны быть понятны 8-летним детям, используй захватывающие сравнения из их жизни. "
-    "Если тебя спрашивают о чем-то земном (игры, математика, рецепты, политика), вежливо отвечай, что твои антенны "
+    "Твои ответы должны быть понятны 8-летним детям, используй сравнения из их жизни. "
+    "Если тебя спрашивают о чем-то земном (игры, математика, рецепты, политика, школьные уроки), вежливо отвечай, что твои антенны "
     "настроены только на изучение Вселенной, и переводи тему обратно на космос. "
     "Общайся тепло, иногда используй слова вроде 'Командор', 'Прием', 'По показаниям моих радаров'."
 )
@@ -24,7 +25,13 @@ model = genai.GenerativeModel(
 
 # --- [ НАСТРОЙКИ БОТА ] ---
 MARTY_CHAT_TOKEN = os.getenv('MARTY_CHAT_TOKEN')
-chat_bot = telebot.TeleBot(MARTY_CHAT_TOKEN, threaded=True)
+
+# Проверка, чтобы сервер не падал, если вы забудете добавить токен в Render
+if MARTY_CHAT_TOKEN is None:
+    print("❌ [ОШИБКА] Токен MARTY_CHAT_TOKEN не найден в настройках Environment Variables!")
+    chat_bot = None
+else:
+    chat_bot = telebot.TeleBot(MARTY_CHAT_TOKEN, threaded=True)
 
 # Словарь для хранения истории диалогов (памяти) для каждого пользователя/группы
 active_chats = {}
@@ -34,66 +41,62 @@ def get_chat_session(chat_id):
     if chat_id not in active_chats:
         active_chats[chat_id] = model.start_chat(history=[])
     
-    # Очистка старой памяти, чтобы не перегружать сервер Render (храним последние 10 вопросов и 10 ответов)
-    if len(active_chats[chat_id].history) > 20: 
+    # Очистка старой памяти, чтобы не перегружать сервер (храним последние 10 сообщений)
+    if len(active_chats[chat_id].history) > 20: # 10 вопросов + 10 ответов
         active_chats[chat_id].history = active_chats[chat_id].history[-20:]
         
     return active_chats[chat_id]
 
 # --- [ ОБРАБОТЧИК СООБЩЕНИЙ ] ---
-@chat_bot.message_handler(func=lambda message: True, content_types=['text'])
-def handle_conversation(message):
-    chat_id = message.chat.id
-    text = message.text
+if chat_bot:
+    @chat_bot.message_handler(func=lambda message: True, content_types=['text'])
+    def handle_conversation(message):
+        chat_id = message.chat.id
+        text = message.text
 
-    # ЛОГИКА ДЛЯ ГРУПП (Комментариев)
-    if message.chat.type in ['group', 'supergroup']:
-        bot_info = chat_bot.get_me()
-        bot_username = f"@{bot_info.username}"
-        
-        text_lower = text.lower() # Переводим текст в нижний регистр для проверки
-        
-        # 1. Ответили ли боту напрямую (Reply)?
-        is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user.id == bot_info.id
-        # 2. Тегнули ли бота через @?
-        is_mentioned = bot_username in text
-        # 3. Позвали ли по имени? (ищем "марти" в тексте)
-        is_called_by_name = "марти" in text_lower 
+        # ЛОГИКА ДЛЯ ГРУПП (Комментариев)
+        if message.chat.type in ['group', 'supergroup']:
+            bot_info = chat_bot.get_me()
+            bot_username = f"@{bot_info.username}"
+            
+            text_lower = text.lower()
+            
+            # Проверяем, ответили ли боту (Reply), тегнули ли его, или назвали по имени
+            is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user.id == bot_info.id
+            is_mentioned = bot_username in text
+            is_called_by_name = "марти" in text_lower 
 
-        # Если ни одно из условий не совпало — бот молчит, чтобы не мешать людям общаться
-        if not (is_reply_to_bot or is_mentioned or is_called_by_name):
-            return 
-        
-        # Очищаем текст от обращений, чтобы нейросети достался только сам вопрос
-        text = text.replace(bot_username, "").replace("Марти", "").replace("марти", "").replace("МАРТИ", "").strip()
-        
-        # Убираем висячую запятую или пробел, если человек написал "Марти, расскажи..." -> ", расскажи..."
-        if text.startswith(','):
-            text = text[1:].strip()
+            # Если ни одно из условий не совпало — бот молчит
+            if not (is_reply_to_bot or is_mentioned or is_called_by_name):
+                return 
+            
+            # Очищаем текст от обращений, чтобы нейросети достался только сам вопрос
+            text = text.replace(bot_username, "").replace("Марти", "").replace("марти", "").strip()
+            
+            # Убираем запятую в начале, если человек написал "Марти, расскажи..."
+            if text.startswith(','):
+                text = text[1:].strip()
 
-    # Если после очистки от имени сообщение оказалось пустым
-    if not text:
-        return
+        # Если после очистки имени текст оказался пустым (например, написали просто "Марти")
+        if not text:
+            chat_bot.reply_to(message, "На связи, Командор! Жду твоих вопросов о космосе. 🚀")
+            return
 
-    # Показываем статус "Марти печатает..."
-    chat_bot.send_chat_action(chat_id, 'typing')
-    
-    try:
-        # Достаем память именно этого чата и отправляем запрос в Gemini
-        session = get_chat_session(chat_id)
-        response = session.send_message(text)
+        chat_bot.send_chat_action(chat_id, 'typing')
         
-        # Отправляем ответ пользователю (с поддержкой Markdown для выделения текста)
-        chat_bot.reply_to(message, response.text, parse_mode='Markdown')
-        
-    except Exception as e:
-        chat_bot.reply_to(message, "📡 Ой, связь со спутником прервалась из-за метеоритного дождя! Повтори свой запрос.")
-        print(f"[ОШИБКА GEMINI]: {e}")
+        try:
+            # Достаем память именно этого чата и отправляем запрос в Gemini
+            session = get_chat_session(chat_id)
+            response = session.send_message(text)
+            chat_bot.reply_to(message, response.text, parse_mode='Markdown')
+        except Exception as e:
+            chat_bot.reply_to(message, "📡 Ой, связь со спутником прервалась из-за метеоритного дождя! Повтори свой запрос.")
+            print(f"[ОШИБКА GEMINI]: {e}")
 
 # --- [ ЗАПУСК ] ---
 def run_chat_bot():
-    """Эта функция запускается в параллельном потоке из файла main.py"""
-    print("🤖 [СИСТЕМА] Бот-собеседник Марти выходит на связь...")
-    # Очищаем старые вебхуки на всякий случай перед запуском поллинга
-    chat_bot.remove_webhook()
-    chat_bot.polling(non_stop=True, interval=2, timeout=60)
+    if chat_bot:
+        print("🤖 [СИСТЕМА] Бот-собеседник Марти выходит на связь...")
+        chat_bot.polling(non_stop=True, interval=2, timeout=60)
+    else:
+        print("⏸️ [СИСТЕМА] Бот-собеседник отключен (не указан токен).")
