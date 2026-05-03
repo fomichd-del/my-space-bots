@@ -6,3 +6,4 @@ ephem
 google-api-python-client
 yt-dlp
 Pillow
+google-generativeai
