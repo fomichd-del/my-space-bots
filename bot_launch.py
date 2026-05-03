@@ -14,6 +14,9 @@ NASA_API_KEY    = os.getenv('NASA_API_KEY')
 CHANNEL_NAME    = '@vladislav_space'
 DB_FILE         = "db_launch.txt"
 
+# Ссылка на нового бота эксперта (Deep Linking для автозапуска)
+EXPERT_LINK = "https://t.me/Marty_Help_Bot?start=channel_post"
+
 translator = GoogleTranslator(source='auto', target='ru')
 
 # 🐩 ПОЛНЫЙ СПИСОК СЕКРЕТОВ МАРТИ (51 ФАКТ)
@@ -126,6 +129,7 @@ def main():
 
             img = l.get('image') or get_nasa_image()
 
+            # --- [ ОБНОВЛЕННЫЙ ТЕКСТ СООБЩЕНИЯ (CAPTION) ] ---
             caption = (
                 f"🚀 <b>{status}: {l['name'].upper()}</b>\n"
                 f"─────────────────────\n\n"
@@ -133,6 +137,10 @@ def main():
                 f"⏰ <b>Старт:</b> через {int(diff // 60)}ч {int(diff % 60)}мин\n"
                 f"📍 <b>Локация:</b> {l['pad']['location']['name']}\n\n"
                 f"📖 <b>О МИССИИ:</b>\n{translator.translate(l.get('mission', {}).get('description', 'Научный запуск.'))}\n\n"
+                f"─────────────────────\n"
+                f"🤖 <b>ИНТЕРЕСНО УЗНАТЬ ПОДРОБНОСТИ?</b>\n"
+                f"👉 <a href='{EXPERT_LINK}'><b>Спросить бортового компьютера Марти</b></a>\n"
+                f"─────────────────────\n\n"
                 f"🐩 <b>СЕКРЕТ ОТ МАРТИ:</b>\n<i>{random.choice(MARTI_FACTS)}</i>\n\n"
                 f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
             )
