@@ -12,6 +12,7 @@ from PIL import Image
 from database import init_db, add_xp, get_user_stats, get_rank_name
 from marty_chat import run_chat_bot 
 from base_fact_star import CONSTELLATIONS
+from vision_module import analyze_image  # НОВЫЙ МОДУЛЬ ЗРЕНИЯ
 
 # --- [ НАСТРОЙКИ СИСТЕМЫ ] ---
 TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -19,7 +20,6 @@ LOG_CHAT_ID = "-1003756164148"
 
 bot = telebot.TeleBot(TOKEN, threaded=True)
 
-# Увеличиваем таймауты для работы с нейросетевыми изображениями
 apihelper.CONNECT_TIMEOUT = 60
 apihelper.READ_TIMEOUT = 90
 
@@ -30,22 +30,16 @@ def send_log(text):
     except Exception as e:
         print(f"Ошибка логирования: {e}")
 
-# --- [ СИСТЕМА РАНГОВ И ИНСТРУКЦИЯ ] ---
+# --- [ ИНСТРУКЦИЯ (ОБНОВЛЕНА) ] ---
 def get_instruction_text():
     return (
         "📖 <b>БОРТОВОЙ ЖУРНАЛ ПИЛОТА</b>\n\n"
-        "Добро пожаловать в программу «Звездный Патруль». Твоя задача — исследовать ночное небо и пополнять базу знаний.\n\n"
-        "🚀 <b>Как это работает:</b>\n"
-        "1. Нажми <b>«МОЕ НЕБО»</b> и поделись геолокацией.\n"
-        "2. Бот вычислит звезды, которые находятся прямо над тобой в этот момент.\n"
-        "3. Ты получишь <b>персональную карту</b> с выделенным созвездием-целью.\n\n"
-        "🎖 <b>СИСТЕМА РАНГОВ И ОПЫТА (XP):</b>\n"
-        "За каждое сканирование неба тебе начисляется <b>15 XP</b>. Опыт нужен для продвижения по службе:\n"
-        "• <b>Кадет:</b> Новичок, только начавший путь.\n"
-        "• <b>Исследователь:</b> Ты уже знаешь, где Полярная звезда.\n"
-        "• <b>Навигатор:</b> Способен провести корабль сквозь астероидное поле.\n"
-        "• <b>Командор:</b> Легенда флота, знающая каждый квадрант.\n\n"
-        "<i>Чем выше ранг, тем больше секретных функций откроется в будущем!</i>"
+        "🚀 <b>Твои возможности:</b>\n"
+        "1. <b>«МОЕ НЕБО»</b> — получи карту звезд прямо над тобой (+15 XP).\n"
+        "2. <b>«ГЛАЗА МАРТИ»</b> — просто пришли мне фото любого предмета, созвездия или рисунка. Я проанализирую его и дам справку (+10 XP).\n"
+        "3. <b>«ОБЩЕНИЕ»</b> — нажми кнопку «Спросить Марти», чтобы поболтать со мной.\n\n"
+        "🎖 <b>ТВОЙ РАНГ:</b>\n"
+        "Чем больше XP, тем выше звание. Стань Адмиралом Галактики! 👑"
     )
 
 # --- [ ПРИВЕТСТВИЕ ] ---
@@ -58,71 +52,96 @@ def send_welcome(message):
     welcome_text = (
         f"🛰️ <b>Центр управления на связи, пилот {message.from_user.first_name}!</b>\n\n"
         "Я — <b>Марти</b>, твой ИИ-штурман. 🐾\n"
-        "Готов просканировать твой сектор пространства?"
+        "Готов просканировать твой сектор пространства или изучить твои снимки?"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode='HTML')
+
+# --- [ ОБРАБОТЧИК ФОТО (ГЛАЗА МАРТИ) ] ---
+@bot.message_handler(content_types=['photo'])
+def handle_photo(message):
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    
+    status_msg = bot.reply_to(message, "📸 <b>Настраиваю фокус... Изучаю объект...</b>", parse_mode='HTML')
+    
+    try:
+        # Скачиваем фото
+        file_info = bot.get_file(message.photo[-1].file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        # Анализируем через Gemini
+        description = analyze_image(downloaded_file)
+        
+        # Начисляем XP
+        add_xp(user_id, 10, user_name)
+        new_xp = get_user_stats(user_id)
+        
+        caption = f"{description}\n\n─────────────────────\n📈 <b>+10 XP</b> (Всего: {new_xp})"
+        
+        bot.edit_message_text(caption, message.chat.id, status_msg.message_id, parse_mode='Markdown')
+        send_log(f"📸 Анализ фото для {user_name}. Всего XP: {new_xp}")
+        
+        # Диверсификация: шанс 30% получить задание
+        if random.random() < 0.3:
+            missions = [
+                "🚀 Задание: Нарисуй это созвездие и пришли мне!",
+                "📡 Задание: Найди этот объект в энциклопедии.",
+                "👨‍🚀 Задание: Расскажи маме или папе один факт о космосе!"
+            ]
+            bot.send_message(message.chat.id, f"🌟 <b>СЕКРЕТНОЕ ЗАДАНИЕ:</b>\n{random.choice(missions)}", parse_mode='HTML')
+
+    except Exception as e:
+        send_log(f"🆘 Ошибка Vision: {e}")
+        bot.edit_message_text("🛰️ Космические помехи прервали сигнал.", message.chat.id, status_msg.message_id)
 
 # --- [ ОБРАБОТЧИК ТЕКСТОВЫХ КНОПОК ] ---
 @bot.message_handler(func=lambda message: message.text == "❓❓ ИНСТРУКЦИЯ ПИЛОТА")
 def handle_instruction(message):
-    """Теперь эта функция отвечает на нажатие кнопки инструкции"""
     bot.send_message(message.chat.id, get_instruction_text(), parse_mode='HTML')
 
-# --- [ ГЕНЕРАЦИЯ КАРТЫ (LOCATION) ] ---
+# --- [ ГЕНЕРАЦИЯ КАРТЫ ] ---
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
-    
-    status_msg = bot.send_message(message.chat.id, "🛰️ <b>Начинаю сканирование горизонта...</b>", parse_mode='HTML')
+    status_msg = bot.send_message(message.chat.id, "🛰️ <b>Сканирую горизонт...</b>", parse_mode='HTML')
     
     try:
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(
-                generate_star_map, 
-                message.location.latitude, 
-                message.location.longitude, 
-                user_name, 
-                user_id
-            )
+            future = executor.submit(generate_star_map, message.location.latitude, message.location.longitude, user_name, user_id)
             success, result, target_name, err_msg = future.result()
 
         if success:
-            # Начисляем опыт (логика внутри database.py)
             add_xp(user_id, 15, user_name)
             current_xp = get_user_stats(user_id)
             rank = get_rank_name(current_xp)
 
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(f"🌌 Досье на {target_name}", callback_data=f"wiki_{target_name}"))
-            markup.add(InlineKeyboardButton("🤖 Спросить Марти", url="https://t.me/Marty_Help_Bot?start=help"))
+            markup.add(InlineKeyboardButton("🤖 Спросить эксперта Марти", url="https://t.me/Marty_Help_Bot?start=help"))
             
             caption = (
-                f"✨ <b>Сектор просканирован успешно!</b>\n\n"
-                f"🎯 <b>Объект интереса:</b> созвездие <b>{target_name}</b>\n"
+                f"✨ <b>Твоя персональная карта готова, {user_name}!</b>\n\n"
+                f"🎯 <b>Твоя главная цель:</b> созвездие <b>{target_name}</b>\n"
                 f"─────────────────────\n"
-                f"🎖 <b>Твой текущий ранг:</b> {rank}\n"
-                f"📈 <b>Прогресс:</b> {current_xp} XP (добавлено +15)"
+                f"🎖 <b>Твой ранг:</b> {rank}\n"
+                f"📈 <b>Опыт:</b> {current_xp} XP"
             )
             
             with open(result, 'rb') as photo:
                 bot.send_photo(message.chat.id, photo, caption=caption, reply_markup=markup, parse_mode='HTML')
             
             bot.delete_message(message.chat.id, status_msg.message_id)
-            send_log(f"✅ Карта создана для {user_name}. Ранг: {rank}")
+            send_log(f"✅ Карта создана для {user_name}. XP: {current_xp}")
         else:
             bot.edit_message_text(f"❌ Ошибка навигации: {err_msg}", message.chat.id, status_msg.message_id)
-            
     except Exception as e:
-        send_log(f"🆘 Ошибка: {e}")
-        bot.send_message(message.chat.id, "💥 Произошел сбой систем. Попробуй позже.")
+        send_log(f"🆘 Ошибка карты: {e}")
+        bot.send_message(message.chat.id, "💥 Сбой систем навигации.")
 
-# --- [ WIKI И ДРУГИЕ CALLBACKS ] ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '').strip()
-    bot.answer_callback_query(call.id, "Загружаю данные из архивов...")
-    
     found_fact = next((item for item in CONSTELLATIONS if item['name_ru'].upper() == subject.upper()), None)
     if found_fact:
         text = f"🌌 <b>{found_fact['name_ru'].upper()}</b>\n\n{found_fact['fact']}"
@@ -138,10 +157,10 @@ def run_server():
 
 if __name__ == "__main__":
     init_db()
-    send_log("🚀 <b>Марти-Бот запущен. Все системы в норме.</b>")
+    send_log("🚀 <b>Система управления Марти запущена.</b>")
     
     Thread(target=run_server).start()
-    Thread(target=run_chat_bot).start() # Второй бот-собеседник
+    # Thread(target=run_chat_bot).start() # Если этот бот использует тот же токен, возникнет 409 Conflict.
     
     bot.remove_webhook()
-    bot.polling(non_stop=True, interval=2)
+    bot.polling(non_stop=True, interval=1)
