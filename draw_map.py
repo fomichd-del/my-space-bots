@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# База координат целей (центры созвездий в градусах)
+# База координат целей
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -47,7 +47,6 @@ TARGETS = {
 }
 
 def get_cloud_cover(lat, lon):
-    """Запрос погоды через Open-Meteo"""
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=cloud_cover"
         response = requests.get(url, timeout=5)
@@ -74,7 +73,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         e_obs.lat, e_obs.lon = str(lat), str(lon)
         e_obs.date = dt_now
         
-        # Поиск видимых созвездий (выше 10 градусов над горизонтом)
         visible_targets = []
         for key, pos in TARGETS.items():
             body = ephem.FixedBody()
@@ -86,12 +84,14 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # Стиль карты
+        # --- [ ИСПРАВЛЕННЫЙ СТИЛЬ ] ---
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
-        style.stars.label.font_size = 11
-        style.constellations.label.font_size = 16
-        style.constellations.line.width = 2.5
-        style.constellations.line.color = "#5c9dff"
+        
+        # В Starplot v0.10+ используются единственные числа: star и constellation
+        style.star.label.font_size = 11
+        style.constellation.label.font_size = 16
+        style.constellation.line.width = 2.5
+        style.constellation.line.color = "#5c9dff"
 
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
         p.horizon()
@@ -103,7 +103,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
         p.planets() 
 
-        # Светила (Солнце и Луна)
+        # Светила
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         sun_j = ephem.Equatorial(sun_e, epoch='2000')
@@ -115,7 +115,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.marker(ra=math.degrees(moon_j.ra), dec=math.degrees(moon_j.dec), label="ЛУНА",
                  style={"marker": {"size": 52, "symbol": "circle", "color": "#FFFEE0"}, "label": {"font_size": 20, "font_color": "#FFFEE0"}})
 
-        # Маркер цели
         p.marker(ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
                  style={"marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
                         "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}})
@@ -129,17 +128,14 @@ def generate_star_map(lat, lon, user_name, user_id):
         sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # Облака (если есть метеоданные)
         cloud_path = BASE_DIR / 'clouds.png'
         if cloud_cover > 5 and cloud_path.exists():
             try:
                 clouds_tex = Image.open(cloud_path).convert('RGBA').resize((sky_size, sky_size))
                 cloud_mask = ImageEnhance.Contrast(clouds_tex.convert('L')).enhance(1.8)
                 cloud_mask = cloud_mask.point(lambda x: int(x * (cloud_cover / 100.0)))
-                
                 circle_mask = Image.new("L", (sky_size, sky_size), 0)
                 ImageDraw.Draw(circle_mask).ellipse((65, 65, sky_size-65, sky_size-65), fill=255)
-                
                 final_cloud_mask = ImageChops.multiply(cloud_mask, circle_mask)
                 cloud_overlay = Image.new('RGBA', (sky_size, sky_size), (240, 240, 245))
                 cloud_overlay.putalpha(final_cloud_mask)
@@ -152,7 +148,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # Расчет времени восхода/заката
         try:
             tf = TimezoneFinder()
             tz_name = tf.timezone_at(lng=float(lon), lat=float(lat))
@@ -161,7 +156,6 @@ def generate_star_map(lat, lon, user_name, user_id):
             set_t = ephem.localtime(e_obs.next_setting(sun_e)).strftime('%H:%M')
         except: rise_t, set_t = "--:--", "--:--"
 
-        # Отрисовка инфо-текста
         t_col = '#D4E6FF'
         fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8)
         fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8)
@@ -170,14 +164,12 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig.text(0.705, 0.072, set_t, color=t_col, fontsize=8)
         fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='bold')
 
-        # Сохранение финальных версий
         plt.savefig(str(final_png), bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close(fig)
         
         with Image.open(final_png) as img:
             img.convert("RGB").save(str(final_jpg), "JPEG", quality=90, optimize=True)
         
-        # Очистка
         if temp_raw_star.exists(): os.remove(temp_raw_star)
         bg_img.close(); sky_img.close()
         gc.collect()
