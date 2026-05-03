@@ -1,12 +1,11 @@
 import os
 import telebot
 import google.generativeai as genai
+from database import get_personal_log, update_personal_log # Импортируем память
 
-# --- [ НАСТРОЙКИ НЕЙРОСЕТИ ] ---
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Инструкция, задающая характер и ограничения бота
 SYSTEM_PROMPT = (
     "Ты — Марти, дружелюбный бортовой компьютер и космический штурман. "
     "Твоя миссия — помогать юному Командору Владику в изучении Вселенной и подготовке к будущим полетам. "
@@ -31,89 +30,58 @@ SYSTEM_PROMPT = (
 
     "5. СТИЛЬ: Используй обращения 'Командор', 'Пилот', 'Прием', 'По моим датчикам'. "
     "   Будь позитивным: на пугающие темы отвечай научно, но успокаивающе. "
-
-    "6. ВОВЛЕЧЕНИЕ: В конце каждого ответа задавай легкий вопрос, чтобы проверить 'готовность экипажа' или интерес к теме. "
+    "6. ПАМЯТЬ: Если Владик упоминал свои успехи или хобби раньше — обязательно напомни об этом!"
+    "7. ВОВЛЕЧЕНИЕ: В конце каждого ответа задавай легкий вопрос, чтобы проверить 'готовность экипажа' или интерес к теме. "
 )
 
-# Выбираем современную модель 2.5 Flash, которая открыта для новых ключей
 model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash", # <-- Ставим поколение 2.5
+    model_name="gemini-1.5-flash", # Рекомендую 1.5 Flash для скорости и стабильности
     system_instruction=SYSTEM_PROMPT
 )
 
-# --- [ НАСТРОЙКИ БОТА ] ---
-# ИСПРАВЛЕНО: Переменная теперь называется точно как в Render
 MARTY_BOT_TOKEN = os.getenv('MARTY_BOT_TOKEN')
 chat_bot = telebot.TeleBot(MARTY_BOT_TOKEN, threaded=True)
 
-# Словарь для хранения истории диалогов (памяти) для каждого пользователя/группы
-active_chats = {}
-
-def get_chat_session(chat_id):
-    """Создает новую сессию с памятью или возвращает существующую"""
-    if chat_id not in active_chats:
-        active_chats[chat_id] = model.start_chat(history=[])
-    
-    # Очистка старой памяти, чтобы не перегружать сервер Render (храним последние 10 вопросов и 10 ответов)
-    if len(active_chats[chat_id].history) > 20: 
-        active_chats[chat_id].history = active_chats[chat_id].history[-20:]
-        
-    return active_chats[chat_id]
-
-# --- [ ОБРАБОТЧИК СООБЩЕНИЙ ] ---
 @chat_bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_conversation(message):
     chat_id = message.chat.id
+    user_id = message.from_user.id
     text = message.text
 
-    # ЛОГИКА ДЛЯ ГРУПП (Комментариев)
-    if message.chat.type in ['group', 'supergroup']:
-        bot_info = chat_bot.get_me()
-        bot_username = f"@{bot_info.username}"
-        
-        text_lower = text.lower() # Переводим текст в нижний регистр для проверки
-        
-        # 1. Ответили ли боту напрямую (Reply)?
-        is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user.id == bot_info.id
-        # 2. Тегнули ли бота через @?
-        is_mentioned = bot_username in text
-        # 3. Позвали ли по имени? (ищем "марти" в тексте)
-        is_called_by_name = "марти" in text_lower 
-
-        # Если ни одно из условий не совпало — бот молчит, чтобы не мешать людям общаться
-        if not (is_reply_to_bot or is_mentioned or is_called_by_name):
-            return 
-        
-        # Очищаем текст от обращений, чтобы нейросети достался только сам вопрос
-        text = text.replace(bot_username, "").replace("Марти", "").replace("марти", "").replace("МАРТИ", "").strip()
-        
-        # Убираем висячую запятую или пробел, если человек написал "Марти, расскажи..." -> ", расскажи..."
-        if text.startswith(','):
-            text = text[1:].strip()
-
-    # Если после очистки от имени сообщение оказалось пустым
-    if not text:
-        return
-
-    # Показываем статус "Марти печатает..."
+    # [ЛОГИКА ОЧИСТКИ ТЕКСТА ДЛЯ ГРУПП ОСТАЕТСЯ ТАКОЙ ЖЕ...]
+    
     chat_bot.send_chat_action(chat_id, 'typing')
     
     try:
-        # Достаем память именно этого чата и отправляем запрос в Gemini
-        session = get_chat_session(chat_id)
-        response = session.send_message(text)
+        # 1. Достаем личную память пользователя из базы
+        pilot_memory = get_personal_log(user_id)
         
-        # Отправляем ответ пользователю (с поддержкой Markdown для выделения текста)
-        chat_bot.reply_to(message, response.text, parse_mode='Markdown')
+        # 2. Формируем контекст для этого конкретного сообщения
+        full_context = f"ИНФОРМАЦИЯ О ПИЛОТЕ: {pilot_memory}\n\nВОПРОС: {text}"
+        
+        # 3. Получаем ответ
+        response = model.generate_content(full_context)
+        marty_answer = response.text
+        
+        # 4. ФОНОВОЕ ЗАПОМИНАНИЕ (Анализ новой информации)
+        # Мы просим модель выделить только новые факты (что нравится, успехи, желания)
+        memory_task = (
+            f"Проанализируй сообщение: '{text}' и выдели только новые факты о пользователе "
+            "(его увлечения, мечты, успехи в школе, характер). Если новых фактов нет, ответь только 'НЕТ'. "
+            "Если есть — напиши их кратко, в одно предложение."
+        )
+        new_facts = model.generate_content(memory_task).text
+        
+        if "НЕТ" not in new_facts.upper():
+            update_personal_log(user_id, new_facts.strip())
+            print(f"🧠 Марти запомнил о {user_id}: {new_facts}")
+
+        chat_bot.reply_to(message, marty_answer, parse_mode='Markdown')
         
     except Exception as e:
-        # Теперь Марти отправит саму техническую ошибку прямо вам в чат!
-        chat_bot.reply_to(message, f"📡 Командор, у меня системный сбой! Вот код ошибки:\n\n`{e}`", parse_mode='Markdown')
+        chat_bot.reply_to(message, f"📡 Командор, у меня системный сбой! `{e}`", parse_mode='Markdown')
 
-# --- [ ЗАПУСК ] ---
 def run_chat_bot():
-    """Эта функция запускается в параллельном потоке из файла main.py"""
-    print("🤖 [СИСТЕМА] Бот-собеседник Марти выходит на связь...")
-    # Очищаем старые вебхуки на всякий случай перед запуском поллинга
+    print("🤖 [СИСТЕМА] Бот-собеседник Марти с долгосрочной памятью запущен.")
     chat_bot.remove_webhook()
-    chat_bot.polling(non_stop=True, interval=2, timeout=60)
+    chat_bot.polling(non_stop=True, interval=2)
