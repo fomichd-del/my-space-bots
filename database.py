@@ -5,6 +5,7 @@ DB_URL = os.getenv('DATABASE_URL')
 
 def get_connection():
     try:
+        # Обязательно используем sslmode='require' для стабильной связи с Supabase
         return psycopg2.connect(DB_URL, sslmode='require')
     except Exception as e:
         print(f"❌ Ошибка связи с базой: {e}")
@@ -15,6 +16,7 @@ def init_db():
     if not conn: return
     try:
         cursor = conn.cursor()
+        # 1. Создаем таблицу, если её нет
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -23,6 +25,19 @@ def init_db():
                 personal_log TEXT DEFAULT ''
             )
         ''')
+        
+        # 2. ПРОВЕРКА: Добавляем колонку personal_log, если таблица уже была, но без неё
+        # Это лечит ошибку "column personal_log does not exist" автоматически
+        cursor.execute('''
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='users' AND column_name='personal_log') THEN 
+                    ALTER TABLE users ADD COLUMN personal_log TEXT DEFAULT '';
+                END IF; 
+            END $$;
+        ''')
+        
         conn.commit()
         print("📡 [СИСТЕМА] База Supabase готова: опыт и память активны.")
     except Exception as e:
@@ -43,6 +58,8 @@ def add_xp(user_id, amount, username="Пилот"):
             DO UPDATE SET xp = users.xp + EXCLUDED.xp, username = EXCLUDED.username
         ''', (user_id, username, amount))
         conn.commit()
+    except Exception as e:
+        print(f"❌ Ошибка начисления XP: {e}")
     finally:
         cursor.close()
         conn.close()
@@ -60,27 +77,37 @@ def get_user_stats(user_id):
         conn.close()
 
 def update_personal_log(user_id, new_info):
+    """Добавляет новую информацию в бортовой журнал пилота"""
     conn = get_connection()
     if not conn: return
     try:
         cursor = conn.cursor()
+        # Используем COALESCE, чтобы избежать проблем, если в ячейке NULL
+        # Разделитель ' | ' добавляется только если лог уже не пустой
         cursor.execute('''
-            UPDATE users SET personal_log = personal_log || ' | ' || %s 
+            UPDATE users 
+            SET personal_log = CASE 
+                WHEN personal_log IS NULL OR personal_log = '' THEN %s 
+                ELSE personal_log || ' | ' || %s 
+            END
             WHERE user_id = %s
-        ''', (new_info, user_id))
+        ''', (new_info, new_info, user_id))
         conn.commit()
+    except Exception as e:
+        print(f"❌ Ошибка обновления лога: {e}")
     finally:
         cursor.close()
         conn.close()
 
 def get_personal_log(user_id):
+    """Получает историю журнала пилота"""
     conn = get_connection()
     if not conn: return ""
     try:
         cursor = conn.cursor()
         cursor.execute('SELECT personal_log FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
-        return res[0] if res and res[0] else "Данных пока нет."
+        return res[0] if res and res[0] else "Данных пока нет. Начните исследование!"
     finally:
         cursor.close()
         conn.close()
