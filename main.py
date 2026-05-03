@@ -16,7 +16,7 @@ from vision_module import analyze_image
 # --- [ КОНФИГУРАЦИЯ ] ---
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 LOG_CHAT_ID = "-1003756164148"
-PHOTO_SPACE_DIR = "photo_space" # Твоя папка с генерациями
+PHOTO_SPACE_DIR = "photo_space" # Папка с твоими генерациями
 
 bot = telebot.TeleBot(TOKEN, threaded=True)
 
@@ -30,28 +30,50 @@ def send_log(text):
     except Exception as e:
         print(f"Ошибка логирования: {e}")
 
-# --- [ ИНСТРУКЦИЯ (МАКСИМАЛЬНО ПОДРОБНО) ] ---
+# --- [ УМНЫЙ ПОИСК ФОТО В АРХИВЕ ] ---
+def find_constellation_photo(name_latin):
+    """Ищет фото в папке, игнорируя регистр, пробелы и расширение (.jpg/.png)"""
+    if not os.path.exists(PHOTO_SPACE_DIR):
+        return None
+    
+    # Очищаем целевое имя: в нижний регистр и убираем лишние пробелы
+    target = name_latin.lower().strip()
+    
+    # Список файлов в папке
+    files = os.listdir(PHOTO_SPACE_DIR)
+    
+    for file in files:
+        # Разбиваем на имя и расширение
+        f_name, f_ext = os.path.splitext(file)
+        
+        # Сравниваем имя (без учета регистра и пробелов)
+        if f_name.lower().strip() == target and f_ext.lower() in ['.jpg', '.png', '.jpeg']:
+            return os.path.join(PHOTO_SPACE_DIR, file)
+            
+    return None
+
+# --- [ ИНСТРУКЦИЯ (ОПИСАНИЕ ВСЕХ СИСТЕМ) ] ---
 def get_instruction_text():
     return (
         "📜 <b>БОРТОВОЙ УСТАВ ИССЛЕДОВАТЕЛЯ</b>\n"
         "───────────────────────\n\n"
         "Пилот, перед тобой руководство по эксплуатации систем «Марти»:\n\n"
         "📡 <b>СИСТЕМА «МОЕ НЕБО»</b>\n"
-        "Отправляет запрос на орбитальные спутники. На основе твоей геолокации я вычисляю положение звезд и рисую карту твоего сектора. \n"
+        "Я запрашиваю данные со спутников и на основе твоей геолокации рисую карту звезд твоего сектора.\n"
         "👉 <i>Результат: Карта звездного неба и +15 XP.</i>\n\n"
         "📸 <b>МОДУЛЬ «ГЛАЗА МАРТИ»</b>\n"
-        "Если ты видишь что-то необычное или нарисовал созвездие — просто пришли мне фото. Мои сенсоры проанализируют картинку и выдадут отчет.\n"
-        "👉 <i>Результат: Описание объекта и +10 XP.</i>\n\n"
+        "Пришли мне фото любого небесного объекта или рисунка. Мои сенсоры проанализируют картинку и выдадут отчет.\n"
+        "👉 <i>Результат: Анализ объекта и +10 XP.</i>\n\n"
         "🗂 <b>АРХИВ «ДОСЬЕ»</b>\n"
-        "Под каждой картой есть кнопка доступа к моим личным записям. Там хранятся снимки и факты о созвездиях, которые мы собирали вручную.\n\n"
+        "Под картой неба есть кнопка доступа к моим личным записям. Там хранятся снимки и факты, собранные вручную.\n\n"
         "🎖 <b>КАРЬЕРНАЯ ЛЕСТНИЦА (XP)</b>\n"
-        "Твой ранг определяет уровень допуска к секретным операциям флота:\n"
+        "Твой ранг определяет уровень доступа к данным:\n"
         "• <b>Кадет</b> (0-100 XP)\n"
         "• <b>Исследователь</b> (101-500 XP)\n"
         "• <b>Навигатор</b> (501-1500 XP)\n"
         "• <b>Адмирал Галактики</b> (1500+ XP) 👑\n\n"
         "🖼 <b>КНОПКА «FULL HD»</b>\n"
-        "После сканирования неба ты можешь запросить файл в высоком разрешении. Я пришлю его документом, чтобы ты мог рассмотреть каждую звездочку!"
+        "Запроси файл в высоком разрешении, чтобы рассмотреть детали без потери качества."
     )
 
 # --- [ ПРИВЕТСТВИЕ ] ---
@@ -62,9 +84,9 @@ def send_welcome(message):
     markup.add(KeyboardButton("❓❓ ИНСТРУКЦИЯ ПИЛОТА"))
     
     welcome_text = (
-        f"🛰️ <b>Протокол связи установлен! Приветствую, пилот {message.from_user.first_name}!</b>\n\n"
-        "Я — <b>Марти</b>, твой навигационный штурман. 🐾\n"
-        "Мои сенсоры откалиброваны, а реактор прогрет. Мы готовы к картографированию новых секторов или анализу твоих снимков. Что прикажешь?"
+        f"🛰️ <b>Связь установлена! Рад видеть тебя в рубке, пилот {message.from_user.first_name}!</b>\n\n"
+        "Я — <b>Марти</b>, твой навигатор. 🐾\n"
+        "Все системы прогреты. Мы готовы сканировать новые сектора или изучать твои снимки. Что прикажешь?"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=markup, parse_mode='HTML')
 
@@ -74,36 +96,29 @@ def handle_photo(message):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
     
-    status_msg = bot.reply_to(message, "📸 <b>Активирую систему распознавания... Сверяю данные...</b>", parse_mode='HTML')
+    status_msg = bot.reply_to(message, "📸 <b>Настраиваю оптику... Сверяю данные с каталогами...</b>", parse_mode='HTML')
     
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        # Анализ через Vision (Марти «смотрит»)
         description = analyze_image(downloaded_file)
         
         add_xp(user_id, 10, user_name)
         new_xp = get_user_stats(user_id)
         
         caption = (
-            f"🔍 <b>ОТЧЕТ ПО СНИМКУ:</b>\n\n"
+            f"🔍 <b>ОТЧЕТ ШТУРМАНА:</b>\n\n"
             f"{description}\n"
             f"─────────────────────\n"
-            f"📈 <b>Данные сохранены!</b>\n"
+            f"📈 <b>Данные внесены в журнал!</b>\n"
             f"Зачислено: <b>+10 XP</b> (Всего: {new_xp})"
         )
-        
         bot.edit_message_text(caption, message.chat.id, status_msg.message_id, parse_mode='Markdown')
 
     except Exception as e:
-        send_log(f"🆘 Ошибка сенсоров: {e}")
-        bot.edit_message_text("🛰️ <b>Внимание!</b> Сигнал слишком слабый, не могу распознать объект. Попробуй еще раз.", message.chat.id, status_msg.message_id)
-
-# --- [ ОБРАБОТКА ТЕКСТОВЫХ КНОПОК ] ---
-@bot.message_handler(func=lambda message: message.text == "❓❓ ИНСТРУКЦИЯ ПИЛОТА")
-def handle_instruction(message):
-    bot.send_message(message.chat.id, get_instruction_text(), parse_mode='HTML')
+        send_log(f"🆘 Ошибка Vision: {e}")
+        bot.edit_message_text("🛰️ <b>Внимание!</b> Не удалось распознать объект. Попробуй сделать более четкий снимок.", message.chat.id, status_msg.message_id)
 
 # --- [ СКАНИРОВАНИЕ НЕБА ] ---
 @bot.message_handler(content_types=['location'])
@@ -111,7 +126,7 @@ def handle_location(message):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
     
-    status_msg = bot.send_message(message.chat.id, "🛰️ <b>Связываюсь с орбитальной станцией... Строю сетку координат...</b>", parse_mode='HTML')
+    status_msg = bot.send_message(message.chat.id, "🛰️ <b>Запрашиваю данные с орбиты... Вычисляю положение звезд...</b>", parse_mode='HTML')
     
     try:
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -126,34 +141,33 @@ def handle_location(message):
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(f"🌌 Открыть досье: {target_name}", callback_data=f"wiki_{target_name}"))
             markup.add(InlineKeyboardButton("🖼️ Получить Full HD оригинал", callback_data=f"orig_{user_id}"))
-            # УНИКАЛЬНОЕ НАЗВАНИЕ ДЛЯ ЧАТА
-            markup.add(InlineKeyboardButton("📡 МЕЖЗВЕЗДНЫЙ КАНАЛ ШТУРМАНА", url="https://t.me/Marty_Help_Bot?start=help"))
+            # УПЛОТНЕННАЯ КНОПКА СВЯЗИ
+            markup.add(InlineKeyboardButton("📡 КАНАЛ ШТУРМАНА", url="https://t.me/Marty_Help_Bot?start=help"))
             
             caption = (
-                f"✨ <b>КАРТА СЕКТОРА ПОСТРОЕНА УСПЕШНО!</b>\n\n"
-                f"Пилот <b>{user_name}</b>, смотри! Прямо сейчас над тобой сияет <b>{target_name}</b>.\n"
+                f"✨ <b>СЕКТОР ПРОСКАНИРОВАН!</b>\n\n"
+                f"Пилот <b>{user_name}</b>, прямо сейчас над тобой сияет <b>{target_name}</b>.\n"
                 f"─────────────────────\n"
-                f"🎖 <b>Твой текущий статус:</b> {rank}\n"
-                f"📈 <b>Опыт исследования:</b> {current_xp} XP (+15)"
+                f"🎖 <b>Статус:</b> {rank}\n"
+                f"📈 <b>Опыт:</b> {current_xp} XP (+15)"
             )
-            
             with open(result, 'rb') as photo:
                 bot.send_photo(message.chat.id, photo, caption=caption, reply_markup=markup, parse_mode='HTML')
             
             bot.delete_message(message.chat.id, status_msg.message_id)
-            send_log(f"✅ Успешное картографирование сектора для {user_name}.")
+            send_log(f"✅ Успешное картографирование для {user_name}.")
         else:
             bot.edit_message_text(f"❌ <b>Ошибка навигации:</b> {err_msg}", message.chat.id, status_msg.message_id)
 
     except Exception as e:
         send_log(f"🆘 Ошибка генерации: {e}")
-        bot.send_message(message.chat.id, "💥 <b>Системный сбой!</b> Штурман Марти временно потерял ориентацию. Давай попробуем еще раз через пару минут.")
+        bot.send_message(message.chat.id, "💥 <b>Системный сбой!</b> Штурман Марти временно потерял связь. Давай попробуем еще раз.")
 
-# --- [ ДОСЬЕ ИЗ ЛОКАЛЬНОЙ ПАПКИ ] ---
+# --- [ ДОСЬЕ С УМНЫМ ПОИСКОМ ФОТО ] ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '').strip()
-    bot.answer_callback_query(call.id, "Открываю локальные архивы...")
+    bot.answer_callback_query(call.id, "Извлекаю данные из архивов...")
     
     found_fact = next((item for item in CONSTELLATIONS if item['name_ru'].upper() == subject.upper()), None)
     
@@ -165,47 +179,49 @@ def callback_wiki(call):
             f"<i>Данные проверены штурманом Марти.</i>"
         )
         
-        # Путь к фото в твоей папке (например, по имени созвездия на латыни)
-        photo_path = os.path.join(PHOTO_SPACE_DIR, f"{found_fact['name_latin'].lower()}.jpg")
+        # Использование функции умного поиска
+        photo_path = find_constellation_photo(found_fact['name_latin'])
         
-        if os.path.exists(photo_path):
+        if photo_path:
             with open(photo_path, 'rb') as photo:
                 bot.send_photo(call.message.chat.id, photo, caption=text, parse_mode='HTML')
         else:
-            # Если фото еще не сгенерировано, шлем только текст
             bot.send_message(call.message.chat.id, text, parse_mode='HTML')
-            send_log(f"⚠️ Фото для {subject} не найдено по пути {photo_path}")
+            send_log(f"⚠️ Фото для {found_fact['name_latin']} не найдено в {PHOTO_SPACE_DIR}")
     else:
-        bot.send_message(call.message.chat.id, "⚠️ Данные об этом секторе еще не внесены в базу.")
+        bot.send_message(call.message.chat.id, "⚠️ Данные об этом секторе отсутствуют.")
 
-# --- [ ВЫДАЧА ОРИГИНАЛА КАРТЫ (HD) ] ---
+# --- [ ОБРАБОТКА ИНСТРУКЦИИ ] ---
+@bot.message_handler(func=lambda message: message.text == "❓❓ ИНСТРУКЦИЯ ПИЛОТА")
+def handle_instruction(message):
+    bot.send_message(message.chat.id, get_instruction_text(), parse_mode='HTML')
+
+# --- [ ВЫДАЧА ОРИГИНАЛА КАРТЫ ] ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('orig_'))
 def callback_orig(call):
     user_id = call.data.replace('orig_', '')
-    bot.answer_callback_query(call.id, "Подготавливаю Full HD файл...")
+    bot.answer_callback_query(call.id, "Подготавливаю файл...")
     
-    # Путь к сгенерированной карте (измени, если у тебя другой)
     file_path = f"output/star_map_{user_id}.png"
     
     if os.path.exists(file_path):
         with open(file_path, 'rb') as doc:
-            bot.send_document(call.message.chat.id, doc, caption="🚀 <b>Твой снимок в оригинальном качестве. Чистого неба!</b>", parse_mode='HTML')
+            bot.send_document(call.message.chat.id, doc, caption="🚀 <b>Твой снимок в оригинальном качестве.</b>", parse_mode='HTML')
     else:
-        bot.send_message(call.message.chat.id, "❌ <b>Файл утерян.</b> Сканируй небо заново, чтобы я создал новый снимок.")
+        bot.send_message(call.message.chat.id, "❌ Файл утерян. Попробуй сканировать небо заново.")
 
 # --- [ SERVER ] ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Marty Nav-Systems: Online"
+def home(): return "Navigator Marty Status: Online"
 
 def run_server():
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
 
 if __name__ == "__main__":
     init_db()
-    send_log("🚀 <b>Марти занял свое место в рубке. Системы активны!</b>")
+    send_log("🚀 <b>Штурман Марти на посту. Системы в норме!</b>")
     
     Thread(target=run_server).start()
-    
     bot.remove_webhook()
     bot.polling(non_stop=True, interval=1)
