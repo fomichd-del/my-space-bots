@@ -24,7 +24,7 @@ SYSTEM_PROMPT = (
 
 # Выбираем современную и быструю модель (1.5 Flash отлично подходит для диалогов)
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
+    model_name="gemini-1.5-flash-latest", # <-- Изменение здесь
     system_instruction=SYSTEM_PROMPT
 )
 
