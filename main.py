@@ -10,6 +10,9 @@ import requests
 import io
 from PIL import Image
 
+# ИМПОРТ НОВОГО БОТА-СОБЕСЕДНИКА
+from marty_chat import run_chat_bot 
+
 # --- [ ИМПОРТ БАЗЫ КОСМИЧЕСКОГО ПАТРУЛЯ ] ---
 from base_fact_star import CONSTELLATIONS
 
@@ -209,7 +212,13 @@ def callback_wiki(call):
         bot.send_message(call.message.chat.id, "📡 Ошибка: Данные по этому сектору отсутствуют.")
 
 if __name__ == "__main__":
+    # Запускаем сервер Render
     Thread(target=run_server).start()
+    
+    # Запускаем НОВОГО бота-собеседника в отдельном параллельном процессе
+    Thread(target=run_chat_bot).start()
+    
     bot.remove_webhook()
-    print("📡 [СИСТЕМА] Марти слушает эфир...")
+    print("📡 [СИСТЕМА] Основной бот (Карты) слушает эфир...")
+    # Запускаем СТАРОГО бота-рисовальщика
     bot.polling(non_stop=True, interval=2, timeout=60)
