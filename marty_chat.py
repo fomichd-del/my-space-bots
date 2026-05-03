@@ -1,8 +1,9 @@
 import os
 import telebot
 import google.generativeai as genai
-from database import get_personal_log, update_personal_log # Импортируем память
+from database import get_personal_log, update_personal_log 
 
+# Настройка Gemini
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -40,8 +41,9 @@ SYSTEM_PROMPT = (
     "8. ВОВЛЕЧЕНИЕ: В конце каждого ответа задавай легкий вопрос, чтобы проверить 'готовность экипажа' или интерес к теме. "
 )
 
+# УСТАНОВЛЕНА ПРОВЕРЕННАЯ МОДЕЛЬ 2.5 FLASH
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash", # Рекомендую 1.5 Flash для скорости и стабильности
+    model_name="gemini-2.5-flash", 
     system_instruction=SYSTEM_PROMPT
 )
 
@@ -54,33 +56,31 @@ def handle_conversation(message):
     user_id = message.from_user.id
     text = message.text
 
-    # [ЛОГИКА ОЧИСТКИ ТЕКСТА ДЛЯ ГРУПП ОСТАЕТСЯ ТАКОЙ ЖЕ...]
-    
     chat_bot.send_chat_action(chat_id, 'typing')
     
     try:
-        # 1. Достаем личную память пользователя из базы
+        # 1. Достаем личную память пользователя из базы Supabase
         pilot_memory = get_personal_log(user_id)
         
-        # 2. Формируем контекст для этого конкретного сообщения
+        # 2. Формируем контекст с учетом истории из personal_log
         full_context = f"ИНФОРМАЦИЯ О ПИЛОТЕ: {pilot_memory}\n\nВОПРОС: {text}"
         
-        # 3. Получаем ответ
+        # 3. Получаем ответ от обновленной модели 2.5
         response = model.generate_content(full_context)
         marty_answer = response.text
         
-        # 4. ФОНОВОЕ ЗАПОМИНАНИЕ (Анализ новой информации)
-        # Мы просим модель выделить только новые факты (что нравится, успехи, желания)
+        # 4. ФОНОВОЕ ЗАПОМИНАНИЕ
         memory_task = (
             f"Проанализируй сообщение: '{text}' и выдели только новые факты о пользователе "
             "(его увлечения, мечты, успехи в школе, характер). Если новых фактов нет, ответь только 'НЕТ'. "
             "Если есть — напиши их кратко, в одно предложение."
         )
-        new_facts = model.generate_content(memory_task).text
+        new_facts_response = model.generate_content(memory_task)
+        new_facts = new_facts_response.text
         
         if "НЕТ" not in new_facts.upper():
             update_personal_log(user_id, new_facts.strip())
-            print(f"🧠 Марти запомнил о {user_id}: {new_facts}")
+            print(f"🧠 Марти запомнил в облако: {new_facts}")
 
         chat_bot.reply_to(message, marty_answer, parse_mode='Markdown')
         
@@ -88,6 +88,6 @@ def handle_conversation(message):
         chat_bot.reply_to(message, f"📡 Командор, у меня системный сбой! `{e}`", parse_mode='Markdown')
 
 def run_chat_bot():
-    print("🤖 [СИСТЕМА] Бот-собеседник Марти с долгосрочной памятью запущен.")
+    print("🤖 [СИСТЕМА] Бот-собеседник Марти на движке 2.5 Flash запущен.")
     chat_bot.remove_webhook()
     chat_bot.polling(non_stop=True, interval=2)
