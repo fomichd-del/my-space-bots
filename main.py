@@ -5,6 +5,7 @@ import os, time, concurrent.futures, random
 from pathlib import Path
 from flask import Flask
 from threading import Thread
+import google.generativeai as genai  # Добавлено для разведки
 
 # --- [ ИМПОРТ МОДУЛЕЙ КОРАБЛЯ ] ---
 from draw_map import generate_star_map
@@ -27,12 +28,28 @@ bot = telebot.TeleBot(TOKEN, threaded=True)
 apihelper.CONNECT_TIMEOUT = 60
 apihelper.READ_TIMEOUT = 90
 
-# --- [ ЦЕНТР МОНИТОРИНГА ] ---
+# --- [ ЦЕНТР МОНИТОРИНГА И РАЗВЕДКА ] ---
 def send_log(text):
     try:
         bot.send_message(LOG_CHAT_ID, f"📡 <b>[LOG]:</b> {text}", parse_mode='HTML')
     except:
         print(f"Ошибка логирования: {text}")
+
+def check_models():
+    """Функция-разведчик: выводит список всех доступных моделей в логи Render"""
+    try:
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        print("🛰️ [РАЗВЕДКА] Запрашиваю список доступных моделей...")
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+                print(f"✅ Найдена модель: {m.name}")
+        
+        if not available_models:
+            print("⚠️ ВНИМАНИЕ: Доступных моделей для генерации контента не найдено!")
+    except Exception as e:
+        print(f"❌ ОШИБКА РАЗВЕДКИ: {e}")
 
 # --- [ АТМОСФЕРНЫЕ ФАКТЫ ДЛЯ ЭКРАНА ЗАГРУЗКИ ] ---
 SPACE_FACTS = [
@@ -42,27 +59,19 @@ SPACE_FACTS = [
     "🛰️ <b>Синхронизация...</b> Подключаюсь к глубокой сети дальней космической связи NASA.",
     "🪐 <b>Знание — сила:</b> Сатурн настолько легкий, что плавал бы в твоем бассейне (если бы он был размером с планету).",
     "🌠 <b>Внимание:</b> Каждую секунду сквозь твое тело пролетают триллионы нейтрино, выпущенных далекими звездами.",
-    "🌓 <b>Для кадетов:</b> На Луне ты мог бы поднять автомобиль одной рукой, а прыгнуть — выше дома!"
+    "💡 <b>Для кадетов:</b> На Луне ты мог бы поднять автомобиль одной рукой, а прыгнуть — выше дома!"
 ]
 
 # --- [ УМНЫЙ ПОИСК ФОТО В АРХИВЕ ] ---
 def find_constellation_photo(name_latin):
-    """Ищет файл в photo_space. Учитывает пробелы и расширение .png"""
     if not PHOTO_SPACE_DIR.exists(): return None
-    
-    # Имя латынь (например, 'Canes Venatici')
     target_name = name_latin.strip()
-    
-    # Пробуем найти прямое совпадение с .png
     file_path = PHOTO_SPACE_DIR / f"{target_name}.png"
     if file_path.exists():
         return file_path
-    
-    # Если не нашли, пробуем регистронезависимый поиск
     for f in PHOTO_SPACE_DIR.iterdir():
         if f.stem.lower() == target_name.lower() and f.suffix.lower() == '.png':
             return f
-            
     return None
 
 # --- [ ПОЛНОЦЕННЫЙ БОРТОВОЙ УСТАВ ] ---
@@ -73,20 +82,18 @@ def get_instruction_text():
         "Пилот, добро пожаловать в рубку! Я — <b>Марти</b>, твой персональный штурман и эксперт по космосу. 🐾\n\n"
         "🛰️ <b>СИСТЕМА «МОЕ НЕБО»</b>\n"
         "Используй кнопку локации. Я мгновенно свяжусь с орбитальной группировкой и отрисую карту звезд прямо над твоей головой. "
-        "Это не просто картинка, а точный математический снимок твоего горизонта.\n"
         "🎁 <i>Награда за вылет: +15 XP.</i>\n\n"
         "👁️ <b>НЕЙРО-СКАНЕР «ГЛАЗА МАРТИ»</b>\n"
-        "Пришли фото неба из своего архива. Мои алгоритмы проанализируют снимок и найдут на нем созвездия или небесные тела.\n"
+        "Пришли фото неба из своего архива. Мои алгоритмы проанализируют снимок и найдут на нем созвездия.\n"
         "🎁 <i>Награда за анализ: +10 XP.</i>\n\n"
         "🎖️ <b>ТВОЯ КАРЬЕРА (СИСТЕМА РАНГОВ):</b>\n"
-        "Копи опыт (XP), чтобы продвигаться по службе:\n"
-        "• <b>Кадет</b> (0-100 XP) — ты только учишься видеть.\n"
-        "• <b>Исследователь</b> (101-300 XP) — твое имя знают в обсерваториях.\n"
-        "• <b>Навигатор</b> (301-600 XP) — ты ведешь нас сквозь тьму.\n"
-        "• <b>Командор</b> (601-1000 XP) — легенда флота.\n"
-        "• <b>Адмирал Галактики</b> (1000+) — ты и есть космос.\n\n"
+        "• <b>Кадет</b> (0-100 XP)\n"
+        "• <b>Исследователь</b> (101-300 XP)\n"
+        "• <b>Навигатор</b> (301-600 XP)\n"
+        "• <b>Командор</b> (601-1000 XP)\n"
+        "• <b>Адмирал Галактики</b> (1000+)\n\n"
         "🖼️ <b>КНОПКА «FULL HD»</b>\n"
-        "После генерации карты я подготовлю для тебя тяжелый файл без сжатия — идеален для твоих обоев или печати."
+        "После генерации карты я подготовлю для тебя тяжелый файл без сжатия."
     )
 
 # --- [ ПРИВЕТСТВИЕ ] ---
@@ -155,15 +162,11 @@ def handle_location(message):
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '').strip()
     bot.answer_callback_query(call.id, "Запрашиваю данные из архива...")
-    
-    # Ищем в CONSTELLATIONS по name_ru
     found = next((item for item in CONSTELLATIONS if item['name_ru'].upper() == subject.upper()), None)
     
     if found:
         text = f"🌌 <b>БОРТОВОЕ ДОСЬЕ: {found['name_ru'].upper()}</b>\n\n{found['fact']}"
         photo_p = find_constellation_photo(found.get('name_latin', ''))
-        
-        # Кнопка для общения под досье
         m_chat = InlineKeyboardMarkup().add(InlineKeyboardButton("🤖 Обсудить это с Марти", url="https://t.me/Marty_Help_Bot?start=channel_post"))
         
         if photo_p and photo_p.exists():
@@ -195,6 +198,7 @@ def run_server():
 
 if __name__ == "__main__":
     init_db()
+    check_models()  # Запуск разведки при старте
     Thread(target=run_server, daemon=True).start()
     Thread(target=run_chat_bot, daemon=True).start()
     
