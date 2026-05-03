@@ -165,13 +165,11 @@ async def process_mission(v_url, title, desc_raw, is_russian=False, source_name=
         target_total_bps = int((44 * 1024 * 1024 * 8) / (duration + 4))
         v_br = max(40000, min(target_total_bps - 32000, 2000000))
         
-        # Подготовка пути к субтитрам для FFmpeg (экранирование путей)
         subs_path = os.path.abspath(f_subs).replace('\\', '/').replace(':', '\\:')
         sub_filter = f"subtitles='{subs_path}'" if has_subs else ""
         
         if os.path.exists(INTRO_FILE) and os.path.exists(OUTRO_FILE):
             filter_pad = f"scale={w_limit}:{h_limit}:force_original_aspect_ratio=decrease,pad={w_limit}:{h_limit}:(ow-iw)/2:(oh-ih)/2,setsar=1"
-            # Собираем цепочку фильтров для основного видео
             v1_filter = f"{sub_filter}{',' if has_subs else ''}{filter_pad}"
             
             ff_cmd = ['ffmpeg', '-y', '-loop', '1', '-t', '2', '-i', INTRO_FILE, '-i', f_raw, '-loop', '1', '-t', '2', '-i', OUTRO_FILE, '-filter_complex', f"[0:v]{filter_pad}[v0];[1:v]{v1_filter}[v1];[2:v]{filter_pad}[v2];[v0][v1][v2]concat=n=3:v=1:a=0[v];[1:a]adelay=2000|2000:all=1[a]", '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-b:v', str(v_br), '-preset', 'ultrafast', '-c:a', 'aac', '-b:a', '32k', '-ar', '44100', f_final]
@@ -189,7 +187,20 @@ async def process_mission(v_url, title, desc_raw, is_russian=False, source_name=
 
         ru_title = (title if is_russian else GoogleTranslator(source='auto', target='ru').translate(title)).replace('<', '«').replace('>', '»')
         summary = get_smart_summary(desc_raw if is_russian else GoogleTranslator(source='auto', target='ru').translate(desc_raw))
-        caption = f"<b>{'🎙 ОРИГИНАЛ' if is_russian else '📝 ПЕРЕВОД'}</b>\n\n🎬 <b>{ru_title.upper()}</b>\n──────────────────────\n\n🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n<i>{summary}</i>\n\n<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
+        
+        # --- [ ОБНОВЛЕННЫЙ ТЕКСТ СООБЩЕНИЯ (CAPTION) ] ---
+        caption = (
+            f"<b>{'🎙 ОРИГИНАЛ' if is_russian else '📝 ПЕРЕВОД'}</b>\n\n"
+            f"🎬 <b>{ru_title.upper()}</b>\n"
+            f"──────────────────────\n\n"
+            f"🚀 <b>В ЭТОМ ВЫПУСКЕ:</b>\n"
+            f"<i>{summary}</i>\n\n"
+            f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n"
+            f"──────────────────────\n"
+            f"🤖 <b>Остались вопросы после просмотра?</b>\n"
+            f"👉 <a href='https://t.me/Marty_Help_Bot?start=channel_post'><b>Спросить бортового компьютера Марти</b></a>\n\n"
+            f"📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
+        )
 
         with open(f_to_send, 'rb') as v:
             files = {"video": v}
