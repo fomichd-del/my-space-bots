@@ -24,7 +24,7 @@ model = genai.GenerativeModel(
 )
 
 # --- [ НАСТРОЙКИ БОТА ] ---
-MARTY_CHAT_TOKEN = os.getenv('MARTY_BOT_TOKEN')
+MARTY_BOT_TOKEN = os.getenv('MARTY_BOT_TOKEN')
 
 # Проверка, чтобы сервер не падал, если вы забудете добавить токен в Render
 if MARTY_CHAT_TOKEN is None:
