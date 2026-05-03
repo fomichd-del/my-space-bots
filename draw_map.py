@@ -80,12 +80,14 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
-        # Исправленные атрибуты стиля (единственное число)
+        # ВОЗВРАЩАЕМ МНОЖЕСТВЕННОЕ ЧИСЛО (stars, constellations)
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
-        style.star.label.font_size = 11
-        style.constellation.label.font_size = 16
-        style.constellation.line.width = 2.5
-        style.constellation.line.color = "#5c9dff"
+        try:
+            style.stars.label.font_size = 11
+            style.constellations.label.font_size = 16
+            style.constellations.line.width = 2.5
+            style.constellations.line.color = "#5c9dff"
+        except: pass
 
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
         p.horizon()
@@ -112,13 +114,11 @@ def generate_star_map(lat, lon, user_name, user_id):
         p.export(str(temp_raw), transparent=True, padding=0.01)
         plt.clf(); plt.close('all')
 
-        # Обработка изображения
         bg_img = Image.open(BASE_DIR / 'background1.png')
         sky_img = Image.open(temp_raw).convert("RGBA")
         sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # Наложение облаков
         cloud_p = BASE_DIR / 'clouds.png'
         if cloud_cover > 5 and cloud_p.exists():
             clouds_tex = Image.open(cloud_p).convert('RGBA').resize((sky_size, sky_size))
@@ -137,7 +137,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # Текстовая информация
         tf = TimezoneFinder()
         tz_name = tf.timezone_at(lng=float(lon), lat=float(lat))
         user_tz = pytz.timezone(tz_name) if tz_name else pytz.utc
@@ -159,6 +158,8 @@ def generate_star_map(lat, lon, user_name, user_id):
         
         if temp_raw.exists(): os.remove(temp_raw)
         bg_img.close(); sky_img.close()
+        
+        # ВОЗВРАЩАЕМ 5 ЗНАЧЕНИЙ
         return True, str(final_jpg), str(final_png), target_name_rus, ""
 
     except Exception as e:
