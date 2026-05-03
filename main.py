@@ -10,6 +10,9 @@ import requests
 import io
 from PIL import Image
 
+# --- [ ИМПОРТ МОДУЛЕЙ ИГРОВОЙ ЛОГИКИ ] ---
+from database import init_db, add_xp, get_user_stats, get_rank_name
+
 # ИМПОРТ НОВОГО БОТА-СОБЕСЕДНИКА
 from marty_chat import run_chat_bot 
 
@@ -116,6 +119,11 @@ def handle_location(message):
         bot.delete_message(message.chat.id, loading_msg.message_id)
 
         if success:
+            # --- [ НАЧИСЛЕНИЕ XP И ПРОВЕРКА РАНГА ] ---
+            add_xp(user_id, 15, user_name)
+            current_xp = get_user_stats(user_id)
+            rank = get_rank_name(current_xp)
+
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(f"🌌 Досье на {target_name}", callback_data=f"wiki_{target_name}"))
             markup.add(InlineKeyboardButton("🖼️ Оригинал (Full HD)", callback_data=f"orig_{user_id}"))
@@ -123,7 +131,10 @@ def handle_location(message):
             
             caption = (
                 f"✨ <b>Твоя персональная карта готова, {user_name}!</b>\n\n"
-                f"🎯 <b>Твоя главная цель:</b> созвездие <b>{target_name}</b>."
+                f"🎯 <b>Твоя главная цель:</b> созвездие <b>{target_name}</b>.\n"
+                f"─────────────────────\n"
+                f"🎖 <b>Твой ранг:</b> {rank}\n"
+                f"📈 <b>Опыт:</b> {current_xp} XP"
             )
             
             with open(result, 'rb') as photo:
@@ -147,7 +158,6 @@ def callback_wiki(call):
         found_fact = next((item for item in CONSTELLATIONS if item['name_ru'].upper() == subject.upper()), None)
                 
         if found_fact:
-            # ... (логика поиска фото остается прежней)
             text = f"🌌 <b>{found_fact['name_ru'].upper()} ({found_fact['name_latin']})</b>\n\n{found_fact['fact']}"
             bot.send_message(call.message.chat.id, text, parse_mode='HTML')
         else:
@@ -156,8 +166,11 @@ def callback_wiki(call):
         send_log(f"🆘 Ошибка в callback_wiki: {e}")
 
 if __name__ == "__main__":
+    # --- [ ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ПРИ СТАРТЕ ] ---
+    init_db()
+    
     # Запуск лога о старте системы
-    send_log("🚀 <b>Все системы запущены.</b> Марти готов к работе на Render!")
+    send_log("🚀 <b>Все системы запущены. База данных активна.</b>")
     
     Thread(target=run_server).start()
     Thread(target=run_chat_bot).start()
