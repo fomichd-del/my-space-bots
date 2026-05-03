@@ -128,6 +128,9 @@ def handle_location(message):
             markup.add(InlineKeyboardButton(f"🌌 Досье на {target_name}", callback_data=f"wiki_{target_name}"))
             markup.add(InlineKeyboardButton("🖼️ Оригинал (Full HD)", callback_data=f"orig_{user_id}"))
             
+            # --- НОВАЯ КНОПКА ДЛЯ ПЕРЕХОДА К БОТУ-СОБЕСЕДНИКУ ---
+            markup.add(InlineKeyboardButton("🤖 Спросить эксперта Марти", url="https://t.me/Marty_Help_Bot?start=channel_post"))
+            
             caption = (
                 f"✨ <b>Твоя персональная карта готова!</b>\n\n"
                 f"🎯 <b>Твоя главная цель:</b> созвездие <b>{target_name}</b>.\n"
