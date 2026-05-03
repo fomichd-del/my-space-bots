@@ -94,8 +94,8 @@ def handle_conversation(message):
         chat_bot.reply_to(message, response.text, parse_mode='Markdown')
         
     except Exception as e:
-        chat_bot.reply_to(message, "📡 Ой, связь со спутником прервалась из-за метеоритного дождя! Повтори свой запрос.")
-        print(f"[ОШИБКА GEMINI]: {e}")
+        # Теперь Марти отправит саму техническую ошибку прямо вам в чат!
+        chat_bot.reply_to(message, f"📡 Командор, у меня системный сбой! Вот код ошибки:\n\n`{e}`", parse_mode='Markdown')
 
 # --- [ ЗАПУСК ] ---
 def run_chat_bot():
