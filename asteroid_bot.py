@@ -94,7 +94,7 @@ def get_asteroid_data():
         danger_text = "⚠️ Потенциально опасен" if is_danger else "✅ Не представляет угрозы"
         interest_reason = "Крупный размер" if size > 100 else "Очень близкий пролет" if dist_km < 1000000 else "Высокая скорость"
 
-        # ТЕКСТ ПОСТА (С двойным заголовком)
+        # ТЕКСТ ПОСТА (С ярким блоком про эксперта)
         text = (
             f"☄️ <b>АСТЕРОИДНЫЙ ПАТРУЛЬ: ДОСЬЕ ОБЪЕКТА {name}</b>\n"
             f"─────────────────────\n\n"
@@ -106,15 +106,23 @@ def get_asteroid_data():
             f"🛰 <b>Группа:</b> {orbit_desc_ru}\n"
             f"🛡 <b>Статус:</b> {danger_text}\n"
             f"🧐 <b>Интересно:</b> {interest_reason}\n"
-            f"Отличный снимок, Командор! 🚀 Если хочешь узнать больше об этом астероиде, можешь <a href='https://t.me/Marty_Help_Bot?start=channel_post'>Спросить эксперта!</a>\n"         
+            f"─────────────────────\n"
+            f"🤖 <b>ЕСТЬ ВОПРОСЫ ОБ ЭТОМ АСТЕРОИДЕ?</b>\n"
+            f"👉 <a href='https://t.me/Marty_Help_Bot?start=channel_post'><b>Спросить бортовой компьютер Марти!</b></a> 👈\n"         
             f"─────────────────────\n"
             f"📍 <b>ГДЕ ИСКАТЬ:</b> Нажми кнопку ниже. В 3D-плеере разверни камеру на Землю — астероид будет подлетать с освещенной (день) или ночной стороны.\n\n"
             f"🚀 <a href='https://t.me/vladislav_space'>Дневник юного космонавта</a>"
         )
 
         eyes_url = f"https://eyes.nasa.gov/apps/asteroids/#/asteroid/{link_name}"
-        button_text = f"✨ СМОТРЕТЬ ТРАЕКТОРИЮ В 3D ✨"
-        keyboard = {"inline_keyboard": [[{"text": button_text, "url": eyes_url}]]}
+        
+        # ДОБАВИЛИ ВТОРУЮ КНОПКУ ДЛЯ МАРТИ
+        keyboard = {
+            "inline_keyboard": [
+                [{"text": "✨ СМОТРЕТЬ ТРАЕКТОРИЮ В 3D ✨", "url": eyes_url}],
+                [{"text": "🤖 Спросить эксперта Марти", "url": "https://t.me/Marty_Help_Bot?start=channel_post"}]
+            ]
+        }
         
         return text, keyboard, random.choice(SPACE_PHOTOS), ast_id
     except Exception as e:
