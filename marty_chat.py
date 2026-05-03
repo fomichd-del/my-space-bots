@@ -41,11 +41,19 @@ SYSTEM_PROMPT = (
     "8. ВОВЛЕЧЕНИЕ: В конце каждого ответа задавай легкий вопрос, чтобы проверить 'готовность экипажа' или интерес к теме. "
 )
 
-# УСТАНОВЛЕНА ПРОВЕРЕННАЯ МОДЕЛЬ 1,5 FLASH
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash", # Возвращаемся на 1.5 для безлимитных полетов
-    system_instruction=SYSTEM_PROMPT
-)
+# Попробуем три варианта обращения, чтобы наверняка попасть в цель
+try:
+    # Вариант 1: Полный путь (самый надежный для v1beta)
+    model = genai.GenerativeModel(
+        model_name="models/gemini-1.5-flash", 
+        system_instruction=SYSTEM_PROMPT
+    )
+except Exception:
+    # Вариант 2: С указанием конкретной стабильной версии
+    model = genai.GenerativeModel(
+        model_name="models/gemini-1.5-flash-latest", 
+        system_instruction=SYSTEM_PROMPT
+    )
 
 MARTY_BOT_TOKEN = os.getenv('MARTY_BOT_TOKEN')
 chat_bot = telebot.TeleBot(MARTY_BOT_TOKEN, threaded=True)
