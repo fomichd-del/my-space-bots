@@ -4,11 +4,12 @@ import google.generativeai as genai
 from database import get_personal_log, update_personal_log 
 
 # --- НАСТРОЙКИ СИСТЕМЫ ---
+# Приоритет отдается стабильности и универсальности
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 MARTY_BOT_TOKEN = os.getenv('MARTY_BOT_TOKEN')
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Используем стабильную версию для текстовых и визуальных задач
+# Используем проверенную модель gemini-1.5-flash для скорости обработки множества запросов
 MODEL_NAME = 'gemini-1.5-flash'
 
 SYSTEM_PROMPT = (
@@ -45,26 +46,24 @@ SYSTEM_PROMPT = (
     "8. ВОВЛЕЧЕНИЕ: В конце каждого ответа задавай легкий вопрос, чтобы проверить 'готовность экипажа' или интерес к теме. "
 )
 
-
 # Инициализация модели
 model = genai.GenerativeModel(model_name=MODEL_NAME, system_instruction=SYSTEM_PROMPT)
-chat_bot = telebot.TeleBot(MARTY_BOT_TOKEN, threaded=False)
+chat_bot = telebot.TeleBot(MARTY_BOT_TOKEN, threaded=False) 
 
-# --- МОДУЛЬ ЗРЕНИЯ (vision_module.py вшит в логику) ---
+# --- МОДУЛЬ ЗРЕНИЯ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ ---
 def analyze_vision(image_data):
-    """Марти сканирует изображение"""
+    """Марти сканирует изображения, присланные любым пользователем"""
     prompt = (
         "Марти, посмотри на это фото через свои сканеры. Что ты видишь? "
-        "Опиши это для Владика в контексте космоса или науки. "
-        "Если это рисунок или поделка — похвали Командора! "
-        "В конце добавь один короткий космический факт."
+        "Опиши это для юного Командора в контексте космоса, науки или техники. "
+        "Если это творчество — обязательно похвали. В конце добавь один космический факт."
     )
     try:
         contents = [prompt, {"mime_type": "image/jpeg", "data": image_data}]
         response = model.generate_content(contents)
-        return response.text if response.text else "🐾 Вижу что-то необычное, но датчики барахлят!"
+        return response.text if response.text else "🐾 Датчики зафиксировали что-то интересное, но не смогли расшифровать. Попробуй еще раз!"
     except Exception as e:
-        return f"🐾 Ой! Мои линзы запотели. Ошибка: {str(e)[:50]}"
+        return f"🐾 Ой! Мои линзы запотели из-за системных помех. Ошибка: {str(e)[:40]}"
 
 # --- ОБРАБОТКА ФОТО ---
 @chat_bot.message_handler(content_types=['photo'])
@@ -72,15 +71,16 @@ def handle_photo(message):
     chat_id = message.chat.id
     chat_bot.send_chat_action(chat_id, 'upload_photo')
     
-    # Загружаем фото из Telegram
-    file_info = chat_bot.get_file(message.photo[-1].file_id)
-    downloaded_file = chat_bot.download_file(file_info.file_path)
-    
-    # Марти анализирует изображение
-    vision_result = analyze_vision(downloaded_file)
-    chat_bot.reply_to(message, vision_result)
+    try:
+        file_info = chat_bot.get_file(message.photo[-1].file_id)
+        downloaded_file = chat_bot.download_file(file_info.file_path)
+        
+        vision_result = analyze_vision(downloaded_file)
+        chat_bot.reply_to(message, vision_result)
+    except Exception as e:
+        chat_bot.reply_to(message, "📡 Не удалось получить данные со сканера.")
 
-# --- ОБРАБОТКА ТЕКСТА ---
+# --- ОБРАБОТКА ТЕКСТА (МНОГОПОЛЬЗОВАТЕЛЬСКАЯ ПАМЯТЬ) ---
 @chat_bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
     chat_id = message.chat.id
@@ -90,29 +90,28 @@ def handle_text(message):
     chat_bot.send_chat_action(chat_id, 'typing')
     
     try:
-        # 1. Личная память (Владик, успехи, хобби)
-        pilot_memory = get_personal_log(user_id)
+        # 1. Загружаем личный лог конкретного пользователя из базы данных
+        user_memory = get_personal_log(user_id)
         
-        # 2. Формируем контекст
-        full_context = f"БОРТОВОЙ ЖУРНАЛ ПИЛОТА: {pilot_memory}\n\nСООБЩЕНИЕ: {text}"
+        # 2. Формируем запрос с учетом личной истории этого пользователя
+        full_context = f"ДАННЫЕ О КОМАНДОРЕ: {user_memory}\n\nВОПРОС: {text}"
         
-        # 3. Ответ Марти
+        # 3. Генерация персонализированного ответа
         response = model.generate_content(full_context)
         chat_bot.reply_to(message, response.text, parse_mode='Markdown')
         
-        # 4. Фоновое запоминание новых фактов
-        memory_task = f"Выдели новые факты о ребенке из текста: '{text}'. Если их нет, ответь 'НЕТ'."
+        # 4. Фоновое обновление базы данных для конкретного user_id
+        memory_task = f"Выдели новые факты о пользователе из фразы: '{text}'. Если нет — ответь 'НЕТ'."
         mem_resp = model.generate_content(memory_task)
         if "НЕТ" not in mem_resp.text.upper():
             update_personal_log(user_id, mem_resp.text.strip())
-            print(f"🧠 Записано в память: {mem_resp.text.strip()}")
 
     except Exception as e:
-        chat_bot.reply_to(message, f"📡 Помехи в эфире, Командор! Ошибка: {str(e)[:50]}")
+        chat_bot.reply_to(message, "📡 Командор, зафиксированы помехи. Повторите запрос!")
 
-# --- ЗАПУСК ---
+# --- ЗАПУСК БЕЗ КОНФЛИКТОВ (409 Conflict Prevention) ---
 def run_chat_bot():
-    print(f"🚀 Марти-штурман запущен (Модель: {MODEL_NAME})")
+    print(f"🚀 Универсальный Марти-штурман запущен и готов к приему экипажа!")
     chat_bot.remove_webhook()
     chat_bot.infinity_polling(timeout=10, long_polling_timeout=5)
 
