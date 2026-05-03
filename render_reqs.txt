@@ -13,3 +13,4 @@ pyephem
 timezonefinder
 pytz
 google-generativeai
+psycopg2-binary
