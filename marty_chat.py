@@ -41,9 +41,9 @@ SYSTEM_PROMPT = (
     "8. ВОВЛЕЧЕНИЕ: В конце каждого ответа задавай легкий вопрос, чтобы проверить 'готовность экипажа' или интерес к теме. "
 )
 
-# УСТАНОВЛЕНА ПРОВЕРЕННАЯ МОДЕЛЬ 2.5 FLASH
+# УСТАНОВЛЕНА ПРОВЕРЕННАЯ МОДЕЛЬ 1,5 FLASH
 model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash", 
+    model_name="gemini-1.5-flash", # Возвращаемся на 1.5 для безлимитных полетов
     system_instruction=SYSTEM_PROMPT
 )
 
