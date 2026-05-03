@@ -133,14 +133,28 @@ def generate_star_map(lat, lon, user_name, user_id):
         bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
 
         # --- [ НАЛОЖЕНИЕ ШТАМПА ] ---
-        # Штамп накладывается перед отрисовкой текста, чтобы закрыть ромб
         watermark_p = BASE_DIR / 'watermark.png'
         if watermark_p.exists():
             with Image.open(watermark_p).convert("RGBA") as wm:
-                # Вставляем в правый нижний угол
-                bg_img.alpha_composite(wm, (0, 0)) # Если watermark.png уже размером с фон и прозрачный
-                # Или если штамп маленький и его нужно прижать в угол:
-                # bg_img.alpha_composite(wm, (bg_img.width - wm.width, bg_img.height - wm.height))
+                # 1. Убираем белый фон программно (делаем его прозрачным)
+                datas = wm.getdata()
+                newData = []
+                for item in datas:
+                    # Если пиксель белый или почти белый (порог 240), делаем его прозрачным
+                    if item[0] > 240 and item[1] > 240 and item[2] > 240:
+                        newData.append((255, 255, 255, 0))
+                    else:
+                        newData.append(item)
+                wm.putdata(newData)
+
+                # 2. Уменьшаем штамп (делаем его аккуратным, например 280 пикселей)
+                wm_size = 280 
+                wm = wm.resize((wm_size, wm_size), Image.Resampling.LANCZOS)
+
+                # 3. Смещаем в правый нижний угол
+                # Позиция: отступаем 30 пикселей от правого края и 100 от низа (чтобы быть над текстом)
+                position = (bg_img.width - wm_size - 30, bg_img.height - wm_size - 100)
+                bg_img.alpha_composite(wm, position)
 
         dpi = 300 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
