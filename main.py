@@ -47,9 +47,9 @@ def send_welcome(message):
 def handle_instruction(message):
     text = (
         "📜 <b>УСТАВ ИССЛЕДОВАТЕЛЯ</b>\n"
-        "• <b>«МОЕ НЕБО»</b>: Получи карту звезд над собой прямо сейчас.\n"
-        "• <b>Фото</b>: Пришли фото неба, я попробую его узнать.\n"
-        "• <b>XP</b>: Копи опыт и повышай ранг от Кадета до Адмирала!\n"
+        "• <b>«МОЕ НЕБО»</b>: Получи карту звезд над собой.\n"
+        "• <b>Фото</b>: Пришли фото неба, я его изучу.\n"
+        "• <b>XP</b>: Повышай ранг от Кадета до Адмирала!\n"
         "• <b>Full HD</b>: Скачивай оригиналы карт файлом."
     )
     bot.send_message(message.chat.id, text, parse_mode='HTML')
@@ -62,7 +62,6 @@ def handle_location(message):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(generate_star_map, message.location.latitude, message.location.longitude, user_name, user_id)
         
-        # Цикл ожидания с фактами каждые 11 сек
         start_w = time.time()
         while not future.done():
             time.sleep(11)
@@ -72,6 +71,7 @@ def handle_location(message):
                 try: bot.edit_message_text(f"⏳ <b>Идет расчет ({elapsed}с):</b>\n{fact}", message.chat.id, status_msg.message_id, parse_mode='HTML')
                 except: pass
 
+        # Ожидаем 5 значений от функции
         success, res_jpg, res_png, target_name, err_msg = future.result()
 
     if success:
@@ -100,7 +100,7 @@ def callback_orig(call):
     else:
         bot.answer_callback_query(call.id, "❌ Файл утерян.", show_alert=True)
 
-# --- [ СЕРВЕР И ЗАПУСК ] ---
+# --- [ FLASK И ЗАПУСК ] ---
 app = Flask(__name__)
 @app.route('/')
 def home(): return "Online"
