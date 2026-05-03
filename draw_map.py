@@ -11,10 +11,16 @@ import warnings
 from timezonefinder import TimezoneFinder
 import pytz
 import requests
+from pathlib import Path
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# База координат целей (в градусах)
+# --- [ КОНФИГУРАЦИЯ ПУТЕЙ ] ---
+BASE_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = BASE_DIR / "output"
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+# База координат целей (центры созвездий в градусах)
 TARGETS = {
     "andromeda": [15, 40], "antlia": [150, -35], "apus": [240, -75], "aquarius": [335, -10],
     "aquila": [297, 8], "ara": [260, -55], "aries": [35, 20], "auriga": [88, 42],
@@ -41,35 +47,34 @@ TARGETS = {
 }
 
 def get_cloud_cover(lat, lon):
-    """Метеомодуль: Получение облачности в % через Open-Meteo API"""
+    """Запрос погоды через Open-Meteo"""
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=cloud_cover"
         response = requests.get(url, timeout=5)
-        data = response.json()
-        return int(data['current']['cloud_cover'])
-    except Exception as e:
-        print(f"Ошибка получения погоды: {e}")
-        return 0
+        return int(response.json()['current']['cloud_cover'])
+    except: return 0
 
 def generate_star_map(lat, lon, user_name, user_id):
     gc.collect() 
-    temp_file = f"tmp_{user_id}.png"
-    final_path = f"sky_{user_id}.jpg"
+    temp_raw_star = OUTPUT_DIR / f"raw_{user_id}.png"
+    final_png = OUTPUT_DIR / f"fin_{user_id}.png"
+    final_jpg = OUTPUT_DIR / f"sky_{user_id}.jpg"
     
     try:
         dt_now = datetime.now(timezone.utc)
         observer = Observer(dt=dt_now, lat=float(lat), lon=float(lon))
-        
-        # Получаем данные о погоде
         cloud_cover = get_cloud_cover(lat, lon)
         
-        with open('constellations.json', 'r', encoding='utf-8') as f:
+        # Загрузка базы имен созвездий
+        const_json_path = BASE_DIR / 'constellations.json'
+        with open(const_json_path, 'r', encoding='utf-8') as f:
             db = json.load(f)
 
         e_obs = ephem.Observer()
         e_obs.lat, e_obs.lon = str(lat), str(lon)
         e_obs.date = dt_now
         
+        # Поиск видимых созвездий (выше 10 градусов над горизонтом)
         visible_targets = []
         for key, pos in TARGETS.items():
             body = ephem.FixedBody()
@@ -81,158 +86,104 @@ def generate_star_map(lat, lon, user_name, user_id):
         target_pos = TARGETS[target_key]
         target_name_rus = db.get(target_key, {}).get('name', target_key).split('(')[0].strip().upper()
 
+        # Стиль карты
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
-        try:
-            style.stars.label.font_size = 11
-            style.constellations.label.font_size = 16
-            style.constellations.line.width = 2.5
-            style.constellations.line.color = "#5c9dff"
-        except: pass
+        style.stars.label.font_size = 11
+        style.constellations.label.font_size = 16
+        style.constellations.line.width = 2.5
+        style.constellations.line.color = "#5c9dff"
 
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
-
         p.horizon()
         p.milky_way() 
         p.constellations()
-        
         p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.0, "alpha": 0.85}})
         p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.0, "alpha": 0.85}})
-        
         p.constellation_labels() 
         p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
-        
         p.planets() 
 
-        # --- [ СВЕТИЛА: РАБОЧАЯ ЛОГИКА КООРДИНАТ ] ---
+        # Светила (Солнце и Луна)
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
+        sun_j = ephem.Equatorial(sun_e, epoch='2000')
+        moon_j = ephem.Equatorial(moon_e, epoch='2000')
         
-        sun_j2000 = ephem.Equatorial(sun_e, epoch='2000')
-        moon_j2000 = ephem.Equatorial(moon_e, epoch='2000')
+        p.marker(ra=math.degrees(sun_j.ra), dec=math.degrees(sun_j.dec), label="СОЛНЦЕ",
+                 style={"marker": {"size": 46, "symbol": "circle", "color": "#FFCC00"}, "label": {"font_size": 18, "font_color": "#FFCC00"}})
         
-        p.marker(
-            ra=math.degrees(sun_j2000.ra), 
-            dec=math.degrees(sun_j2000.dec), 
-            label="СОЛНЦЕ",
-            style={
-                "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00", "edge_color": "#FF8800", "edge_width": 2},
-                "label": {"font_size": 18, "font_weight": 700, "font_color": "#FFCC00", "offset_y": 30}
-            }
-        )
-        
-        p.marker(
-            ra=math.degrees(moon_j2000.ra), 
-            dec=math.degrees(moon_j2000.dec), 
-            label="ЛУНА",
-            style={
-                "marker": {"size": 52, "symbol": "circle", "color": "#FFFEE0", "edge_color": "#BBBBBB", "edge_width": 2},
-                "label": {"font_size": 20, "font_weight": 900, "font_color": "#FFFEE0", "offset_y": 30}
-            }
-        )
+        p.marker(ra=math.degrees(moon_j.ra), dec=math.degrees(moon_j.dec), label="ЛУНА",
+                 style={"marker": {"size": 52, "symbol": "circle", "color": "#FFFEE0"}, "label": {"font_size": 20, "font_color": "#FFFEE0"}})
 
-        p.marker(
-            ra=target_pos[0], 
-            dec=target_pos[1], 
-            label="ЦЕЛЬ!",
-            style={
-                "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
-                "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}
-            }
-        )
+        # Маркер цели
+        p.marker(ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
+                 style={"marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
+                        "label": {"font_size": 26, "font_weight": 700, "font_color": "#FF00FF", "offset_y": 65}})
 
-        p.export(temp_file, transparent=True, padding=0.01)
-        plt.close('all')
+        p.export(str(temp_raw_star), transparent=True, padding=0.01)
+        plt.clf(); plt.close('all')
 
-        # --- [ ОБРАБОТКА ИЗОБРАЖЕНИЙ: PIL ] ---
-        bg_img = Image.open('background1.png')
-        sky_img = Image.open(temp_file).convert("RGBA")
+        # --- [ ОБРАБОТКА PIL ] ---
+        bg_img = Image.open(BASE_DIR / 'background1.png')
+        sky_img = Image.open(temp_raw_star).convert("RGBA")
         sky_size = 940 
         sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        # --- [ МАГИЯ ПОГОДЫ: НАЛОЖЕНИЕ ОБЛАКОВ С ТРАФАРЕТОМ ] ---
-        if cloud_cover > 5 and os.path.exists('clouds.png'):
+        # Облака (если есть метеоданные)
+        cloud_path = BASE_DIR / 'clouds.png'
+        if cloud_cover > 5 and cloud_path.exists():
             try:
-                # Открываем текстуру пользователя
-                clouds_tex = Image.open('clouds.png').convert('RGBA')
-                clouds_tex = clouds_tex.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
+                clouds_tex = Image.open(cloud_path).convert('RGBA').resize((sky_size, sky_size))
+                cloud_mask = ImageEnhance.Contrast(clouds_tex.convert('L')).enhance(1.8)
+                cloud_mask = cloud_mask.point(lambda x: int(x * (cloud_cover / 100.0)))
                 
-                # Делаем из неё маску (переводим в ЧБ)
-                gray = clouds_tex.convert('L')
-                
-                # Увеличиваем контраст, чтобы фон стал черным
-                enhancer = ImageEnhance.Contrast(gray)
-                cloud_mask = enhancer.enhance(1.8) 
-                
-                # Прозрачность зависит от погоды
-                opacity_factor = cloud_cover / 100.0
-                cloud_mask = cloud_mask.point(lambda p: int(p * opacity_factor))
-
-                # --- 1. Создаем круглый трафарет для обрезки туч ---
                 circle_mask = Image.new("L", (sky_size, sky_size), 0)
-                draw = ImageDraw.Draw(circle_mask)
+                ImageDraw.Draw(circle_mask).ellipse((65, 65, sky_size-65, sky_size-65), fill=255)
                 
-                # Отступ 10 пикселей, чтобы тучи не ложились на буквы компаса (N, S, E, W)
-                offset = 65
-                draw.ellipse((offset, offset, sky_size - offset, sky_size - offset), fill=255)
-
-                # --- 2. Скрещиваем маску облаков и круглый трафарет ---
-                # Всё, что выходит за пределы круга, становится 100% прозрачным
-                final_mask = ImageChops.multiply(cloud_mask, circle_mask)
-                
-                # Создаем слой дымки и применяем к нему нашу обрезанную маску
+                final_cloud_mask = ImageChops.multiply(cloud_mask, circle_mask)
                 cloud_overlay = Image.new('RGBA', (sky_size, sky_size), (240, 240, 245))
-                cloud_overlay.putalpha(final_mask)
-                
-                # Накладываем поверх звезд
+                cloud_overlay.putalpha(final_cloud_mask)
                 sky_img = Image.alpha_composite(sky_img, cloud_overlay)
-            except Exception as e:
-                print(f"Ошибка наложения текстуры облаков: {e}")
+            except: pass
 
-        # Склеиваем с фоном телефона
         bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
         
         dpi = 300 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
+        # Расчет времени восхода/заката
         try:
-            rise_utc = e_obs.next_rising(sun_e).datetime()
-            set_utc = e_obs.next_setting(sun_e).datetime()
-            tf = TimezoneFinder(in_memory=False)
-            timezone_str = tf.timezone_at(lng=float(lon), lat=float(lat))
-            if timezone_str:
-                user_tz = pytz.timezone(timezone_str)
-                rise_time = pytz.utc.localize(rise_utc).astimezone(user_tz).strftime('%H:%M')
-                set_time = pytz.utc.localize(set_utc).astimezone(user_tz).strftime('%H:%M')
-            else:
-                rise_time, set_time = rise_utc.strftime('%H:%M'), set_utc.strftime('%H:%M')
-        except: rise_time, set_time = "--:--", "--:--"
+            tf = TimezoneFinder()
+            tz_name = tf.timezone_at(lng=float(lon), lat=float(lat))
+            user_tz = pytz.timezone(tz_name) if tz_name else pytz.utc
+            rise_t = ephem.localtime(e_obs.next_rising(sun_e)).strftime('%H:%M')
+            set_t = ephem.localtime(e_obs.next_setting(sun_e)).strftime('%H:%M')
+        except: rise_t, set_t = "--:--", "--:--"
 
+        # Отрисовка инфо-текста
         t_col = '#D4E6FF'
-        fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8, fontweight='normal')
-        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8, fontweight='normal')
-        
-        # ОБНОВЛЕННЫЙ ИНФО-БАР (Фаза + Погода)
-        fig.text(0.32, 0.106, f"Фаза: {int(moon_e.phase)}% | Облачность: {cloud_cover}%", color=t_col, fontsize=8, fontweight='normal')
-        
-        fig.text(0.385, 0.072, rise_time, color=t_col, fontsize=8, fontweight='normal')
-        fig.text(0.705, 0.072, set_time, color=t_col, fontsize=8, fontweight='normal')
-        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='normal')
+        fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8)
+        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8)
+        fig.text(0.32, 0.106, f"Фаза: {int(moon_e.phase)}% | Облачность: {cloud_cover}%", color=t_col, fontsize=8)
+        fig.text(0.385, 0.072, rise_t, color=t_col, fontsize=8)
+        fig.text(0.705, 0.072, set_t, color=t_col, fontsize=8)
+        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='bold')
 
-        tmp_png = f"fin_{user_id}.png"
-        plt.savefig(tmp_png, bbox_inches='tight', pad_inches=0, dpi=dpi)
+        # Сохранение финальных версий
+        plt.savefig(str(final_png), bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close(fig)
         
-        with Image.open(tmp_png) as img:
-            img.convert("RGB").save(final_path, "JPEG", quality=98, optimize=True)
+        with Image.open(final_png) as img:
+            img.convert("RGB").save(str(final_jpg), "JPEG", quality=90, optimize=True)
         
+        # Очистка
+        if temp_raw_star.exists(): os.remove(temp_raw_star)
         bg_img.close(); sky_img.close()
-        for f in [temp_file, tmp_png]:
-            if os.path.exists(f): os.remove(f)
         gc.collect()
         
-        return True, final_path, target_name_rus, ""
+        return True, str(final_jpg), str(final_png), target_name_rus, ""
 
     except Exception as e:
         plt.close('all')
-        return False, str(e), "", ""
+        return False, "", "", "", str(e)
