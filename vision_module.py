@@ -1,40 +1,32 @@
-import google.generativeai as genai
 import os
+from google import genai
+from google.genai import types
 
-# Настройка Gemini
-# Используем ваш рабочий API ключ
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Инициализация клиента
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+client = genai.Client(api_key=GEMINI_API_KEY)
+MODEL_NAME = 'gemini-1.5-flash'
 
 def analyze_image(image_data):
-    """Марти изучает фото через проверенную модель 2.5 Flash"""
-    
-    # Тот самый идентификатор, который у вас работал
-    model_name = 'gemini-2.5-flash'
-    
+    """
+    Модуль 'Глаза Марти': анализирует фото неба и ищет созвездия.
+    """
     prompt = (
-        "Ты — пес Марти, эксперт-астроном и штурман. Ты помогаешь Владику (8 лет) изучать космос. "
-        "Тебе прислали фото. Опиши, что на нем, в контексте науки, космоса или техники. "
-        "Говори просто, весело, используй эмодзи. Если на фото собака — поздоровайся! "
-        "В конце добавь один короткий интересный факт. Отвечай только на русском языке."
+        "Ты — бортовой ИИ 'Марти'. Просканируй это изображение неба. "
+        "Найди на нем созвездия или интересные космические объекты. "
+        "Дай краткий отчет для Командора (8-летнего ребенка) в научном, но захватывающем стиле. "
+        "Если на фото ничего не видно — вежливо сообщи об этом."
     )
     
     try:
-        # Инициализируем рабочую модель
-        vision_model = genai.GenerativeModel(model_name)
-        
-        # Подготовка данных: текст-инструкция и сама картинка
-        contents = [
-            prompt,
-            {"mime_type": "image/jpeg", "data": image_data}
-        ]
-        
-        response = vision_model.generate_content(contents)
-        
-        if response.text:
-            return response.text
-        else:
-            return "🐾 Хмм... Вижу что-то интересное, но мои речевые модули забарахлили. Попробуй ещё раз!"
-            
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[
+                types.Part.from_bytes(data=image_data, mime_type='image/jpeg'),
+                prompt
+            ]
+        )
+        return response.text if response.text else "🐾 Датчики зафиксировали объект, но не смогли его распознать."
     except Exception as e:
-        # Если вдруг база или сеть выдадут сбой, Марти сообщит об этом
-        return f"🐾 Ой! Мои линзы запотели из-за системного сбоя. Ошибка: {str(e)}"
+        print(f"Ошибка Vision: {e}")
+        return "📡 Ой! Мои линзы запотели из-за помех в системе."
