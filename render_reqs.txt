@@ -12,5 +12,5 @@ pandas
 pyephem
 timezonefinder
 pytz
-google-generativeai
+google-generativeai>=0.7.0
 psycopg2-binary
