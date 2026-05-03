@@ -10,7 +10,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 SYSTEM_PROMPT = (
     "Ты — Марти, дружелюбный бортовой компьютер и космический гид Telegram-канала 'Дневник юного космонавта'. "
     "Твоя задача — увлекательно, но научно достоверно рассказывать про космос, планеты, звезды, МКС, экспедиции и астрономию. "
-    "Твои ответы должны быть понятны 8-летним детям, используй сравнения из их жизни. "
+    "Твои ответы должны быть понятны 8-летним детям, используй захватывающие сравнения из их жизни. "
     "Если тебя спрашивают о чем-то земном (игры, математика, рецепты, политика), вежливо отвечай, что твои антенны "
     "настроены только на изучение Вселенной, и переводи тему обратно на космос. "
     "Общайся тепло, иногда используй слова вроде 'Командор', 'Прием', 'По показаниям моих радаров'."
@@ -34,8 +34,8 @@ def get_chat_session(chat_id):
     if chat_id not in active_chats:
         active_chats[chat_id] = model.start_chat(history=[])
     
-    # Очистка старой памяти, чтобы не перегружать сервер Render (храним последние 10 сообщений)
-    if len(active_chats[chat_id].history) > 20: # 10 вопросов + 10 ответов
+    # Очистка старой памяти, чтобы не перегружать сервер Render (храним последние 10 вопросов и 10 ответов)
+    if len(active_chats[chat_id].history) > 20: 
         active_chats[chat_id].history = active_chats[chat_id].history[-20:]
         
     return active_chats[chat_id]
@@ -51,32 +51,49 @@ def handle_conversation(message):
         bot_info = chat_bot.get_me()
         bot_username = f"@{bot_info.username}"
         
-        # Проверяем, ответили ли боту напрямую или упомянули его по юзернейму
-        is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user.id == bot_info.id
-        is_mentioned = bot_username in text
-
-        if not (is_reply_to_bot or is_mentioned):
-            return # Если просто общаются между собой — Марти молчит
+        text_lower = text.lower() # Переводим текст в нижний регистр для проверки
         
-        # Убираем юзернейм из текста, чтобы нейросеть читала только сам вопрос
-        text = text.replace(bot_username, "").strip()
+        # 1. Ответили ли боту напрямую (Reply)?
+        is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user.id == bot_info.id
+        # 2. Тегнули ли бота через @?
+        is_mentioned = bot_username in text
+        # 3. Позвали ли по имени? (ищем "марти" в тексте)
+        is_called_by_name = "марти" in text_lower 
 
+        # Если ни одно из условий не совпало — бот молчит, чтобы не мешать людям общаться
+        if not (is_reply_to_bot or is_mentioned or is_called_by_name):
+            return 
+        
+        # Очищаем текст от обращений, чтобы нейросети достался только сам вопрос
+        text = text.replace(bot_username, "").replace("Марти", "").replace("марти", "").replace("МАРТИ", "").strip()
+        
+        # Убираем висячую запятую или пробел, если человек написал "Марти, расскажи..." -> ", расскажи..."
+        if text.startswith(','):
+            text = text[1:].strip()
+
+    # Если после очистки от имени сообщение оказалось пустым
     if not text:
         return
 
+    # Показываем статус "Марти печатает..."
     chat_bot.send_chat_action(chat_id, 'typing')
     
     try:
         # Достаем память именно этого чата и отправляем запрос в Gemini
         session = get_chat_session(chat_id)
         response = session.send_message(text)
+        
+        # Отправляем ответ пользователю (с поддержкой Markdown для выделения текста)
         chat_bot.reply_to(message, response.text, parse_mode='Markdown')
+        
     except Exception as e:
         chat_bot.reply_to(message, "📡 Ой, связь со спутником прервалась из-за метеоритного дождя! Повтори свой запрос.")
         print(f"[ОШИБКА GEMINI]: {e}")
 
 # --- [ ЗАПУСК ] ---
 def run_chat_bot():
+    """Эта функция запускается в параллельном потоке из файла main.py"""
     print("🤖 [СИСТЕМА] Бот-собеседник Марти выходит на связь...")
+    # Очищаем старые вебхуки на всякий случай перед запуском поллинга
+    chat_bot.remove_webhook()
     chat_bot.polling(non_stop=True, interval=2, timeout=60)
-
