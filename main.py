@@ -102,6 +102,7 @@ def handle_location(message):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(f"🌌 Досье на {target_name}", callback_data=f"wiki_{target_name}"))
         markup.add(InlineKeyboardButton("🖼️ Скачать в Full HD", callback_data=f"orig_{user_id}"))
+        markup.add(InlineKeyboardButton("🤖 Обсудить с Марти-Ученым", url="https://t.me/Marty_Help_Bot?start=help"))
         
         caption = (
             f"✨ <b>ОБЪЕКТ ОБНАРУЖЕН!</b>\n\n"
