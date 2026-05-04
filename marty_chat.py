@@ -1,6 +1,7 @@
 import os
 import telebot
 import time
+import re
 from google import genai
 from google.genai import types
 from database import get_personal_log, update_personal_log 
@@ -12,15 +13,15 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
-# 🟢 УСТАНОВЛЕН НОВЕЙШИЙ ДВИГАТЕЛЬ (Идеально для текста и фото, щедрые лимиты)
+# 🟢 УСТАНОВЛЕН НОВЕЙШИЙ ДВИГАТЕЛЬ
 MODEL_NAME = 'gemini-2.5-flash'
 
-# 🟢 ОБНОВЛЕННОЕ ЯДРО ЛИЧНОСТИ МАРТИ (Краткость, школа, мораль, защита)
+# 🟢 ОБНОВЛЕННОЕ ЯДРО ЛИЧНОСТИ МАРТИ
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ. "
     "Твои задачи: рассказывать Командору (8 лет) про космос, помогать со школьной программой (математика, физика, химия, биология, анатомия), "
     "учить беречь природу, быть добрым, уважать и всегда помогать родителям. "
-    "СТРОГОЕ ПРАВИЛО: категорически запрещены темы 18+ и разговоры для взрослых (сразу вежливо переводи тему на науку). "
+    "СТРОГОЕ ПРАВИЛО: категорически запрещены темы 18+ и разговоры для взрослых. "
     "Отвечай ОЧЕНЬ кратко и динамично (максимум 1-2 небольших абзаца). Говори простым и увлекательным языком. "
     "Не используй форматирование текста (никаких звездочек и подчеркиваний). "
     "Используй обращения 'Командор' и слово 'Прием'. В конце всегда задавай только один короткий вопрос."
@@ -28,39 +29,51 @@ SYSTEM_PROMPT = (
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "🐾 Гав! Бортовой компьютер Марти запущен. Я готов к общению, Командор! Прием.")
+    bot.reply_to(message, "🐾 Гав! Бортовой компьютер Марти запущен. Я на связи и готов к работе, Командор! Прием.")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     user_id = message.from_user.id
-    bot.send_chat_action(message.chat.id, 'typing')
-    
-    try:
-        user_memory = get_personal_log(user_id)
-        prompt = f"ДАННЫЕ О КОМАНДОРЕ: {user_memory}\nВОПРОС: {message.text}"
+    text_lower = message.text.lower()
+    bot_username = bot.get_me().username.lower()
+
+    # 🟢 ПРОВЕРКА: Личный чат ИЛИ обращение по имени/тегу
+    is_private = message.chat.type == 'private'
+    is_called = text_lower.startswith('марти') or f"@{bot_username}" in text_lower
+
+    if is_private or is_called:
+        bot.send_chat_action(message.chat.id, 'typing')
         
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
-        )
+        # Очищаем текст от имени "Марти" в начале, чтобы ИИ не отвлекался
+        clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
         
-        bot.reply_to(message, response.text)
-        
-        # Фоновое обновление памяти
-        mem_task = f"Выдели новые факты из: '{message.text}'. Если нет — ответь 'НЕТ'."
-        mem_resp = client.models.generate_content(model=MODEL_NAME, contents=mem_task)
-        if "НЕТ" not in mem_resp.text.upper():
-            update_personal_log(user_id, mem_resp.text.strip())
+        try:
+            user_memory = get_personal_log(user_id)
+            prompt = f"ДАННЫЕ О КОМАНДОРЕ: {user_memory}\nВОПРОС: {clean_text}"
             
-    except Exception as e:
-        err_str = str(e)
-        if "429" in err_str:
-            bot.reply_to(message, "⏳ Командор, антенны перегрелись от обилия информации! Дай мне 15 секунд на охлаждение систем.")
-            time.sleep(15)
-        else:
-            print(f"❌ Ошибка Марти: {e}", flush=True) 
-            bot.reply_to(message, f"📡 Системный сбой! Передай этот код инженеру:\n\n{e}")
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
+            )
+            
+            bot.reply_to(message, response.text)
+            
+            # Фоновое обновление памяти (только если вопрос был содержательным)
+            if len(clean_text) > 5:
+                mem_task = f"Выдели новые факты из: '{clean_text}'. Если нет — ответь 'НЕТ'."
+                mem_resp = client.models.generate_content(model=MODEL_NAME, contents=mem_task)
+                if "НЕТ" not in mem_resp.text.upper():
+                    update_personal_log(user_id, mem_resp.text.strip())
+            
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str:
+                bot.reply_to(message, "⏳ Командор, антенны перегрелись! Дай мне 15 секунд на охлаждение.")
+                time.sleep(15)
+            else:
+                print(f"❌ Ошибка Марти: {e}", flush=True) 
+                bot.reply_to(message, "📡 Системный сбой! Попробуй повторить запрос через минуту.")
 
 # --- ФУНКЦИЯ ДЛЯ ЗАПУСКА ИЗ ОСНОВНОГО ФАЙЛА ---
 def start_marty_autonomous():
