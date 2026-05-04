@@ -13,10 +13,12 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
+# Обновленный промпт без спецсимволов форматирования
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой компьютер. "
     "Твоя миссия — помогать юному Командору в изучении Вселенной. "
     "Пиши кратко (3-4 абзаца), научно и понятно 8-летнему ребенку. "
+    "Не используй форматирование текста (никаких звездочек и подчеркиваний). "
     "Используй обращения 'Командор', 'Прием'. В конце задавай вопрос."
 )
 
@@ -31,12 +33,17 @@ def handle_text(message):
     
     try:
         user_memory = get_personal_log(user_id)
+        # Упрощенная сборка промпта
+        prompt = f"ДАННЫЕ О КОМАНДОРЕ: {user_memory}\nВОПРОС: {message.text}"
+        
         response = client.models.generate_content(
             model='gemini-1.5-flash',
-            contents=[f"ДАННЫЕ О КОМАНДОРЕ: {user_memory}", f"ВОПРОС: {message.text}"],
+            contents=prompt,
             config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT)
         )
-        bot.reply_to(message, response.text, parse_mode='Markdown')
+        
+        # Убрали parse_mode='Markdown', чтобы Telegram не блокировал сообщение
+        bot.reply_to(message, response.text)
         
         # Фоновое обновление памяти
         mem_task = f"Выдели новые факты из: '{message.text}'. Если нет — ответь 'НЕТ'."
@@ -50,12 +57,12 @@ def handle_text(message):
             bot.reply_to(message, "⏳ Командор, антенны перегрелись от обилия информации! Дай мне 15 секунд на охлаждение систем.")
             time.sleep(15)
         else:
-            print(f"Ошибка Марти: {e}")
+            # Четкий вывод ошибки в консоль Render для отладки
+            print(f"❌ Ошибка Марти: {e}")
             bot.reply_to(message, "📡 Помехи в эфире! Попробуй еще раз через минуту.")
 
 # --- ФУНКЦИЯ ДЛЯ ЗАПУСКА ИЗ ОСНОВНОГО ФАЙЛА ---
 def start_marty_autonomous():
-    import time # Добавляем импорт времени на случай сбоев
     print("🚀 Автономный Марти-помощник выходит на связь!")
     
     # Защитный контур: если Марти падает, он тут же встает обратно
