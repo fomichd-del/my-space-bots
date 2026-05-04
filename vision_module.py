@@ -5,8 +5,15 @@ from google.genai import types
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 🟢 Каскад для зрения: пробуем лучшую 2.0, если она занята — переходим на 1.5
-VISION_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash']
+# 🟢 РАСШИРЕННЫЙ КАСКАД ДЛЯ ЗРЕНИЯ
+VISION_MODELS = [
+    'gemini-2.0-flash', 
+    'gemini-2.0-flash-lite-001', 
+    'gemini-flash-latest',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-8b' # Самая легкая и быстрая модель для фото
+]
+
 
 def analyze_image(image_data, user_context=""):
     """
