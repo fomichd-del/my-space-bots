@@ -55,9 +55,17 @@ def handle_text(message):
 
 # --- ФУНКЦИЯ ДЛЯ ЗАПУСКА ИЗ ОСНОВНОГО ФАЙЛА ---
 def start_marty_autonomous():
+    import time # Добавляем импорт времени на случай сбоев
     print("🚀 Автономный Марти-помощник выходит на связь!")
-    bot.remove_webhook()
-    bot.infinity_polling(skip_pending=True)
+    
+    # Защитный контур: если Марти падает, он тут же встает обратно
+    while True:
+        try:
+            bot.remove_webhook()
+            bot.infinity_polling(skip_pending=True)
+        except Exception as e:
+            print(f"⚠️ Сбой систем связи Марти (ошибка {e}). Перезапуск через 5 секунд...")
+            time.sleep(5)
 
 if __name__ == "__main__":
     start_marty_autonomous()
