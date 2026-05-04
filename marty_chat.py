@@ -2,7 +2,7 @@ import os
 import telebot
 import time
 import re
-from datetime import datetime, timedelta # 🟢 Новое для времени
+from datetime import datetime, timedelta
 from threading import Thread
 from flask import Flask
 from google import genai
@@ -10,17 +10,19 @@ from google.genai import types
 from database import get_personal_log, update_personal_log 
 from vision_module import analyze_image 
 
-# --- НАСТРОЙКИ ---
+# --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
+# ГИПЕР-КАСКАД (Lite на передовой для скорости)
 MODEL_CASCADE = [
     'gemini-2.0-flash-lite',
     'gemini-2.0-flash',
     'gemini-2.5-flash',
+    'gemini-flash-latest',
     'gemini-2.5-pro'
 ]
 
@@ -29,56 +31,41 @@ try:
 except:
     BOT_USERNAME = "marty_help_bot"
 
-# 🟢 ФУНКЦИЯ ОПРЕДЕЛЕНИЯ ВРЕМЕНИ
+# 🟢 ФУНКЦИЯ ОПРЕДЕЛЕНИЯ ВРЕМЕНИ (UTC+3 для Чернигова)
 def get_time_context():
-    # Сдвиг времени (например, +3 для Москвы/Киева). Измени число, если нужно.
     now = datetime.utcnow() + timedelta(hours=3)
     hour = now.hour
     time_str = now.strftime("%H:%M")
     
     if 0 <= hour < 5:
-        return f"{time_str} (Глубокая ночь. Удивляйся, почему пилот не в криокамере/не спит)"
+        return f"{time_str} (Глубокая ночь. Удивляйся, почему пилот не спит)"
     elif 5 <= hour < 11:
         return f"{time_str} (Утро. Время подготовки к экспедиции и завтрака)"
     elif 11 <= hour < 17:
-        return f"{time_str} (День. Самое время для науки, школы и помощи родителям)"
+        return f"{time_str} (День. Время для науки и школы)"
     elif 17 <= hour < 23:
-        return f"{time_str} (Вечер. Время отдыха и наведения порядка в отсеке)"
+        return f"{time_str} (Вечер. Время отдыха и порядка)"
     else:
-        return f"{time_str} (Ночь. Пора гасить иллюминаторы)"
+        return f"{time_str} (Ночь. Пора спать)"
 
-# ЯДРО ЛИЧНОСТИ
+# 🟢 ЯДРО ЛИЧНОСТИ (БЕЗ ОШИБОК СИНТАКСИСА)
 SYSTEM_PROMPT = (
-
-    "Ты — Марти, ученый пес (той-пудель) и бортовой наставник для всех пилотов канала. "
-
-    "1. ЛИЧНОСТЬ: Ты мудрый, но ведешь себя как собака: иногда говори 'Гав!', 'Тяв!' или 'Виляю хвостом от радости!'. "
-
-    "Обращайся к пользователю [NAME] или 'Пилот' не чаще раза в 3 сообщения. Время суток: [TIME]. "
-
-    "2. ИГРА И ЗВАНИЯ: Хвали за успехи и присваивай звания (Кадет, Навигатор, Исследователь). "
-
-    "Выдавай 'звездную пыль' за помощь родителям и порядок в комнате. Предлагай 'Миссии дня' (уборка, учеба). "
-
-    "3. СЕКРЕТНЫЕ КОДЫ: Если пишут 'ПОЕХАЛИ!' — выдай самый крышесносный факт о космосе. "
-
-    "Если пишут 'КОСТОЧКА' — расскажи добрую космическую шутку. "
-
-    "4. ПАМЯТЬ И ЭМОЦИИ: Считывай настроение пилота. Хвали за прошлые победы, найденные в ДАННЫХ. "
-
-    "Если глубокая ночь — пожури, что пилот не спит. "
-
-    "5. ТЕМЫ: Космос, школа, порядок в комнате, помощь семье. "
-
-    "6. ФОРМАТ: СТРОГО 3-4 коротких предложения. Без звездочек. В конце 'Прием' и вопрос. "
-
-    "Затем разделитель '###MEM###' и новые факты для памяти или 'НЕТ'."
-
+    "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ-наставник для пилотов. "
+    "1. ЛИЧНОСТЬ: Ты мудрый, добрый, иногда говоришь 'Гав!' или 'Виляю хвостом!'. "
+    "Обращайся по имени [NAME] или 'Пилот'. Время суток: [TIME]. "
+    "2. 10 ЗВАНИЙ АКАДЕМИИ: 1.Космический Кадет, 2.Навигатор Орбиты, 3.Бортинженер, "
+    "4.Астро-Исследователь, 5.Учёный Пилот, 6.Капитан Корабля, 7.Командор Галактики, "
+    "8.Адмирал Флота, 9.Академик Космоса, 10.Верный Помощник Марти. "
+    "Начисляй 'звездную пыль' за успехи. По достижении цели объявляй новое звание! "
+    "3. ТЕМЫ: Космос, школа, порядок в комнате, помощь семье. "
+    "4. КОДЫ: 'ПОЕХАЛИ!' — факт о космосе. 'КОСТОЧКА' — шутка. "
+    "5. ФОРМАТ: СТРОГО 3-4 предложения. Без звездочек. В конце 'Прием' и вопрос. "
+    "Затем разделитель '###MEM###' и новые факты для памяти или 'НЕТ'."
 )
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Marty Time-Aware: Online"
+def home(): return "Marty Academy Core: Online"
 
 def run_flask():
     try:
@@ -88,12 +75,12 @@ def run_flask():
 
 def get_marty_response(user_id, user_name, clean_text):
     user_memory = get_personal_log(user_id)
-    # 🟢 Вставляем время суток прямо в системную инструкцию
     time_info = get_time_context()
     current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info)
     
     for model_variant in MODEL_CASCADE:
         try:
+            print(f"📡 Запрос к: {model_variant}")
             response = client.models.generate_content(
                 model=model_variant,
                 contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
@@ -114,7 +101,7 @@ def handle_photo(message):
     bot.send_chat_action(message.chat.id, 'typing')
     try:
         user_memory = get_personal_log(user_id)
-        time_info = get_time_context() # 🟢 Добавляем время и в зрение
+        time_info = get_time_context()
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
@@ -156,7 +143,7 @@ def handle_text(message):
             bot.reply_to(message, "⏳ Командор, тишина в эфире. Прием.")
 
 def start_marty_autonomous():
-    print("🚀 Марти: Хранитель Времени запущен.")
+    print("🚀 Марти: Система 'Стабильная Орбита 2.0' запущена.")
     while True:
         try:
             bot.remove_webhook()
