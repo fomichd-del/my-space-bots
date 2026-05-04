@@ -4,7 +4,7 @@ from telebot import apihelper
 import os, time, concurrent.futures, random
 from pathlib import Path
 from flask import Flask
-from threading import Thread
+from threading import Thread, Timer # <--- [ ДОБАВЛЕН Timer ]
 from google import genai 
 
 # --- [ ИМПОРТ МОДУЛЕЙ КОРАБЛЯ ] ---
@@ -114,6 +114,27 @@ def handle_location(message):
         with open(res_jpg, 'rb') as ph:
             bot.send_photo(message.chat.id, ph, caption=caption, reply_markup=markup, parse_mode='HTML')
         bot.delete_message(message.chat.id, status_msg.message_id)
+
+        # === [ НАЧАЛО: СИСТЕМА САМООЧИСТКИ ПАМЯТИ ] ===
+        # 1. Удаляем JPG сразу после отправки, так как он уже в Telegram
+        try:
+            if os.path.exists(res_jpg): 
+                os.remove(res_jpg)
+        except Exception as e: 
+            print(f"Ошибка удаления JPG: {e}")
+        
+        # 2. Таймер на 15 минут (900 секунд) для удаления Full HD оригинала (PNG)
+        def cleanup_original():
+            try:
+                if os.path.exists(res_png): 
+                    os.remove(res_png)
+                    print(f"🧹 [ОЧИСТКА]: Full HD файл {res_png} уничтожен по таймауту.")
+            except: 
+                pass
+            
+        Timer(900.0, cleanup_original).start()
+        # === [ КОНЕЦ: СИСТЕМА САМООЧИСТКИ ] ===
+
     else:
         bot.edit_message_text(f"❌ <b>Сбой навигации:</b> {err_msg}", message.chat.id, status_msg.message_id)
 
@@ -131,6 +152,8 @@ def callback_orig(call):
     f_path = OUTPUT_DIR / f"fin_{call.data.replace('orig_', '')}.png"
     if f_path.exists():
         with open(f_path, 'rb') as doc: bot.send_document(call.message.chat.id, doc, caption="🚀 <b>Full HD оригинал.</b>")
+    else:
+        bot.answer_callback_query(call.id, "❌ Файл утерян в гиперпространстве (время хранения истекло).", show_alert=True) # Добавил пояснение для пользователя
 
 # --- [ ЗАПУСК СЕРВЕРА ] ---
 app = Flask(__name__)
