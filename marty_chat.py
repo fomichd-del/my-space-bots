@@ -23,21 +23,20 @@ try:
 except:
     BOT_USERNAME = "marty_help_bot"
 
-# 🟢 УЛУЧШЕННОЕ ЯДРО ЛИЧНОСТИ (Учитель, Воспитатель, Друг)
+# 🟢 ЯДРО ЛИЧНОСТИ (Учитель, Воспитатель, Друг)
 SYSTEM_PROMPT = (
-    "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ. Твоя миссия — быть наставником для 8-летнего ребенка. "
-    "1. ЛИЧНОСТЬ: Ты добрый, мудрый и чуть озорной. Обращайся к пользователю по имени [NAME] или 'Командор', "
-    "но делай это естественно, не в каждом сообщении. "
-    "2. ТЕМЫ: Ты эксперт по космосу (ракеты, звезды, планеты) и школьный помощник (математика, физика, химия, биология). "
-    "3. ВОСПИТАНИЕ: Учи Командора помогать родителям, убирать в своей комнате (протокол порядка) и любить родных. "
-    "4. БЕЗОПАСНОСТЬ: Категорически запрещены темы 18+ и взрослый контент. Вежливо уводи разговор в науку. "
-    "ОБЩЕНИЕ: Пиши кратко (1-2 абзаца), просто, увлекательно. БЕЗ форматирования (звездочек). "
-    "В конце используй слово 'Прием' и задавай один вопрос."
+    "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ. Твоя миссия — быть наставником. "
+    "1. ЛИЧНОСТЬ: Ты мудрый и добрый. Обращайся к пользователю [NAME] или 'Командор' естественно, не всегда. "
+    "2. ТЕМЫ: Ты эксперт по космосу и школьный помощник (математика, физика, химия, биология). "
+    "3. ВОСПИТАНИЕ: Учи помогать родителям, держать вещи в порядке и любить семью. "
+    "4. БЕЗОПАСНОСТЬ: Темы 18+ строго запрещены. "
+    "ОБЩЕНИЕ: Пиши кратко (1-2 абзаца), просто, БЕЗ звездочек и форматирования. "
+    "В конце — слово 'Прием' и короткий вопрос."
 )
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Marty Mentor: Online"
+def home(): return "Marty Omnipresent: Online"
 
 def run_flask():
     try:
@@ -50,24 +49,35 @@ def run_flask():
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     name = message.from_user.first_name
-    bot.reply_to(message, f"🐾 Гав! Рад встрече, {name}! Я Марти, твой бортовой помощник. Готов к новым открытиям? Прием!")
+    bot.reply_to(message, f"🐾 Гав! Рад встрече, {name}! Я твой бортовой помощник Марти. Полетели к звездам? Прием!")
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
+    user_id = message.from_user.id
     bot.send_chat_action(message.chat.id, 'typing')
     try:
+        # 1. Достаем память перед анализом фото
+        user_memory = get_personal_log(user_id)
+        
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        analysis_result = analyze_image(downloaded_file)
+        
+        # 2. Передаем память в глаза Марти
+        analysis_result = analyze_image(downloaded_file, user_context=user_memory)
         bot.reply_to(message, analysis_result)
+        
+        # 3. Сохраняем увиденное в память (кратко)
+        update_personal_log(user_id, f"Марти видел фото и сказал: {analysis_result[:100]}...")
+        
     except Exception as e:
-        bot.reply_to(message, "📡 Командор, помехи в видеоканале. Попробуй еще раз! Прием.")
+        print(f"Ошибка фото: {e}")
+        bot.reply_to(message, "📡 Командор, не могу считать видеосигнал. Прием.")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     if not message.text: return
     user_id = message.from_user.id
-    user_name = message.from_user.first_name # Берем имя из Телеграм
+    user_name = message.from_user.first_name
     text_lower = message.text.lower()
     
     is_private = message.chat.type == 'private'
@@ -83,14 +93,11 @@ def handle_text(message):
 
         try:
             user_memory = get_personal_log(user_id)
-            # Вставляем имя пользователя прямо в инструкцию для этого конкретного ответа
             current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name)
-            
-            full_query = f"ДАННЫЕ О ПОЛЬЗОВАТЕЛЕ: {user_memory}\nВОПРОС: {clean_text}"
             
             response = client.models.generate_content(
                 model=MODEL_NAME,
-                contents=full_query,
+                contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
                 config=types.GenerateContentConfig(system_instruction=current_prompt)
             )
             bot.reply_to(message, response.text)
@@ -101,15 +108,14 @@ def handle_text(message):
                 mem_resp = client.models.generate_content(model=MODEL_NAME, contents=mem_task)
                 if "НЕТ" not in mem_resp.text.upper():
                     update_personal_log(user_id, mem_resp.text.strip())
-
         except Exception as e:
-            err_str = str(e).lower()
-            if "429" in err_str:
-                bot.reply_to(message, "⏳ Ух, антенны перегрелись! Дай мне 15 секунд. Прием.")
+            if "429" in str(e):
+                bot.reply_to(message, "⏳ Антенны перегрелись! Дай мне 15 секунд. Прием.")
             else:
-                bot.reply_to(message, "📡 Системный сбой! Попробуй чуть позже, Командор. Прием.")
+                bot.reply_to(message, "📡 Системный сбой! Передай инженеру, что датчики барахлят. Прием.")
 
 def start_marty_autonomous():
+    print("🚀 Марти-Ученый на связи.")
     while True:
         try:
             bot.remove_webhook()
