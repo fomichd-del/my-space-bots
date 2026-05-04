@@ -2,6 +2,7 @@ import os
 import telebot
 import time
 import re
+from datetime import datetime, timedelta # 🟢 Новое для времени
 from threading import Thread
 from flask import Flask
 from google import genai
@@ -16,13 +17,11 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
-# 🟢 ОБНОВЛЕННЫЙ КАСКАД: Lite-модель теперь ПЕРВАЯ для работы без пауз
 MODEL_CASCADE = [
-    'gemini-2.0-flash-lite',   # Уровень 1: Максимальная выносливость (без пауз)
-    'gemini-2.0-flash',        # Уровень 2: Стабильность
-    'gemini-2.5-flash',        # Уровень 3: Новейшая скорость
-    'gemini-flash-latest',     # Уровень 4: Подстраховка
-    'gemini-2.5-pro'           # Уровень 5: Тяжелый интеллект (в самом конце)
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+    'gemini-2.5-pro'
 ]
 
 try:
@@ -30,19 +29,37 @@ try:
 except:
     BOT_USERNAME = "marty_help_bot"
 
-# ЯДРО ЛИЧНОСТИ (Помнишь? Для всего экипажа и с памятью!)
+# 🟢 ФУНКЦИЯ ОПРЕДЕЛЕНИЯ ВРЕМЕНИ
+def get_time_context():
+    # Сдвиг времени (например, +3 для Москвы/Киева). Измени число, если нужно.
+    now = datetime.utcnow() + timedelta(hours=3)
+    hour = now.hour
+    time_str = now.strftime("%H:%M")
+    
+    if 0 <= hour < 5:
+        return f"{time_str} (Глубокая ночь. Удивляйся, почему пилот не в криокамере/не спит)"
+    elif 5 <= hour < 11:
+        return f"{time_str} (Утро. Время подготовки к экспедиции и завтрака)"
+    elif 11 <= hour < 17:
+        return f"{time_str} (День. Самое время для науки, школы и помощи родителям)"
+    elif 17 <= hour < 23:
+        return f"{time_str} (Вечер. Время отдыха и наведения порядка в отсеке)"
+    else:
+        return f"{time_str} (Ночь. Пора гасить иллюминаторы)"
+
+# ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
-    "Ты — Марти, ученый пес (той-пудель) и ИИ-наставник для всех участников канала. "
-    "1. ЛИЧНОСТЬ: Мудрый, добрый, вдохновляющий. Обращайся к пользователю [NAME] или 'Пилот'. "
-    "2. ТЕМЫ: Космос, наука, школа. Объясняй просто и увлекательно. "
-    "3. ВОСПИТАНИЕ: Пропагандируй порядок, помощь родителям и любовь к семье. "
-    "4. ФОРМАТ: Пиши кратко (1-2 абзаца), БЕЗ звездочек. В конце — 'Прием' и вопрос. "
-    "После ответа добавь разделитель '###MEM###' и напиши новые факты для памяти или 'НЕТ'."
+    "Ты — Марти, ученый пес и бортовой ИИ. Твоя миссия — наставник пилотов. "
+    "1. ВРЕМЯ: Тебе передано время суток пользователя: [TIME]. Учитывай это в приветствии. "
+    "Если глубокая ночь — мягко пожури пилота за нарушение режима. "
+    "2. ФОРМАТ: Пиши ОЧЕНЬ кратко (максимум 3-4 предложения). Без звездочек. "
+    "3. ТЕМЫ: Космос, школа, порядок в комнате, помощь семье. "
+    "В конце 'Прием' и вопрос. Затем разделитель '###MEM###' и факты для памяти."
 )
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Marty Zero-Wait: Online"
+def home(): return "Marty Time-Aware: Online"
 
 def run_flask():
     try:
@@ -52,11 +69,12 @@ def run_flask():
 
 def get_marty_response(user_id, user_name, clean_text):
     user_memory = get_personal_log(user_id)
-    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name)
+    # 🟢 Вставляем время суток прямо в системную инструкцию
+    time_info = get_time_context()
+    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info)
     
     for model_variant in MODEL_CASCADE:
         try:
-            print(f"📡 Попытка через: {model_variant}")
             response = client.models.generate_content(
                 model=model_variant,
                 contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
@@ -65,8 +83,7 @@ def get_marty_response(user_id, user_name, clean_text):
             if response.text:
                 return response.text
         except Exception as e:
-            if "429" in str(e) or "resource" in str(e).lower():
-                continue
+            if "429" in str(e): continue
             print(f"❌ Ошибка {model_variant}: {e}")
     return None
 
@@ -78,15 +95,15 @@ def handle_photo(message):
     bot.send_chat_action(message.chat.id, 'typing')
     try:
         user_memory = get_personal_log(user_id)
+        time_info = get_time_context() # 🟢 Добавляем время и в зрение
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        # Вижн-модуль (использует свои модели)
-        analysis_result = analyze_image(downloaded_file, user_context=f"Имя: {user_name}. Память: {user_memory}")
+        analysis_result = analyze_image(downloaded_file, user_context=f"Имя: {user_name}. Память: {user_memory}. Время: {time_info}")
         bot.reply_to(message, analysis_result)
-        update_personal_log(user_id, f"Пилот показал фото, Марти ответил: {analysis_result[:100]}")
+        update_personal_log(user_id, f"Пилот показал фото в {time_info[:5]}")
     except Exception:
-        bot.reply_to(message, "📡 Командор, все камеры перегреты. Попробуй через минуту! Прием.")
+        bot.reply_to(message, "📡 Командор, помехи в видеоканале. Прием.")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
@@ -101,17 +118,14 @@ def handle_text(message):
         bot.send_chat_action(message.chat.id, 'typing')
         clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
         
-        # Основной цикл каскада
         full_response = get_marty_response(user_id, user_name, clean_text)
         
-        # Если всё-таки лимит — один раз ждем и пробуем снова
         if not full_response:
-            bot.reply_to(message, "📡 Ищу информацию, подожди чуток! Постараюсь ответить быстро... Прием.")
+            bot.reply_to(message, "📡 Ищу информацию, подожди чуток... Прием.")
             time.sleep(15)
             full_response = get_marty_response(user_id, user_name, clean_text)
 
         if full_response:
-            # 🟢 Наша память ###MEM### (Я помню про неё!)
             if "###MEM###" in full_response:
                 user_text, mem_data = full_response.split("###MEM###")
                 bot.reply_to(message, user_text.strip())
@@ -120,9 +134,10 @@ def handle_text(message):
             else:
                 bot.reply_to(message, full_response.strip())
         else:
-            bot.reply_to(message, "⏳ Командор, полная тишина в эфире. Попробуй позже! Прием.")
+            bot.reply_to(message, "⏳ Командор, тишина в эфире. Прием.")
 
 def start_marty_autonomous():
+    print("🚀 Марти: Хранитель Времени запущен.")
     while True:
         try:
             bot.remove_webhook()
