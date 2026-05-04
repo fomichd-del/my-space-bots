@@ -23,20 +23,20 @@ try:
 except:
     BOT_USERNAME = "marty_help_bot"
 
-# ЯДРО ЛИЧНОСТИ
+# 🟢 ОБНОВЛЕННЫЙ ПРОМПТ ДЛЯ ОДНОГО ЗАПРОСА
 SYSTEM_PROMPT = (
-    "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ. Твоя миссия — быть наставником. "
-    "1. ЛИЧНОСТЬ: Ты мудрый и добрый. Обращайся к пользователю [NAME] или 'Командор' естественно. "
-    "2. ТЕМЫ: Ты эксперт по космосу и школьный помощник (математика, физика, химия, биология). "
-    "3. ВОСПИТАНИЕ: Учи помогать родителям, держать вещи в порядке и любить семью. "
-    "4. БЕЗОПАСНОСТЬ: Темы 18+ строго запрещены. "
-    "ОБЩЕНИЕ: Пиши кратко (1-2 абзаца), просто, БЕЗ звездочек. "
-    "В конце — слово 'Прием' и короткий вопрос."
+    "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ. Твоя миссия — быть наставником для 8-летнего ребенка. "
+    "1. ЛИЧНОСТЬ: Ты мудрый, добрый и озорной. Обращайся к пользователю [NAME] или 'Командор' естественно. "
+    "2. ТЕМЫ: Ты эксперт по космосу и школьный помощник. Учи помогать родителям, держать вещи в порядке и любить семью. "
+    "3. БЕЗОПАСНОСТЬ: Темы 18+ СТРОГО запрещены. Вежливо уводи разговор в науку. "
+    "4. ФОРМАТ ОТВЕТА: Сначала напиши свой ответ Командору (кратко, 1-2 абзаца, БЕЗ звездочек, в конце 'Прием' и вопрос). "
+    "Затем добавь разделитель '###MEM###' и после него напиши только новые важные факты о пользователе для памяти. "
+    "Если новых фактов нет, после разделителя напиши 'НЕТ'."
 )
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Marty Auto-Retry: Online"
+def home(): return "Marty Efficient Mode: Online"
 
 def run_flask():
     try:
@@ -71,7 +71,7 @@ def handle_photo(message):
             bot.reply_to(message, "📡 Ищу информацию, подожди чуток! Около 15 секунд, я постараюсь ответить... Прием.")
             time.sleep(15)
             try: try_analyze()
-            except: bot.reply_to(message, "📡 Командор, антенны всё еще перегреты. Попробуй через минуту! Прием.")
+            except: bot.reply_to(message, "📡 Командор, антенны перегреты. Попробуй через минуту! Прием.")
         else:
             bot.reply_to(message, "📡 Командор, не могу считать фото. Попробуй еще раз! Прием.")
 
@@ -96,30 +96,37 @@ def handle_text(message):
         def ask_ai():
             user_memory = get_personal_log(user_id)
             current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name)
+            
+            # 🟢 ДЕЛАЕМ ВСЁ ОДНИМ ЗАПРОСОМ
             response = client.models.generate_content(
                 model=MODEL_NAME,
                 contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
                 config=types.GenerateContentConfig(system_instruction=current_prompt)
             )
-            bot.reply_to(message, response.text)
             
-            time.sleep(1)
-            if len(clean_text) > 5:
-                mem_task = f"Выдели факты из: '{clean_text}'. Если нет — ответь 'НЕТ'."
-                mem_resp = client.models.generate_content(model=MODEL_NAME, contents=mem_task)
-                if "НЕТ" not in mem_resp.text.upper():
-                    update_personal_log(user_id, mem_resp.text.strip())
+            # Разделяем ответ на текст для пользователя и данные для памяти
+            full_response = response.text
+            if "###MEM###" in full_response:
+                user_text, mem_data = full_response.split("###MEM###")
+                # Отправляем ответ пользователю
+                bot.reply_to(message, user_text.strip())
+                # Сохраняем память (если там не "НЕТ")
+                if "НЕТ" not in mem_data.upper() and len(mem_data.strip()) > 2:
+                    update_personal_log(user_id, mem_data.strip())
+            else:
+                # На случай, если ИИ забыл разделитель
+                bot.reply_to(message, full_response.strip())
 
         try:
             ask_ai()
         except Exception as e:
             if "429" in str(e) or "resource_exhausted" in str(e).lower():
-                # 🟢 ВОТ ОНО: Авто-повтор
                 bot.reply_to(message, "📡 Ищу информацию, подожди чуток! Около 15 секунд, я постараюсь ответить... Прием.")
                 time.sleep(15)
                 try: ask_ai()
                 except: bot.reply_to(message, "⏳ Командор, перегрев слишком сильный. Дай мне минуту на перезагрузку. Прием.")
             else:
+                print(f"❌ Ошибка Марти: {e}")
                 bot.reply_to(message, "📡 Системный сбой! Попробуй чуть позже, Командор. Прием.")
 
 def start_marty_autonomous():
