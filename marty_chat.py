@@ -12,10 +12,9 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
-# 🟢 ИЗМЕНЕНИЕ: Используем самое актуальное имя модели для новой библиотеки
-MODEL_NAME = 'gemini-2.0-flash'
+# 🟢 САМЫЙ НАДЕЖНЫЙ АЛИАС МОДЕЛИ ДЛЯ НОВОГО API
+MODEL_NAME = 'gemini-1.5-flash-latest'
 
-# Обновленный промпт без спецсимволов форматирования
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой компьютер. "
     "Твоя миссия — помогать юному Командору в изучении Вселенной. "
@@ -37,7 +36,6 @@ def handle_text(message):
         user_memory = get_personal_log(user_id)
         prompt = f"ДАННЫЕ О КОМАНДОРЕ: {user_memory}\nВОПРОС: {message.text}"
         
-        # 🟢 Подставили переменную MODEL_NAME
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt,
@@ -48,7 +46,6 @@ def handle_text(message):
         
         # Фоновое обновление памяти
         mem_task = f"Выдели новые факты из: '{message.text}'. Если нет — ответь 'НЕТ'."
-        # 🟢 Подставили переменную MODEL_NAME
         mem_resp = client.models.generate_content(model=MODEL_NAME, contents=mem_task)
         if "НЕТ" not in mem_resp.text.upper():
             update_personal_log(user_id, mem_resp.text.strip())
@@ -59,7 +56,7 @@ def handle_text(message):
             time.sleep(15)
         else:
             print(f"❌ Ошибка Марти: {e}", flush=True) 
-            bot.reply_to(message, f"📡 Системный сбой! Передай этот код инженеру:\n\n`{e}`", parse_mode='Markdown')
+            bot.reply_to(message, f"📡 Системный сбой! Передай этот код инженеру:\n\n`{e}`")
 
 # --- ФУНКЦИЯ ДЛЯ ЗАПУСКА ИЗ ОСНОВНОГО ФАЙЛА ---
 def start_marty_autonomous():
