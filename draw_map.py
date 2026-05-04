@@ -15,7 +15,7 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-# --- [ КОНФИГУРАЦИЯ ] ---
+# --- [ КОНФИГУРАЦИЯ ПУТЕЙ ] ---
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -82,7 +82,6 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
-            # Исправление для поддержки разных версий библиотеки
             for s in [style.stars, style.star]: s.label.font_size = 11
             for c in [style.constellations, style.constellation]:
                 c.label.font_size = 16
@@ -105,21 +104,18 @@ def generate_star_map(lat, lon, user_name, user_id):
         sun_j = ephem.Equatorial(sun_e, epoch='2000')
         moon_j = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ: заменяем "bold" на 700
         p.marker(ra=math.degrees(sun_j.ra), dec=math.degrees(sun_j.dec), label="СОЛНЦЕ",
                  style={
                      "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00"},
                      "label": {"font_size": 18, "font_color": "#FFCC00", "offset_y": 25, "font_weight": 700}
                  })
         
-        # ЛУНА: заменяем "bold" на 700
         p.marker(ra=math.degrees(moon_j.ra), dec=math.degrees(moon_j.dec), label="ЛУНА",
                  style={
                      "marker": {"size": 52, "symbol": "circle", "color": "#FFFEE0"},
                      "label": {"font_size": 18, "font_color": "#FFFEE0", "offset_y": 25, "font_weight": 700}
                  })
         
-        # ЦЕЛЬ: заменяем "bold" на 700
         p.marker(ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
                  style={
                      "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
@@ -148,22 +144,7 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
 
-        # --- [ НАЛОЖЕНИЕ ШТАМПА ] ---
-        watermark_p = BASE_DIR / 'watermark.png'
-        if watermark_p.exists():
-            with Image.open(watermark_p).convert("RGBA") as wm:
-                datas = wm.getdata()
-                newData = []
-                for item in datas:
-                    if item[0] > 200 and item[1] > 200 and item[2] > 200:
-                        newData.append((255, 255, 255, 0))
-                    else:
-                        newData.append(item)
-                wm.putdata(newData)
-                wm_size = 220 
-                wm = wm.resize((wm_size, wm_size), Image.Resampling.LANCZOS)
-                position = (bg_img.width - wm_size - 10, bg_img.height - wm_size - 10)
-                bg_img.alpha_composite(wm, position)
+        # --- [ БЛОК ШТАМПА УДАЛЕН ] ---
 
         dpi = 300 
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
@@ -185,7 +166,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig.text(0.32, 0.106, f"Фаза: {int(moon_e.phase)}% | Облачность: {cloud_cover}%", color=t_col, fontsize=8)
         fig.text(0.385, 0.072, rise_t, color=t_col, fontsize=8)
         fig.text(0.705, 0.072, set_t, color=t_col, fontsize=8)
-        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight=700) # Здесь тоже исправлено на 700
+        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight=700)
 
         plt.savefig(str(final_png), bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close(fig)
