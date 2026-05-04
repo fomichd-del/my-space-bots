@@ -138,7 +138,7 @@ def callback_wiki(call):
 def callback_orig(call):
     f_path = OUTPUT_DIR / f"fin_{call.data.replace('orig_', '')}.png"
     if f_path.exists():
-        with open(f_path, 'rb') as doc: bot.send_document(call.message.chat.id, doc, caption="🚀 <b>Full HD оригинал.</b>")
+        with open(f_path, 'rb') as doc: bot.send_document(call.message.chat.id, doc, caption="🚀 Full HD оригинал.")
     else:
         bot.answer_callback_query(call.id, "❌ Файл утерян в гиперпространстве (время хранения истекло).", show_alert=True)
 
