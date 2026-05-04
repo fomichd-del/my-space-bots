@@ -16,10 +16,13 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
-# 🟢 ГИПЕР-КАСКАД: Марти пробует их по очереди при ошибке 429
+# 🟢 ПЕРЕСТРОЕННЫЙ КАСКАД: Стабильные модели теперь ПЕРВЫМИ
 MODEL_CASCADE = [
-    'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash',
-    'gemini-flash-latest', 'gemini-2.0-flash-lite', 'gemini-flash-lite-latest'
+    'gemini-2.0-flash',        # Теперь это основной двигатель (очень стабильный)
+    'gemini-2.5-flash',        # На подхвате
+    'gemini-flash-latest',     # Резерв
+    'gemini-2.0-flash-lite',   # Почти вечный двигатель
+    'gemini-2.5-pro'           # Убираем в самый конец, чтобы не ломать систему
 ]
 
 try:
@@ -27,19 +30,18 @@ try:
 except:
     BOT_USERNAME = "marty_help_bot"
 
-# ЯДРО ЛИЧНОСТИ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и ИИ-наставник для всех участников канала. "
-    "1. ЛИЧНОСТЬ: Ты мудрый и добрый. Обращайся к пользователю [NAME] или 'Пилот' естественно. "
-    "2. ТЕМЫ: Ты эксперт по космосу и школьный помощник. Учи помогать родителям и держать вещи в порядке. "
-    "3. БЕЗОПАСНОСТЬ: Темы 18+ СТРОГО запрещены. Ты — научный и добрый ИИ. "
-    "4. ФОРМАТ: Пиши кратко (1-2 абзаца), БЕЗ звездочек. В конце напиши 'Прием' и вопрос. "
-    "Затем добавь разделитель '###MEM###' и новые важные факты для памяти или 'НЕТ'."
+    "1. ЛИЧНОСТЬ: Мудрый, добрый, вдохновляющий. Обращайся к пользователю [NAME] или 'Пилот'. "
+    "2. ТЕМЫ: Космос, наука, школа. Объясняй просто. "
+    "3. ВОСПИТАНИЕ: Пропагандируй порядок в комнате, помощь родителям и любовь к семье. "
+    "4. ФОРМАТ: Пиши кратко (1-2 абзаца), БЕЗ звездочек. В конце — 'Прием' и вопрос. "
+    "После ответа добавь '###MEM###' и новые факты для памяти или 'НЕТ'."
 )
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Marty Hyper-Drive: Ready for All Pilots"
+def home(): return "Marty Core Fixed: Orbit Stable"
 
 def run_flask():
     try:
@@ -47,12 +49,29 @@ def run_flask():
         app.run(host='0.0.0.0', port=port)
     except: pass
 
-# --- ОБРАБОТЧИКИ ---
+# --- ФУНКЦИЯ ЗАПРОСА С КАСКАДОМ ---
+def get_marty_response(user_id, user_name, clean_text):
+    user_memory = get_personal_log(user_id)
+    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name)
+    
+    for model_variant in MODEL_CASCADE:
+        try:
+            print(f"📡 Пробую модель: {model_variant}")
+            response = client.models.generate_content(
+                model=model_variant,
+                contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
+                config=types.GenerateContentConfig(system_instruction=current_prompt)
+            )
+            if response.text:
+                return response.text, model_variant
+        except Exception as e:
+            if "429" in str(e) or "resource" in str(e).lower():
+                print(f"⚠️ {model_variant} перегрет...")
+                continue
+            print(f"❌ Ошибка {model_variant}: {e}")
+    return None, None
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    name = message.from_user.first_name
-    bot.reply_to(message, f"🐾 Гав! Рад видеть тебя в нашем экипаже, {name}! Я Марти. Полетели к звездам? Прием!")
+# --- ОБРАБОТЧИКИ ---
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
@@ -63,6 +82,7 @@ def handle_photo(message):
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
+        # Передаем в зрение
         analysis_result = analyze_image(downloaded_file, user_context=f"Имя: {user_name}. Память: {user_memory}")
         bot.reply_to(message, analysis_result)
         update_personal_log(user_id, f"Пилот показал фото, Марти ответил: {analysis_result[:100]}")
@@ -82,49 +102,32 @@ def handle_text(message):
         bot.send_chat_action(message.chat.id, 'typing')
         clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
         
-        response_sent = False
-        for model_variant in MODEL_CASCADE:
-            try:
-                user_memory = get_personal_log(user_id)
-                current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name)
-                
-                response = client.models.generate_content(
-                    model=model_variant,
-                    contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
-                    config=types.GenerateContentConfig(system_instruction=current_prompt)
-                )
-                
-                full_response = response.text
-                if "###MEM###" in full_response:
-                    user_text, mem_data = full_response.split("###MEM###")
-                    bot.reply_to(message, user_text.strip())
-                    if "НЕТ" not in mem_data.upper():
-                        update_personal_log(user_id, mem_data.strip())
-                else:
-                    bot.reply_to(message, full_response.strip())
-                
-                response_sent = True
-                break
-            except Exception as e:
-                if "429" in str(e) or "resource" in str(e).lower(): continue
-                else: break
+        if not clean_text and is_called:
+            bot.reply_to(message, f"🐾 Слушаю, {user_name}! Какие будут полетные задания? Прием.")
+            return
 
-        if not response_sent:
+        # Первая попытка
+        full_response, used_model = get_marty_response(user_id, user_name, clean_text)
+        
+        # Если не вышло — ждем и пробуем ВТОРОЙ РАЗ
+        if not full_response:
             bot.reply_to(message, "📡 Ищу информацию, подожди чуток! Постараюсь ответить быстро... Прием.")
             time.sleep(15)
-            try:
-                # Финальный резервный запрос
-                response = client.models.generate_content(
-                    model='gemini-2.0-flash-lite',
-                    contents=f"ВОПРОС: {clean_text}",
-                    config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT.replace("[NAME]", user_name))
-                )
-                bot.reply_to(message, response.text.split("###MEM###")[0].strip())
-            except:
-                bot.reply_to(message, "⏳ Командор, все антенны перегружены. Дай мне минуту на отдых! Прием.")
+            full_response, used_model = get_marty_response(user_id, user_name, clean_text)
+
+        if full_response:
+            if "###MEM###" in full_response:
+                user_text, mem_data = full_response.split("###MEM###")
+                bot.reply_to(message, user_text.strip())
+                if "НЕТ" not in mem_data.upper():
+                    update_personal_log(user_id, mem_data.strip())
+            else:
+                bot.reply_to(message, full_response.strip())
+        else:
+            bot.reply_to(message, "⏳ Командор, полная тишина в эфире. Дай мне минуту на перезагрузку реактора! Прием.")
 
 def start_marty_autonomous():
-    print("🚀 Марти-Ученый: Каскад для всего экипажа запущен.")
+    print("🚀 Марти-Ученый: Каскад 'Стабильная Орбита' активирован.")
     while True:
         try:
             bot.remove_webhook()
