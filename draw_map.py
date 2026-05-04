@@ -82,7 +82,7 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
-            # Пытаемся настроить оба варианта (в зависимости от версии библиотеки)
+            # Исправление для поддержки разных версий библиотеки
             for s in [style.stars, style.star]: s.label.font_size = 11
             for c in [style.constellations, style.constellation]:
                 c.label.font_size = 16
@@ -105,25 +105,25 @@ def generate_star_map(lat, lon, user_name, user_id):
         sun_j = ephem.Equatorial(sun_e, epoch='2000')
         moon_j = ephem.Equatorial(moon_e, epoch='2000')
         
-        # СОЛНЦЕ с принудительной подписью
+        # СОЛНЦЕ: заменяем "bold" на 700
         p.marker(ra=math.degrees(sun_j.ra), dec=math.degrees(sun_j.dec), label="СОЛНЦЕ",
                  style={
                      "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00"},
-                     "label": {"font_size": 18, "font_color": "#FFCC00", "offset_y": 25, "font_weight": "bold"}
+                     "label": {"font_size": 18, "font_color": "#FFCC00", "offset_y": 25, "font_weight": 700}
                  })
         
-        # ЛУНА с принудительной подписью
+        # ЛУНА: заменяем "bold" на 700
         p.marker(ra=math.degrees(moon_j.ra), dec=math.degrees(moon_j.dec), label="ЛУНА",
                  style={
                      "marker": {"size": 52, "symbol": "circle", "color": "#FFFEE0"},
-                     "label": {"font_size": 18, "font_color": "#FFFEE0", "offset_y": 25, "font_weight": "bold"}
+                     "label": {"font_size": 18, "font_color": "#FFFEE0", "offset_y": 25, "font_weight": 700}
                  })
         
-        # ЦЕЛЬ с принудительной подписью
+        # ЦЕЛЬ: заменяем "bold" на 700
         p.marker(ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
                  style={
                      "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
-                     "label": {"font_size": 24, "font_color": "#FF00FF", "offset_y": 60, "font_weight": "bold"}
+                     "label": {"font_size": 24, "font_color": "#FF00FF", "offset_y": 60, "font_weight": 700}
                  })
 
         p.export(str(temp_raw), transparent=True, padding=0.01)
@@ -169,12 +169,10 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
-        # --- [ ИСПРАВЛЕННЫЙ РАСЧЕТ ВРЕМЕНИ ] ---
         tf = TimezoneFinder()
         tz_name = tf.timezone_at(lng=float(lon), lat=float(lat))
         user_tz = pytz.timezone(tz_name) if tz_name else pytz.utc
         
-        # Получаем время в UTC и переводим в часовой пояс пользователя
         rise_utc = e_obs.next_rising(sun_e).datetime()
         set_utc = e_obs.next_setting(sun_e).datetime()
         
@@ -187,7 +185,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig.text(0.32, 0.106, f"Фаза: {int(moon_e.phase)}% | Облачность: {cloud_cover}%", color=t_col, fontsize=8)
         fig.text(0.385, 0.072, rise_t, color=t_col, fontsize=8)
         fig.text(0.705, 0.072, set_t, color=t_col, fontsize=8)
-        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight='bold')
+        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight=700) # Здесь тоже исправлено на 700
 
         plt.savefig(str(final_png), bbox_inches='tight', pad_inches=0, dpi=dpi)
         plt.close(fig)
