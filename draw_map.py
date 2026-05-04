@@ -82,10 +82,12 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         style = PlotStyle().extend(extensions.BLUE_GOLD, extensions.GRADIENT_PRE_DAWN)
         try:
-            style.stars.label.font_size = 11
-            style.constellations.label.font_size = 16
-            style.constellations.line.width = 2.5
-            style.constellations.line.color = "#5c9dff"
+            # Пытаемся настроить оба варианта (в зависимости от версии библиотеки)
+            for s in [style.stars, style.star]: s.label.font_size = 11
+            for c in [style.constellations, style.constellation]:
+                c.label.font_size = 16
+                c.line.width = 2.5
+                c.line.color = "#5c9dff"
         except: pass
 
         p = ZenithPlot(observer=observer, style=style, resolution=2000, autoscale=True)
@@ -103,12 +105,26 @@ def generate_star_map(lat, lon, user_name, user_id):
         sun_j = ephem.Equatorial(sun_e, epoch='2000')
         moon_j = ephem.Equatorial(moon_e, epoch='2000')
         
+        # СОЛНЦЕ с принудительной подписью
         p.marker(ra=math.degrees(sun_j.ra), dec=math.degrees(sun_j.dec), label="СОЛНЦЕ",
-                 style={"marker": {"size": 46, "symbol": "circle", "color": "#FFCC00"}})
+                 style={
+                     "marker": {"size": 46, "symbol": "circle", "color": "#FFCC00"},
+                     "label": {"font_size": 18, "font_color": "#FFCC00", "offset_y": 25, "font_weight": "bold"}
+                 })
+        
+        # ЛУНА с принудительной подписью
         p.marker(ra=math.degrees(moon_j.ra), dec=math.degrees(moon_j.dec), label="ЛУНА",
-                 style={"marker": {"size": 52, "symbol": "circle", "color": "#FFFEE0"}})
+                 style={
+                     "marker": {"size": 52, "symbol": "circle", "color": "#FFFEE0"},
+                     "label": {"font_size": 18, "font_color": "#FFFEE0", "offset_y": 25, "font_weight": "bold"}
+                 })
+        
+        # ЦЕЛЬ с принудительной подписью
         p.marker(ra=target_pos[0], dec=target_pos[1], label="ЦЕЛЬ!",
-                 style={"marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4}})
+                 style={
+                     "marker": {"size": 110, "symbol": "circle", "fill": "none", "edge_color": "#FF00FF", "edge_width": 4},
+                     "label": {"font_size": 24, "font_color": "#FF00FF", "offset_y": 60, "font_weight": "bold"}
+                 })
 
         p.export(str(temp_raw), transparent=True, padding=0.01)
         plt.clf(); plt.close('all')
@@ -136,25 +152,16 @@ def generate_star_map(lat, lon, user_name, user_id):
         watermark_p = BASE_DIR / 'watermark.png'
         if watermark_p.exists():
             with Image.open(watermark_p).convert("RGBA") as wm:
-                # 1. Жесткое удаление фона (обрабатываем каждый пиксель)
                 datas = wm.getdata()
                 newData = []
                 for item in datas:
-                    # Увеличиваем порог: если сумма каналов RGB высокая (светлые пиксели)
-                    # или если пиксель почти белый (больше 200), делаем его прозрачным
                     if item[0] > 200 and item[1] > 200 and item[2] > 200:
                         newData.append((255, 255, 255, 0))
                     else:
                         newData.append(item)
                 wm.putdata(newData)
-
-                # 2. Делаем штамп еще меньше (например, 220 пикселей)
                 wm_size = 220 
                 wm = wm.resize((wm_size, wm_size), Image.Resampling.LANCZOS)
-
-                # 3. Прижимаем в самый низ и вправо
-                # bg_img.width - wm_size - 10 (отступ справа)
-                # bg_img.height - wm_size - 10 (отступ снизу)
                 position = (bg_img.width - wm_size - 10, bg_img.height - wm_size - 10)
                 bg_img.alpha_composite(wm, position)
 
@@ -162,11 +169,17 @@ def generate_star_map(lat, lon, user_name, user_id):
         fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
 
+        # --- [ ИСПРАВЛЕННЫЙ РАСЧЕТ ВРЕМЕНИ ] ---
         tf = TimezoneFinder()
         tz_name = tf.timezone_at(lng=float(lon), lat=float(lat))
         user_tz = pytz.timezone(tz_name) if tz_name else pytz.utc
-        rise_t = ephem.localtime(e_obs.next_rising(sun_e)).strftime('%H:%M')
-        set_t = ephem.localtime(e_obs.next_setting(sun_e)).strftime('%H:%M')
+        
+        # Получаем время в UTC и переводим в часовой пояс пользователя
+        rise_utc = e_obs.next_rising(sun_e).datetime()
+        set_utc = e_obs.next_setting(sun_e).datetime()
+        
+        rise_t = pytz.utc.localize(rise_utc).astimezone(user_tz).strftime('%H:%M')
+        set_t = pytz.utc.localize(set_utc).astimezone(user_tz).strftime('%H:%M')
 
         t_col = '#D4E6FF'
         fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8)
