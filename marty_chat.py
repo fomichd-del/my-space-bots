@@ -1,11 +1,12 @@
 import os
 import telebot
+import time
 from google import genai
 from google.genai import types
 from database import get_personal_log, update_personal_log 
 
 # --- НАСТРОЙКИ ---
-# ВАЖНО: Убедитесь, что в Render эта переменная указывает на токен @Marty_Help_Bot
+# ВАЖНО: Используется ТОЛЬКО токен @Marty_Help_Bot
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
@@ -37,17 +38,26 @@ def handle_text(message):
         )
         bot.reply_to(message, response.text, parse_mode='Markdown')
         
-        # Обновление памяти
+        # Фоновое обновление памяти
         mem_task = f"Выдели новые факты из: '{message.text}'. Если нет — ответь 'НЕТ'."
         mem_resp = client.models.generate_content(model='gemini-1.5-flash', contents=mem_task)
         if "НЕТ" not in mem_resp.text.upper():
             update_personal_log(user_id, mem_resp.text.strip())
             
     except Exception as e:
-        print(f"Ошибка: {e}")
-        bot.reply_to(message, "📡 Помехи в эфире! Попробуй еще раз через минуту.")
+        # ЗАЩИТА ОТ ЛИМИТОВ БЕСПЛАТНОГО ТАРИФА
+        if "429" in str(e):
+            bot.reply_to(message, "⏳ Командор, антенны перегрелись от обилия информации! Дай мне 15 секунд на охлаждение систем.")
+            time.sleep(15)
+        else:
+            print(f"Ошибка Марти: {e}")
+            bot.reply_to(message, "📡 Помехи в эфире! Попробуй еще раз через минуту.")
 
-if __name__ == "__main__":
-    print("🚀 Автономный Марти-помощник запущен!")
+# --- ФУНКЦИЯ ДЛЯ ЗАПУСКА ИЗ ОСНОВНОГО ФАЙЛА ---
+def start_marty_autonomous():
+    print("🚀 Автономный Марти-помощник выходит на связь!")
     bot.remove_webhook()
     bot.infinity_polling(skip_pending=True)
+
+if __name__ == "__main__":
+    start_marty_autonomous()
