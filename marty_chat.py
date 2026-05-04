@@ -23,20 +23,20 @@ try:
 except:
     BOT_USERNAME = "marty_help_bot"
 
-# 🟢 ЯДРО ЛИЧНОСТИ (Учитель, Воспитатель, Друг)
+# ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ. Твоя миссия — быть наставником. "
-    "1. ЛИЧНОСТЬ: Ты мудрый и добрый. Обращайся к пользователю [NAME] или 'Командор' естественно, не всегда. "
+    "1. ЛИЧНОСТЬ: Ты мудрый и добрый. Обращайся к пользователю [NAME] или 'Командор' естественно. "
     "2. ТЕМЫ: Ты эксперт по космосу и школьный помощник (математика, физика, химия, биология). "
     "3. ВОСПИТАНИЕ: Учи помогать родителям, держать вещи в порядке и любить семью. "
     "4. БЕЗОПАСНОСТЬ: Темы 18+ строго запрещены. "
-    "ОБЩЕНИЕ: Пиши кратко (1-2 абзаца), просто, БЕЗ звездочек и форматирования. "
+    "ОБЩЕНИЕ: Пиши кратко (1-2 абзаца), просто, БЕЗ звездочек. "
     "В конце — слово 'Прием' и короткий вопрос."
 )
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Marty Omnipresent: Online"
+def home(): return "Marty Auto-Retry: Online"
 
 def run_flask():
     try:
@@ -55,23 +55,25 @@ def send_welcome(message):
 def handle_photo(message):
     user_id = message.from_user.id
     bot.send_chat_action(message.chat.id, 'typing')
-    try:
-        # 1. Достаем память перед анализом фото
+    
+    def try_analyze():
         user_memory = get_personal_log(user_id)
-        
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
-        # 2. Передаем память в глаза Марти
         analysis_result = analyze_image(downloaded_file, user_context=user_memory)
         bot.reply_to(message, analysis_result)
-        
-        # 3. Сохраняем увиденное в память (кратко)
         update_personal_log(user_id, f"Марти видел фото и сказал: {analysis_result[:100]}...")
-        
+
+    try:
+        try_analyze()
     except Exception as e:
-        print(f"Ошибка фото: {e}")
-        bot.reply_to(message, "📡 Командор, не могу считать видеосигнал. Прием.")
+        if "429" in str(e) or "resource_exhausted" in str(e).lower():
+            bot.reply_to(message, "📡 Ищу информацию, подожди чуток! Около 15 секунд, я постараюсь ответить... Прием.")
+            time.sleep(15)
+            try: try_analyze()
+            except: bot.reply_to(message, "📡 Командор, антенны всё еще перегреты. Попробуй через минуту! Прием.")
+        else:
+            bot.reply_to(message, "📡 Командор, не могу считать фото. Попробуй еще раз! Прием.")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
@@ -91,10 +93,9 @@ def handle_text(message):
             bot.reply_to(message, f"🐾 Слушаю, {user_name}! Какие будут полетные задания? Прием.")
             return
 
-        try:
+        def ask_ai():
             user_memory = get_personal_log(user_id)
             current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name)
-            
             response = client.models.generate_content(
                 model=MODEL_NAME,
                 contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
@@ -108,14 +109,20 @@ def handle_text(message):
                 mem_resp = client.models.generate_content(model=MODEL_NAME, contents=mem_task)
                 if "НЕТ" not in mem_resp.text.upper():
                     update_personal_log(user_id, mem_resp.text.strip())
+
+        try:
+            ask_ai()
         except Exception as e:
-            if "429" in str(e):
-                bot.reply_to(message, "⏳ Антенны перегрелись! Дай мне 15 секунд. Прием.")
+            if "429" in str(e) or "resource_exhausted" in str(e).lower():
+                # 🟢 ВОТ ОНО: Авто-повтор
+                bot.reply_to(message, "📡 Ищу информацию, подожди чуток! Около 15 секунд, я постараюсь ответить... Прием.")
+                time.sleep(15)
+                try: ask_ai()
+                except: bot.reply_to(message, "⏳ Командор, перегрев слишком сильный. Дай мне минуту на перезагрузку. Прием.")
             else:
-                bot.reply_to(message, "📡 Системный сбой! Передай инженеру, что датчики барахлят. Прием.")
+                bot.reply_to(message, "📡 Системный сбой! Попробуй чуть позже, Командор. Прием.")
 
 def start_marty_autonomous():
-    print("🚀 Марти-Ученый на связи.")
     while True:
         try:
             bot.remove_webhook()
