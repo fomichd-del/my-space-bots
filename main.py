@@ -4,18 +4,18 @@ from telebot import apihelper
 import os, time, concurrent.futures, random
 from pathlib import Path
 from flask import Flask
-from threading import Thread, Timer # <--- [ ДОБАВЛЕН Timer ]
+from threading import Thread, Timer 
 from google import genai 
 
 # --- [ ИМПОРТ МОДУЛЕЙ КОРАБЛЯ ] ---
 from draw_map import generate_star_map
 from database import init_db, add_xp, get_user_stats, get_rank_name
-# Импортируем только логику чата, чтобы не запускать второй процесс
-from marty_chat import handle_text_logic 
 from base_fact_star import CONSTELLATIONS
 from vision_module import analyze_image 
+# ВАЖНО: Мы больше не импортируем handle_text_logic! Мы импортируем только команду запуска.
 
 # --- [ КОНФИГУРАЦИЯ ПУТЕЙ ] ---
+# ВАЖНО: Используется ТОЛЬКО токен основного бота (Навигатора)
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 LOG_CHAT_ID = "-1003756164148"
 BASE_DIR = Path(__file__).resolve().parent
@@ -37,28 +37,23 @@ SPACE_FACTS = [
     "🌠 <b>Внимание:</b> Каждую секунду сквозь тебя пролетают триллионы нейтрино."
 ]
 
-# --- [ ПОДРОБНЫЙ БОРТОВОЙ УСТАВ ] ---
 def get_instruction_text():
     return (
         "🚀 <b>БОРТОВОЙ ЖУРНАЛ КРЕЙСЕРА «МАРТИ»</b>\n"
         "───────────────────────\n"
-        "Пилот, добро пожаловать! Я — твой бортовой ИИ. Вот как работают наши системы:\n\n"
+        "Пилот, добро пожаловать! Я — Навигатор. Вот как работают наши системы:\n\n"
         "📡 <b>СИСТЕМА «МОЕ НЕБО»</b>\n"
-        "Отправь свою геолокацию, и я рассчитаю положение звезд именно над твоим домом. "
-        "Ты получишь персональную карту созвездий в реальном времени.\n"
+        "Отправь свою геолокацию, и я рассчитаю положение звезд.\n"
         "🎁 <i>Награда: +15 XP.</i>\n\n"
-        "👁️ <b>СКАНЕР «ГЛАЗА МАРТИ»</b>\n"
-        "Пришли любое фото неба или рисунок. Мои нейро-линзы проанализируют изображение и найдут там знакомые паттерны.\n"
-        "🎁 <i>Награда: +10 XP.</i>\n\n"
         "🎖️ <b>ТВОЯ КАРЬЕРА (РАНГИ):</b>\n"
         "• <b>Кадет</b> (0-100 XP)\n"
         "• <b>Исследователь</b> (101-300 XP)\n"
         "• <b>Навигатор</b> (301-600 XP)\n"
         "• <b>Командор</b> (601+ XP)\n\n"
-        "🤖 <b>ОБЩЕНИЕ:</b> Просто напиши мне сообщение! Я отвечу как ученый пес и помогу с любым вопросом об устройстве Вселенной."
+        "🤖 <b>ОБЩЕНИЕ И ПОМОЩЬ:</b>\n"
+        "Для разговоров с бортовым ИИ перейди на выделенный канал связи: @Marty_Help_Bot"
     )
 
-# --- [ ОБРАБОТЧИК ТЕКСТА: ОБЪЕДИНЕНИЕ С МАРТИ ] ---
 @bot.message_handler(func=lambda m: True, content_types=['text'])
 def unified_text_handler(message):
     if message.text == "❓❓ ИНСТРУКЦИЯ ПИЛОТА":
@@ -71,14 +66,13 @@ def unified_text_handler(message):
         welcome = (
             f"🛰️ <b>Системы инициализированы!</b>\n"
             f"Рад видеть тебя в рубке, пилот <b>{message.from_user.first_name}</b>!\n\n"
-            f"Я готов к прыжку в гиперпространство. Выбирай протокол на панели управления ниже. 🐾"
+            f"Я готов к прыжку. Выбирай протокол на панели управления ниже. 🐾"
         )
         bot.send_message(message.chat.id, welcome, reply_markup=markup, parse_mode='HTML')
     else:
-        # Все остальные текстовые сообщения обрабатывает Марти-чат
-        handle_text_logic(bot, message)
+        # Навигатор больше не пытается отвечать за Марти. Он вежливо направляет пользователя.
+        bot.send_message(message.chat.id, "🛰️ Я — Навигационный модуль. Для общения переключись на канал Ученого Пса Марти: @Marty_Help_Bot")
 
-# --- [ ГЕНЕРАЦИЯ КАРТЫ С ВИЗУАЛИЗАЦИЕЙ ] ---
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
@@ -115,30 +109,23 @@ def handle_location(message):
             bot.send_photo(message.chat.id, ph, caption=caption, reply_markup=markup, parse_mode='HTML')
         bot.delete_message(message.chat.id, status_msg.message_id)
 
-        # === [ НАЧАЛО: СИСТЕМА САМООЧИСТКИ ПАМЯТИ ] ===
-        # 1. Удаляем JPG сразу после отправки, так как он уже в Telegram
         try:
-            if os.path.exists(res_jpg): 
-                os.remove(res_jpg)
+            if os.path.exists(res_jpg): os.remove(res_jpg)
         except Exception as e: 
             print(f"Ошибка удаления JPG: {e}")
         
-        # 2. Таймер на 15 минут (900 секунд) для удаления Full HD оригинала (PNG)
         def cleanup_original():
             try:
                 if os.path.exists(res_png): 
                     os.remove(res_png)
                     print(f"🧹 [ОЧИСТКА]: Full HD файл {res_png} уничтожен по таймауту.")
-            except: 
-                pass
+            except: pass
             
         Timer(900.0, cleanup_original).start()
-        # === [ КОНЕЦ: СИСТЕМА САМООЧИСТКИ ] ===
 
     else:
         bot.edit_message_text(f"❌ <b>Сбой навигации:</b> {err_msg}", message.chat.id, status_msg.message_id)
 
-# --- [ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (Wiki, Orig) — без изменений ] ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith('wiki_'))
 def callback_wiki(call):
     subject = call.data.replace('wiki_', '').strip()
@@ -153,17 +140,26 @@ def callback_orig(call):
     if f_path.exists():
         with open(f_path, 'rb') as doc: bot.send_document(call.message.chat.id, doc, caption="🚀 <b>Full HD оригинал.</b>")
     else:
-        bot.answer_callback_query(call.id, "❌ Файл утерян в гиперпространстве (время хранения истекло).", show_alert=True) # Добавил пояснение для пользователя
+        bot.answer_callback_query(call.id, "❌ Файл утерян в гиперпространстве (время хранения истекло).", show_alert=True)
 
-# --- [ ЗАПУСК СЕРВЕРА ] ---
 app = Flask(__name__)
 @app.route('/')
 def home(): return "<h1>Marty Navigator: Online</h1>"
 
 if __name__ == "__main__":
     init_db()
+    
+    # 1. Запуск Flask (для Render)
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     
-    print("🚀 Корабль Марти вышел на орбиту. Ожидаю команды...")
+    # 2. Запуск Автономного Марти
+    try:
+        from marty_chat import start_marty_autonomous
+        Thread(target=start_marty_autonomous, daemon=True).start()
+    except Exception as e:
+        print(f"❌ Системный сбой запуска Марти: {e}")
+    
+    # 3. Запуск Навигатора
+    print("🚀 Корабль Навигатор вышел на орбиту. Ожидаю локации...")
     bot.remove_webhook()
     bot.infinity_polling(skip_pending=True)
