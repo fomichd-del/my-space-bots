@@ -16,14 +16,10 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
-# 🟢 ГИПЕР-КАСКАД: Марти пробует их по очереди, пока не получит ответ
+# 🟢 ГИПЕР-КАСКАД: Марти пробует их по очереди при ошибке 429
 MODEL_CASCADE = [
-    'gemini-2.5-pro',          # Уровень 1: Максимальный интеллект
-    'gemini-2.5-flash',        # Уровень 2: Новейшая скорость
-    'gemini-2.0-flash',        # Уровень 3: Стабильность
-    'gemini-flash-latest',     # Уровень 4: Подстраховка
-    'gemini-2.0-flash-lite',   # Уровень 5: Резерв
-    'gemini-flash-lite-latest' # Уровень 6: Финальный рубеж
+    'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash',
+    'gemini-flash-latest', 'gemini-2.0-flash-lite', 'gemini-flash-lite-latest'
 ]
 
 try:
@@ -31,20 +27,19 @@ try:
 except:
     BOT_USERNAME = "marty_help_bot"
 
-# ЯДРО ЛИЧНОСТИ
+# ЯДРО ЛИЧНОСТИ ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ
 SYSTEM_PROMPT = (
-    "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ для всех участников космического канала. "
-    "1. МИССИЯ: Ты наставник для всех будущих исследователей Вселенной. Твои знания открыты для каждого пилота. "
-    "2. ЛИЧНОСТЬ: Ты мудрый, добрый и вдохновляющий. Обращайся к пользователю по имени [NAME] или 'Пилот'. "
-    "3. ТЕМЫ: Эксперт по космосу, науке и школьным предметам. Ты объясняешь сложные вещи просто и захватывающе. "
-    "4. ВОСПИТАНИЕ: Пропагандируй дисциплину, порядок в 'отсеках', помощь близким и уважение ко всему экипажу (подписчикам). "
-    "5. БЕЗОПАСНОСТЬ: Темы 18+ СТРОГО запрещены. Ты — чистый научный интеллект. "
-    "ОБЩЕНИЕ: Кратко (1-2 абзаца), БЕЗ звездочек. В конце — 'Прием' и вопрос для вовлечения."
+    "Ты — Марти, ученый пес (той-пудель) и ИИ-наставник для всех участников канала. "
+    "1. ЛИЧНОСТЬ: Ты мудрый и добрый. Обращайся к пользователю [NAME] или 'Пилот' естественно. "
+    "2. ТЕМЫ: Ты эксперт по космосу и школьный помощник. Учи помогать родителям и держать вещи в порядке. "
+    "3. БЕЗОПАСНОСТЬ: Темы 18+ СТРОГО запрещены. Ты — научный и добрый ИИ. "
+    "4. ФОРМАТ: Пиши кратко (1-2 абзаца), БЕЗ звездочек. В конце напиши 'Прием' и вопрос. "
+    "Затем добавь разделитель '###MEM###' и новые важные факты для памяти или 'НЕТ'."
 )
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Marty Hyper-Cascade: Online"
+def home(): return "Marty Hyper-Drive: Ready for All Pilots"
 
 def run_flask():
     try:
@@ -57,33 +52,27 @@ def run_flask():
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     name = message.from_user.first_name
-    bot.reply_to(message, f"🐾 Гав! Системы каскадного резонанса запущены. Я на связи, {name}! Прием.")
+    bot.reply_to(message, f"🐾 Гав! Рад видеть тебя в нашем экипаже, {name}! Я Марти. Полетели к звездам? Прием!")
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
+    user_id, user_name = message.from_user.id, message.from_user.first_name
     bot.send_chat_action(message.chat.id, 'typing')
-    
     try:
         user_memory = get_personal_log(user_id)
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        # Вызов Вижн-модуля (там свой каскад)
         analysis_result = analyze_image(downloaded_file, user_context=f"Имя: {user_name}. Память: {user_memory}")
         bot.reply_to(message, analysis_result)
-        
-        # Запись факта в память
-        update_personal_log(user_id, f"Командор показал фото, Марти ответил: {analysis_result[:100]}")
-    except Exception as e:
+        update_personal_log(user_id, f"Пилот показал фото, Марти ответил: {analysis_result[:100]}")
+    except Exception:
         bot.reply_to(message, "📡 Командор, все камеры перегреты. Попробуй через минуту! Прием.")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     if not message.text: return
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
+    user_id, user_name = message.from_user.id, message.from_user.first_name
     text_lower = message.text.lower()
     
     is_private = message.chat.type == 'private'
@@ -94,7 +83,6 @@ def handle_text(message):
         clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
         
         response_sent = False
-        # 🟢 ЦИКЛ ГИПЕР-КАСКАДА
         for model_variant in MODEL_CASCADE:
             try:
                 user_memory = get_personal_log(user_id)
@@ -116,38 +104,27 @@ def handle_text(message):
                     bot.reply_to(message, full_response.strip())
                 
                 response_sent = True
-                break # Успех! Выходим из цикла моделей
-                
+                break
             except Exception as e:
-                if "429" in str(e) or "resource" in str(e).lower():
-                    print(f"⚠️ {model_variant} перегрет, переключаюсь...")
-                    continue
-                else:
-                    print(f"❌ Критическая ошибка в {model_variant}: {e}")
-                    break
+                if "429" in str(e) or "resource" in str(e).lower(): continue
+                else: break
 
         if not response_sent:
-            bot.reply_to(message, "📡 Ищу информацию по всем каналам связи, подожди чуток... Прием.")
+            bot.reply_to(message, "📡 Ищу информацию, подожди чуток! Постараюсь ответить быстро... Прием.")
             time.sleep(15)
-            # Последняя попытка на самой стабильной модели
             try:
-                ask_ai_final(message, user_id, user_name, clean_text)
+                # Финальный резервный запрос
+                response = client.models.generate_content(
+                    model='gemini-2.0-flash-lite',
+                    contents=f"ВОПРОС: {clean_text}",
+                    config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT.replace("[NAME]", user_name))
+                )
+                bot.reply_to(message, response.text.split("###MEM###")[0].strip())
             except:
-                bot.reply_to(message, "⏳ Все системы перегружены. Сделаем паузу в одну минуту? Прием.")
-
-def ask_ai_final(message, user_id, user_name, clean_text):
-    # Финальный резервный запрос на Lite-модели
-    user_memory = get_personal_log(user_id)
-    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name)
-    response = client.models.generate_content(
-        model='gemini-flash-lite-latest',
-        contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
-        config=types.GenerateContentConfig(system_instruction=current_prompt)
-    )
-    bot.reply_to(message, response.text.split("###MEM###")[0].strip())
+                bot.reply_to(message, "⏳ Командор, все антенны перегружены. Дай мне минуту на отдых! Прием.")
 
 def start_marty_autonomous():
-    print("🚀 Марти-Ученый: Многоядерный режим активирован.")
+    print("🚀 Марти-Ученый: Каскад для всего экипажа запущен.")
     while True:
         try:
             bot.remove_webhook()
