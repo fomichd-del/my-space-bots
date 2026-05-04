@@ -12,8 +12,8 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
-# 🟢 САМЫЙ НАДЕЖНЫЙ АЛИАС МОДЕЛИ ДЛЯ НОВОГО API
-MODEL_NAME = 'gemini-1.5-flash-latest'
+# 🟢 ПЕРЕХОДИМ НА САМУЮ БЕЗОТКАЗНУЮ БАЗОВУЮ МОДЕЛЬ
+MODEL_NAME = 'gemini-pro'
 
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой компьютер. "
@@ -51,17 +51,34 @@ def handle_text(message):
             update_personal_log(user_id, mem_resp.text.strip())
             
     except Exception as e:
-        if "429" in str(e):
+        err_str = str(e)
+        if "429" in err_str:
             bot.reply_to(message, "⏳ Командор, антенны перегрелись от обилия информации! Дай мне 15 секунд на охлаждение систем.")
             time.sleep(15)
+        elif "404" in err_str:
+            # 🟢 СИСТЕМА САМОДИАГНОСТИКИ API-КЛЮЧА
+            bot.reply_to(message, "⚠️ Ошибка 404: И эта модель закрыта. Запускаю радар сканирования вашего ключа...")
+            try:
+                available = []
+                # Запрашиваем у Google список разрешенных моделей для вашего ключа
+                for m in client.models.list():
+                    if 'gemini' in m.name.lower():
+                        available.append(m.name.replace('models/', ''))
+                
+                if not available:
+                    bot.reply_to(message, "Радар пуст. Ваш API-ключ не имеет доступа ни к одной модели Gemini. Похоже, ключ поврежден или удален в Google-аккаунте.")
+                else:
+                    models_text = ", ".join(available[:10])
+                    bot.reply_to(message, f"✅ Радар нашел разрешенные модели!\n\nПередай инженеру этот список:\n{models_text}")
+            except Exception as ex:
+                bot.reply_to(message, f"Сбой радара: {ex}")
         else:
             print(f"❌ Ошибка Марти: {e}", flush=True) 
-            bot.reply_to(message, f"📡 Системный сбой! Передай этот код инженеру:\n\n`{e}`")
+            bot.reply_to(message, f"📡 Системный сбой! Передай этот код инженеру:\n\n{e}")
 
 # --- ФУНКЦИЯ ДЛЯ ЗАПУСКА ИЗ ОСНОВНОГО ФАЙЛА ---
 def start_marty_autonomous():
     print("🚀 Автономный Марти-помощник выходит на связь!")
-    
     while True:
         try:
             bot.remove_webhook()
