@@ -12,6 +12,8 @@ from PIL import Image
 from draw_map import generate_star_map
 from database import init_db, add_xp, get_user_stats, get_rank_name
 from base_fact_star import CONSTELLATIONS
+# 🟢 ДОБАВЛЕНО: Пробуждаем Марти-Ученого из его файла
+from marty_chat import start_marty_autonomous 
 
 # --- [ КОНФИГУРАЦИЯ ПУТЕЙ ] ---
 TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -70,7 +72,7 @@ def get_instruction_text():
 
 @bot.message_handler(func=lambda m: True, content_types=['text'])
 def unified_text_handler(message):
-    menu = get_main_menu() # Создаем меню для каждого ответа
+    menu = get_main_menu() 
     
     if message.text == "❓❓ ИНСТРУКЦИЯ ПИЛОТА":
         bot.send_message(message.chat.id, get_instruction_text(), reply_markup=menu, parse_mode='HTML')
@@ -83,7 +85,6 @@ def unified_text_handler(message):
         )
         bot.send_message(message.chat.id, welcome, reply_markup=menu, parse_mode='HTML')
     else:
-        # Возвращаем кнопки даже при обычном сообщении
         bot.send_message(
             message.chat.id, 
             "🛰️ <b>Я — Навигационный модуль.</b> Моя задача — расчет звездных карт.\n\n"
@@ -130,7 +131,6 @@ def handle_location(message):
             bot.send_photo(message.chat.id, ph, caption=caption, reply_markup=markup, parse_mode='HTML')
         bot.delete_message(message.chat.id, status_msg.message_id)
 
-        # САМООЧИСТКА (TTL)
         try:
             if os.path.exists(res_jpg): os.remove(res_jpg)
         except: pass
@@ -170,7 +170,6 @@ def callback_wiki(call):
                 base_img = Image.open(io.BytesIO(valid_photo_data)).convert("RGBA")
                 if os.path.exists("watermark.png"):
                     stamp = Image.open("watermark.png").convert("RGBA")
-                    # Умная чистка штампа
                     pix = stamp.load()
                     for y in range(stamp.height):
                         for x in range(stamp.width):
@@ -212,6 +211,9 @@ if __name__ == "__main__":
     
     # Запуск Flask
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
+    
+    # 🟢 ЗАПУСК МАРТИ-УЧЕНОГО (Просыпайся, Марти!)
+    Thread(target=start_marty_autonomous, daemon=True).start()
     
     # КРИТИЧЕСКИЙ ФИКС ОШИБКИ 409
     print("🚀 Корабль Навигатор на орбите. Перезагрузка систем связи...")
