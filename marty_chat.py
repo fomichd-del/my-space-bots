@@ -264,7 +264,7 @@ def handle_text(message):
                 if p: bot.send_photo(message.chat.id, p)
         else: bot.reply_to(message, "⏳ Командор, тишина в эфире.")
 
-def start_mart_autonomous():
+def start_marty_autonomous():
     print("🚀 Академия Орион 2.1 (Кластер) запущена.")
     while True:
         try:
