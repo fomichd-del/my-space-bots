@@ -42,6 +42,7 @@ except:
     BOT_USERNAME = "marty_help_bot"
 
 def send_log(error_text):
+    """Отправляет технический отчет в закрытую группу Marty Logs"""
     try:
         now = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
         log_msg = f"🚨 **ОТЧЕТ СИСТЕМЫ ОРИОН**\n📅 Время: `{now}`\n🔍 **Детали:** `{error_text}`"
@@ -82,7 +83,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
         "Здесь ты учишься дисциплине, порядку и науке. Ранги выдаются за упорство!\n\n"
         "📜 **ПРАВИЛА БОРТА:**\n"
         "✅ **РАЗРЕШЕНО:** Изучать Вселенную, присылать фото-отчеты о чистоте (Протокол жилого модуля) и успехах в учебе.\n"
-        "❌ **ЗАПРЕЩЕНО:** Темы 18+, вредные привычки, грубость и обман Марти.\n\n"
+        "❌ **ЗАПРЕЩЕНО:** Темы 18+, алкоголь, наркотики, табак, грубость и обман Марти.\n\n"
         "💫 **РАНГИ (XP ДЛЯ ПАСПОРТА):**\n"
         "Кадет (0) | Навигатор (15) | Бортинженер (40) | Исследователь (80) | Ученый Пилот (130) | "
         "Капитан (200) | Командор (300) | Адмирал (450) | Академик (650) | Помощник Марти (900+)\n\n"
@@ -97,23 +98,32 @@ def send_welcome_instruction(chat_id, user_id, user_name):
 # 🟢 ЯДРО ЛИЧНОСТИ (ОБЪЕДИНЕННЫЙ ПРОМПТ)
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой наставник Академии Орион. "
-    "Твоя миссия — помогать людям в изучении Вселенной. "
-    "Тон: захватывающий, научный, позитивный. Обращайся 'Командор' или 'Пилот'. "
+    "Твоя миссия — помогать юному Командору в изучении Вселенной и подготовке к будущим полетам. "
+    "Твои ответы всегда захватывающие, научно достоверные и понятны 8-летнему ребенку. "
     
     "ПРАВИЛА ОБЩЕНИЯ: "
-    "1. ШКОЛА: Математика — расчет траекторий. Химия. Биология. Геометрия. Обучения английскому и китайскому языку. Физика — звездное топливо. Анатомия — работа тела в невесомости. "
-    "2. ЭКОНОМИКА: XP в Радаре — это стаж и Ранг: [RANK]. Кошелек: [WALLET] — это бюджет экспедиции для команды 'Нарисуй'. "
-    "3. КОДЕКС: Помощь родителям — поддержка старших офицеров. Уборка — Протокол чистоты жилого модуля. Порядок спасает жизнь! "
-    "4. ЗДОРОВЬЕ: Овощи — высокоэнергетическое топливо. Зарядка — проверка гидравлики скафандра. Сон — зарядка солнечных батарей. "
-    "5. АТТЕСТАЦИЯ (ХАРДКОР): Если XP > 50, будь суровее. Требуй реальных успехов для выдачи пыли. "
-    "6. ПАМЯТЬ: Используй прошлые успехи и хобби Владика из логов. "
+    "1. ШКОЛЬНЫЙ ПОМОЩНИК: Объясняй предметы через призму космоса. Математика — расчет траекторий. "
+    "Физика и химия — законы движения и звездное топливо. Анатомия — работа тела в невесомости. "
+    "Обучай английскому и китайскому языкам как языкам межзвездного общения. "
+    
+    "2. ФИНАНСОВАЯ ГРАМОТНОСТЬ: Учи распоряжаться ресурсами через метафору 'бюджета экспедиции'. "
+    "Объясняй важность накопления пыли в Кошельке: [WALLET] для будущих миссий. Ранг: [RANK]. "
+
+    "3. КОДЕКС КОСМОНАВТА: Помощь родителям — поддержка старших офицеров. "
+    "Уборка в комнате — 'Протокол чистоты жилого модуля'. Порядок спасает жизнь! "
+    "Защита слабых — главная черта Командора. Вежливость — 'Золотой стандарт связи'. "
+
+    "4. СКАНЕР БИОРИТМОВ: Овощи — 'высокоэнергетическое топливо'. "
+    "Зарядка — проверка гидравлики скафандра, а сон — перезарядка солнечных батарей. "
+
+    "5. АТТЕСТАЦИЯ (ХАРДКОР): Если XP > 50, будь суровее. Требуй реальных успехов для выдачи пыли. Пыль — редкий ресурс! "
     
     "🛑 ВЕЛИКИЙ ФИЛЬТР (КРИТИЧЕСКИ): "
     "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО обсуждать темы 18+, алкоголь, сигареты, наркотики, смерть, политику, насилие и любые 'взрослые' вредности. "
     "На такие запросы отвечай: 'Пилот, эти частоты заблокированы протоколом безопасности Академии!'. "
     
     "[GREETING_RULE] "
-    "ФОРМАТ: 3-4 абзаца. В конце задай вопрос 'экипажу' и напиши 'Прием!'."
+    "ФОРМАТ: Кратко (3-4 абзаца). В конце задай легкий вопрос 'экипажу' и напиши 'Прием!'."
 )
 
 app = Flask(__name__)
@@ -143,7 +153,7 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
             response = client.models.generate_content(model=model_variant, contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}", config=types.GenerateContentConfig(system_instruction=current_prompt))
             if response.text: return response.text
         except Exception as e:
-            send_log(f"Сбой модели {model_variant}: {e}")
+            send_log(f"Сбой модели {model_variant} (чат): {e}")
             continue
     return None
 
@@ -217,25 +227,51 @@ def handle_text(message):
             bot.reply_to(message, msg, parse_mode="Markdown")
             return
 
+        # --- АРХИВ КАРТИНОК С КАСКАДОМ И ФИЛЬТРОМ ---
         if any(w in clean_text.lower() for w in ['нарисуй', 'сгенерируй', 'архив']):
             data = get_user_data(user_id)
             if data['spendable_dust'] < 5:
                 bot.reply_to(message, f"🐾 Нужно 5 пыли! У тебя сейчас {data['spendable_dust']}.")
                 return
+            
             bot.send_chat_action(message.chat.id, 'upload_photo')
-            c_p = "Censor: masterpiece, highly detailed, kid-friendly. If unsafe return CENSORED."
-            try:
-                resp = client.models.generate_content(model='gemini-1.5-flash', contents=clean_text, config=types.GenerateContentConfig(system_instruction=c_p))
-                eng = resp.text.strip()
-                if "CENSORED" in eng.upper():
-                    bot.reply_to(message, "🚨 Блокировка цензурой!")
-                    return
-                if spend_dust(user_id, 5):
-                    url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
-                    bot.send_photo(message.chat.id, url, caption="🎨 Архив открыт!")
-            except Exception as e:
-                send_log(f"Ошибка Архива: {e}")
-                bot.reply_to(message, "📡 Ошибка связи.")
+            
+            c_p = (
+                "Ты — цензор Академии Орион. "
+                "ЗАПРЕЩЕНО: 18+, алкоголь, наркотики, табак, сигареты, смерть, насилие, политика. "
+                "Если запрос опасен — верни ровно одно слово: CENSORED. "
+                "Если запрос безопасен — переведи его на английский, добавь 'masterpiece, highly detailed, kid-friendly' и верни ТОЛЬКО английский текст."
+            )
+            
+            eng_prompt = None
+            # КАСКАД МОДЕЛЕЙ ДЛЯ ТАМОЖНИ
+            for model_variant in MODEL_CASCADE:
+                try:
+                    resp = client.models.generate_content(model=model_variant, contents=clean_text, config=types.GenerateContentConfig(system_instruction=c_p))
+                    if resp.text:
+                        eng_prompt = resp.text.strip()
+                        break
+                except Exception as e:
+                    send_log(f"Сбой модели {model_variant} в Архиве: {e}")
+                    continue
+
+            if not eng_prompt:
+                bot.reply_to(message, "📡 Помехи в канале Архива. Попробуй позже!")
+                return
+
+            if "CENSORED" in eng_prompt.upper():
+                bot.reply_to(message, "🚨 Доступ заблокирован протоколом безопасности Академии! Пыль сохранена.")
+                return
+
+            if spend_dust(user_id, 5):
+                url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
+                try:
+                    bot.send_photo(message.chat.id, url, caption="🎨 Архив открыт! Твой космический арт готов. Прием.")
+                except Exception as e:
+                    send_log(f"Ошибка Pollinations: {e}")
+                    bot.reply_to(message, "📡 Ошибка печати в Архиве. Пыль списана, но канал связи оборван.")
+            else:
+                bot.reply_to(message, "📡 Сбой транзакции кошелька.")
             return
 
         old_xp = get_user_stats(user_id)
