@@ -21,6 +21,7 @@ from image_gen import generate_passport
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 CHANNEL_USERNAME = "@vladislav_space"
+LOG_CHAT_ID = "-1003756164148" # Канал Marty Logs
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
@@ -40,6 +41,16 @@ try:
 except:
     BOT_USERNAME = "marty_help_bot"
 
+# --- СИСТЕМА ЛОГИРОВАНИЯ ---
+def send_log(error_text):
+    """Отправляет отчет об ошибке в закрытую группу Marty Logs"""
+    try:
+        now = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+        log_msg = f"🚨 **СБОЙ СИСТЕМЫ ОРИОН**\n📅 Время: `{now}`\n\n🔍 **Отчет:**\n`{error_text}`"
+        bot.send_message(LOG_CHAT_ID, log_msg, parse_mode="Markdown")
+    except:
+        pass
+
 def get_time_context():
     now = datetime.utcnow() + timedelta(hours=3)
     hour = now.hour
@@ -51,6 +62,7 @@ def get_time_context():
     else: return f"{time_str} (Ночь)"
 
 def is_subscribed(user_id):
+    # Пропускаем системные сообщения и сам канал
     if user_id == 777000 or user_id < 0: return True
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
@@ -70,38 +82,31 @@ def send_welcome_instruction(chat_id, user_id, user_name):
     instruction = (
         f"🐾 **УСТАВ АКАДЕМИИ ОРИОН (ВЕРСИЯ 2.0: ХАРДКОР)** 🐾\n\n"
         f"🚀 **МИССИЯ ПИЛОТА {user_name.upper()}:**\n"
-        "Мы больше не просто играем — мы куем характер. Я, Марти, твой научный наставник, превращу твой день в суровую школу выживания. "
-        "Моя цель — научить тебя находить порядок в хаосе, дисциплину в лени и знания в скучных уроках. Звания здесь теперь выдаются только за истинное упорство!\n\n"
+        "Мы больше не просто играем — мы куем характер. Я, Марти, твой наставник, превращу твой день в школу дисциплины. "
+        "Моя цель — научить тебя находить порядок, дисциплину и знания в каждом деле. Звания выдаются только за истинное упорство!\n\n"
         "📜 **ПРАВИЛА БОРТА:**\n"
-        "✅ **РАЗРЕШЕНО:** Изучать науку, присылать фото-отчеты о чистоте и учебе, шутить (в меру!) и стремиться к вершине Радара.\n"
-        "❌ **ЗАПРЕЩЕНО:** Обманывать бортовой ИИ (после 50 XP я вижу ложь мгновенно!), грубить и обсуждать темы 18+, насилие или политику.\n\n"
-        "💫 **НОВАЯ ШКАЛА РАНГОВ (XP):**\n"
-        "1. Кадет (0) — Начало пути\n"
-        "2. Навигатор (15) — Подтверди дисциплину\n"
-        "3. Бортинженер (40) — Техническая точность\n"
-        "4. Исследователь (80) — Сила воли\n"
-        "5. Ученый Пилот (130) — Элита Академии\n"
-        "6. Капитан (200) — Мастер своего дела\n"
-        "7. Командор (300) — Стратег космоса\n"
-        "8. Адмирал (450) — Легенда флота\n"
-        "9. Академик (650) — Высший разум\n"
-        "10. Помощник Марти (900+) — Мой напарник!\n\n"
-        "🛡 **ГЛАВНОЕ ПРАВИЛО:** Дипломы и Паспорта выдаются ТОЛЬКО в момент пересечения порога. Если ты уже набрал очки раньше — заслужи следующую ступень!\n\n"
-        "🎨 **АРХИВ:** Напиши 'НАРИСУЙ [идея]' (цена 5 пыли из кошелька).\n\n"
-        "Приготовься, пилот. Путь к звездам стал длиннее, но слава будет вечной! Прием!"
+        "✅ **РАЗРЕШЕНО:** Изучать науку, присылать фото-отчеты о чистоте и учебе, стремиться к вершине Радара.\n"
+        "❌ **ЗАПРЕЩЕНО:** Обманывать Марти, грубить и нарушать цензуру Академии.\n\n"
+        "💫 **СИСТЕМА РАНГОВ (XP ДЛЯ ПАСПОРТА):**\n"
+        "1. Кадет (0) | 2. Навигатор (15) | 3. Бортинженер (40) | 4. Исследователь (80) | 5. Ученый Пилот (130)\n"
+        "6. Капитан (200) | 7. Командор (300) | 8. Адмирал (450) | 9. Академик (650) | 10. Помощник Марти (900+)\n\n"
+        "💰 **ЭКОНОМИКА:**\n"
+        "• **Общий опыт (XP):** Твой стаж для получения званий и новых паспортов. Не уменьшается.\n"
+        "• **Кошелек:** Свежая пыль для трат. Напиши 'НАРИСУЙ [идея]', чтобы открыть Архив (цена 5 пыли).\n\n"
+        "🎁 **БОНУСЫ:** В выходные — Метеоритный дождь (х2)! За серию дней без пропусков — доп. пыль!\n\n"
+        "Приготовься. Путь к звездам стал длиннее! Прием!"
     )
     bot.send_message(chat_id, instruction, parse_mode="Markdown")
-    update_personal_log(user_id, "Пилот зачислен в Академию на условиях Хардкор-режима.")
+    update_personal_log(user_id, "Пилот зачислен и изучил Устав 2.0.")
 
-# 🟢 ЯДРО ЛИЧНОСТИ (ОБНОВЛЕННАЯ СТРОГОСТЬ)
+# 🟢 ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
-    "Ты — Марти, ученый пес (той-пудель) и бортовой наставник Академии Орион. "
-    "1. ЛИЧНОСТЬ: Мудрый, добрый. Имя: [NAME]. Звание: [RANK]. Кошелек: [WALLET] пыли. Время: [TIME]. "
-    "2. АТТЕСТАЦИЯ: СТРОЖАЙШИЙ КОНТРОЛЬ! После 50 XP Марти становится суровым профессором. Пыль за простые дела (почистил зубы) выдавай реже. Требуй серьезных достижений (учеба, идеальная чистота всего дома). Пыль — редкий ресурс! "
-    "3. ЭКОНОМИКА: Объясняй, что XP в Радаре — это стаж и ранги. Кошелек — это валюта для команды 'Нарисуй'. "
-    "4. ПРАВИЛА: Требуй фото-доказательства. Если пилот спрашивает про дипломы — они выдаются ТОЛЬКО при смене ранга. "
-    "5. ЦЕНЗУРА: СТРОГИЙ запрет на насилие, смерть, политику и взрослые темы. [GREETING_RULE] "
-    "6. ФОРМАТ: 3-4 предложения. В конце 'Прием'. Затем '###MEM###' и память."
+    "Ты — Марти, ученый пес и наставник Академии Орион. "
+    "1. ЛИЧНОСТЬ: Мудрый, добрый. Имя: [NAME]. Звание: [RANK]. Кошелек: [WALLET]. Время: [TIME]. "
+    "2. АТТЕСТАЦИЯ: СТРОГО! Пыль только за фото. После 50 XP будь суровее — требуй реальных успехов. "
+    "3. ЭКОНОМИКА: Объясняй, что XP — это опыт для рангов, а Кошелек — это деньги для команды 'Нарисуй'. "
+    "4. ПРАВИЛА: Паспорта выдаются ТОЛЬКО при смене ранга. ЦЕНЗУРА СТРОГАЯ. [GREETING_RULE] "
+    "5. ФОРМАТ: 3-4 предложения. В конце 'Прием'."
 )
 
 app = Flask(__name__)
@@ -119,23 +124,21 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     time_info = get_time_context()
     current_date = datetime.now().strftime("%Y-%m-%d")
     if daily_greetings.get(user_id) == current_date:
-        greeting_rule = "!!! УЖЕ здоровались сегодня. ЗАПРЕЩЕНО писать 'Привет'! Начинай сразу по сути вопроса! !!!"
+        greeting_rule = "!!! УЖЕ здоровались сегодня. ЗАПРЕЩЕНО писать 'Привет'! !!!"
     else:
-        greeting_rule = "Первое сообщение за день. Поздоровайся с пилотом."
+        greeting_rule = "Поприветствуй пилота."
         daily_greetings[user_id] = current_date
     current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance))
     for model_variant in MODEL_CASCADE:
         try:
-            response = client.models.generate_content(
-                model=model_variant,
-                contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
-                config=types.GenerateContentConfig(system_instruction=current_prompt)
-            )
+            response = client.models.generate_content(model=model_variant, contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}", config=types.GenerateContentConfig(system_instruction=current_prompt))
             if response.text: return response.text
-        except Exception: continue
+        except Exception as e:
+            send_log(f"Сбой модели {model_variant}: {e}")
+            continue
     return None
 
-# --- ОБРАБОТЧИКИ (ОСТАЛИСЬ БЕЗ ИЗМЕНЕНИЙ ЛОГИКИ) ---
+# --- ОБРАБОТЧИКИ ---
 
 @bot.message_handler(commands=['start', 'help'])
 def handle_start(message):
@@ -148,29 +151,22 @@ def handle_start(message):
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
-    if not is_subscribed(user_id):
-        bot.reply_to(message, "🐾 Сначала подпишись на канал!")
-        return
+    if not is_subscribed(user_id): return
     if is_very_first_time(user_id):
         send_welcome_instruction(message.chat.id, user_id, user_name)
         return
     bot.send_chat_action(message.chat.id, 'typing')
     try:
-        user_memory = get_personal_log(user_id)
-        time_info = get_time_context()
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         old_xp = get_user_stats(user_id)
         old_rank = get_rank_name(old_xp)
-        anti_cheat_context = f"Имя: {user_name}. Звание: {old_rank}. Оцени фото строго!"
-        analysis_result = analyze_image(downloaded_file, user_context=anti_cheat_context)
+        analysis_result = analyze_image(downloaded_file, user_context=f"Звание: {old_rank}")
         if "звездн" in analysis_result.lower() and "пыль" in analysis_result.lower():
             total_dust = 2 if is_meteor_shower() else 1
             if is_meteor_shower(): bot.send_message(message.chat.id, "☄️ Метеоритный дождь (х2)!")
             streak = check_and_update_streak(user_id)
-            if streak >= 3:
-                total_dust += 1
-                bot.send_message(message.chat.id, f"🔥 Серия {streak} дней! Бонус +1.")
+            if streak >= 3: total_dust += 1
             if "джекпот" in analysis_result.lower():
                 user_db_data = get_user_data(user_id)
                 if not user_db_data["jackpot_claimed"]:
@@ -180,20 +176,19 @@ def handle_photo(message):
             add_xp(user_id, min(total_dust, 4), user_name)
         bot.reply_to(message, analysis_result)
         new_xp = get_user_stats(user_id)
-        new_rank = get_rank_name(new_xp)
-        if old_rank != new_rank:
-            bot.send_message(message.chat.id, f"🎉 Новое звание: {new_rank}!")
-            p_bytes = generate_passport(user_name, new_rank)
-            if p_bytes: bot.send_photo(message.chat.id, p_bytes)
-    except: bot.reply_to(message, "📡 Помехи в видеоканале.")
+        if get_rank_name(old_xp) != get_rank_name(new_xp):
+            bot.send_message(message.chat.id, f"🎉 Ранг повышен: {get_rank_name(new_xp)}!")
+            p = generate_passport(user_name, get_rank_name(new_xp))
+            if p: bot.send_photo(message.chat.id, p)
+    except Exception as e:
+        send_log(f"Ошибка в handle_photo: {e}")
+        bot.reply_to(message, "📡 Помехи в видеоканале.")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message):
     if not message.text: return
     user_id, user_name = message.from_user.id, message.from_user.first_name
-    if not is_subscribed(user_id):
-        bot.reply_to(message, "🐾 Сначала подпишись!")
-        return
+    if not is_subscribed(user_id): return
     if is_very_first_time(user_id):
         send_welcome_instruction(message.chat.id, user_id, user_name)
         return
@@ -216,7 +211,8 @@ def handle_text(message):
             bot.send_chat_action(message.chat.id, 'upload_photo')
             c_p = "Censor: masterpiece, highly detailed, kid-friendly. If unsafe return CENSORED."
             try:
-                resp = client.models.generate_content(model='gemini-2.0-flash', contents=clean_text, config=types.GenerateContentConfig(system_instruction=c_p))
+                # Используем 1.5-flash для стабильности перевода
+                resp = client.models.generate_content(model='gemini-1.5-flash', contents=clean_text, config=types.GenerateContentConfig(system_instruction=c_p))
                 eng = resp.text.strip()
                 if "CENSORED" in eng.upper():
                     bot.reply_to(message, "🚨 Блокировка цензурой!")
@@ -224,17 +220,16 @@ def handle_text(message):
                 if spend_dust(user_id, 5):
                     url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
                     bot.send_photo(message.chat.id, url, caption="🎨 Архив открыт!")
-            except: bot.reply_to(message, "📡 Ошибка связи.")
+            except Exception as e:
+                send_log(f"Ошибка Архива: {e}")
+                bot.reply_to(message, "📡 Ошибка связи. Проверь Marty Logs!")
             return
         old_xp = get_user_stats(user_id)
         u_d = get_user_data(user_id)
         resp = get_marty_response(user_id, user_name, clean_text, get_rank_name(old_xp), u_d['spendable_dust'])
         if resp:
             if "звездн" in resp.lower() and "пыль" in resp.lower(): add_xp(user_id, 1, user_name)
-            if "###MEM###" in resp:
-                text, mem = resp.split("###MEM###")
-                bot.reply_to(message, text.strip())
-            else: bot.reply_to(message, resp.strip())
+            bot.reply_to(message, resp.split("###MEM###")[0].strip())
             new_xp = get_user_stats(user_id)
             if get_rank_name(old_xp) != get_rank_name(new_xp):
                 bot.send_message(message.chat.id, f"🎉 Ранг повышен: {get_rank_name(new_xp)}!")
@@ -248,7 +243,9 @@ def start_marty_autonomous():
         try:
             bot.remove_webhook()
             bot.infinity_polling(skip_pending=True)
-        except: time.sleep(5)
+        except Exception as e:
+            send_log(f"Критический сбой цикла: {e}")
+            time.sleep(5)
 
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
