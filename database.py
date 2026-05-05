@@ -27,7 +27,6 @@ def init_db():
         ''')
         
         # 2. ПРОВЕРКА: Добавляем колонку personal_log, если таблица уже была, но без неё
-        # Это лечит ошибку "column personal_log does not exist" автоматически
         cursor.execute('''
             DO $$ 
             BEGIN 
@@ -82,8 +81,6 @@ def update_personal_log(user_id, new_info):
     if not conn: return
     try:
         cursor = conn.cursor()
-        # Используем COALESCE, чтобы избежать проблем, если в ячейке NULL
-        # Разделитель ' | ' добавляется только если лог уже не пустой
         cursor.execute('''
             UPDATE users 
             SET personal_log = CASE 
@@ -112,9 +109,15 @@ def get_personal_log(user_id):
         cursor.close()
         conn.close()
 
+# === ОБНОВЛЕННАЯ СИСТЕМА ЗВАНИЙ АКАДЕМИИ ===
 def get_rank_name(xp):
-    if xp < 50: return "Кадет-наблюдатель 🐣"
-    if xp < 150: return "Пилот-исследователь 🚀"
-    if xp < 300: return "Старший штурман 🧭"
-    if xp < 500: return "Командор орбиты 👨‍🚀"
-    return "Адмирал Галактики 👑"
+    if xp < 5: return "Космический Кадет 🚀"
+    if xp < 12: return "Навигатор Орбиты 🛰"
+    if xp < 20: return "Бортинженер 🔧"
+    if xp < 30: return "Астро-Исследователь 🔭"
+    if xp < 45: return "Учёный Пилот 🪐"
+    if xp < 65: return "Капитан Корабля 🛸"
+    if xp < 90: return "Командор Галактики 🎖"
+    if xp < 120: return "Адмирал Флота ⭐"
+    if xp < 160: return "Академик Космоса 🎓"
+    return "Верный Помощник Марти 🐕"
