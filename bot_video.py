@@ -22,6 +22,7 @@ YOUTUBE_COOKIES = os.getenv('YOUTUBE_COOKIES')
 CHANNEL_NAME   = '@vladislav_space'
 DB_FILE        = "last_video_date.txt"
 SOURCE_LOG     = "last_source.txt"
+LOG_CHAT_ID = "-1003756164148"
 SAFE_LIMIT_MB  = 46 
 
 INTRO_FILE = "intro.png"
