@@ -9,7 +9,9 @@ from google import genai
 from google.genai import types
 
 # --- ИМПОРТЫ ---
-from database import get_personal_log, update_personal_log, add_xp, get_user_stats, get_rank_name
+from database import (get_personal_log, update_personal_log, add_xp, get_user_stats, 
+                      get_rank_name, get_user_data, set_jackpot_claimed, spend_dust, 
+                      check_and_update_streak, get_top_pilots)
 from vision_module import analyze_image
 from image_gen import generate_passport
 # ---------------------------
@@ -43,13 +45,13 @@ def get_time_context():
     time_str = now.strftime("%H:%M")
     
     if 0 <= hour < 5:
-        return f"{time_str} (Глубокая ночь. Удивляйся, почему пилот не спит)"
+        return f"{time_str} (Глубокая ночь. Пора спать)"
     elif 5 <= hour < 11:
-        return f"{time_str} (Утро. Время подготовки к экспедиции и завтрака)"
+        return f"{time_str} (Утро. Время подготовки)"
     elif 11 <= hour < 17:
-        return f"{time_str} (День. Время для науки и школы)"
+        return f"{time_str} (День. Время для школы)"
     elif 17 <= hour < 23:
-        return f"{time_str} (Вечер. Время отдыха и порядка)"
+        return f"{time_str} (Вечер. Время отдыха)"
     else:
         return f"{time_str} (Ночь. Пора спать)"
 
@@ -60,26 +62,23 @@ def is_subscribed(user_id):
             return True
         return False
     except Exception as e:
-        print(f"⚠️ Ошибка проверки подписки: {e}")
         return True 
 
-# 🟢 ЯДРО ЛИЧНОСТИ (РАСШИРЕНО: ПОДРОБНАЯ ИНСТРУКЦИЯ И ТУТОРИАЛ)
+def is_meteor_shower():
+    # 5 - Суббота, 6 - Воскресенье
+    return datetime.now().weekday() >= 5
+
+# 🟢 ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ-наставник для пилотов. "
     "1. ЛИЧНОСТЬ: Ты мудрый, добрый, иногда говоришь 'Гав!'. "
-    "Обращайся по имени [NAME]. Текущее звание пилота: [RANK]. Время суток: [TIME]. [GREETING_RULE] "
-    "2. АТТЕСТАЦИЯ И СЛОЖНОСТЬ: Начисляй 'звездную пыль' за успехи. "
-    "ЧЕМ ВЫШЕ ЗВАНИЕ [RANK], ТЕМ СТРОЖЕ ОЦЕНИВАЙ! Кадету дай пыль за заправленную постель, а старшим званиям — только за отличные оценки или генеральную уборку. "
-    "ВАЖНО: НИКОГДА не давай пыль просто за слова. Требуй ФОТО-доказательство: 'Прикрепи фото для сканирования!'. "
-    "3. РЕЖИМ 'ИНСТРУКЦИЯ' (ОЧЕНЬ ВАЖНО): Если пилот пишет 'инструкция', 'правила', 'что делать', 'помощь' или 'что такое звездная пыль', ты ОБЯЗАН выдать подробный ответ по пунктам. "
-    "Текст инструкции должен быть таким (перескажи своими словами, но сохрани суть): "
-    "'Привет, пилот! Я Марти, твой бортовой помощник. Вот правила нашей Академии: "
-    "✨ Что такое звездная пыль? Это топливо твоего прогресса! Собирай ее, чтобы получать новые звания (от Кадета до Академика Космоса) и настоящие космические паспорта. "
-    "📸 Как ее получить? Присылай мне фото-доказательства своих успехов: убранная комната, сделанные уроки, красивые поделки или помощь родителям. Я просканирую фото и выдам награду! "
-    "🎁 Секреты (скоро): В выходные бывает метеоритный дождь (х2 пыли, но не больше 4 за раз), а если присылать фото каждый день без пропусков, будут бонусы! Если найдешь секретные артефакты на фото — получишь джекпот (один раз!). А еще за пыль мы скоро сможем открывать секретные архивы (генерировать картинки) и смотреть таблицу лидеров канала!' "
-    "4. ТЕМЫ: Космос, школа, порядок в комнате. "
-    "5. ЦЕНЗУРА (СТРОГО): Запрещено обсуждать секс, смерть, насилие, убийства, политику, страшные темы. Отвечай: 'Пилот, эти частоты заблокированы Академией!' "
-    "6. ФОРМАТ: Для обычных ответов — 3-4 предложения. Для ИНСТРУКЦИИ — можно длинно и подробно, по пунктам. В конце 'Прием' и вопрос. Затем '###MEM###' и новые факты или 'НЕТ'."
+    "Обращайся по имени [NAME]. Текущее звание: [RANK]. Время: [TIME]. [GREETING_RULE] "
+    "2. АТТЕСТАЦИЯ: ЧЕМ ВЫШЕ ЗВАНИЕ [RANK], ТЕМ СТРОЖЕ ОЦЕНИВАЙ! НИКОГДА не давай пыль просто за слова, требуй фото. "
+    "3. ИНСТРУКЦИЯ (ВАЖНО): Если пилот пишет 'инструкция', 'правила' или 'что такое пыль', отвечай подробно: "
+    "'Привет! Вот правила Академии:\n✨ Звездная пыль — это топливо для званий и паспортов!\n📸 Как получить: присылай фото уборки, уроков или поделок.\n🎁 Секреты: в выходные — метеоритный дождь (пыль умножается!), а за стабильные отправки фото каждый день — бонусы! Ищи секретные предметы для джекпота! Чтобы увидеть топ пилотов, напиши мне слово РАДАР.' "
+    "4. ТЕМЫ: Космос, школа, порядок. "
+    "5. ЦЕНЗУРА (СТРОГО): Запрещено обсуждать секс, смерть, насилие, политику. Отвечай: 'Частоты заблокированы!' "
+    "6. ФОРМАТ: 3-4 предложения (кроме инструкции). В конце 'Прием' и вопрос. Затем '###MEM###' и память."
 )
 
 app = Flask(__name__)
@@ -98,27 +97,22 @@ def get_marty_response(user_id, user_name, clean_text, user_rank):
     current_date = datetime.now().strftime("%Y-%m-%d")
     
     if daily_greetings.get(user_id) == current_date:
-        greeting_rule = "ВНИМАНИЕ: Вы уже общались сегодня. СРАЗУ отвечай на вопрос, НЕ ИСПОЛЬЗУЙ приветствия."
+        greeting_rule = "ВНИМАНИЕ: Вы уже общались сегодня. СРАЗУ отвечай на вопрос, БЕЗ приветствий."
     else:
-        greeting_rule = "Поприветствуй пилота, учитывая время суток."
+        greeting_rule = "Поприветствуй пилота."
         daily_greetings[user_id] = current_date
     
-    # Вшиваем звание в промпт
     current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule).replace("[RANK]", user_rank)
     
     for model_variant in MODEL_CASCADE:
         try:
-            print(f"📡 Запрос к: {model_variant}")
             response = client.models.generate_content(
                 model=model_variant,
                 contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}",
                 config=types.GenerateContentConfig(system_instruction=current_prompt)
             )
-            if response.text:
-                return response.text
-        except Exception as e:
-            if "429" in str(e): continue
-            print(f"❌ Ошибка {model_variant}: {e}")
+            if response.text: return response.text
+        except Exception: continue
     return None
 
 # --- ОБРАБОТЧИКИ ---
@@ -128,7 +122,7 @@ def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
     
     if not is_subscribed(user_id):
-        bot.reply_to(message, f"🐾 Гав! Извини, Пилот, но Космическая Академия — закрытый клуб! Сначала подпишись на наш канал {CHANNEL_USERNAME}, а потом возвращайся за звездной пылью!")
+        bot.reply_to(message, f"🐾 Гав! Извини, Пилот! Сначала подпишись на канал {CHANNEL_USERNAME}!")
         return
     
     bot.send_chat_action(message.chat.id, 'typing')
@@ -141,31 +135,50 @@ def handle_photo(message):
         old_xp = get_user_stats(user_id)
         old_rank = get_rank_name(old_xp)
 
-        # Модуль зрения теперь знает звание и судит соответственно!
-        anti_cheat_context = (f"Имя: {user_name}. Текущее звание: {old_rank}. Память: {user_memory}. Время: {time_info}. "
-                              f"Задание: Строго оцени фото с учетом звания ({old_rank}). Младшим званиям прощай мелкие недочеты, "
-                              "а старшим званиям выдавай 'звездную пыль' только за идеальный порядок или сложные решенные уроки! "
-                              "Если все отлично - похвали и дай 'звездную пыль'. Если плохо - укажи на ошибки.")
+        anti_cheat_context = (f"Имя: {user_name}. Звание: {old_rank}. Память: {user_memory}. "
+                              "Строго оцени фото. Старшим званиям пыль только за идеальный порядок!")
         
         analysis_result = analyze_image(downloaded_file, user_context=anti_cheat_context)
         
+        # --- ЛОГИКА НАГРАД (МЕТЕОРИТЫ, СТРИКИ, ДЖЕКПОТ) ---
         if "звездн" in analysis_result.lower() and "пыль" in analysis_result.lower():
-            add_xp(user_id, 1, user_name)
+            base_dust = 2 if is_meteor_shower() else 1
+            total_dust = base_dust
+            
+            # Уведомление о метеоритном дожде
+            if is_meteor_shower():
+                bot.send_message(message.chat.id, "☄️ ВНИМАНИЕ: Зафиксирован Метеоритный дождь! Награда удвоена (Х2)!")
+
+            # Стрики (Бонус за серию дней)
+            streak = check_and_update_streak(user_id)
+            if streak >= 3:
+                total_dust += 1
+                bot.send_message(message.chat.id, f"🔥 Серия миссий: {streak} дней подряд! Выдан бонус за стабильность!")
+            
+            # Секретный артефакт (Джекпот)
+            if "джекпот" in analysis_result.lower():
+                user_db_data = get_user_data(user_id)
+                if not user_db_data["jackpot_claimed"]:
+                    total_dust += 3 # Супер бонус
+                    set_jackpot_claimed(user_id)
+                    bot.send_message(message.chat.id, "🎰 СЕКРЕТНЫЙ АРТЕФАКТ НАЙДЕН! Выдан уникальный джекпот Академии!")
+            
+            # Не больше 4 пыли за раз (по твоему правилу)
+            total_dust = min(total_dust, 4)
+            add_xp(user_id, total_dust, user_name)
+        # --------------------------------------------------
             
         bot.reply_to(message, analysis_result)
-        update_personal_log(user_id, f"Пилот показал фото в {time_info[:5]}")
         
         new_xp = get_user_stats(user_id)
         new_rank = get_rank_name(new_xp)
         
         if old_rank != new_rank:
-            bot.send_message(message.chat.id, f"🎉 Внимание! Пилот {user_name} получает новое звание: {new_rank}!\nПечатаю официальное удостоверение...")
+            bot.send_message(message.chat.id, f"🎉 Пилот {user_name} получает звание: {new_rank}!\nПечатаю удостоверение...")
             passport_bytes = generate_passport(user_name, new_rank)
-            if passport_bytes:
-                bot.send_photo(message.chat.id, passport_bytes)
+            if passport_bytes: bot.send_photo(message.chat.id, passport_bytes)
                 
     except Exception as e:
-        print(f"Ошибка фото: {e}")
         bot.reply_to(message, "📡 Командор, помехи в видеоканале. Прием.")
 
 @bot.message_handler(func=lambda m: True)
@@ -174,27 +187,40 @@ def handle_text(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
     
     if not is_subscribed(user_id):
-        bot.reply_to(message, f"🐾 Гав! Извини, Пилот, но Космическая Академия — закрытый клуб! Сначала подпишись на наш канал {CHANNEL_USERNAME}, а потом возвращайся за звездной пылью!")
+        bot.reply_to(message, f"🐾 Гав! Сначала подпишись на канал {CHANNEL_USERNAME}!")
         return
 
     text_lower = message.text.lower()
+    clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
+
+    # --- РАДАР (ТАБЛИЦА ЛИДЕРОВ) ---
+    if clean_text.lower() in ['радар', 'рейтинг', 'топ']:
+        top_pilots = get_top_pilots(5)
+        if not top_pilots:
+            bot.reply_to(message, "📡 Радар пока пуст. Будь первым!")
+            return
+        
+        radar_msg = "🏆 **РАДАР АКАДЕМИИ: ТОП-5 ПИЛОТОВ** 🏆\n\n"
+        for i, (p_name, p_xp) in enumerate(top_pilots, 1):
+            radar_msg += f"{i}. {p_name} — {p_xp} 💫 ({get_rank_name(p_xp)})\n"
+        
+        bot.reply_to(message, radar_msg, parse_mode="Markdown")
+        return
+    # -------------------------------
+
     is_private = message.chat.type == 'private'
     is_called = text_lower.startswith('марти') or f"@{BOT_USERNAME}" in text_lower
 
     if is_private or is_called:
         bot.send_chat_action(message.chat.id, 'typing')
-        clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
         
-        # Получаем звание ДО запроса к Марти
         old_xp = get_user_stats(user_id)
         old_rank = get_rank_name(old_xp)
         
-        # Передаем звание в функцию
         full_response = get_marty_response(user_id, user_name, clean_text, old_rank)
         
         if not full_response:
-            bot.reply_to(message, "📡 Ищу информацию, подожди чуток... Прием.")
-            time.sleep(15)
+            time.sleep(5)
             full_response = get_marty_response(user_id, user_name, clean_text, old_rank)
 
         if full_response:
@@ -207,22 +233,18 @@ def handle_text(message):
             if "###MEM###" in full_response:
                 user_text, mem_data = full_response.split("###MEM###")
                 bot.reply_to(message, user_text.strip())
-                if "НЕТ" not in mem_data.upper() and len(mem_data.strip()) > 2:
-                    update_personal_log(user_id, mem_data.strip())
             else:
                 bot.reply_to(message, full_response.strip())
 
             if old_rank != new_rank:
-                bot.send_message(message.chat.id, f"🎉 Внимание! Пилот {user_name} получает новое звание: {new_rank}!\nПечатаю официальное удостоверение...")
+                bot.send_message(message.chat.id, f"🎉 Пилот {user_name} получает звание: {new_rank}!\nПечатаю удостоверение...")
                 passport_bytes = generate_passport(user_name, new_rank)
-                if passport_bytes:
-                    bot.send_photo(message.chat.id, passport_bytes)
-
+                if passport_bytes: bot.send_photo(message.chat.id, passport_bytes)
         else:
             bot.reply_to(message, "⏳ Командор, тишина в эфире. Прием.")
 
 def start_marty_autonomous():
-    print("🚀 Марти: Система 'Стабильная Орбита 3.0' запущена.")
+    print("🚀 Марти: Система 'Геймификация' запущена.")
     while True:
         try:
             bot.remove_webhook()
