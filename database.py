@@ -2,6 +2,7 @@ import psycopg2
 import os
 from datetime import datetime, timedelta
 
+# --- КОНФИГУРАЦИЯ ---
 DB_URL = os.getenv('DATABASE_URL')
 
 def get_connection():
@@ -12,10 +13,12 @@ def get_connection():
         return None
 
 def init_db():
+    """Инициализация таблиц и добавление новых колонок геймификации"""
     conn = get_connection()
     if not conn: return
     try:
         cursor = conn.cursor()
+        # Создание основной таблицы, если она не существует
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -25,14 +28,15 @@ def init_db():
             )
         ''')
         
-        # БЕЗОПАСНОЕ ОБНОВЛЕНИЕ БАЗЫ: Добавляем новые колонки для геймификации
+        # Список новых колонок для системы Академии Орион 2.0
         new_columns = [
-            ("spendable_dust", "INTEGER DEFAULT 0"), # Кошелек для покупок
-            ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"), # Получен ли джекпот
-            ("streak_days", "INTEGER DEFAULT 0"), # Серия дней подряд
-            ("last_active_date", "TEXT DEFAULT ''") # Дата последней активности
+            ("spendable_dust", "INTEGER DEFAULT 0"),   # Кошелек (валюта)
+            ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"), # Флаг джекпота
+            ("streak_days", "INTEGER DEFAULT 0"),      # Серия дней (стрик)
+            ("last_active_date", "TEXT DEFAULT ''")    # Дата последней активности
         ]
         
+        # Безопасное добавление колонок через проверку существования
         for col_name, col_type in new_columns:
             cursor.execute(f'''
                 DO $$ 
@@ -45,7 +49,7 @@ def init_db():
             ''')
         
         conn.commit()
-        print("📡 [СИСТЕМА] База Supabase готова: новые модули Академии загружены.")
+        print("📡 [СИСТЕМА] База данных Академии Орион полностью синхронизирована.")
     except Exception as e:
         print(f"❌ Ошибка инициализации: {e}")
     finally:
@@ -53,11 +57,11 @@ def init_db():
         conn.close()
 
 def add_xp(user_id, amount, username="Пилот"):
+    """Начисляет опыт (ранг) и звездную пыль (кошелек) одновременно"""
     conn = get_connection()
     if not conn: return
     try:
         cursor = conn.cursor()
-        # Пыль добавляется И в общий стаж (xp), И в кошелек (spendable_dust)
         cursor.execute('''
             INSERT INTO users (user_id, username, xp, spendable_dust) 
             VALUES (%s, %s, %s, %s)
@@ -75,6 +79,7 @@ def add_xp(user_id, amount, username="Пилот"):
         conn.close()
 
 def get_user_stats(user_id):
+    """Возвращает текущий XP пользователя"""
     conn = get_connection()
     if not conn: return 0
     try:
@@ -86,10 +91,8 @@ def get_user_stats(user_id):
         cursor.close()
         conn.close()
 
-# === НОВЫЕ ФУНКЦИИ ДЛЯ АКАДЕМИИ ===
-
 def get_user_data(user_id):
-    """Получает полные данные пилота (для магазина и джекпота)"""
+    """Получает полный пакет данных пилота для логики бота"""
     conn = get_connection()
     if not conn: return {"xp": 0, "spendable_dust": 0, "jackpot_claimed": False, "streak_days": 0}
     try:
@@ -97,14 +100,19 @@ def get_user_data(user_id):
         cursor.execute('SELECT xp, spendable_dust, jackpot_claimed, streak_days FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
         if res:
-            return {"xp": res[0], "spendable_dust": res[1], "jackpot_claimed": res[2], "streak_days": res[3]}
+            return {
+                "xp": res[0], 
+                "spendable_dust": res[1], 
+                "jackpot_claimed": res[2], 
+                "streak_days": res[3]
+            }
         return {"xp": 0, "spendable_dust": 0, "jackpot_claimed": False, "streak_days": 0}
     finally:
         cursor.close()
         conn.close()
 
 def set_jackpot_claimed(user_id):
-    """Отмечает, что джекпот сорван (чтобы не дать второй раз)"""
+    """Блокирует повторное получение джекпота"""
     conn = get_connection()
     if not conn: return
     try:
@@ -116,12 +124,16 @@ def set_jackpot_claimed(user_id):
         conn.close()
 
 def spend_dust(user_id, amount):
-    """Списывает пыль ИЗ КОШЕЛЬКА (общий опыт XP не теряется!)"""
+    """Списывает пыль только из кошелька (ранг не меняется)"""
     conn = get_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
-        cursor.execute('UPDATE users SET spendable_dust = spendable_dust - %s WHERE user_id = %s AND spendable_dust >= %s', (amount, user_id, amount))
+        cursor.execute('''
+            UPDATE users 
+            SET spendable_dust = spendable_dust - %s 
+            WHERE user_id = %s AND spendable_dust >= %s
+        ''', (amount, user_id, amount))
         if cursor.rowcount > 0:
             conn.commit()
             return True
@@ -131,7 +143,7 @@ def spend_dust(user_id, amount):
         conn.close()
 
 def check_and_update_streak(user_id):
-    """Проверяет, заходил ли пилот вчера. Возвращает текущую серию дней."""
+    """Обрабатывает серию ежедневных посещений"""
     conn = get_connection()
     if not conn: return 0
     try:
@@ -140,22 +152,16 @@ def check_and_update_streak(user_id):
         cursor.execute('SELECT last_active_date, streak_days FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
         
-        if not res:
-            return 0
+        if not res: return 0
             
         last_date, streak = res
-        
-        if last_date == current_date:
-            return streak # Сегодня уже давали фото, стрик не меняем
+        if last_date == current_date: return streak
             
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        
-        if last_date == yesterday:
-            new_streak = streak + 1 # Молодец, не пропустил день!
-        else:
-            new_streak = 1 # Пропустил день, серия прервалась :(
+        new_streak = streak + 1 if last_date == yesterday else 1
             
-        cursor.execute('UPDATE users SET last_active_date = %s, streak_days = %s WHERE user_id = %s', (current_date, new_streak, user_id))
+        cursor.execute('UPDATE users SET last_active_date = %s, streak_days = %s WHERE user_id = %s', 
+                       (current_date, new_streak, user_id))
         conn.commit()
         return new_streak
     finally:
@@ -163,7 +169,7 @@ def check_and_update_streak(user_id):
         conn.close()
 
 def get_top_pilots(limit=5):
-    """Радар: Возвращает топ пилотов по опыту"""
+    """Данные для команды Радар"""
     conn = get_connection()
     if not conn: return []
     try:
@@ -174,8 +180,8 @@ def get_top_pilots(limit=5):
         cursor.close()
         conn.close()
 
-# === СТАРЫЕ ФУНКЦИИ ЛОГА И РАНГОВ ===
 def update_personal_log(user_id, new_info):
+    """Запись воспоминаний в память Марти"""
     conn = get_connection()
     if not conn: return
     try:
@@ -207,6 +213,7 @@ def get_personal_log(user_id):
         cursor.close()
         conn.close()
 
+# 🏆 ХАРДКОРНАЯ ШКАЛА РАНГОВ АКАДЕМИИ ОРИОН
 def get_rank_name(xp):
     if xp < 15: return "Космический Кадет 🚀"
     if xp < 40: return "Навигатор Орбиты 🛰"
