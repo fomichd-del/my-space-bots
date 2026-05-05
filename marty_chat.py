@@ -63,16 +63,17 @@ def is_subscribed(user_id):
         print(f"⚠️ Ошибка проверки подписки: {e}")
         return True 
 
-# 🟢 ЯДРО ЛИЧНОСТИ (ОБНОВЛЕНО С АНТИЧИТОМ И ЦЕНЗУРОЙ)
+# 🟢 ЯДРО ЛИЧНОСТИ (ОБНОВЛЕНО: ДИНАМИЧЕСКАЯ СЛОЖНОСТЬ)
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ-наставник для пилотов. "
     "1. ЛИЧНОСТЬ: Ты мудрый, добрый, иногда говоришь 'Гав!'. "
-    "Обращайся по имени [NAME]. Время суток: [TIME]. [GREETING_RULE] "
-    "2. 10 ЗВАНИЙ АКАДЕМИИ: Начисляй 'звездную пыль' за успехи. "
-    "ВАЖНО (АНТИЧИТ): НИКОГДА не давай 'звездную пыль' за слова 'я убрал комнату', 'я сделал уроки', 'я поел'. "
-    "Требуй ФОТО-доказательство: 'Прикрепи фото для сканирования бортовыми системами!'. Выдавай пыль только если проверил картинку. "
+    "Обращайся по имени [NAME]. Текущее звание пилота: [RANK]. Время суток: [TIME]. [GREETING_RULE] "
+    "2. АТТЕСТАЦИЯ И СЛОЖНОСТЬ: Начисляй 'звездную пыль' за успехи. "
+    "ЧЕМ ВЫШЕ ЗВАНИЕ [RANK], ТЕМ СТРОЖЕ ОЦЕНИВАЙ! Кадету дай пыль за заправленную постель, а старшим званиям (от Капитана) — только за отличные оценки, генеральную уборку или сложную поделку. "
+    "ВАЖНО (АНТИЧИТ): НИКОГДА не давай 'звездную пыль' просто за слова. "
+    "Требуй ФОТО-доказательство: 'Прикрепи фото для сканирования бортовыми системами!'. Выдавай пыль только после проверки фото. "
     "3. ТЕМЫ: Космос, школа, порядок в комнате, помощь семье. "
-    "4. ЦЕНЗУРА (СТРОГО!): Запрещено обсуждать секс, смерть, насилие, убийства, политику, зло. "
+    "4. ЦЕНЗУРА (СТРОГО): Запрещено обсуждать секс, смерть, насилие, убийства, политику, зло. "
     "Если пилот пишет об этом, отвечай: 'Пилот, эти частоты заблокированы Академией! Давай лучше поговорим о космосе.' "
     "5. КОДЫ: 'ПОЕХАЛИ!' — факт о космосе. 'КОСТОЧКА' — шутка. "
     "6. ФОРМАТ: СТРОГО 3-4 предложения. Без звездочек. В конце 'Прием' и вопрос. "
@@ -89,7 +90,7 @@ def run_flask():
         app.run(host='0.0.0.0', port=port)
     except: pass
 
-def get_marty_response(user_id, user_name, clean_text):
+def get_marty_response(user_id, user_name, clean_text, user_rank):
     user_memory = get_personal_log(user_id)
     time_info = get_time_context()
     current_date = datetime.now().strftime("%Y-%m-%d")
@@ -100,7 +101,8 @@ def get_marty_response(user_id, user_name, clean_text):
         greeting_rule = "Поприветствуй пилота, учитывая время суток."
         daily_greetings[user_id] = current_date
     
-    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule)
+    # Вшиваем звание в промпт
+    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule).replace("[RANK]", user_rank)
     
     for model_variant in MODEL_CASCADE:
         try:
@@ -134,27 +136,26 @@ def handle_photo(message):
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        # Запоминаем статусы ПЕРЕД анализом
         old_xp = get_user_stats(user_id)
         old_rank = get_rank_name(old_xp)
 
-        # Добавляем инструкцию для модуля зрения: проверять уроки/уборку и давать пыль, если всё ок
-        anti_cheat_context = f"Имя: {user_name}. Память: {user_memory}. Время: {time_info}. Задание: Строго оцени фото. Если это чистая комната, решенные уроки или хорошая поделка - похвали и дай 'звездную пыль'. Если есть ошибки или грязно - укажи на это и пыль пока не давай."
+        # Модуль зрения теперь знает звание и судит соответственно!
+        anti_cheat_context = (f"Имя: {user_name}. Текущее звание: {old_rank}. Память: {user_memory}. Время: {time_info}. "
+                              f"Задание: Строго оцени фото с учетом звания ({old_rank}). Младшим званиям прощай мелкие недочеты, "
+                              "а старшим званиям выдавай 'звездную пыль' только за идеальный порядок или сложные решенные уроки! "
+                              "Если все отлично - похвали и дай 'звездную пыль'. Если плохо - укажи на ошибки.")
         
         analysis_result = analyze_image(downloaded_file, user_context=anti_cheat_context)
         
-        # Начисляем опыт, если зрение подтвердило и дало пыль
         if "звездн" in analysis_result.lower() and "пыль" in analysis_result.lower():
             add_xp(user_id, 1, user_name)
             
         bot.reply_to(message, analysis_result)
         update_personal_log(user_id, f"Пилот показал фото в {time_info[:5]}")
         
-        # Проверяем звание ПОСЛЕ получения фото
         new_xp = get_user_stats(user_id)
         new_rank = get_rank_name(new_xp)
         
-        # Выдаем паспорт, если ранг вырос!
         if old_rank != new_rank:
             bot.send_message(message.chat.id, f"🎉 Внимание! Пилот {user_name} получает новое звание: {new_rank}!\nПечатаю официальное удостоверение...")
             passport_bytes = generate_passport(user_name, new_rank)
@@ -182,17 +183,19 @@ def handle_text(message):
         bot.send_chat_action(message.chat.id, 'typing')
         clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
         
-        full_response = get_marty_response(user_id, user_name, clean_text)
+        # Получаем звание ДО запроса к Марти
+        old_xp = get_user_stats(user_id)
+        old_rank = get_rank_name(old_xp)
+        
+        # Передаем звание в функцию
+        full_response = get_marty_response(user_id, user_name, clean_text, old_rank)
         
         if not full_response:
             bot.reply_to(message, "📡 Ищу информацию, подожди чуток... Прием.")
             time.sleep(15)
-            full_response = get_marty_response(user_id, user_name, clean_text)
+            full_response = get_marty_response(user_id, user_name, clean_text, old_rank)
 
         if full_response:
-            old_xp = get_user_stats(user_id)
-            old_rank = get_rank_name(old_xp)
-
             if "звездн" in full_response.lower() and "пыль" in full_response.lower():
                 add_xp(user_id, 1, user_name)
 
@@ -217,7 +220,7 @@ def handle_text(message):
             bot.reply_to(message, "⏳ Командор, тишина в эфире. Прием.")
 
 def start_marty_autonomous():
-    print("🚀 Марти: Система 'Стабильная Орбита 2.0' запущена.")
+    print("🚀 Марти: Система 'Стабильная Орбита 3.0' запущена.")
     while True:
         try:
             bot.remove_webhook()
