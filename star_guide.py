@@ -10,6 +10,7 @@ from base_fact_star import CONSTELLATIONS
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHANNEL_NAME   = '@vladislav_space' 
 BOT_USERNAME   = 'MartyAstrobot' 
+LOG_CHAT_ID = "-1003756164148"
 
 GITHUB_USER = "fomichd-del" 
 REPO_NAME   = "my-space-bots"
