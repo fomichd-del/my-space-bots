@@ -2,6 +2,7 @@ import os
 import telebot
 import time
 import re
+import urllib.parse
 from datetime import datetime, timedelta
 from threading import Thread
 from flask import Flask
@@ -75,7 +76,7 @@ SYSTEM_PROMPT = (
     "Обращайся по имени [NAME]. Текущее звание: [RANK]. Время: [TIME]. [GREETING_RULE] "
     "2. АТТЕСТАЦИЯ: ЧЕМ ВЫШЕ ЗВАНИЕ [RANK], ТЕМ СТРОЖЕ ОЦЕНИВАЙ! НИКОГДА не давай пыль просто за слова, требуй фото. "
     "3. ИНСТРУКЦИЯ (ВАЖНО): Если пилот пишет 'инструкция', 'правила' или 'что такое пыль', отвечай подробно: "
-    "'Привет! Вот правила Академии:\n✨ Звездная пыль — это топливо для званий и паспортов!\n📸 Как получить: присылай фото уборки, уроков или поделок.\n🎁 Секреты: в выходные — метеоритный дождь (пыль умножается!), а за стабильные отправки фото каждый день — бонусы! Ищи секретные предметы для джекпота! Чтобы увидеть топ пилотов, напиши мне слово РАДАР.' "
+    "'Привет! Вот правила Академии:\n✨ Звездная пыль — это топливо для званий и паспортов!\n📸 Как получить: присылай фото уборки, уроков или поделок.\n🎁 Секреты: в выходные — метеоритный дождь (пыль умножается!), а за стабильные отправки фото каждый день — бонусы! Ищи секретные предметы для джекпота! \n🏆 Напиши РАДАР, чтобы увидеть топ.\n🎨 Напиши НАРИСУЙ [идея], чтобы открыть Секретный Архив (стоит 5 пыли!).' "
     "4. ТЕМЫ: Космос, школа, порядок. "
     "5. ЦЕНЗУРА (СТРОГО): Запрещено обсуждать секс, смерть, насилие, политику. Отвечай: 'Частоты заблокированы!' "
     "6. ФОРМАТ: 3-4 предложения (кроме инструкции). В конце 'Прием' и вопрос. Затем '###MEM###' и память."
@@ -140,33 +141,27 @@ def handle_photo(message):
         
         analysis_result = analyze_image(downloaded_file, user_context=anti_cheat_context)
         
-        # --- ЛОГИКА НАГРАД (МЕТЕОРИТЫ, СТРИКИ, ДЖЕКПОТ) ---
         if "звездн" in analysis_result.lower() and "пыль" in analysis_result.lower():
             base_dust = 2 if is_meteor_shower() else 1
             total_dust = base_dust
             
-            # Уведомление о метеоритном дожде
             if is_meteor_shower():
                 bot.send_message(message.chat.id, "☄️ ВНИМАНИЕ: Зафиксирован Метеоритный дождь! Награда удвоена (Х2)!")
 
-            # Стрики (Бонус за серию дней)
             streak = check_and_update_streak(user_id)
             if streak >= 3:
                 total_dust += 1
-                bot.send_message(message.chat.id, f"🔥 Серия миссий: {streak} дней подряд! Выдан бонус за стабильность!")
+                bot.send_message(message.chat.id, f"🔥 Серия миссий: {streak} дней подряд! Выдан бонус!")
             
-            # Секретный артефакт (Джекпот)
             if "джекпот" in analysis_result.lower():
                 user_db_data = get_user_data(user_id)
                 if not user_db_data["jackpot_claimed"]:
-                    total_dust += 3 # Супер бонус
+                    total_dust += 3 
                     set_jackpot_claimed(user_id)
-                    bot.send_message(message.chat.id, "🎰 СЕКРЕТНЫЙ АРТЕФАКТ НАЙДЕН! Выдан уникальный джекпот Академии!")
+                    bot.send_message(message.chat.id, "🎰 СЕКРЕТНЫЙ АРТЕФАКТ НАЙДЕН! Выдан джекпот Академии!")
             
-            # Не больше 4 пыли за раз (по твоему правилу)
             total_dust = min(total_dust, 4)
             add_xp(user_id, total_dust, user_name)
-        # --------------------------------------------------
             
         bot.reply_to(message, analysis_result)
         
@@ -191,29 +186,72 @@ def handle_text(message):
         return
 
     text_lower = message.text.lower()
-    clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
-
-    # --- РАДАР (ТАБЛИЦА ЛИДЕРОВ) ---
-    if clean_text.lower() in ['радар', 'рейтинг', 'топ']:
-        top_pilots = get_top_pilots(5)
-        if not top_pilots:
-            bot.reply_to(message, "📡 Радар пока пуст. Будь первым!")
-            return
-        
-        radar_msg = "🏆 **РАДАР АКАДЕМИИ: ТОП-5 ПИЛОТОВ** 🏆\n\n"
-        for i, (p_name, p_xp) in enumerate(top_pilots, 1):
-            radar_msg += f"{i}. {p_name} — {p_xp} 💫 ({get_rank_name(p_xp)})\n"
-        
-        bot.reply_to(message, radar_msg, parse_mode="Markdown")
-        return
-    # -------------------------------
-
     is_private = message.chat.type == 'private'
     is_called = text_lower.startswith('марти') or f"@{BOT_USERNAME}" in text_lower
 
     if is_private or is_called:
         bot.send_chat_action(message.chat.id, 'typing')
-        
+        clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
+        clean_lower = clean_text.lower()
+
+        # --- РАДАР (ТАБЛИЦА ЛИДЕРОВ) ---
+        if clean_lower in ['радар', 'рейтинг', 'топ']:
+            top_pilots = get_top_pilots(5)
+            if not top_pilots:
+                bot.reply_to(message, "📡 Радар пока пуст. Будь первым!")
+                return
+            
+            radar_msg = "🏆 **РАДАР АКАДЕМИИ: ТОП-5 ПИЛОТОВ** 🏆\n\n"
+            for i, (p_name, p_xp) in enumerate(top_pilots, 1):
+                radar_msg += f"{i}. {p_name} — {p_xp} 💫 ({get_rank_name(p_xp)})\n"
+            
+            bot.reply_to(message, radar_msg, parse_mode="Markdown")
+            return
+        # -------------------------------
+
+        # --- МАГАЗИН КАРТИНОК (СЕКРЕТНЫЙ АРХИВ) ---
+        if any(word in clean_lower for word in ['нарисуй', 'сгенерируй', 'картинк', 'архив']):
+            user_data = get_user_data(user_id)
+            if user_data['spendable_dust'] < 5:
+                bot.reply_to(message, f"🐾 Гав! Доступ в Архив стоит 5 пыли, а в твоем кошельке сейчас {user_data['spendable_dust']}. Выполни еще пару миссий! Прием.")
+                return
+            
+            bot.send_chat_action(message.chat.id, 'upload_photo')
+            bot.reply_to(message, "⏳ Сканирую архивы... Подготовка к генерации!")
+            
+            # Таможня: Проверка цензуры и перевод
+            censor_prompt = ("Ты цензор Академии. Проверь запрос на генерацию картинки. "
+                             "Если там насилие, смерть, секс, политика или монстры - верни ровно одно слово: CENSORED. "
+                             "Если запрос безопасен, переведи его на английский язык, добавь 'masterpiece, highly detailed, kid-friendly' и верни ТОЛЬКО этот английский текст.")
+            try:
+                censor_resp = client.models.generate_content(
+                    model='gemini-2.0-flash', # Быстрая модель для перевода
+                    contents=clean_text,
+                    config=types.GenerateContentConfig(system_instruction=censor_prompt)
+                )
+                english_prompt = censor_resp.text.strip()
+            except Exception as e:
+                bot.reply_to(message, "📡 Помехи на линии связи с Архивом. Попробуй позже!")
+                return
+            
+            if "CENSORED" in english_prompt.upper():
+                bot.reply_to(message, "🚨 Запрос заблокирован! Устав Академии запрещает такие изображения. Пыль сохранена.")
+                return
+            
+            # Списываем пыль и выдаем картинку
+            if spend_dust(user_id, 5):
+                # Добавляем seed для уникальности (чтобы картинки не повторялись)
+                safe_url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(english_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
+                try:
+                    bot.send_photo(message.chat.id, safe_url, caption="🎨 Секретный архив открыт!\n💳 Успешно списано 5 звездной пыли.")
+                except Exception as e:
+                    bot.reply_to(message, f"📡 Ошибка печати. Попробуй еще раз! (Ссылка: {safe_url})")
+            else:
+                bot.reply_to(message, "📡 Сбой транзакции. Пыль не списана.")
+            return
+        # ------------------------------------------
+
+        # --- ОБЫЧНОЕ ОБЩЕНИЕ МАРТИ ---
         old_xp = get_user_stats(user_id)
         old_rank = get_rank_name(old_xp)
         
@@ -244,7 +282,7 @@ def handle_text(message):
             bot.reply_to(message, "⏳ Командор, тишина в эфире. Прием.")
 
 def start_marty_autonomous():
-    print("🚀 Марти: Система 'Геймификация' запущена.")
+    print("🚀 Марти: Система 'Магазин Картинок' запущена.")
     while True:
         try:
             bot.remove_webhook()
