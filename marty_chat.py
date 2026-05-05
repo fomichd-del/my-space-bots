@@ -25,6 +25,7 @@ CHANNEL_USERNAME = "@vladislav_space" # Название твоего канал
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
 
+# Оперативная память для приветствий
 daily_greetings = {} 
 
 MODEL_CASCADE = [
@@ -45,16 +46,11 @@ def get_time_context():
     hour = now.hour
     time_str = now.strftime("%H:%M")
     
-    if 0 <= hour < 5:
-        return f"{time_str} (Глубокая ночь. Пора спать)"
-    elif 5 <= hour < 11:
-        return f"{time_str} (Утро. Время подготовки)"
-    elif 11 <= hour < 17:
-        return f"{time_str} (День. Время для школы)"
-    elif 17 <= hour < 23:
-        return f"{time_str} (Вечер. Время отдыха)"
-    else:
-        return f"{time_str} (Ночь. Пора спать)"
+    if 0 <= hour < 5: return f"{time_str} (Глубокая ночь. Пора спать)"
+    elif 5 <= hour < 11: return f"{time_str} (Утро. Время подготовки)"
+    elif 11 <= hour < 17: return f"{time_str} (День. Время для школы)"
+    elif 17 <= hour < 23: return f"{time_str} (Вечер. Время отдыха)"
+    else: return f"{time_str} (Ночь. Пора спать)"
 
 def is_subscribed(user_id):
     try:
@@ -66,20 +62,46 @@ def is_subscribed(user_id):
         return True 
 
 def is_meteor_shower():
-    # 5 - Суббота, 6 - Воскресенье
     return datetime.now().weekday() >= 5
+
+# 🟢 ПРОВЕРКА НА НОВИЧКА
+def is_very_first_time(user_id):
+    user_data = get_user_data(user_id)
+    user_memory = get_personal_log(user_id)
+    # Если 0 опыта и пустой лог — это точно первый запуск
+    if user_data['xp'] == 0 and "Данных пока нет" in user_memory:
+        return True
+    return False
+
+# 🟢 ПОЛНАЯ ИНСТРУКЦИЯ (ВЫДАЕТСЯ ОДИН РАЗ ИЛИ ПО КОМАНДЕ)
+def send_welcome_instruction(chat_id, user_id, user_name):
+    intro_text = (
+        f"🐾 Гав! Привет, {user_name}! Я Марти — ученый пес и твой бортовой наставник.\n\n"
+        "Моя миссия — помогать тебе учиться, поддерживать порядок и исследовать космос! 🚀\n\n"
+        "📜 **ПРАВИЛА АКАДЕМИИ:**\n"
+        "✨ **Звездная пыль** — наша главная валюта. Собирай ее, чтобы получать новые звания (от Кадета до Академика) и настоящие космические паспорта!\n\n"
+        "📸 **Как получить пыль?** Присылай мне ФОТО-доказательства своих успехов: убранная комната, сделанные уроки, красивые поделки или помощь родителям.\n\n"
+        "🎁 **Секретные бонусы:**\n"
+        "• В выходные — Метеоритный дождь (награда х2!).\n"
+        "• За присылку фото несколько дней подряд — бонусы!\n"
+        "• Если найдешь секретные артефакты на фото — получишь джекпот.\n\n"
+        "🏆 Напиши слово **РАДАР**, чтобы увидеть топ пилотов.\n"
+        "🎨 Напиши **НАРИСУЙ [идея]**, чтобы открыть Секретный Архив и сгенерировать любую картинку (стоит 5 пыли!).\n\n"
+        "Готов? Тогда пришли мне фото своей чистой комнаты или решенных уроков прямо сейчас! Прием!"
+    )
+    bot.send_message(chat_id, intro_text)
+    # Записываем в лог, чтобы бот запомнил пилота и больше не считал его новичком
+    update_personal_log(user_id, "Пилот успешно прошел первичный инструктаж и зачислен в Академию.")
 
 # 🟢 ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
-    "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ-наставник для пилотов. "
-    "1. ЛИЧНОСТЬ: Ты мудрый, добрый, иногда говоришь 'Гав!'. "
-    "Обращайся по имени [NAME]. Текущее звание: [RANK]. Время: [TIME]. [GREETING_RULE] "
-    "2. АТТЕСТАЦИЯ: ЧЕМ ВЫШЕ ЗВАНИЕ [RANK], ТЕМ СТРОЖЕ ОЦЕНИВАЙ! НИКОГДА не давай пыль просто за слова, требуй фото. "
-    "3. ИНСТРУКЦИЯ (ВАЖНО): Если пилот пишет 'инструкция', 'правила' или 'что такое пыль', отвечай подробно: "
-    "'Привет! Вот правила Академии:\n✨ Звездная пыль — это топливо для званий и паспортов!\n📸 Как получить: присылай фото уборки, уроков или поделок.\n🎁 Секреты: в выходные — метеоритный дождь (пыль умножается!), а за стабильные отправки фото каждый день — бонусы! Ищи секретные предметы для джекпота! \n🏆 Напиши РАДАР, чтобы увидеть топ.\n🎨 Напиши НАРИСУЙ [идея], чтобы открыть Секретный Архив (стоит 5 пыли!).' "
-    "4. ТЕМЫ: Космос, школа, порядок. "
-    "5. ЦЕНЗУРА (СТРОГО): Запрещено обсуждать секс, смерть, насилие, политику. Отвечай: 'Частоты заблокированы!' "
-    "6. ФОРМАТ: 3-4 предложения (кроме инструкции). В конце 'Прием' и вопрос. Затем '###MEM###' и память."
+    "Ты — Марти, ученый пес (той-пудель) и бортовой наставник. "
+    "1. ЛИЧНОСТЬ: Мудрый, добрый. Имя пилота: [NAME]. Звание: [RANK]. Время: [TIME]. "
+    "2. АТТЕСТАЦИЯ: ЧЕМ ВЫШЕ ЗВАНИЕ, ТЕМ СТРОЖЕ! Пыль давай ТОЛЬКО за фото. "
+    "3. ЦЕНЗУРА (СТРОГО): Запрет на секс, смерть, насилие, политику. "
+    "[GREETING_RULE] "
+    "4. ИНСТРУКЦИЯ: Если пилот спрашивает правила, кратко напомни про фото, Радар и команду 'Нарисуй' (стоит 5 пыли). "
+    "5. ФОРМАТ: 3-4 предложения. В конце 'Прием' и вопрос. Затем '###MEM###' и память."
 )
 
 app = Flask(__name__)
@@ -97,10 +119,11 @@ def get_marty_response(user_id, user_name, clean_text, user_rank):
     time_info = get_time_context()
     current_date = datetime.now().strftime("%Y-%m-%d")
     
+    # ЖЕСТКИЙ БЛОК ПРИВЕТСТВИЙ
     if daily_greetings.get(user_id) == current_date:
-        greeting_rule = "ВНИМАНИЕ: Вы уже общались сегодня. СРАЗУ отвечай на вопрос, БЕЗ приветствий."
+        greeting_rule = "\n!!! КРИТИЧЕСКОЕ ПРАВИЛО: Вы УЖЕ здоровались сегодня. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать слова 'Привет', 'Здравствуй', 'Гав, пилот' и любые другие приветствия. НАЧИНАЙ ОТВЕТ СРАЗУ ПО СУТИ ВОПРОСА! !!!\n"
     else:
-        greeting_rule = "Поприветствуй пилота."
+        greeting_rule = "\nПРАВИЛО: Это первое сообщение за день. ОБЯЗАТЕЛЬНО поздоровайся с пилотом (например: 'Гав! Привет, [NAME]!').\n"
         daily_greetings[user_id] = current_date
     
     current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule).replace("[RANK]", user_rank)
@@ -118,12 +141,25 @@ def get_marty_response(user_id, user_name, clean_text, user_rank):
 
 # --- ОБРАБОТЧИКИ ---
 
+@bot.message_handler(commands=['start', 'help'])
+def handle_start(message):
+    user_id, user_name = message.from_user.id, message.from_user.first_name
+    if not is_subscribed(user_id):
+        bot.reply_to(message, f"🐾 Гав! Сначала подпишись на канал {CHANNEL_USERNAME}!")
+        return
+    send_welcome_instruction(message.chat.id, user_id, user_name)
+
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
     
     if not is_subscribed(user_id):
         bot.reply_to(message, f"🐾 Гав! Извини, Пилот! Сначала подпишись на канал {CHANNEL_USERNAME}!")
+        return
+
+    # Проверка на новичка перед фото
+    if is_very_first_time(user_id):
+        send_welcome_instruction(message.chat.id, user_id, user_name)
         return
     
     bot.send_chat_action(message.chat.id, 'typing')
@@ -185,6 +221,11 @@ def handle_text(message):
         bot.reply_to(message, f"🐾 Гав! Сначала подпишись на канал {CHANNEL_USERNAME}!")
         return
 
+    # Проверка на новичка перед любым текстом
+    if is_very_first_time(user_id):
+        send_welcome_instruction(message.chat.id, user_id, user_name)
+        return
+
     text_lower = message.text.lower()
     is_private = message.chat.type == 'private'
     is_called = text_lower.startswith('марти') or f"@{BOT_USERNAME}" in text_lower
@@ -194,7 +235,7 @@ def handle_text(message):
         clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
         clean_lower = clean_text.lower()
 
-        # --- РАДАР (ТАБЛИЦА ЛИДЕРОВ) ---
+        # --- РАДАР ---
         if clean_lower in ['радар', 'рейтинг', 'топ']:
             top_pilots = get_top_pilots(5)
             if not top_pilots:
@@ -207,9 +248,8 @@ def handle_text(message):
             
             bot.reply_to(message, radar_msg, parse_mode="Markdown")
             return
-        # -------------------------------
 
-        # --- МАГАЗИН КАРТИНОК (СЕКРЕТНЫЙ АРХИВ) ---
+        # --- МАГАЗИН КАРТИНОК ---
         if any(word in clean_lower for word in ['нарисуй', 'сгенерируй', 'картинк', 'архив']):
             user_data = get_user_data(user_id)
             if user_data['spendable_dust'] < 5:
@@ -219,13 +259,12 @@ def handle_text(message):
             bot.send_chat_action(message.chat.id, 'upload_photo')
             bot.reply_to(message, "⏳ Сканирую архивы... Подготовка к генерации!")
             
-            # Таможня: Проверка цензуры и перевод
             censor_prompt = ("Ты цензор Академии. Проверь запрос на генерацию картинки. "
                              "Если там насилие, смерть, секс, политика или монстры - верни ровно одно слово: CENSORED. "
                              "Если запрос безопасен, переведи его на английский язык, добавь 'masterpiece, highly detailed, kid-friendly' и верни ТОЛЬКО этот английский текст.")
             try:
                 censor_resp = client.models.generate_content(
-                    model='gemini-2.0-flash', # Быстрая модель для перевода
+                    model='gemini-2.0-flash',
                     contents=clean_text,
                     config=types.GenerateContentConfig(system_instruction=censor_prompt)
                 )
@@ -238,9 +277,7 @@ def handle_text(message):
                 bot.reply_to(message, "🚨 Запрос заблокирован! Устав Академии запрещает такие изображения. Пыль сохранена.")
                 return
             
-            # Списываем пыль и выдаем картинку
             if spend_dust(user_id, 5):
-                # Добавляем seed для уникальности (чтобы картинки не повторялись)
                 safe_url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(english_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
                 try:
                     bot.send_photo(message.chat.id, safe_url, caption="🎨 Секретный архив открыт!\n💳 Успешно списано 5 звездной пыли.")
@@ -249,7 +286,6 @@ def handle_text(message):
             else:
                 bot.reply_to(message, "📡 Сбой транзакции. Пыль не списана.")
             return
-        # ------------------------------------------
 
         # --- ОБЫЧНОЕ ОБЩЕНИЕ МАРТИ ---
         old_xp = get_user_stats(user_id)
