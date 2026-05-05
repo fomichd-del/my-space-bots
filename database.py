@@ -1,6 +1,18 @@
 import psycopg2
 import os
+import telebot
 from datetime import datetime, timedelta
+
+# --- КОНФИГУРАЦИЯ ЛОГОВ ---
+TOKEN = os.getenv('MARTY_BOT_TOKEN')
+bot_log = telebot.TeleBot(TOKEN)
+LOG_CHAT_ID = "-1003756164148"
+
+def send_log(error_text):
+    try:
+        bot_log.send_message(LOG_CHAT_ID, f"🗄 **ОШИБКА БАЗЫ ДАННЫХ:**\n`{error_text}`", parse_mode="Markdown")
+    except: pass
+# --------------------------
 
 # --- КОНФИГУРАЦИЯ ---
 DB_URL = os.getenv('DATABASE_URL')
@@ -9,7 +21,7 @@ def get_connection():
     try:
         return psycopg2.connect(DB_URL, sslmode='require')
     except Exception as e:
-        print(f"❌ Ошибка связи с базой: {e}")
+        send_log(f"Не удалось подключиться к базе: {e}")
         return None
 
 def init_db():
@@ -18,7 +30,6 @@ def init_db():
     if not conn: return
     try:
         cursor = conn.cursor()
-        # Создание основной таблицы, если она не существует
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -28,15 +39,13 @@ def init_db():
             )
         ''')
         
-        # Список новых колонок для системы Академии Орион 2.0
         new_columns = [
-            ("spendable_dust", "INTEGER DEFAULT 0"),   # Кошелек (валюта)
-            ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"), # Флаг джекпота
-            ("streak_days", "INTEGER DEFAULT 0"),      # Серия дней (стрик)
-            ("last_active_date", "TEXT DEFAULT ''")    # Дата последней активности
+            ("spendable_dust", "INTEGER DEFAULT 0"),   
+            ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"), 
+            ("streak_days", "INTEGER DEFAULT 0"),      
+            ("last_active_date", "TEXT DEFAULT ''")    
         ]
         
-        # Безопасное добавление колонок через проверку существования
         for col_name, col_type in new_columns:
             cursor.execute(f'''
                 DO $$ 
@@ -51,7 +60,7 @@ def init_db():
         conn.commit()
         print("📡 [СИСТЕМА] База данных Академии Орион полностью синхронизирована.")
     except Exception as e:
-        print(f"❌ Ошибка инициализации: {e}")
+        send_log(f"Ошибка инициализации БД: {e}")
     finally:
         cursor.close()
         conn.close()
@@ -73,13 +82,12 @@ def add_xp(user_id, amount, username="Пилот"):
         ''', (user_id, username, amount, amount))
         conn.commit()
     except Exception as e:
-        print(f"❌ Ошибка начисления XP: {e}")
+        send_log(f"Ошибка начисления XP для {user_id}: {e}")
     finally:
         cursor.close()
         conn.close()
 
 def get_user_stats(user_id):
-    """Возвращает текущий XP пользователя"""
     conn = get_connection()
     if not conn: return 0
     try:
@@ -92,7 +100,6 @@ def get_user_stats(user_id):
         conn.close()
 
 def get_user_data(user_id):
-    """Получает полный пакет данных пилота для логики бота"""
     conn = get_connection()
     if not conn: return {"xp": 0, "spendable_dust": 0, "jackpot_claimed": False, "streak_days": 0}
     try:
@@ -112,7 +119,6 @@ def get_user_data(user_id):
         conn.close()
 
 def set_jackpot_claimed(user_id):
-    """Блокирует повторное получение джекпота"""
     conn = get_connection()
     if not conn: return
     try:
@@ -124,7 +130,6 @@ def set_jackpot_claimed(user_id):
         conn.close()
 
 def spend_dust(user_id, amount):
-    """Списывает пыль только из кошелька (ранг не меняется)"""
     conn = get_connection()
     if not conn: return False
     try:
@@ -143,7 +148,6 @@ def spend_dust(user_id, amount):
         conn.close()
 
 def check_and_update_streak(user_id):
-    """Обрабатывает серию ежедневных посещений"""
     conn = get_connection()
     if not conn: return 0
     try:
@@ -169,7 +173,6 @@ def check_and_update_streak(user_id):
         conn.close()
 
 def get_top_pilots(limit=5):
-    """Данные для команды Радар"""
     conn = get_connection()
     if not conn: return []
     try:
@@ -181,7 +184,6 @@ def get_top_pilots(limit=5):
         conn.close()
 
 def update_personal_log(user_id, new_info):
-    """Запись воспоминаний в память Марти"""
     conn = get_connection()
     if not conn: return
     try:
@@ -196,7 +198,7 @@ def update_personal_log(user_id, new_info):
         ''', (new_info, new_info, user_id))
         conn.commit()
     except Exception as e:
-        print(f"❌ Ошибка обновления лога: {e}")
+        send_log(f"Ошибка обновления лога для {user_id}: {e}")
     finally:
         cursor.close()
         conn.close()
@@ -213,7 +215,6 @@ def get_personal_log(user_id):
         cursor.close()
         conn.close()
 
-# 🏆 ХАРДКОРНАЯ ШКАЛА РАНГОВ АКАДЕМИИ ОРИОН
 def get_rank_name(xp):
     if xp < 15: return "Космический Кадет 🚀"
     if xp < 40: return "Навигатор Орбиты 🛰"
