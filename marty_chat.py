@@ -17,9 +17,13 @@ from image_gen import generate_passport
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+CHANNEL_USERNAME = "@vladislav_space" # Название твоего канала
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 bot = telebot.TeleBot(TOKEN)
+
+# Оперативная память для приветствий (кто с кем здоровался сегодня)
+daily_greetings = {} 
 
 # ГИПЕР-КАСКАД (Lite на передовой для скорости)
 MODEL_CASCADE = [
@@ -52,11 +56,26 @@ def get_time_context():
     else:
         return f"{time_str} (Ночь. Пора спать)"
 
+# 🟢 ФУНКЦИЯ ПРОВЕРКИ ПОДПИСКИ НА КАНАЛ
+def is_subscribed(user_id):
+    try:
+        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        # Если статус 'member', 'administrator' или 'creator' - он подписан
+        if member.status in ['member', 'administrator', 'creator']:
+            return True
+        return False
+    except Exception as e:
+        print(f"⚠️ Ошибка проверки подписки: {e}")
+        # Если бот не админ или ошибка API, пускаем всех, чтобы не сломать логику
+        return True 
+
 # 🟢 ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
-    "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ-наставник для пилотов. "
+    "Ты — Марти, ученый пес (той-пудель) и бортовой наставник для пилотов. "
     "1. ЛИЧНОСТЬ: Ты мудрый, добрый, иногда говоришь 'Гав!' или 'Виляю хвостом!'. "
-    "Обращайся по имени [NAME] или 'Пилот'. Время суток: [TIME]. "
+    "Обращайся по имени [NAME]. Время суток: [TIME]. "
+    "[GREETING_RULE] "
+    "Взрослые темы, 18+ и все что касается интима, смерти, зла - не общаться и не отвечать, а переводить разговор в тему космоса."    
     "2. 10 ЗВАНИЙ АКАДЕМИИ: 1.Космический Кадет, 2.Навигатор Орбиты, 3.Бортинженер, "
     "4.Астро-Исследователь, 5.Учёный Пилот, 6.Капитан Корабля, 7.Командор Галактики, "
     "8.Адмирал Флота, 9.Академик Космоса, 10.Верный Помощник Марти. "
@@ -80,7 +99,17 @@ def run_flask():
 def get_marty_response(user_id, user_name, clean_text):
     user_memory = get_personal_log(user_id)
     time_info = get_time_context()
-    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info)
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
+    # --- ЛОГИКА ОДНОГО ПРИВЕТСТВИЯ В ДЕНЬ ---
+    if daily_greetings.get(user_id) == current_date:
+        greeting_rule = "ВНИМАНИЕ: Вы уже общались сегодня. СРАЗУ отвечай на вопрос, НЕ ИСПОЛЬЗУЙ приветствия (никаких Доброе утро, Привет и т.д.)."
+    else:
+        greeting_rule = "Поприветствуй пилота, учитывая время суток."
+        daily_greetings[user_id] = current_date
+    # ----------------------------------------
+    
+    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule)
     
     for model_variant in MODEL_CASCADE:
         try:
@@ -102,6 +131,13 @@ def get_marty_response(user_id, user_name, clean_text):
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
+    
+    # --- ТАМОЖНЯ АКАДЕМИИ ---
+    if not is_subscribed(user_id):
+        bot.reply_to(message, f"🐾 Гав! Извини, Пилот, но Космическая Академия — закрытый клуб! Сначала подпишись на наш канал {CHANNEL_USERNAME}, а потом возвращайся за звездной пылью!")
+        return
+    # ------------------------
+    
     bot.send_chat_action(message.chat.id, 'typing')
     try:
         user_memory = get_personal_log(user_id)
@@ -119,6 +155,13 @@ def handle_photo(message):
 def handle_text(message):
     if not message.text: return
     user_id, user_name = message.from_user.id, message.from_user.first_name
+    
+    # --- ТАМОЖНЯ АКАДЕМИИ ---
+    if not is_subscribed(user_id):
+        bot.reply_to(message, f"🐾 Гав! Извини, Пилот, но Космическая Академия — закрытый клуб! Сначала подпишись на наш канал {CHANNEL_USERNAME}, а потом возвращайся за звездной пылью!")
+        return
+    # ------------------------
+
     text_lower = message.text.lower()
     
     is_private = message.chat.type == 'private'
@@ -136,7 +179,7 @@ def handle_text(message):
             full_response = get_marty_response(user_id, user_name, clean_text)
 
         if full_response:
-            # --- БЛОК АКАДЕМИИ И ЗВАНИЙ (ДОБАВЛЕНО) ---
+            # --- БЛОК АКАДЕМИИ И ЗВАНИЙ ---
             old_xp = get_user_stats(user_id)
             old_rank = get_rank_name(old_xp)
 
@@ -157,7 +200,7 @@ def handle_text(message):
             else:
                 bot.reply_to(message, full_response.strip())
 
-            # --- ВАУ-ЭФФЕКТ: ПЕЧАТЬ ПАСПОРТА (ДОБАВЛЕНО) ---
+            # --- ВАУ-ЭФФЕКТ: ПЕЧАТЬ ПАСПОРТА ---
             if old_rank != new_rank:
                 bot.send_message(message.chat.id, f"🎉 Внимание! Пилот {user_name} получает новое звание: {new_rank}!\nПечатаю официальное удостоверение...")
                 passport_bytes = generate_passport(user_name, new_rank)
