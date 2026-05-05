@@ -7,8 +7,12 @@ from threading import Thread
 from flask import Flask
 from google import genai
 from google.genai import types
-from database import get_personal_log, update_personal_log 
-from vision_module import analyze_image 
+
+# --- ДОБАВЛЕННЫЕ ИМПОРТЫ ---
+from database import get_personal_log, update_personal_log, add_xp, get_user_stats, get_rank_name
+from vision_module import analyze_image
+from image_gen import generate_passport
+# ---------------------------
 
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
@@ -48,7 +52,7 @@ def get_time_context():
     else:
         return f"{time_str} (Ночь. Пора спать)"
 
-# 🟢 ЯДРО ЛИЧНОСТИ (БЕЗ ОШИБОК СИНТАКСИСА)
+# 🟢 ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель) и бортовой ИИ-наставник для пилотов. "
     "1. ЛИЧНОСТЬ: Ты мудрый, добрый, иногда говоришь 'Гав!' или 'Виляю хвостом!'. "
@@ -132,6 +136,19 @@ def handle_text(message):
             full_response = get_marty_response(user_id, user_name, clean_text)
 
         if full_response:
+            # --- БЛОК АКАДЕМИИ И ЗВАНИЙ (ДОБАВЛЕНО) ---
+            old_xp = get_user_stats(user_id)
+            old_rank = get_rank_name(old_xp)
+
+            # Если Марти хвалит и дает пыль — начисляем +1 XP
+            if "звездн" in full_response.lower() and "пыль" in full_response.lower():
+                add_xp(user_id, 1, user_name)
+
+            # Проверяем звание ПОСЛЕ возможного начисления
+            new_xp = get_user_stats(user_id)
+            new_rank = get_rank_name(new_xp)
+            # ------------------------------------------
+
             if "###MEM###" in full_response:
                 user_text, mem_data = full_response.split("###MEM###")
                 bot.reply_to(message, user_text.strip())
@@ -139,6 +156,15 @@ def handle_text(message):
                     update_personal_log(user_id, mem_data.strip())
             else:
                 bot.reply_to(message, full_response.strip())
+
+            # --- ВАУ-ЭФФЕКТ: ПЕЧАТЬ ПАСПОРТА (ДОБАВЛЕНО) ---
+            if old_rank != new_rank:
+                bot.send_message(message.chat.id, f"🎉 Внимание! Пилот {user_name} получает новое звание: {new_rank}!\nПечатаю официальное удостоверение...")
+                passport_bytes = generate_passport(user_name, new_rank)
+                if passport_bytes:
+                    bot.send_photo(message.chat.id, passport_bytes)
+            # -----------------------------------------------
+
         else:
             bot.reply_to(message, "⏳ Командор, тишина в эфире. Прием.")
 
