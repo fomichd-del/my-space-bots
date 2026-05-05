@@ -3,7 +3,6 @@ import os
 import telebot
 from datetime import datetime, timedelta
 
-# --- КОНФИГУРАЦИЯ ЛОГОВ ---
 TOKEN = os.getenv('MARTY_BOT_TOKEN')
 bot_log = telebot.TeleBot(TOKEN)
 LOG_CHAT_ID = "-1003756164148"
@@ -12,20 +11,17 @@ def send_log(error_text):
     try:
         bot_log.send_message(LOG_CHAT_ID, f"🗄 **ОШИБКА БАЗЫ ДАННЫХ:**\n`{error_text}`", parse_mode="Markdown")
     except: pass
-# --------------------------
 
-# --- КОНФИГУРАЦИЯ ---
 DB_URL = os.getenv('DATABASE_URL')
 
 def get_connection():
     try:
         return psycopg2.connect(DB_URL, sslmode='require')
     except Exception as e:
-        send_log(f"Не удалось подключиться к базе: {e}")
+        send_log(f"Ошибка связи с базой: {e}")
         return None
 
 def init_db():
-    """Инициализация таблиц и добавление новых колонок геймификации"""
     conn = get_connection()
     if not conn: return
     try:
@@ -38,14 +34,12 @@ def init_db():
                 personal_log TEXT DEFAULT ''
             )
         ''')
-        
         new_columns = [
-            ("spendable_dust", "INTEGER DEFAULT 0"),   
-            ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"), 
-            ("streak_days", "INTEGER DEFAULT 0"),      
-            ("last_active_date", "TEXT DEFAULT ''")    
+            ("spendable_dust", "INTEGER DEFAULT 0"),
+            ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"),
+            ("streak_days", "INTEGER DEFAULT 0"),
+            ("last_active_date", "TEXT DEFAULT ''")
         ]
-        
         for col_name, col_type in new_columns:
             cursor.execute(f'''
                 DO $$ 
@@ -56,9 +50,8 @@ def init_db():
                     END IF; 
                 END $$;
             ''')
-        
         conn.commit()
-        print("📡 [СИСТЕМА] База данных Академии Орион полностью синхронизирована.")
+        print("📡 База данных синхронизирована.")
     except Exception as e:
         send_log(f"Ошибка инициализации БД: {e}")
     finally:
@@ -66,7 +59,6 @@ def init_db():
         conn.close()
 
 def add_xp(user_id, amount, username="Пилот"):
-    """Начисляет опыт (ранг) и звездную пыль (кошелек) одновременно"""
     conn = get_connection()
     if not conn: return
     try:
@@ -82,7 +74,7 @@ def add_xp(user_id, amount, username="Пилот"):
         ''', (user_id, username, amount, amount))
         conn.commit()
     except Exception as e:
-        send_log(f"Ошибка начисления XP для {user_id}: {e}")
+        send_log(f"Ошибка начисления XP: {e}")
     finally:
         cursor.close()
         conn.close()
@@ -107,12 +99,7 @@ def get_user_data(user_id):
         cursor.execute('SELECT xp, spendable_dust, jackpot_claimed, streak_days FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
         if res:
-            return {
-                "xp": res[0], 
-                "spendable_dust": res[1], 
-                "jackpot_claimed": res[2], 
-                "streak_days": res[3]
-            }
+            return {"xp": res[0], "spendable_dust": res[1], "jackpot_claimed": res[2], "streak_days": res[3]}
         return {"xp": 0, "spendable_dust": 0, "jackpot_claimed": False, "streak_days": 0}
     finally:
         cursor.close()
@@ -134,11 +121,7 @@ def spend_dust(user_id, amount):
     if not conn: return False
     try:
         cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE users 
-            SET spendable_dust = spendable_dust - %s 
-            WHERE user_id = %s AND spendable_dust >= %s
-        ''', (amount, user_id, amount))
+        cursor.execute('UPDATE users SET spendable_dust = spendable_dust - %s WHERE user_id = %s AND spendable_dust >= %s', (amount, user_id, amount))
         if cursor.rowcount > 0:
             conn.commit()
             return True
@@ -155,17 +138,12 @@ def check_and_update_streak(user_id):
         cursor = conn.cursor()
         cursor.execute('SELECT last_active_date, streak_days FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
-        
         if not res: return 0
-            
         last_date, streak = res
         if last_date == current_date: return streak
-            
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         new_streak = streak + 1 if last_date == yesterday else 1
-            
-        cursor.execute('UPDATE users SET last_active_date = %s, streak_days = %s WHERE user_id = %s', 
-                       (current_date, new_streak, user_id))
+        cursor.execute('UPDATE users SET last_active_date = %s, streak_days = %s WHERE user_id = %s', (current_date, new_streak, user_id))
         conn.commit()
         return new_streak
     finally:
@@ -188,17 +166,8 @@ def update_personal_log(user_id, new_info):
     if not conn: return
     try:
         cursor = conn.cursor()
-        cursor.execute('''
-            UPDATE users 
-            SET personal_log = CASE 
-                WHEN personal_log IS NULL OR personal_log = '' THEN %s 
-                ELSE personal_log || ' | ' || %s 
-            END
-            WHERE user_id = %s
-        ''', (new_info, new_info, user_id))
+        cursor.execute('''UPDATE users SET personal_log = CASE WHEN personal_log IS NULL OR personal_log = '' THEN %s ELSE personal_log || ' | ' || %s END WHERE user_id = %s''', (new_info, new_info, user_id))
         conn.commit()
-    except Exception as e:
-        send_log(f"Ошибка обновления лога для {user_id}: {e}")
     finally:
         cursor.close()
         conn.close()
@@ -210,7 +179,7 @@ def get_personal_log(user_id):
         cursor = conn.cursor()
         cursor.execute('SELECT personal_log FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
-        return res[0] if res and res[0] else "Данных пока нет. Начните исследование!"
+        return res[0] if res and res[0] else "Данных пока нет."
     finally:
         cursor.close()
         conn.close()
