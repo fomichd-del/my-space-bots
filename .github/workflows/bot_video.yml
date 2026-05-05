@@ -48,7 +48,13 @@ jobs:
         run: |
           git config --global user.name "Space-Bot"
           git config --global user.email "bot@vladislav_space"
-          git pull --rebase origin main || echo "Нет изменений для pull"
+          
+          # 1. Добавляем и фиксируем изменения ПЕРЕД пулом
           git add last_video_date.txt last_source.txt || true
           git commit -m "📊 Реестр v182.5 [Supernova Stability]" || echo "Нет новых данных"
+          
+          # 2. Подтягиваем изменения с сервера, ставя наш коммит поверх них (rebase)
+          git pull --rebase origin main
+          
+          # 3. Отправляем финальную версию на сервер
           git push origin main
