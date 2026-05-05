@@ -1,6 +1,18 @@
 import os
+import telebot
 from google import genai
 from google.genai import types
+
+# --- КОНФИГУРАЦИЯ ЛОГОВ ---
+TOKEN = os.getenv('MARTY_BOT_TOKEN')
+bot_log = telebot.TeleBot(TOKEN)
+LOG_CHAT_ID = "-1003756164148"
+
+def send_log(error_text):
+    try:
+        bot_log.send_message(LOG_CHAT_ID, f"👁 **СБОЙ ЗРЕНИЯ:**\n`{error_text}`", parse_mode="Markdown")
+    except: pass
+# --------------------------
 
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -49,7 +61,8 @@ def analyze_image(image_data, user_context=""):
             )
             if response.text:
                 return response.text
-        except Exception:
+        except Exception as e:
+            send_log(f"Ошибка в модели {model_name}: {e}")
             continue
             
     return "📡 Линзы сканера запотели. Попробуй еще раз, Пилот! Прием."
