@@ -208,13 +208,13 @@ def get_personal_log(user_id):
         conn.close()
 
 def get_rank_name(xp):
-    if xp < 5: return "Космический Кадет 🚀"
-    if xp < 12: return "Навигатор Орбиты 🛰"
-    if xp < 20: return "Бортинженер 🔧"
-    if xp < 30: return "Астро-Исследователь 🔭"
-    if xp < 45: return "Учёный Пилот 🪐"
-    if xp < 65: return "Капитан Корабля 🛸"
-    if xp < 90: return "Командор Галактики 🎖"
-    if xp < 120: return "Адмирал Флота ⭐"
-    if xp < 160: return "Академик Космоса 🎓"
+    if xp < 15: return "Космический Кадет 🚀"
+    if xp < 40: return "Навигатор Орбиты 🛰"
+    if xp < 80: return "Бортинженер 🔧"
+    if xp < 130: return "Астро-Исследователь 🔭"
+    if xp < 200: return "Учёный Пилот 🪐"
+    if xp < 300: return "Капитан Корабля 🛸"
+    if xp < 450: return "Командор Галактики 🎖"
+    if xp < 650: return "Адмирал Флота ⭐"
+    if xp < 900: return "Академик Космоса 🎓"
     return "Верный Помощник Марти 🐕"
