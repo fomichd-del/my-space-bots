@@ -37,6 +37,11 @@ jobs:
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          git add db_launch.txt sent_radar_lives.txt || echo "No changes"
-          git commit -m "Update DB: $(date)" || echo "No changes"
-          git push
+          # Добавляем файлы, если они изменились
+          git add db_launch.txt sent_radar_lives.txt || echo "No changes to add"
+          # Пытаемся закоммитить, если есть что
+          git commit -m "Update DB: $(date)" || echo "No changes to commit"
+          # 🔥 КЛЮЧЕВАЯ ПРАВКА: Сначала забираем изменения других ботов, потом пушим своё
+          git pull --rebase origin main
+          git push origin main
+
