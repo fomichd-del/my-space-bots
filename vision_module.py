@@ -15,12 +15,12 @@ def send_log(error_text):
     except: pass
 # --------------------------
 
-# 🟢 КАСКАД МОДЕЛЕЙ ДЛЯ ЗРЕНИЯ
+# 🟢 ОБНОВЛЕННЫЙ КАСКАД МОДЕЛЕЙ ДЛЯ ЗРЕНИЯ (ТОЛЬКО СТАБИЛЬНЫЕ)
 VISION_MODELS = [
     'gemini-2.0-flash', 
-    'gemini-2.0-flash-lite-001', 
-    'gemini-flash-latest',
-    'gemini-1.5-flash'
+    'gemini-2.0-flash-lite', 
+    'gemini-1.5-flash',
+    'gemini-1.5-pro'
 ]
 
 def analyze_image(image_data, user_context="", keys=[]):
@@ -38,39 +38,37 @@ def analyze_image(image_data, user_context="", keys=[]):
         "Пиши кратко (3-4 предложения), научно и позитивно. В конце: Прием!"
     )
     
-    # Если список ключей пуст, пробуем взять хотя бы основной из окружения
-    if not keys:
-        keys = [os.getenv('GEMINI_API_KEY')]
+    # Если список ключей пуст, пробуем взять из окружения
+    active_keys = keys if keys else [os.getenv('GEMINI_API_KEY')]
+    active_keys = [k for k in active_keys if k] # Убираем None
 
-    # РОТАЦИЯ: Сначала перебираем Ключи, внутри каждого — Модели
-    for i, api_key in enumerate(keys):
-        if not api_key: continue
-        
-        client_gen = genai.Client(api_key=api_key)
-        
-        for model_name in VISION_MODELS:
-            try:
-                response = client_gen.models.generate_content(
-                    model=model_name,
-                    contents=[
-                        types.Content(
-                            role="user",
-                            parts=[
-                                types.Part.from_bytes(data=image_data, mime_type='image/jpeg'),
-                                types.Part.from_text(text=prompt)
-                            ]
-                        )
-                    ]
-                )
-                if response.text:
-                    return response.text
-            except Exception as e:
-                # Если лимит исчерпан — просто идем к следующему ключу/модели
-                if "429" in str(e):
-                    continue 
-                
-                # О других ошибках докладываем в логи
-                send_log(f"Ключ №{i+1}, Модель {model_name}: {e}")
-                continue
+    if not active_keys:
+        return "📡 Ошибка: Отсутствуют ключи доступа к системе зрения."
+
+    # РОТАЦИЯ: Перебираем Ключи, внутри каждого — Модели
+    for i, api_key in enumerate(active_keys):
+        try:
+            client_gen = genai.Client(api_key=api_key)
+            for model_name in VISION_MODELS:
+                try:
+                    response = client_gen.models.generate_content(
+                        model=model_name,
+                        contents=[
+                            types.Content(
+                                role="user",
+                                parts=[
+                                    types.Part.from_bytes(data=image_data, mime_type='image/jpeg'),
+                                    types.Part.from_text(text=prompt)
+                                ]
+                            )
+                        ]
+                    )
+                    if response.text:
+                        return response.text
+                except Exception as e:
+                    if "429" in str(e): continue # Лимит запросов — идем дальше
+                    send_log(f"Ключ №{i+1}, Модель {model_name}: {e}")
+                    continue
+        except: continue
             
     return "📡 Все линзы сканера перегружены. Попробуй через минуту, Пилот! Прием."
