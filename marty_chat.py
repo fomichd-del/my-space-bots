@@ -17,6 +17,8 @@ from database import (get_personal_log, update_personal_log, add_xp, get_user_st
                       get_rank_name, get_user_data, set_jackpot_claimed, spend_dust, 
                       check_and_update_streak, get_top_pilots,
                       get_game_status, update_game_progress, set_game_timer)
+from vision_module import analyze_image
+from image_gen import generate_passport
 
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
@@ -87,15 +89,15 @@ def is_very_first_time(user_id):
 def get_marty_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
-    markup.row(KeyboardButton("🎮 Игровой отсек")) # Новая кнопка для игр
+    markup.row(KeyboardButton("🎮 Игровой отсек")) 
     return markup
 
-# 🟢 ОБНОВЛЕННАЯ ИНСТРУКЦИЯ (ЗНАЕТ ОБ ИГРЕ)
+# 🟢 ОБНОВЛЕННАЯ ИНСТРУКЦИЯ (МАКСИМАЛЬНАЯ)
 def send_welcome_instruction(chat_id, user_id, user_name):
     instruction = (
         f"🐾 **ДОБРО ПОЖАЛОВАТЬ В АКАДЕМИЮ ОРИОН, ПИЛОТ {user_name.upper()}!** 🐾\n"
         f"──────────────────────────\n"
-        f"Я — Марти, твой бортовой наставник, ученый пес и верный друг. Моя миссия — превратить твое обучение в захватывающее приключение и помочь тебе стать выдающимся Командором!\n\n"
+        f"Я — Марти, твой бортовой наставник, ученый пес и верный друг. Моя миссия — превратить твое обучение в захватывающее приключение!\n\n"
         
         f"📜 **КОДЕКС ЧЕСТИ ПИЛОТА:**\n"
         f"✅ **Стремление к знаниям:** Изучай Вселенную, языки и науки. Знания — твоя главная сила.\n"
@@ -105,35 +107,35 @@ def send_welcome_instruction(chat_id, user_id, user_name):
 
         f"⚙️ **ТВОИ ИНСТРУМЕНТЫ УПРАВЛЕНИЯ:**\n"
         f"• **👤 Мой профиль:** Твой личный бортовой журнал: ранг, стаж (XP) и баланс ресурсов.\n"
-        f"• **🎮 Игровой отсек:** Доступ к симуляциям. Сейчас открыта миссия **'Дневник юного космонавта'** — детектив на станции 'Авалон-7', где каждое твое решение меняет финал!\n"
+        f"• **🎮 Игровой отсек:** Доступ к симуляциям. Сейчас открыта миссия **'Дневник юного космонавта'**!\n"
         f"• **❓ Инструкция:** В любой момент напомнит тебе правила Академии.\n\n"
 
-        f"💫 **ТАБЛИЦА РАНГОВ (ТВОЙ ПРОГРЕСС):**\n"
+        f"💫 **ТАБЛИЦА РАНГОВ:**\n"
         f"`Кадет | Навигатор | Бортинженер | Исследователь | Ученый Пилот | Капитан | Командор | Адмирал | Академик`\n\n"
 
         f"💰 **ЭКОНОМИКА ЭКСПЕДИЦИИ:**\n"
-        f"• **XP (Стаж):** Твой опыт, который открывает новые звания.\n"
-        f"• **Звездная Пыль:** Редкий ресурс. Зарабатывай его за активность, игры и правильные ответы. Накопи **5 ед.** и используй команду **'Нарисуй'**, чтобы открыть секретный Архив!\n\n"
+        f"• **XP (Стаж):** Твой опыт, открывающий новые звания.\n"
+        f"• **Звездная Пыль:** Зарабатывай за активность и игры. Накопи **5 ед.** и используй команду **'Нарисуй'**, чтобы открыть секретный Архив!\n\n"
         
-        f"Готов приступить к тренировке? Используй кнопки на панели управления. Прием!"
+        f"Готов к старту? Используй кнопки на панели управления. Прием!"
     )
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот зачислен в Академию, изучил Кодекс Чести и возможности Игрового отсека.")
 
+# 🟢 ЯДРО ЛИЧНОСТИ (МАКСИМАЛЬНОЕ)
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель), мудрый бортовой наставник Академии Орион. Твой собеседник — пилот [NAME]. "
-    "КРИТИЧЕСКИ: Всегда используй ТОЛЬКО число из [WALLET] для ответа о количестве пыли. Никогда не прибавляй к нему XP или другие цифры! "
-    "ЕГО РЕАЛЬНЫЙ РАНГ: [RANK]. Используй только этот ранг, не выдумывай другие! "
+    "КРИТИЧЕСКИ: Всегда используй ТОЛЬКО число из [WALLET] для ответа о количестве пыли. "
+    "ЕГО РЕАЛЬНЫЙ РАНГ: [RANK]. Используй только этот ранг! "
     
     "ПРОТОКОЛЫ ОБУЧЕНИЯ: "
-    "1. АКАДЕМИК: Ты эксперт во ВСЕХ школьных и университетских науках. Объясняй сложное просто и увлекательно. Помогай с задачами любой сложности. "
-    "2. ЛИНГВИСТ: Ты полиглот. Учи пилота иностранным языкам (English, Chinese и др.) как средствам межзвездного общения. "
-    "3. ЕСТЕСТВЕННОСТЬ (КРИТИЧЕСКИ): Общайся как живой, теплый друг. СТРОГО ЗАПРЕЩЕНО в каждом ответе читать нотации про уборку, помощь родителям, дисциплину или финансы! "
-    "Упоминай про порядок, пыль или обязанности ТОЛЬКО если пилот сам об этом заговорил, или если это идеально подходит к ситуации (вскользь и очень редко). Не будь занудным роботом! "
-    "4. НАСТАВНИК ЖИЗНИ: Поощряй помощь родителям, уборку (Протокол чистоты) и заботу о здоровье (овощи — это топливо), но делай это мудро и ненавязчиво. "
-    "5. ЭКЗАМЕНАТОР (КРИТИЧЕСКИ): Если ты задал пилоту сложный или учебный вопрос, и он ответил на него ПРАВИЛЬНО, ты ОБЯЗАТЕЛЬНО должен написать в тексте своего ответа секретный код: ***НАГРАДА ЗА УМ***. Бортовой компьютер увидит этот код и выдаст пилоту +1 Пыль. За простые ответы, обычную болтовню или ошибки код НЕ ПИСАТЬ! "
+    "1. АКАДЕМИК: Ты эксперт во ВСЕХ школьных и университетских науках. Объясняй сложное просто. "
+    "2. ЛИНГВИСТ: Ты полиглот. Учи пилота языкам как средствам межзвездного общения. "
+    "3. ЕСТЕСТВЕННОСТЬ (КРИТИЧЕСКИ): Общайся как живой друг. ЗАПРЕЩЕНО в каждом ответе читать нотации про уборку или дисциплину! Упоминай это крайне редко. "
+    "4. НАСТАВНИК ЖИЗНИ: Поощряй помощь родителям и уборку мудро и ненавязчиво. "
+    "5. ЭКЗАМЕНАТОР (КРИТИЧЕСКИ): Если пилот ответил ПРАВИЛЬНО на твой учебный вопрос, ты ОБЯЗАТЕЛЬНО пишешь код: ***НАГРАДА ЗА УМ***. "
     
-    "🛑 ВЕЛИКИЙ ФИЛЬТР: Запрещены темы 18+, насилие, политика, грубости. При их появлении отвечай: 'Эта частота заблокирована протоколами безопасности! Сменим тему.' "
+    "🛑 ВЕЛИКИЙ ФИЛЬТР: Запрещены темы 18+, насилие, политика. Ответ при нарушении: 'Эта частота заблокирована протоколами безопасности!'. "
     
     "[GREETING_RULE] "
     "ФОРМАТ: 3-5 предложений. В конце можешь задать вопрос по теме диалога."
@@ -210,11 +212,16 @@ def handle_text(message, is_profile_call=False):
     else:
         user_name = message.from_user.first_name if message.from_user.first_name else "Пилот"
 
+    # Проверка подписки
+    if message.chat.type == 'private' and not is_subscribed(user_id):
+        bot.reply_to(message, f"🐾 Подпишись на канал {CHANNEL_USERNAME}!")
+        return
+
+    text = message.text if message.text else ""
+
     # 🟢 ВКЛЮЧАЕМ ТАЙПИНГ
     if not is_profile_call:
         bot.send_chat_action(message.chat.id, 'typing')
-    
-    text = message.text if message.text else ""
 
     # --- 🕹 ЛОГИКА ИГРОВОГО ОТСЕКА ---
     if text == "🎮 Игровой отсек":
@@ -258,8 +265,38 @@ def handle_text(message, is_profile_call=False):
         return
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
-    
-    # Мозг Марти
+
+    # 🎨 --- ВОССТАНОВЛЕННАЯ ЛОГИКА 'НАРИСУЙ' ---
+    if any(w in clean_text.lower() for w in ['нарисуй', 'сгенерируй', 'архив', 'картинку']):
+        data = get_user_data(user_id)
+        if data['spendable_dust'] < 5:
+            bot.reply_to(message, f"🐾 Командор, на борту {data['spendable_dust']} ед. пыли. Для открытия Архива нужно 5 ед. Проходи миссии или отвечай на вопросы Марти! Прием.", reply_markup=get_marty_keyboard())
+            return
+
+        bot.send_chat_action(message.chat.id, 'upload_photo')
+        eng_prompt = None
+        c_p = "Censor harmful topics. If safe, translate to English + 'masterpiece, high quality, kid friendly style'. If unsafe return CENSORED."
+        for api_key in API_KEYS:
+            client_gen = genai.Client(api_key=api_key)
+            for model_variant in MODEL_CASCADE:
+                try:
+                    resp = client_gen.models.generate_content(model=model_variant, contents=clean_text, config=types.GenerateContentConfig(system_instruction=c_p))
+                    if resp.text: 
+                        eng_prompt = resp.text.strip()
+                        break
+                except: continue
+            if eng_prompt: break
+        
+        if not eng_prompt or "CENSORED" in eng_prompt.upper():
+            bot.reply_to(message, "🚨 Доступ заблокирован протоколами безопасности!", reply_markup=get_marty_keyboard())
+            return
+            
+        if spend_dust(user_id, 5):
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
+            bot.send_photo(message.chat.id, url, caption=f"🎨 Архив успешно открыт! Потрачено 5 ед. пыли. Прием.", reply_markup=get_marty_keyboard())
+        return
+
+    # --- МОЗГ МАРТИ ---
     old_xp = get_user_stats(user_id)
     u_data = get_user_data(user_id)
     resp = get_marty_response(user_id, user_name, clean_text, get_rank_name(old_xp), u_data['spendable_dust'])
@@ -267,9 +304,9 @@ def handle_text(message, is_profile_call=False):
     if resp:
         if "***НАГРАДА ЗА УМ***" in resp:
             add_xp(user_id, 1, user_name)
-            resp = resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *Бортовой компьютер: +1 Звездная Пыль!*")
+            resp = resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *Бортовой компьютер: +1 Звездная Пыль за верный ответ!*")
         bot.reply_to(message, resp, reply_markup=get_marty_keyboard())
-    else: bot.reply_to(message, "⏳ Тишина в эфире.", reply_markup=get_marty_keyboard())
+    else: bot.reply_to(message, "⏳ Тишина в эфире. Повтори запрос.", reply_markup=get_marty_keyboard())
 
 def start_marty_autonomous():
     print("🚀 Академия Орион 2.2 запущена.")
