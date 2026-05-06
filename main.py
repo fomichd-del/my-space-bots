@@ -110,7 +110,7 @@ def handle_location(message):
         success, res_jpg, res_png, target_name, err_msg = future.result()
 
     if success:
-        add_xp(user_id, 15, user_name)
+        add_xp(user_id, 1, user_name)
         stats = get_user_stats(user_id)
         rank = get_rank_name(stats)
         
