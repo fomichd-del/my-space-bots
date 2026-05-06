@@ -54,7 +54,7 @@ def get_instruction_text():
         "Это главная навигационная функция. Нажми её и подтверди отправку геолокации. "
         "Бот мгновенно вычислит твой сектор и отрисует карту звезд, планет и Млечного Пути именно над твоей крышей. "
         "Центр круга — это зенит (точка над головой), края — твой реальный горизонт.\n"
-        "🎁 <i>Награда за вылет: +15 XP.</i>\n\n"
+        "🎁 <i>Награда за вылет: +1 XP и +1 Пыль.</i>\n\n"
         "🌌 <b>2. Кнопка «ДОСЬЕ»</b>\n"
         "Появляется под готовой картой. Я выбираю самое яркое созвездие в твоем секторе (цель) "
         "и готовлю секретную выписку: его историю, фото в высоком качестве и научные факты.\n\n"
@@ -62,12 +62,10 @@ def get_instruction_text():
         "Телеграм сжимает фото. Чтобы получить четкий снимок для печати или обоев — жми эту кнопку. "
         "Файл хранится в памяти корабля <b>всего 15 минут</b>, потом он самоуничтожается для экономии ресурсов!\n\n"
         "🎖️ <b>4. Ранги и Опыт (XP)</b>\n"
-        "Твои успехи фиксируются в базе данных. Чем больше вылетов, тем выше звание:\n"
-        "• <b>Кадет</b> (0-100) | <b>Исследователь</b> (101-300)\n"
-        "• <b>Навигатор</b> (301-600) | <b>Командор</b> (601+)\n\n"
+        "Твои успехи фиксируются в общей базе данных Ориона. Чем больше вылетов, тем выше звание:\n"
+        "Кадет | Навигатор | Бортинженер | Исследователь | Ученый Пилот | Капитан | Командор | Адмирал | Академик\n\n"
         "🤖 <b>ГДЕ МАРТИ?</b>\n"
-        "Я — Навигатор (мозг корабля). Если хочешь поговорить о смысле бытия или спросить совета "
-        "у Ученого Пса Марти — переходи по связи: @Marty_Help_Bot"
+        "Я — Навигатор (мозг корабля). Если хочешь попросить Марти нарисовать картинку за Пыль или спросить совета — переходи по связи: @Marty_Help_Bot"
     )
 
 @bot.message_handler(func=lambda m: True, content_types=['text'])
@@ -105,14 +103,15 @@ def handle_location(message):
             time.sleep(10)
             if not future.done():
                 fact = random.choice(SPACE_FACTS)
-                try: bot.edit_message_text(f"🛰️ <b>Идет сканирование горизонта...</b>\n\n{fact}", message.chat.id, status_msg.message_id, parse_mode='HTML')
+                try: bot.edit_message_text(f"🛰️ <b>Идет сканирование горизонтa...</b>\n\n{fact}", message.chat.id, status_msg.message_id, parse_mode='HTML')
                 except: pass
         success, res_jpg, res_png, target_name, err_msg = future.result()
 
     if success:
-        add_xp(user_id, 1, user_name)
+        # 🟢 ОБНОВЛЕННЫЙ БЛОК НАЧИСЛЕНИЯ
+        add_xp(user_id, 1, user_name) # Начислит и XP, и Пыль, так как database.py общая
         stats = get_user_stats(user_id)
-        rank = get_rank_name(stats)
+        rank = get_rank_name(stats) # Возьмет новые ранги из единой базы
         
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(f"🌌 Открыть досье: {target_name}", callback_data=f"wiki_{target_name}"))
@@ -125,7 +124,7 @@ def handle_location(message):
             f"Оно выделено на карте розовым неоновым кругом.\n"
             f"─────────────────────\n"
             f"🎖️ <b>Твой текущий статус:</b> {rank}\n"
-            f"📈 <b>Опыт экспедиции:</b> {stats} XP (начислено +15)"
+            f"📈 <b>Опыт экспедиции:</b> {stats} XP (начислено +1 XP и +1 Пыль)" # 🟢 ИСПРАВЛЕН ТЕКСТ
         )
         with open(res_jpg, 'rb') as ph:
             bot.send_photo(message.chat.id, ph, caption=caption, reply_markup=markup, parse_mode='HTML')
