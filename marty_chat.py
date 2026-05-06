@@ -202,3 +202,13 @@ def h(): return "OK"
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     bot.infinity_polling(skip_pending=True)
+
+def start_marty_autonomous():
+    print("🚀 Академия Орион 2.2 запущена.")
+    while True:
+        try: bot.remove_webhook(); bot.infinity_polling(skip_pending=True)
+        except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
+if __name__ == "__main__":
+    Thread(target=run_flask, daemon=True).start()
+    start_marty_autonomous()
+
