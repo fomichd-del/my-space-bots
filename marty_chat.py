@@ -44,15 +44,34 @@ def game_engine(call):
     else:
         scenario1.run_scenario(bot, call)
 
-# ---------------------------
-# --- ОБНОВЛЕННЫЙ КАСКАД МОДЕЛЕЙ (МАЙ 2026) ---
-# Мы используем лучшие Flash-модели из вашего скана для максимальных лимитов.
+# --- ВЕЛИКИЙ КАСКАД ОРИОНА (МАЙ 2026) ---
+# Модели выстроены по приоритету: Новые Flash -> Стабильные -> Эконом (Lite) -> Pro
 MODEL_CASCADE = [
-    'gemini-3-flash-preview',  # Новейшая частота
-    'gemini-2.5-flash',        # Высокая мощность
-    'gemini-2.0-flash',        # Стабильная база
-    'gemini-flash-latest',     # Универсальный указатель
-    'gemini-3.1-pro-preview'   # Интеллектуальный резерв
+    # 1. Флагманы скорости (Gemini 3)
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite-preview',
+    
+    # 2. Новое поколение 2.5
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-flash-latest',
+    
+    # 3. Проверенная база 2.0
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-001',
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-flash-lite-001',
+    'gemini-flash-lite-latest',
+    
+    # 4. Модели Gemma (открытые и очень быстрые)
+    'gemma-4-31b-it',
+    'gemma-4-26b-a4b-it',
+    
+    # 5. Тяжелый интеллект (Pro) - используем как последний шанс
+    'gemini-3.1-pro-preview',
+    'gemini-3-pro-preview',
+    'gemini-2.5-pro',
+    'gemini-pro-latest'
 ]
 
 try:
