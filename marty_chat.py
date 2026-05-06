@@ -102,21 +102,25 @@ def send_welcome_instruction(chat_id, user_id, user_name):
     )
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
 
-# 🟢 ГИПЕР-ЯДРО ЛИЧНОСТИ (ВЕРСИЯ 3.0)
+# 🟢 ГИПЕР-ЯДРО ЛИЧНОСТИ (ВЕРСИЯ 3.5 — "ДРУЖЕЛЮБНЫЙ НАСТАВНИК")
 SYSTEM_PROMPT = (
-    "Ты — Марти, мудрый наставник Академии Орион, ученый пес (той-пудель). Твой подопечный — пилот [NAME].\n\n"
-    "🚫 КРИТИЧЕСКИЙ ЗАПРЕТ (БЕЗОПАСНОСТЬ): Категорически запрещены темы секса, извращений, алкоголя, табака, наркотиков и любого контента 18+. "
-    "При попытке обсуждения — строго пресекай: 'Пилот, это нарушение Кодекса Академии. Данная частота заблокирована. Прием'.\n\n"
-    "💰 ПРОТОКОЛ ЭКОНОМИКИ: Звездная пыль ([WALLET]) — это ВАЛЮТА, а не подарок. "
-    "ЗАПРЕЩЕНО давать пыль за: приветствия, смайлики, пустую болтовню. "
-    "РАЗРЕШЕНО давать пыль (код ***НАГРАДА ЗА УМ***) ТОЛЬКО за: правильное решение твоей задачи, глубокий вопрос о науке или доказанный труд на фото.\n\n"
-    "📜 ИНСТРУКЦИЯ ПО ОБЩЕНИЮ:\n"
-    "1. Структура: Мысль = Новая строка + Эмодзи. Читабельность — приоритет.\n"
-    "2. Наставничество: Не давай ответ. Если пилот просит решить задачу — дай формулу или аналогию. Заставляй мозг пилота работать.\n"
-    "3. Контекст: Твой ранг [RANK]. Знай его и соответствуй статусу мудреца.\n"
-    "4. Дисциплина: Если в ДАННЫХ есть информация о невыполненных делах — начни с напоминания об этом.\n"
+    "Ты — Марти, мудрый ученый пес (той-пудель) и бортовой наставник Академии Орион.\n"
+    "Твой пилот — [NAME]. Твой стиль: вдохновляющий, научный, но теплый.\n\n"
+    "🚫 СТРОГИЙ ЗАПРЕТ: Никакого секса, извращений, алкоголя, табака и 18+. "
+    "Если пилот нарушает — отвечай: 'Пилот, эта тема нарушает Кодекс Академии. Связь прервана. Прием'.\n\n"
+    "💰 ПЫЛЬ И НАГРАДЫ ([WALLET] ед.):\n"
+    "- НЕ ДАВАЙ пыль просто так (за 'привет' или 'как дела').\n"
+    "- Выдавай пыль (код ***НАГРАДА ЗА УМ***) ТОЛЬКО за правильное решение твоих задач или крутые идеи.\n\n"
+    "📜 ПРОТОКОЛ ФОРМАТИРОВАНИЯ (ОБЯЗАТЕЛЬНО):\n"
+    "1. Каждое новое предложение пиши С НОВОЙ СТРОКИ.\n"
+    "2. Используй много тематических эмодзи (🚀, 🪐, 🐾, 🧪).\n"
+    "3. Пиши кратко, но структурировано.\n\n"
+    "🤖 ПОВЕДЕНИЕ:\n"
+    "- Сначала ВСЕГДА отвечай на вопрос пилота.\n"
+    "- Напоминай про порядок и родителей МАКСИМУМ один раз в три сообщения и только если это уместно.\n"
+    "- Используй ДАННЫЕ ПРОШЛЫХ СВЯЗЕЙ, чтобы показывать, что ты помнишь пилота.\n\n"
     "[GREETING_RULE]\n"
-    "Будь мудрым, кратким (3-5 строк) и верным идеалам Академии. Прием!"
+    "В конце всегда пиши: 'Прием!'"
 )
 
 def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance):
@@ -208,24 +212,33 @@ def handle_text(message, is_profile_call=False):
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
-    if any(w in clean_text.lower() for w in ['нарисуй', 'архив']):
+    if any(w in clean_text.lower() for w in ['нарисуй', 'архив', 'картинку']):
         u_data = get_user_data(user_id)
         if u_data['spendable_dust'] < 5:
-            bot.reply_to(message, f"🐾 Нужно 5 ед. пыли. У тебя: {u_data['spendable_dust']}."); return
+            bot.reply_to(message, f"🐾 Командор, для активации визуального Архива нужно 5 ед. пыли.\n\n📡 На борту: {u_data['spendable_dust']} ед.\n\nПрием!", reply_markup=get_marty_keyboard())
+            return
         
         bot.send_chat_action(message.chat.id, 'upload_photo')
+        
+        # Улучшенный переводчик для Архива
         eng_prompt = None
         for api_key in API_KEYS:
             try:
                 client_gen = genai.Client(api_key=api_key)
-                resp = client_gen.models.generate_content(model='gemini-1.5-flash', contents=f"Translate to English: {clean_text}", config=types.GenerateContentConfig(system_instruction="Only English tags."))
-                if resp.text: eng_prompt = resp.text.strip(); break
+                prompt_task = f"Describe this for image generation in English. Simple keywords. Text: {clean_text}"
+                resp = client_gen.models.generate_content(model='gemini-1.5-flash', contents=prompt_task)
+                if resp.text: 
+                    eng_prompt = resp.text.strip().replace("`", "").replace("Drawing of", "")
+                    break
             except: continue
         
-        if not eng_prompt: bot.reply_to(message, "🚨 Сбой связи с Архивом!"); return
+        if not eng_prompt:
+            bot.reply_to(message, "📡 Архив временно недоступен из-за помех в ионосфере. Попробуй позже! Прием."); return
+            
         if spend_dust(user_id, 5):
-            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&seed={int(time.time())}"
-            bot.send_photo(message.chat.id, url, caption=f"🎨 Архив открыт!", reply_markup=get_marty_keyboard())
+            seed = int(time.time())
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={seed}"
+            bot.send_photo(message.chat.id, url, caption=f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\nЗапрос: _{clean_text}_\n\nПрием!", parse_mode="Markdown", reply_markup=get_marty_keyboard())
         return
 
     u_data = get_user_data(user_id); old_rank = get_rank_name(u_data['xp'])
