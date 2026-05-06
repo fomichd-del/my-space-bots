@@ -37,11 +37,9 @@ last_comment_reward = {}
 # 🟢 ИГРОВОЙ ДВИЖОК
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game_'))
 def game_engine(call):
-    # Если нажата кнопка возврата в профиль - останавливаем игру и показываем статы
     if call.data == "game_back_to_profile":
         handle_text(call.message, is_profile_call=True)
     else:
-        # В остальных случаях передаем управление в сценарий
         scenario1.run_scenario(bot, call)
 
 # ---------------------------
@@ -85,31 +83,31 @@ def is_very_first_time(user_id):
     user_data = get_user_data(user_id)
     return user_data['xp'] == 0 and "Данных пока нет" in get_personal_log(user_id)
 
+# 🟢 ОБНОВЛЕННАЯ ПАНЕЛЬ УПРАВЛЕНИЯ
 def get_marty_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
+    markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
+    markup.row(KeyboardButton("🎮 Игровой отсек")) # Новая кнопка для игр
     return markup
 
+# 🟢 ОБНОВЛЕННАЯ ИНСТРУКЦИЯ (ЗНАЕТ ОБ ИГРЕ)
 def send_welcome_instruction(chat_id, user_id, user_name):
     instruction = (
         f"🐾 **ДОБРО ПОЖАЛОВАТЬ В АКАДЕМИЮ ОРИОН!** 🐾\n\n"
         f"🚀 **МИССИЯ ПИЛОТА {user_name.upper()}:**\n"
-        "Я — Марти, твой бортовой наставник и верный друг. Моя задача — помочь тебе стать выдающимся Командором, "
-        "который разбирается в науках, ценит ресурсы и всегда соблюдает порядок.\n\n"
-        "📜 **КОДЕКС ЧЕСТИ ПИЛОТА:**\n"
-        "✅ **Стремление к знаниям:** Изучай Вселенную, языки и науки. Знания — это твоя главная сила.\n"
-        "✅ **Протокол Чистоты:** Поддерживай идеальный порядок в своем жилом модуле. Порядок — это дисциплина пилота.\n"
-        "✅ **Благородство:** Будь вежлив, помогай старшим офицерам дома и защищай тех, кто слабее.\n"
-        "⚠️ **Достойное поведение:** На борту запрещено ругаться, вести себя неуважительно или обманывать бортовой ИИ.\n\n"
-        "💫 **РАНГИ (XP ДЛЯ ПАСПОРТА):**\n"
-        "Кадет | Навигатор | Бортинженер | Исследователь | Ученый Пилот | Капитан | Командор | Адмирал | Академик\n\n"
-        "💰 **ЭКОНОМИКА ЭКСПЕДИЦИИ:**\n"
-        "• **XP (Стаж):** Твой опыт в Радаре.\n"
-        "• **Звездная Пыль (Кошелек):** Твой бюджет для миссий. Команда 'НАРИСУЙ' стоит 5 ед. пыли.\n\n"
-        "Готов приступить к тренировке? Используй кнопки внизу для навигации! Прием!"
+        "Я — Марти, твой бортовой наставник и верный друг. Я здесь, чтобы превратить твое обучение в захватывающее приключение!\n\n"
+        "📜 **ТВОИ ИНСТРУМЕНТЫ:**\n"
+        "• **👤 Мой профиль:** Здесь твой ранг, опыт (XP) и баланс Звездной пыли.\n"
+        "• **🎮 Игровой отсек:** Доступ к симуляциям и сюжетным играм. Проходи их, чтобы заработать пыль и раскрыть тайны Вселенной!\n"
+        "• **❓ Инструкция:** Кодекс чести и правила Академии.\n\n"
+        "🕹 **ТЕКУЩАЯ МИССИЯ:**\n"
+        "Прямо сейчас тебе доступна игра **'Дневник юного космонавта'**. Это детективная история на заброшенной станции, где каждое твое решение меняет финал.\n\n"
+        "💰 **ЭКОНОМИКА:**\n"
+        "За активность и прохождение игр ты получаешь **Звездную пыль**. Накопи 5 ед. и используй команду 'Нарисуй', чтобы открыть Архив!\n\n"
+        "Готов к старту? Используй кнопки управления! Прием!"
     )
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
-    update_personal_log(user_id, "Пилот изучил Кодекс Чести и зачислен в Академию.")
+    update_personal_log(user_id, "Пилот изучил инструкции и возможности Игрового отсека.")
 
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель), мудрый бортовой наставник Академии Орион. Твой собеседник — пилот [NAME]. "
@@ -190,19 +188,32 @@ def handle_photo(message):
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
     user_id = message.from_user.id
-    # Используем данные из профиля, если это вызов из кнопок
     if is_profile_call:
         user_name = message.chat.first_name if message.chat.first_name else "Пилот"
     else:
         user_name = message.from_user.first_name if message.from_user.first_name else "Пилот"
 
-    # 🟢 ВКЛЮЧАЕМ ТАЙПИНГ (только если это не обновление профиля кнопкой)
+    # 🟢 ВКЛЮЧАЕМ ТАЙПИНГ
     if not is_profile_call:
         bot.send_chat_action(message.chat.id, 'typing')
     
     text = message.text if message.text else ""
-    
-    # --- ЛОГИКА ПРОФИЛЯ С КНОПКОЙ ИГРЫ ---
+
+    # --- 🕹 ЛОГИКА ИГРОВОГО ОТСЕКА ---
+    if text == "🎮 Игровой отсек":
+        report = (
+            "🎮 **ДОБРО ПОЖАЛОВАТЬ В ИГРОВОЙ ОТСЕК**\n\n"
+            "Здесь собраны интерактивные модули Академии. Выбери миссию для погружения:\n\n"
+            "🚀 **Дневник юного космонавта: Глава 1**\n"
+            "Детективное расследование на станции 'Авалон-7'. Раскрой тайну Сектора Зеро.\n"
+            "💰 Награда: до **50 ед. Звездной пыли**."
+        )
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(tele_types.InlineKeyboardButton("🚀 Начать миссию", callback_data="game_start"))
+        bot.reply_to(message, report, reply_markup=kb, parse_mode="Markdown")
+        return
+
+    # --- ЛОГИКА ПРОФИЛЯ ---
     if text == "👤 Мой профиль" or is_profile_call:
         u_data = get_user_data(user_id)
         current_xp, current_dust = u_data['xp'], u_data['spendable_dust']
@@ -213,15 +224,11 @@ def handle_text(message, is_profile_call=False):
             f"👤 Имя: `{user_name}`\n"
             f"🎖 Текущий ранг: `{rank}`\n"
             f"📈 Опыт (XP): `{current_xp}`\n"
-            f"💰 Звездная пыль: `{current_dust}` ед.\n\n"
-            f"Для открытия Архива нужно 5 ед. пыли. Прием!"
+            f"💰 Звездная пыль: `{current_dust}` ед.\n"
         )
         
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        kb.add(
-            tele_types.InlineKeyboardButton("🚀 Бортовой журнал (Игра)", callback_data="game_start"),
-            tele_types.InlineKeyboardButton("❓ Инструкция", callback_data="game_instruction_fix")
-        )
+        kb.add(tele_types.InlineKeyboardButton("❓ Помощь по рангам", callback_data="game_instruction_fix"))
         
         if is_profile_call:
             bot.edit_message_text(report, message.chat.id, message.message_id, reply_markup=kb, parse_mode="Markdown")
