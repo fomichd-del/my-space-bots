@@ -279,19 +279,34 @@ def handle_text(message, is_profile_call=False):
     if any(w in clean_text.lower() for w in ['нарисуй', 'сгенерируй', 'архив', 'картинку']):
         data = get_user_data(user_id)
         if data['spendable_dust'] < 5:
-            bot.reply_to(message, f"🐾 Командор, на борту {data['spendable_dust']} ед. пыли. Для открытия Архива нужно 5 ед.", reply_markup=get_marty_keyboard())
+            bot.reply_to(message, f"🐾 Командор, на борту {data['spendable_dust']} ед. пыли. Нужно 5 ед.", reply_markup=get_marty_keyboard())
             return
+            
         bot.send_chat_action(message.chat.id, 'upload_photo')
         eng_prompt = None
         c_p = "Censor harmful. If safe, translate to English + 'masterpiece, high quality, kid style'. If unsafe return CENSORED."
+        
+        # Проверяем, есть ли вообще ключи
+        if not API_KEYS:
+            send_log("КРИТИЧЕСКАЯ ОШИБКА: API ключи Gemini не найдены в переменных окружения!")
+            bot.reply_to(message, "📡 Ошибка связи с Архивом: отсутствуют ключи доступа."); return
+
         for api_key in API_KEYS:
             client_gen = genai.Client(api_key=api_key)
             try:
-                resp = client_gen.models.generate_content(model='gemini-2.0-flash', contents=clean_text, config=types.GenerateContentConfig(system_instruction=c_p))
-                if resp.text: eng_prompt = resp.text.strip(); break
-            except: continue
+                # Используем стабильную модель 1.5 для перевода, она самая надежная
+                resp = client_gen.models.generate_content(model='gemini-1.5-flash', contents=clean_text, config=types.GenerateContentConfig(system_instruction=c_p))
+                if resp.text: 
+                    eng_prompt = resp.text.strip()
+                    break
+            except Exception as e: 
+                send_log(f"Сбой ключа при генерации: {e}")
+                continue
+                
         if not eng_prompt or "CENSORED" in eng_prompt.upper():
-            bot.reply_to(message, "🚨 Доступ заблокирован!"); return
+            bot.reply_to(message, "🚨 Доступ заблокирован или ошибка перевода!", reply_markup=get_marty_keyboard())
+            return
+            
         if spend_dust(user_id, 5):
             url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
             bot.send_photo(message.chat.id, url, caption=f"🎨 Архив открыт! Потрачено 5 ед. пыли.", reply_markup=get_marty_keyboard())
