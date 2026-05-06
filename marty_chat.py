@@ -2,6 +2,7 @@ import os
 import telebot
 import time
 import re
+import scenario1
 import urllib.parse
 from datetime import datetime, timedelta
 from threading import Thread
