@@ -38,7 +38,9 @@ def init_db():
             ("spendable_dust", "INTEGER DEFAULT 0"),
             ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"),
             ("streak_days", "INTEGER DEFAULT 0"),
-            ("last_active_date", "TEXT DEFAULT ''")
+            ("last_active_date", "TEXT DEFAULT ''"),
+            ("game_node", "TEXT DEFAULT 'start'"),
+            ("game_timer_end", "TIMESTAMP")
         ]
         for col_name, col_type in new_columns:
             cursor.execute(f'''
@@ -195,3 +197,40 @@ def get_rank_name(xp):
     if xp < 650: return "Адмирал Флота ⭐"
     if xp < 900: return "Академик Космоса 🎓"
     return "Верный Помощник Марти 🐕"
+
+# --- НОВЫЕ ФУНКЦИИ ДЛЯ ИГРЫ ---
+
+def update_game_progress(user_id, node_id):
+    conn = get_connection()
+    if not conn: return
+    try:
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET game_node = %s WHERE user_id = %s', (node_id, user_id))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+def set_game_timer(user_id, minutes):
+    conn = get_connection()
+    if not conn: return
+    try:
+        finish_time = datetime.now() + timedelta(minutes=minutes)
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET game_timer_end = %s WHERE user_id = %s', (finish_time, user_id))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_game_status(user_id):
+    conn = get_connection()
+    if not conn: return "start", None
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT game_node, game_timer_end FROM users WHERE user_id = %s', (user_id,))
+        res = cursor.fetchone()
+        return res if res else ("start", None)
+    finally:
+        cursor.close()
+        conn.close()
