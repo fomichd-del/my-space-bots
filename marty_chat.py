@@ -6,7 +6,7 @@ import scenario1
 import urllib.parse
 from datetime import datetime, timedelta
 from threading import Thread
-from Flask import Flask
+from flask import Flask
 from google import genai
 from google.genai import types
 from telebot import types as tele_types 
