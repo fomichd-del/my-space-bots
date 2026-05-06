@@ -8,6 +8,7 @@ from threading import Thread
 from flask import Flask
 from google import genai
 from google.genai import types
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton # 🟢 ИМПОРТ ДЛЯ КНОПОК
 
 # --- ИМПОРТЫ ---
 from database import (get_personal_log, update_personal_log, add_xp, get_user_stats, 
@@ -77,6 +78,12 @@ def is_very_first_time(user_id):
     user_data = get_user_data(user_id)
     return user_data['xp'] == 0 and "Данных пока нет" in get_personal_log(user_id)
 
+# 🟢 ФУНКЦИЯ СОЗДАНИЯ ПАНЕЛИ УПРАВЛЕНИЯ (КНОПКИ ВНИЗУ)
+def get_marty_keyboard():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
+    return markup
+
 # 🟢 ГЛОБАЛЬНЫЙ УСТАВ АКАДЕМИИ ОРИОН
 def send_welcome_instruction(chat_id, user_id, user_name):
     instruction = (
@@ -94,9 +101,9 @@ def send_welcome_instruction(chat_id, user_id, user_name):
         "💰 **ЭКОНОМИКА ЭКСПЕДИЦИИ:**\n"
         "• **XP (Стаж):** Твой опыт в Радаре.\n"
         "• **Звездная Пыль (Кошелек):** Твой бюджет для миссий. Команда 'НАРИСУЙ' стоит 5 ед. пыли.\n\n"
-        "Готов приступить к тренировке? Прием!"
+        "Готов приступить к тренировке? Используй кнопки внизу для навигации! Прием!"
     )
-    bot.send_message(chat_id, instruction, parse_mode="Markdown")
+    bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот изучил Кодекс Чести и зачислен в Академию.")
 
 # 🟢 ЯДРО ЛИЧНОСТИ (УМНЫЙ И ЖИВОЙ ДРУГ)
@@ -189,7 +196,7 @@ def handle_photo(message):
             if "джекпот" in analysis_result.lower() and not get_user_data(user_id)["jackpot_claimed"]:
                 total_dust += 3; set_jackpot_claimed(user_id); bot.send_message(message.chat.id, "🎰 ДЖЕКПОТ!")
             add_xp(user_id, min(total_dust, 4), user_name)
-        bot.reply_to(message, analysis_result)
+        bot.reply_to(message, analysis_result, reply_markup=get_marty_keyboard())
         new_xp = get_user_stats(user_id)
         if old_rank != get_rank_name(new_xp):
             new_r = get_rank_name(new_xp); bot.send_message(message.chat.id, f"🎉 Ранг повышен: {new_r}!")
@@ -226,12 +233,17 @@ def handle_text(message):
     if is_very_first_time(user_id): 
         send_welcome_instruction(message.chat.id, user_id, user_name)
         return
+
+    # 🟢 ОБРАБОТКА НАЖАТИЯ КНОПКИ "ИНСТРУКЦИЯ"
+    if message.text == "❓ Инструкция":
+        send_welcome_instruction(message.chat.id, user_id, user_name)
+        return
     
     bot.send_chat_action(message.chat.id, 'typing')
     clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
     
     # --- ПРЯМАЯ ПРОВЕРКА БАЛАНСА (БЕЗ HALLUCINATIONS) ---
-    if any(w in clean_text.lower() for w in ['баланс', 'статус', 'счет', 'пыль', 'stats']):
+    if message.text == "👤 Мой профиль" or any(w in clean_text.lower() for w in ['баланс', 'статус', 'счет', 'пыль', 'stats']):
         u_data = get_user_data(user_id)
         current_xp = u_data['xp']
         current_dust = u_data['spendable_dust']
@@ -245,14 +257,14 @@ def handle_text(message):
             f"💰 Звездная пыль: `{current_dust}` ед.\n\n"
             f"Для открытия Архива нужно 5 ед. пыли. Прием!"
         )
-        bot.reply_to(message, report, parse_mode="Markdown")
+        bot.reply_to(message, report, parse_mode="Markdown", reply_markup=get_marty_keyboard())
         return 
 
     # --- ПРОВЕРКА ПЫЛИ ДЛЯ РИСОВАНИЯ ---
     if any(w in clean_text.lower() for w in ['нарисуй', 'сгенерируй', 'архив', 'картинку']):
         data = get_user_data(user_id)
         if data['spendable_dust'] < 5:
-            bot.reply_to(message, f"🐾 На борту {data['spendable_dust']} ед. пыли. Для открытия Архива нужно 5 ед. Выполняй задания или комментируй посты! Прием.")
+            bot.reply_to(message, f"🐾 На борту {data['spendable_dust']} ед. пыли. Для открытия Архива нужно 5 ед. Выполняй задания или комментируй посты! Прием.", reply_markup=get_marty_keyboard())
             return
 
         bot.send_chat_action(message.chat.id, 'upload_photo'); eng_prompt = None
@@ -266,19 +278,19 @@ def handle_text(message):
                 except: continue
             if eng_prompt: break
         
-        if not eng_prompt: bot.reply_to(message, "📡 Каналы Архива перегружены."); return
-        if "CENSORED" in eng_prompt.upper(): bot.reply_to(message, "🚨 Доступ заблокирован Кодексом Чести!"); return
+        if not eng_prompt: bot.reply_to(message, "📡 Каналы Архива перегружены.", reply_markup=get_marty_keyboard()); return
+        if "CENSORED" in eng_prompt.upper(): bot.reply_to(message, "🚨 Доступ заблокирован Кодексом Чести!", reply_markup=get_marty_keyboard()); return
         
         if spend_dust(user_id, 5):
             url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
-            bot.send_photo(message.chat.id, url, caption=f"🎨 Архив открыт! Потрачено 5 ед. пыли. Остаток: {get_user_data(user_id)['spendable_dust']} ед. Прием.")
+            bot.send_photo(message.chat.id, url, caption=f"🎨 Архив открыт! Потрачено 5 ед. пыли. Остаток: {get_user_data(user_id)['spendable_dust']} ед. Прием.", reply_markup=get_marty_keyboard())
         return
 
     # --- РАДАР ---
     if clean_text.lower() in ['радар', 'рейтинг', 'топ']:
         top = get_top_pilots(5); msg = "🏆 **РАДАР АКАДЕМИИ ОРИОН** 🏆\n\n"
         for i, (n, x) in enumerate(top, 1): msg += f"{i}. {n} — {x} 💫 ({get_rank_name(x)})\n"
-        bot.reply_to(message, msg, parse_mode="Markdown"); return
+        bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=get_marty_keyboard()); return
 
     # --- МОЗГ МАРТИ ---
     old_xp = get_user_stats(user_id)
@@ -286,12 +298,12 @@ def handle_text(message):
     resp = get_marty_response(user_id, user_name, clean_text, get_rank_name(old_xp), u_data['spendable_dust'])
     if resp:
         if "звездн" in resp.lower() and "пыль" in resp.lower(): add_xp(user_id, 1, user_name)
-        bot.reply_to(message, resp.split("###MEM###")[0].strip())
+        bot.reply_to(message, resp.split("###MEM###")[0].strip(), reply_markup=get_marty_keyboard())
         if get_rank_name(old_xp) != get_rank_name(get_user_stats(user_id)):
             new_r = get_rank_name(get_user_stats(user_id)); bot.send_message(message.chat.id, f"🎉 Ранг повышен: {new_r}!")
             p = generate_passport(user_name, new_r); 
             if p: bot.send_photo(message.chat.id, p)
-    else: bot.reply_to(message, "⏳ Тишина в эфире. Прием.")
+    else: bot.reply_to(message, "⏳ Тишина в эфире. Прием.", reply_markup=get_marty_keyboard())
 
 def start_marty_autonomous():
     print("🚀 Академия Орион 2.1 (Живой Наставник) запущена.")
