@@ -34,51 +34,10 @@ bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
 last_comment_reward = {}
 
-# 🟢 ИГРОВОЙ ДВИЖОК (ПЕРЕХВАТЫВАЕТ ИГРОВЫЕ КНОПКИ)
+# 🟢 ИГРОВОЙ ДВИЖОК (ТЕПЕРЬ ПЕРЕДАЕТ УПРАВЛЕНИЕ В SCENARIO1)
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game_'))
 def game_engine(call):
-    user_id = call.from_user.id
-    username = call.from_user.first_name
-    
-    current_node, timer_end = get_game_status(user_id)
-    
-    # Проверка таймера
-    if timer_end and datetime.now() < timer_end:
-        remaining = timer_end - datetime.now()
-        mins = int(remaining.total_seconds() // 60)
-        bot.answer_callback_query(call.id, f"⏳ Марти занят анализом. Будет готов через {mins} мин.", show_alert=True)
-        return
-
-    # Логика первой сцены
-    if call.data == "game_start":
-        text = (f"🛰 **БОРТОВОЙ ЖУРНАЛ: ЗАПИСЬ #1**\n\n"
-                f"{username}, шлюз 'Авалона-7' встретил вас ледяным сквозняком. "
-                f"Марти замер, его сенсоры сканируют темноту. Перед вами — разбитая панель управления и "
-                f"ряд запертых шкафчиков экипажа.\n\n"
-                "С чего начнете?")
-        
-        kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        kb.add(
-            tele_types.InlineKeyboardButton("🔍 Осмотреть панель", callback_data="game_node_panel"),
-            tele_types.InlineKeyboardButton("📦 Вскрыть шкафчики", callback_data="game_node_closet")
-        )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "shluz_entry")
-
-    # Реакция на панель (включаем таймер)
-    elif call.data == "game_node_panel":
-        set_game_timer(user_id, 10)
-        text = ("⚙️ Вы коснулись проводов. Марти тут же выпустил манипулятор:\n\n"
-                "— Хозяин, здесь зашифрованный протокол 'Эхо'. Мне нужно около **10 минут**, чтобы взломать систему. "
-                "Пока я работаю, не отходите далеко.")
-        kb = tele_types.InlineKeyboardMarkup()
-        kb.add(tele_types.InlineKeyboardButton("⬅️ Вернуться на мостик", callback_data="game_back_to_profile"))
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "hacking_panel")
-
-    # Возврат к профилю
-    elif call.data == "game_back_to_profile":
-        handle_text(call.message, is_profile_call=True)
+    scenario1.run_scenario(bot, call)
 
 # ---------------------------
 # --- ПОЛНЫЙ ОРИГИНАЛЬНЫЙ КОД ---
@@ -220,7 +179,7 @@ def handle_photo(message):
             total_dust = 2 if is_meteor_shower() else 1
             if check_and_update_streak(user_id) >= 3: total_dust += 1
             add_xp(user_id, min(total_dust, 4), user_name)
-        bot.reply_to(message, analysis_result, reply_markup=get_marty_keyboard())
+        bot.reply_to(message, analysis_result, reply_markup=get_mart_keyboard())
     except Exception as e: send_log(f"Ошибка фото: {e}")
 
 @bot.message_handler(func=lambda m: True)
@@ -272,7 +231,6 @@ def handle_text(message, is_profile_call=False):
         if data['spendable_dust'] < 5:
             bot.reply_to(message, f"🐾 На борту {data['spendable_dust']} ед. Нужно 5.", reply_markup=get_marty_keyboard())
             return
-        # (Тут была ваша логика генерации изображений, она остается полностью в вашем файле)
 
     # Мозг Марти
     old_xp = get_user_stats(user_id)
