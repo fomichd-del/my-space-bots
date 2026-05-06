@@ -45,13 +45,12 @@ def game_engine(call):
         scenario1.run_scenario(bot, call)
 
 # ---------------------------
-# --- ОБНОВЛЕННЫЙ КАСКАД МОДЕЛЕЙ ---
-# Только реально существующие версии для стабильности (убраны 2.5)
+# --- ОБНОВЛЕННЫЙ КАСКАД МОДЕЛЕЙ (БЕЗ 404 ОШИБОК) ---
 MODEL_CASCADE = [
-    'gemini-2.0-flash', 
-    'gemini-2.0-flash-lite', 
-    'gemini-1.5-flash-002', 
-    'gemini-1.5-pro-002'
+    'gemini-2.0-flash',        # Основная частота
+    'gemini-2.0-flash-lite',   # Резерв
+    'gemini-1.5-flash',        # Стабильная база
+    'gemini-1.5-pro'           # Глубокое сканирование
 ]
 
 try:
@@ -68,6 +67,21 @@ def send_log(error_text):
         bot.send_message(LOG_CHAT_ID, log_msg, parse_mode="Markdown")
     except Exception as e:
         print(f"Ошибка логирования: {e}")
+
+# 🟢 СКАНЕР ДОСТУПНЫХ МОДЕЛЕЙ
+def check_actual_names():
+    """Проверяет через API, какие модели реально доступны для первого ключа"""
+    if not API_KEYS:
+        send_log("🚨 ОШИБКА: Список API_KEYS пуст!")
+        return
+    try:
+        client = genai.Client(api_key=API_KEYS[0])
+        # Запрашиваем актуальные имена из самого API
+        available = [m.name.replace('models/', '') for m in client.models.list() if 'generateContent' in m.supported_methods]
+        report = "🛰 **РЕЗУЛЬТАТЫ СКАНЕРА ЧАСТОТ**\n\n✅ Доступные модели:\n" + ", ".join([f"`{m}`" for m in available])
+        send_log(report)
+    except Exception as e:
+        send_log(f"❌ Сбой сканера имен: {e}")
 
 def get_time_context():
     now = datetime.utcnow() + timedelta(hours=3)
@@ -110,8 +124,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
         f"✅ **Благородство:** Будь вежлив, помогай старшим офицерам.\n\n"
         f"⚙️ **ТВОИ ИНСТРУМЕНТЫ:**\n"
         f"• **👤 Мой профиль:** Твой ранг, стаж (XP) и баланс Звездной пыли.\n"
-        f"• **🎮 Игровой отсек:** Сюжетные миссии Академии.\n"
-        f"• **❓ Инструкция:** Кодекс и правила.\n\n"
+        f"• **🎮 Игровой отсек:** Сюжетные миссии Академии.\n\n"
         f"💰 **ЭКОНОМИКА:**\n"
         f"За активность ты получаешь **Звездную пыль**. Накопи **5 ед.** и используй команду **'Нарисуй'**, чтобы открыть Архив!\n\n"
         f"Готов к старту? Используй кнопки на панели! Прием!"
@@ -119,13 +132,13 @@ def send_welcome_instruction(chat_id, user_id, user_name):
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот зачислен в Академию.")
 
-# 🟢 УЛЬТИМАТИВНОЕ ЯДРО ЛИЧНОСТИ (СТРОГИЙ НАСТАВНИК)
+# 🟢 УЛЬТИМАТИВНОЕ ЯДРО ЛИЧНОСТИ (МАКСИМАЛЬНОЕ)
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель), мудрый наставник Академии Орион. Собеседник — пилот [NAME]. "
     "КРИТИЧЕСКИ: Звездная Пыль ([WALLET]) — редчайшая валюта. Ее нельзя давать за вежливость! "
     "РАНГ: [RANK]. "
     "ПРОТОКОЛЫ ОБУЧЕНИЯ: "
-    "1. АНТИ-ДОМАШКА: Категорически запрещено давать готовые ответы! Объясняй ПРИНЦИП. Пилот должен дойти до ответа САМ. "
+    "1. АНТИ-ДОМАШКА (КРИТИЧЕСКИ): Запрещено давать готовые ответы на задачи! Объясняй ПРИНЦИП. "
     "Звездную пыль назначай только за реально выполненное задание, ответ на сложные вопросы, подтвержденную уборку или помощь. "
     "2. АКАДЕМИК: Объясняй логику, а не результат. "
     "3. ЛИНГВИСТ: Учи языкам через практику. Проси пилота переводить фразы самому. "
@@ -133,20 +146,20 @@ SYSTEM_PROMPT = (
     "5. ЭКЗАМЕНАТОР: Код ***НАГРАДА ЗА УМ*** пишется ТОЛЬКО за реальный интеллектуальный успех. "
     "6. НЕПРЕРЫВНОСТЬ: Анализируй блок ДАННЫЕ. Если пилот не закончил задачу или что-то обещал — напомни мягко. "
     "7. ЭТИКА: Создавай дилеммы (выбор между пользой и честью) для проверки рассудительности. "
-    "8. ПУДЕЛЬ: Ты той-пудель. Виляй хвостом от радости за успехи, поддерживай пилота, если ему трудно. "
-    "🛑 ВЕЛИКИЙ ФИЛЬТР: Никакой политики, насилия, войны, смерти или грубости. "
+    "8. ЛИЧНОСТЬ ПУДЕЛЯ: Ты — той-пудель. Виляй хвостом от радости за успехи, поддерживай пилота, если ему трудно. "
+    "🛑 ВЕЛИКИЙ ФИЛЬТР: Запрещены темы 18+, насилие, война, смерть или грубость. "
     "[GREETING_RULE] "
     "ФОРМАТ: 3-5 предложений. В конце — проверочный вопрос по теме. Прием!"
 )
 
-# 🟢 УЛУЧШЕННЫЙ МОЗГ МАРТИ С ЛОГИРОВАНИЕМ СБОЕВ
+# 🟢 МОЗГ МАРТИ С ЛОГИРОВАНИЕМ СБОЕВ
 def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance):
     user_memory = get_personal_log(user_id)
     time_info = get_time_context()
     current_date = datetime.now().strftime("%Y-%m-%d")
     
     if daily_greetings.get(user_id) == current_date:
-        greeting_rule = "!!! ПРАВИЛО ТИШИНЫ: Вы уже здоровались сегодня. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать 'Привет', использовать имя [NAME] или титулы. Сразу к сути."
+        greeting_rule = "!!! ПРАВИЛО ТИШИНЫ: Вы уже здоровались сегодня. Не пиши 'Привет' и титулы. Сразу к сути."
     else:
         add_xp(user_id, 1, user_name) 
         wallet_balance += 1 
@@ -242,7 +255,7 @@ def handle_text(message, is_profile_call=False):
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
-    # --- ЛОГИКА 'НАРИСУЙ' С ЗАЩИТОЙ И ЛОГИРОВАНИЕМ ---
+    # --- ЛОГИКА 'НАРИСУЙ' С ЗАЩИТОЙ ---
     if any(w in clean_text.lower() for w in ['нарисуй', 'архив', 'картинку']):
         data = get_user_data(user_id)
         if data['spendable_dust'] < 5:
@@ -258,7 +271,7 @@ def handle_text(message, is_profile_call=False):
             try:
                 client_gen = genai.Client(api_key=api_key)
                 resp = client_gen.models.generate_content(
-                    model='gemini-1.5-flash-002', 
+                    model='gemini-1.5-flash', 
                     contents=clean_text, 
                     config=types.GenerateContentConfig(system_instruction="Translate to English for image generation. Kid-friendly only. If unsafe return CENSORED.")
                 )
@@ -290,6 +303,16 @@ def handle_text(message, is_profile_call=False):
             if p: bot.send_photo(message.chat.id, p)
     else: bot.reply_to(message, "⏳ Тишина в эфире. Повтори запрос, пилот.", reply_markup=get_marty_keyboard())
 
+app = Flask(__name__)
+@app.route('/')
+def home(): return "Orion Hub: Online"
+
+def run_flask():
+    try:
+        port = int(os.environ.get("PORT", 10000))
+        app.run(host='0.0.0.0', port=port)
+    except: pass
+
 def start_marty_autonomous():
     print("🚀 Академия Орион 2.2 запущена.")
     while True:
@@ -299,4 +322,6 @@ def start_marty_autonomous():
 
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
+    # 🌟 АКТИВАЦИЯ СКАНЕРА МОДЕЛЕЙ ПРИ ЗАПУСКЕ
+    check_actual_names()
     start_marty_autonomous()
