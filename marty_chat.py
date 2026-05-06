@@ -46,10 +46,9 @@ def game_engine(call):
 
 # ---------------------------
 # --- СТАБИЛЬНЫЙ КАСКАД МОДЕЛЕЙ (МАЙ 2026) ---
-# Если эти имена выдают 404, Марти сам напишет правильные в чат при ошибке.
 MODEL_CASCADE = [
-    'gemini-2.0-flash',        # Основная: высокая скорость, отличные лимиты
-    'gemini-2.0-flash-lite',   # Резерв: эконом-режим
+    'gemini-2.0-flash',        # Основная: высокая скорость
+    'gemini-2.0-flash-lite',   # Резерв
     'gemini-1.5-flash',        # Стабильная база
     'gemini-1.5-pro'           # Глубокое сканирование
 ]
@@ -69,27 +68,30 @@ def send_log(error_text):
     except Exception as e:
         print(f"Ошибка логирования: {e}")
 
-# 🟢 ФУНКЦИЯ СКАНЕРА ДОСТУПНЫХ МОДЕЛЕЙ (ДЛЯ ОТВЕТА ПОЛЬЗОВАТЕЛЮ)
+# 🟢 СКАНЕР ДОСТУПНЫХ МОДЕЛЕЙ (ФИКС ОШИБКИ)
 def get_available_models_list():
     """Возвращает строку с именами моделей, доступных для текущего API-ключа"""
     if not API_KEYS: return "Ключи API не найдены."
     try:
         client = genai.Client(api_key=API_KEYS[0])
+        # Исправлено: используем supported_actions вместо supported_methods
         models = client.models.list()
-        names = [m.name.replace('models/', '') for m in models if 'generateContent' in m.supported_methods]
+        names = [m.name.replace('models/', '') for m in models 
+                 if 'generateContent' in (m.supported_actions or [])]
         return "\n".join([f"• `{n}`" for n in names])
     except Exception as e:
-        return f"Ошибка сканирования: {e}"
+        return f"Ошибка сканера: {e}"
 
-# 🟢 СКАНЕР ДОСТУПНЫХ МОДЕЛЕЙ (ДЛЯ ЛОГОВ)
 def check_actual_names():
-    """Проверяет через API, какие модели реально доступны для ключа"""
+    """Проверяет через API, какие модели реально доступны для логов"""
     if not API_KEYS:
         send_log("🚨 ОШИБКА: Список API_KEYS пуст!")
         return
     try:
         client = genai.Client(api_key=API_KEYS[0])
-        available = [m.name.replace('models/', '') for m in client.models.list() if 'generateContent' in m.supported_methods]
+        models = client.models.list()
+        available = [m.name.replace('models/', '') for m in models 
+                     if 'generateContent' in (m.supported_actions or [])]
         report = "🛰 **РЕЗУЛЬТАТЫ СКАНЕРА ЧАСТОТ**\n\n✅ Доступные модели на борту:\n" + ", ".join([f"`{m}`" for m in available])
         send_log(report)
     except Exception as e:
@@ -143,7 +145,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот зачислен в Академию.")
 
-# 🟢 ЯДРО ЛИЧНОСТИ
+# 🟢 УЛЬТИМАТИВНОЕ ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель), мудрый наставник Академии Орион. Собеседник — пилот [NAME]. "
     "КРИТИЧЕСКИ: Звездная Пыль ([WALLET]) — редчайшая валюта. Ее нельзя давать за просто так! "
@@ -154,9 +156,9 @@ SYSTEM_PROMPT = (
     "3. ЛИНГВИСТ: Учи языкам через практику. "
     "4. ЕСТЕСТВЕННОСТЬ: Приветствие разрешено только ОДИН РАЗ В ДЕНЬ. В остальное время — сразу к сути. "
     "5. ЭКЗАМЕНАТОР: Код ***НАГРАДА ЗА УМ*** только за реальный интеллектуальный труд. "
-    "6. НЕПРЕРЫВНОСТЬ: Анализируй блок ДАННЫЕ. Если пилот не закончил задачу или обещал что-то сделать — напомни мягко. "
+    "6. НЕПРЕРЫВНОСТЬ: Анализируй блок ДАННЫЕ. Если пилот не закончил задачу или что-то обещал — напомни мягко. "
     "7. МОРАЛЬНЫЙ КОМПАС: Создавай этические дилеммы для проверки рассудительности пилота. "
-    "8. ЛИЧНОСТЬ ПУДЕЛЯ: Ты той-пудель. Виляй хвостом от радости, поддерживай пилота, если ему трудно. "
+    "8. ЛИЧНОСТЬ ПУДЕЛЯ: Ты той-пудель. Виляй хвостом от радости, поддерживай пилота. "
     "🛑 ВЕЛИКИЙ ФИЛЬТР: Запрещены темы 18+, насилие, политика. "
     "[GREETING_RULE] "
     "ФОРМАТ: 3-5 предложений. В конце — вопрос по теме. Прием!"
@@ -200,10 +202,10 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
             send_log(f"🚨 Сбой ключа API: {str(e)}")
             continue
             
-    # Если всё упало — сканируем доступные модели и возвращаем их список пользователю
+    # ЕСЛИ ВСЁ УПАЛО — ДИАГНОСТИКА
     send_log(f"КРИТИЧЕСКИЙ ОТКАЗ: Ни одна модель не ответила. Последняя ошибка: {last_error}")
     supported = get_available_models_list()
-    return f"📡 **ОШИБКА СВЯЗИ С ОРИОНОМ**\n\nТекущие модели из кода не отвечают. Доступные названия на твоем ключе:\n\n{supported}\n\nКомандор, проверь названия в списке MODEL_CASCADE! Прием."
+    return f"📡 **ОШИБКА СВЯЗИ С ОРИОНОМ**\n\nТекущие модели в коде не отвечают. Доступные названия на твоем ключе:\n\n{supported}\n\nПроверь названия в списке MODEL_CASCADE! Прием."
 
 @bot.message_handler(commands=['start', 'help'])
 def handle_start(message):
@@ -295,7 +297,6 @@ def handle_text(message, is_profile_call=False):
     old_xp = get_user_stats(user_id); u_data = get_user_data(user_id); old_rank = get_rank_name(old_xp)
     resp = get_marty_response(user_id, user_name, clean_text, old_rank, u_data['spendable_dust'])
     
-    # Теперь resp всегда содержит текст (либо ответ, либо список доступных моделей)
     if resp:
         if "***НАГРАДА ЗА УМ***" in resp:
             add_xp(user_id, 1, user_name)
@@ -327,5 +328,5 @@ def start_marty_autonomous():
 
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
-    check_actual_names()
+    check_actual_names() # Первичный скан частот в логи
     start_marty_autonomous()
