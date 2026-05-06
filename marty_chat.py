@@ -12,71 +12,39 @@ from google.genai import types
 from telebot import types as tele_types 
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
-# --- ИМПОРТЫ ---
 from database import (get_personal_log, update_personal_log, add_xp, get_user_stats, 
                       get_rank_name, get_user_data, set_jackpot_claimed, spend_dust, 
-                      check_and_update_streak, get_top_pilots,
-                      get_game_status, update_game_progress, set_game_timer)
+                      check_and_update_streak, get_top_pilots)
 from vision_module import analyze_image
 from image_gen import generate_passport
 
-# --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 CHANNEL_USERNAME = "@vladislav_space"
 LOG_CHAT_ID = "-1003756164148" 
 
-API_KEYS = [
-    os.getenv('GEMINI_API_KEY'),
-    os.getenv('GEMINI_API_KEY_2'),
-    os.getenv('GEMINI_API_KEY_3')
-]
+API_KEYS = [os.getenv('GEMINI_API_KEY'), os.getenv('GEMINI_API_KEY_2'), os.getenv('GEMINI_API_KEY_3')]
 API_KEYS = [k for k in API_KEYS if k]
 
 bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
 
-# 🟢 ИГРОВОЙ ДВИЖОК
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game_'))
 def game_engine(call):
     if call.data == "game_back_to_profile":
         handle_text(call.message, is_profile_call=True)
-    # ФИКС КНОПКИ ПОМОЩЬ -> ТЕПЕРЬ ЭТО РЕЙТИНГ
     elif call.data == "game_instruction_fix":
-        top_list = get_top_pilots(10)
-        text = "🏆 **ТОП-10 ПИЛОТОВ АКАДЕМИИ ОРИОН**\n\n"
-        for i, p in enumerate(top_list, 1):
-            text += f"{i}. {p['name']} — `{p['rank']}` ({p['xp']} XP)\n"
+        top = get_top_pilots(10)
+        text = "🏆 **ТОП ПИЛОТОВ АКАДЕМИИ**\n\n" + "\n".join([f"{i+1}. {p['name']} - {p['xp']} XP" for i, p in enumerate(top)])
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
     else:
         scenario1.run_scenario(bot, call)
 
-# 🟢 КАСКАД МОДЕЛЕЙ (ОБНОВЛЕН ПОД 3.1 И 2.5)
+MODEL_CASCADE = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
 
-MODEL_CASCADE = [
-    'gemini-3.1-flash-lite-preview',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash'
-]
-
-def send_log(error_text):
-    try:
-        now = (datetime.utcnow() + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
-        log_msg = f"🚨 **ОТЧЕТ СИСТЕМЫ ОРИОН**\n📅 Время: `{now}`\n🔍 **Детали:** `{error_text}`"
-        bot.send_message(LOG_CHAT_ID, log_msg, parse_mode="Markdown")
+def send_log(text):
+    try: bot.send_message(LOG_CHAT_ID, f"🚨 **LOG:** `{text}`", parse_mode="Markdown")
     except: pass
-
-def get_time_context():
-    now = datetime.utcnow() + timedelta(hours=3)
-    return now.strftime("%H:%M")
-
-def is_subscribed(user_id):
-    if user_id == 777000 or user_id < 0: return True
-    try:
-        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in ['member', 'administrator', 'creator']
-    except: return True 
 
 def get_marty_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -129,149 +97,108 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     current_date = datetime.now().strftime("%Y-%m-%d")
     
     if daily_greetings.get(user_id) == current_date:
-        greeting_rule = "!!! ПРАВИЛО ТИШИНЫ: Вы уже здоровались. Сразу к сути вопроса."
+        greeting_rule = "!!! ПРАВИЛО: Не здоровайся, пиши сразу по теме."
     else:
-        add_xp(user_id, 1, user_name) 
-        wallet_balance += 1 
-        greeting_rule = f"!!! ПРАВИЛО ПЕРВОЙ СВЯЗИ: Поздоровайся: 'Командор {user_name}'. Начисли +1 Пыль за вход."
+        add_xp(user_id, 1, user_name); wallet_balance += 1
+        greeting_rule = f"!!! ПРАВИЛО: Поздоровайся 'Командор {user_name}' и скажи про +1 Пыль."
         daily_greetings[user_id] = current_date
     
-    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance)).replace("[GREETING_RULE]", greeting_rule)
+    prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance)).replace("[GREETING_RULE]", greeting_rule)
     
     for api_key in API_KEYS:
-        try:
-            client_gen = genai.Client(api_key=api_key)
-            for model_variant in MODEL_CASCADE:
-                try:
-                    response = client_gen.models.generate_content(
-                        model=model_variant, 
-                        contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}", 
-                        config=types.GenerateContentConfig(system_instruction=current_prompt)
-                    )
-                    if response.text: return response.text
-                except: continue
-        except: continue
+        client = genai.Client(api_key=api_key)
+        for model in MODEL_CASCADE:
+            try:
+                resp = client.models.generate_content(model=model, contents=f"ПАМЯТЬ: {user_memory}\nЗАПРОС: {clean_text}", config=types.GenerateContentConfig(system_instruction=prompt))
+                if resp.text: return resp.text.replace(". ", ".\n\n")
+            except: continue
     return None
 
 @bot.message_handler(commands=['start', 'help'])
 def handle_start(message):
-    user_id, user_name = message.from_user.id, message.from_user.first_name
-    if not is_subscribed(user_id):
-        bot.reply_to(message, f"🐾 Подпишись на канал {CHANNEL_USERNAME}!"); return
-    send_welcome_instruction(message.chat.id, user_id, user_name)
+    send_welcome_instruction(message.chat.id, message.from_user.id, message.from_user.first_name)
+
+def send_welcome_instruction(chat_id, user_id, user_name):
+    text = f"🐾 **ПРИВЕТ, ПИЛОТ {user_name.upper()}!**\n\nЯ твой наставник Марти. Учись, зарабатывай Пыль и открывай Архив командой 'Нарисуй'.\n\nПрием!"
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=get_marty_keyboard())
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
     bot.send_chat_action(message.chat.id, 'typing')
+    u_data = get_user_data(user_id)
+    rank = get_rank_name(u_data['xp'])
+    
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        u_data = get_user_data(user_id); old_rank = get_rank_name(u_data['xp'])
-        
-        analysis_result = analyze_image(downloaded_file, user_context=f"Имя: {user_name}, Ранг: {old_rank}", keys=API_KEYS)
-        
-        if "звездн" in analysis_result.lower() and "пыль" in analysis_result.lower():
-            add_xp(user_id, 1, user_name)
-        
-        bot.reply_to(message, analysis_result, reply_markup=get_marty_keyboard(), parse_mode="Markdown")
-        
-        # ПРОВЕРКА НОВОГО ЗВАНИЯ
-        new_xp = get_user_stats(user_id)
-        if old_rank != get_rank_name(new_xp):
-            new_r = get_rank_name(new_xp)
-            bot.send_message(message.chat.id, f"🎊 **НЕВЕРОЯТНО!** 🎊\nТвой ранг повышен до: `{new_r}`!", parse_mode="Markdown")
-            p = generate_passport(user_name, new_r) 
-            if p: bot.send_photo(message.chat.id, p)
-    except Exception as e: send_log(f"Ошибка фото: {e}")
+        res = analyze_image(downloaded_file, f"Пилот: {user_name}, Ранг: {rank}", keys=API_KEYS)
+        if "звездн" in res.lower(): add_xp(user_id, 1, user_name)
+        bot.reply_to(message, res, reply_markup=get_marty_keyboard())
+    except: send_log("Ошибка фото")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name if message.from_user.first_name else "Пилот"
-    
-    if message.chat.type == 'private' and not is_subscribed(user_id):
-        bot.reply_to(message, f"🐾 Подпишись на канал {CHANNEL_USERNAME}!"); return
-
-    text = message.text if message.text else ""
+    user_id, user_name = message.from_user.id, message.from_user.first_name
     if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
 
+    text = message.text if message.text else ""
     if text == "🎮 Игровой отсек":
-        kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        kb.add(tele_types.InlineKeyboardButton("🚀 Начать миссию", callback_data="game_start"))
-        bot.reply_to(message, "🎮 **ИГРОВОЙ ОТСЕК АКАДЕМИИ**", reply_markup=kb, parse_mode="Markdown"); return
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🚀 Старт", callback_data="game_start"))
+        bot.reply_to(message, "🎮 **МИССИИ АКАДЕМИИ**", reply_markup=kb, parse_mode="Markdown"); return
 
     if text == "👤 Мой профиль" or is_profile_call:
-        u_data = get_user_data(user_id); rank = get_rank_name(u_data['xp'])
-        report = f"📊 **БОРТОВОЙ ЖУРНАЛ**\n\n👤 Пилот: `{user_name}`\n🎖 Ранг: `{rank}`\n📈 Опыт: `{u_data['xp']}` XP\n💰 Пыль: `{u_data['spendable_dust']}` ед."
-        kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        kb.add(tele_types.InlineKeyboardButton("🏆 Рейтинг пилотов", callback_data="game_instruction_fix"))
-        if is_profile_call: bot.edit_message_text(report, message.chat.id, message.message_id, reply_markup=kb, parse_mode="Markdown")
-        else: bot.reply_to(message, report, parse_mode="Markdown", reply_markup=kb); return
+        u = get_user_data(user_id); rank = get_rank_name(u['xp'])
+        msg = f"👤 Пилот: `{user_name}`\n🎖 Ранг: `{rank}`\n📈 Опыт: `{u['xp']}`\n💰 Пыль: `{u['spendable_dust']}`"
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🏆 Рейтинг", callback_data="game_instruction_fix"))
+        if is_profile_call: bot.edit_message_text(msg, message.chat.id, message.message_id, reply_markup=kb, parse_mode="Markdown")
+        else: bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=kb); return
 
     if text == "❓ Инструкция": send_welcome_instruction(message.chat.id, user_id, user_name); return
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
-    if any(w in clean_text.lower() for w in ['нарисуй', 'архив', 'картинку']):
-        u_data = get_user_data(user_id)
-        if u_data['spendable_dust'] < 5:
-            bot.reply_to(message, f"🐾 Командор, для активации визуального Архива нужно 5 ед. пыли.\n\n📡 На борту: {u_data['spendable_dust']} ед.\n\nПрием!", reply_markup=get_marty_keyboard())
-            return
+    # --- ИСПРАВЛЕННЫЙ АРХИВ ---
+    if any(w in clean_text.lower() for w in ['нарисуй', 'архив']):
+        u = get_user_data(user_id)
+        if u['spendable_dust'] < 5:
+            bot.reply_to(message, f"🐾 Мало пыли! У тебя: {u['spendable_dust']}. Прием."); return
         
-        bot.send_chat_action(message.chat.id, 'upload_photo')
-        
-        # Улучшенный переводчик для Архива
         eng_prompt = None
+        # Пробуем каскад для перевода!
         for api_key in API_KEYS:
-            try:
-                client_gen = genai.Client(api_key=api_key)
-                prompt_task = f"Describe this for image generation in English. Simple keywords. Text: {clean_text}"
-                resp = client_gen.models.generate_content(model='gemini-1.5-flash', contents=prompt_task)
-                if resp.text: 
-                    eng_prompt = resp.text.strip().replace("`", "").replace("Drawing of", "")
-                    break
-            except: continue
+            cl = genai.Client(api_key=api_key)
+            for m in MODEL_CASCADE:
+                try:
+                    r = cl.models.generate_content(model=m, contents=f"Translate to English for AI image prompt: {clean_text}")
+                    if r.text: eng_prompt = r.text.strip(); break
+                except: continue
+            if eng_prompt: break
         
-        if not eng_prompt:
-            bot.reply_to(message, "📡 Архив временно недоступен из-за помех в ионосфере. Попробуй позже! Прием."); return
-            
-        if spend_dust(user_id, 5):
-            seed = int(time.time())
-            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={seed}"
-            bot.send_photo(message.chat.id, url, caption=f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\nЗапрос: _{clean_text}_\n\nПрием!", parse_mode="Markdown", reply_markup=get_marty_keyboard())
-        return
+        if eng_prompt and spend_dust(user_id, 5):
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&seed={int(time.time())}"
+            bot.send_photo(message.chat.id, url, caption="🎨 Извлечено из Архива! Прием."); return
+        else:
+            bot.reply_to(message, "📡 Сбой Архива. Попробуй позже! Прием."); return
 
-    u_data = get_user_data(user_id); old_rank = get_rank_name(u_data['xp'])
-    resp = get_marty_response(user_id, user_name, clean_text, old_rank, u_data['spendable_dust'])
-    
+    # --- ОБЫЧНЫЙ ОТВЕТ ---
+    u = get_user_data(user_id); old_rank = get_rank_name(u['xp'])
+    resp = get_marty_response(user_id, user_name, clean_text, old_rank, u['spendable_dust'])
     if resp:
         if "***НАГРАДА ЗА УМ***" in resp:
             add_xp(user_id, 1, user_name)
-            resp = resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *Бортовой компьютер: +1 Звездная Пыль!*")
-        bot.reply_to(message, resp, reply_markup=get_marty_keyboard(), parse_mode="Markdown")
-        
+            resp = resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *+1 Пыль!*")
+        bot.reply_to(message, resp, parse_mode="Markdown")
+        # ПРОВЕРКА ПАСПОРТА
         new_xp = get_user_stats(user_id)
         if old_rank != get_rank_name(new_xp):
-            new_r = get_rank_name(new_xp); bot.send_message(message.chat.id, f"🎉 Ранг повышен до {new_r}!")
-            p = generate_passport(user_name, new_r) 
+            bot.send_message(message.chat.id, f"🎊 Новый ранг: {get_rank_name(new_xp)}!")
+            p = generate_passport(user_name, get_rank_name(new_xp))
             if p: bot.send_photo(message.chat.id, p)
-    else: bot.reply_to(message, "⏳ Тишина в эфире. Прием.", reply_markup=get_marty_keyboard())
 
 app = Flask(__name__)
 @app.route('/')
-def home(): return "Orion Hub: Online"
-
-def run_flask():
-    try: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
-    except: pass
-
-def start_marty_autonomous():
-    print("🚀 Академия Орион 2.2 запущена.")
-    while True:
-        try: bot.remove_webhook(); bot.infinity_polling(skip_pending=True)
-        except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
-
+def h(): return "OK"
 if __name__ == "__main__":
-    Thread(target=run_flask, daemon=True).start()
-    start_marty_autonomous()
+    Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
+    bot.infinity_polling(skip_pending=True)
