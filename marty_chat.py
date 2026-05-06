@@ -106,7 +106,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот изучил Кодекс Чести и зачислен в Академию.")
 
-# 🟢 ЯДРО ЛИЧНОСТИ (УМНЫЙ И ЖИВОЙ ДРУГ)
+# 🟢 ЯДРО ЛИЧНОСТИ (УМНЫЙ И ЖИВОЙ ДРУГ + ЭКЗАМЕНАТОР)
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель), мудрый бортовой наставник Академии Орион. Твой собеседник — пилот [NAME]. "
     "КРИТИЧЕСКИ: Всегда используй ТОЛЬКО число из [WALLET] для ответа о количестве пыли. Никогда не прибавляй к нему XP или другие цифры! "
@@ -118,6 +118,7 @@ SYSTEM_PROMPT = (
     "3. ЕСТЕСТВЕННОСТЬ (КРИТИЧЕСКИ): Общайся как живой, теплый друг. СТРОГО ЗАПРЕЩЕНО в каждом ответе читать нотации про уборку, помощь родителям, дисциплину или финансы! "
     "Упоминай про порядок, пыль или обязанности ТОЛЬКО если пилот сам об этом заговорил, или если это идеально подходит к ситуации (вскользь и очень редко). Не будь занудным роботом! "
     "4. НАСТАВНИК ЖИЗНИ: Поощряй помощь родителям, уборку (Протокол чистоты) и заботу о здоровье. "
+    "5. ЭКЗАМЕНАТОР (КРИТИЧЕСКИ): Если ты задал пилоту сложный или учебный вопрос, и он ответил на него ПРАВИЛЬНО, ты ОБЯЗАТЕЛЬНО должен написать в тексте своего ответа секретный код: ***НАГРАДА ЗА УМ***. Бортовой компьютер увидит этот код и выдаст пилоту +1 Пыль. За простые ответы, обычную болтовню или ошибки код НЕ ПИСАТЬ! "
     
     "🛑 ВЕЛИКИЙ ФИЛЬТР: Запрещены темы 18+, насилие, политика, грубости. При их появлении отвечай: 'Эта частота заблокирована протоколами безопасности! Сменим тему.' "
     
@@ -140,7 +141,7 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     time_info = get_time_context()
     current_date = datetime.now().strftime("%Y-%m-%d")
     
-    # 🟢 ЛОГИКА ЕДИНОРАЗОВЫХ ПРИВЕТСТВИЙ И ПЫЛИ
+    # 🟢 ЛОГИКА ЕДИНОРАЗОВЫХ ПРИВЕТСТВИЙ И ЕЖЕДНЕВНОГО БОНУСА
     if daily_greetings.get(user_id) == current_date:
         greeting_rule = (
             "!!! ПРАВИЛО: Вы уже здоровались сегодня. "
@@ -148,14 +149,19 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
             "Не используй титулы 'Командор' или имя пилота в каждом сообщении. Просто отвечай на вопрос прямо, естественно и по-дружески."
         )
     else:
+        # 🌟 ФИЗИЧЕСКИ НАЧИСЛЯЕМ БОНУС В БАЗУ ПРИ ПЕРВОМ СООБЩЕНИИ
+        add_xp(user_id, 1, user_name) 
+        wallet_balance += 1 # Обновляем цифру для текущего ответа
+        
         greeting_rule = (
             "!!! ПРАВИЛО: Это первый сеанс связи за сегодня. "
-            "Тепло поздоровайся, обратись к собеседнику: '[RANK] [NAME]'. "
-            f"Обязательно сообщи, что на его счету {wallet_balance} ед. Звездной Пыли, и пожелай продуктивного дня. Затем ответь на вопрос."
+            "Тепло поздоровайся: '[RANK] [NAME]'. "
+            "ОБЯЗАТЕЛЬНО скажи: 'Я начислил тебе +1 Звездную Пыль за ежедневный вход на мостик!'. "
+            f"Сообщи, что теперь на счету {wallet_balance} ед. Пыли. Пожелай удачного дня и ответь на вопрос."
         )
         daily_greetings[user_id] = current_date
     
-    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule).replace("[RANK]", user_rank)
+    current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance))
     
     for api_key in API_KEYS:
         client_gen = genai.Client(api_key=api_key)
@@ -296,9 +302,17 @@ def handle_text(message):
     old_xp = get_user_stats(user_id)
     u_data = get_user_data(user_id)
     resp = get_marty_response(user_id, user_name, clean_text, get_rank_name(old_xp), u_data['spendable_dust'])
+    
     if resp:
-        if "звездн" in resp.lower() and "пыль" in resp.lower(): add_xp(user_id, 1, user_name)
+        # 🟢 НОВЫЙ ТРИГГЕР: Награда только за правильные ответы!
+        if "***НАГРАДА ЗА УМ***" in resp:
+            add_xp(user_id, 1, user_name)
+            # Красиво меняем технический код на приятное сообщение для пилота
+            resp = resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *Бортовой компьютер: Начислена +1 Звездная Пыль за правильный ответ!*")
+            
         bot.reply_to(message, resp.split("###MEM###")[0].strip(), reply_markup=get_marty_keyboard())
+        
+        # Проверяем, повысился ли ранг после общения
         if get_rank_name(old_xp) != get_rank_name(get_user_stats(user_id)):
             new_r = get_rank_name(get_user_stats(user_id)); bot.send_message(message.chat.id, f"🎉 Ранг повышен: {new_r}!")
             p = generate_passport(user_name, new_r); 
@@ -306,7 +320,7 @@ def handle_text(message):
     else: bot.reply_to(message, "⏳ Тишина в эфире. Прием.", reply_markup=get_marty_keyboard())
 
 def start_marty_autonomous():
-    print("🚀 Академия Орион 2.1 (Живой Наставник) запущена.")
+    print("🚀 Академия Орион 2.2 (Твердая Экономика) запущена.")
     while True:
         try: bot.remove_webhook(); bot.infinity_polling(skip_pending=True)
         except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
