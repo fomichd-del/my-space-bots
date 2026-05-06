@@ -15,12 +15,14 @@ def send_log(error_text):
     except: pass
 # --------------------------
 
-# 🟢 ОБНОВЛЕННЫЙ КАСКАД МОДЕЛЕЙ ДЛЯ ЗРЕНИЯ (ТОЛЬКО СТАБИЛЬНЫЕ)
+# 🟢 ЭЛИТНЫЙ КАСКАД МОДЕЛЕЙ ДЛЯ ЗРЕНИЯ (МАЙ 2026)
+# Выбраны из твоего списка на основе баланса скорости и лимитов
 VISION_MODELS = [
-    'gemini-2.0-flash', 
-    'gemini-2.0-flash-lite', 
-    'gemini-1.5-flash',
-    'gemini-1.5-pro'
+    'gemini-3.1-flash-lite-preview', # Новейшая 'легкая' частота, очень быстрая
+    'gemini-2.5-flash',              # Стабильная и очень точная в деталях
+    'gemini-2.0-flash',              # Проверенная база
+    'gemini-flash-latest',           # Универсальный бэкап
+    'gemini-3.1-pro-preview'         # Самая умная, но лимит всего 2 запроса в минуту
 ]
 
 def analyze_image(image_data, user_context="", keys=[]):
@@ -43,7 +45,6 @@ def analyze_image(image_data, user_context="", keys=[]):
     active_keys = [k for k in active_keys if k] # Убираем None
 
     if not active_keys:
-        # 🟢 ДОБАВЛЕНО: Лог при отсутствии ключей
         send_log("СИСТЕМА ЗРЕНИЯ: Ключи API не найдены в системе!")
         return "📡 Ошибка: Отсутствуют ключи доступа к системе зрения."
 
@@ -68,14 +69,15 @@ def analyze_image(image_data, user_context="", keys=[]):
                     if response.text:
                         return response.text
                 except Exception as e:
-                    if "429" in str(e): continue # Лимит запросов — идем дальше без лога
-                    # 🟢 ДОБАВЛЕНО: Лог технической ошибки модели/ключа
+                    # Если лимит исчерпан (429) — просто идем дальше без лога
+                    if "429" in str(e): continue 
+                    
+                    # Если модель не найдена (404) или другая ошибка — пишем в логи
                     send_log(f"ЗРЕНИЕ (Ключ №{i+1}, Модель {model_name}): {e}")
                     continue
         except Exception as e:
             send_log(f"ЗРЕНИЕ: Критический сбой клиента на ключе №{i+1}: {e}")
             continue
             
-    # 🟢 ДОБАВЛЕНО: Лог при полном отказе всех комбинаций
-    send_log("ЗРЕНИЕ: Полный отказ всех моделей сканирования (все линзы перегружены).")
+    send_log("ЗРЕНИЕ: Полный отказ всех моделей сканирования.")
     return "📡 Все линзы сканера перегружены. Попробуй через минуту, Пилот! Прием."
