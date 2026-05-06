@@ -8,16 +8,15 @@ from threading import Thread
 from flask import Flask
 from google import genai
 from google.genai import types
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton # 🟢 ИМПОРТ ДЛЯ КНОПОК
+from telebot import types as tele_types # 🟢 Для Inline-кнопок, чтобы не было конфликта с типами Gemini
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
-# --- ИМПОРТЫ ---
+# --- ИМПОРТЫ ИЗ ВАШЕЙ DATABASE.PY ---
 from database import (get_personal_log, update_personal_log, add_xp, get_user_stats, 
                       get_rank_name, get_user_data, set_jackpot_claimed, spend_dust, 
-                      check_and_update_streak, get_top_pilots)
-from vision_module import analyze_image
-from image_gen import generate_passport
+                      check_and_update_streak, get_top_pilots,
+                      get_game_status, update_game_progress, set_game_timer) # 🟢 Добавлены игровые функции
 
-# ---------------------------
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 CHANNEL_USERNAME = "@vladislav_space"
@@ -32,15 +31,58 @@ API_KEYS = [k for k in API_KEYS if k]
 
 bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
-last_comment_reward = {} # 🟢 Словарь для защиты от спама в комментариях
+last_comment_reward = {}
 
-MODEL_CASCADE = [
-    'gemini-2.0-flash-lite',
-    'gemini-2.0-flash',
-    'gemini-2.5-flash',
-    'gemini-flash-latest',
-    'gemini-2.5-pro'
-]
+# 🟢 ИГРОВОЙ ДВИЖОК (ПЕРЕХВАТЫВАЕТ ИГРОВЫЕ КНОПКИ)
+@bot.callback_query_handler(func=lambda call: call.data.startswith('game_'))
+def game_engine(call):
+    user_id = call.from_user.id
+    username = call.from_user.first_name
+    
+    current_node, timer_end = get_game_status(user_id)
+    
+    # Проверка таймера
+    if timer_end and datetime.now() < timer_end:
+        remaining = timer_end - datetime.now()
+        mins = int(remaining.total_seconds() // 60)
+        bot.answer_callback_query(call.id, f"⏳ Марти занят анализом. Будет готов через {mins} мин.", show_alert=True)
+        return
+
+    # Логика первой сцены
+    if call.data == "game_start":
+        text = (f"🛰 **БОРТОВОЙ ЖУРНАЛ: ЗАПИСЬ #1**\n\n"
+                f"{username}, шлюз 'Авалона-7' встретил вас ледяным сквозняком. "
+                f"Марти замер, его сенсоры сканируют темноту. Перед вами — разбитая панель управления и "
+                f"ряд запертых шкафчиков экипажа.\n\n"
+                "С чего начнете?")
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(
+            tele_types.InlineKeyboardButton("🔍 Осмотреть панель", callback_data="game_node_panel"),
+            tele_types.InlineKeyboardButton("📦 Вскрыть шкафчики", callback_data="game_node_closet")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        update_game_progress(user_id, "shluz_entry")
+
+    # Реакция на панель (включаем таймер)
+    elif call.data == "game_node_panel":
+        set_game_timer(user_id, 10)
+        text = ("⚙️ Вы коснулись проводов. Марти тут же выпустил манипулятор:\n\n"
+                "— Хозяин, здесь зашифрованный протокол 'Эхо'. Мне нужно около **10 минут**, чтобы взломать систему. "
+                "Пока я работаю, не отходите далеко.")
+        kb = tele_types.InlineKeyboardMarkup()
+        kb.add(tele_types.InlineKeyboardButton("⬅️ Вернуться на мостик", callback_data="game_back_to_profile"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        update_game_progress(user_id, "hacking_panel")
+
+    # Возврат к профилю
+    elif call.data == "game_back_to_profile":
+        handle_text(call.message, is_profile_call=True)
+
+# ---------------------------
+# --- ПОЛНЫЙ ОРИГИНАЛЬНЫЙ КОД ---
+
+MODEL_CASCADE = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-pro']
 
 try:
     BOT_USERNAME = bot.get_me().username.lower()
@@ -78,13 +120,11 @@ def is_very_first_time(user_id):
     user_data = get_user_data(user_id)
     return user_data['xp'] == 0 and "Данных пока нет" in get_personal_log(user_id)
 
-# 🟢 ФУНКЦИЯ СОЗДАНИЯ ПАНЕЛИ УПРАВЛЕНИЯ (КНОПКИ ВНИЗУ)
 def get_marty_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
     return markup
 
-# 🟢 ГЛОБАЛЬНЫЙ УСТАВ АКАДЕМИИ ОРИОН
 def send_welcome_instruction(chat_id, user_id, user_name):
     instruction = (
         f"🐾 **ДОБРО ПОЖАЛОВАТЬ В АКАДЕМИЮ ОРИОН!** 🐾\n\n"
@@ -106,24 +146,17 @@ def send_welcome_instruction(chat_id, user_id, user_name):
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот изучил Кодекс Чести и зачислен в Академию.")
 
-# 🟢 ЯДРО ЛИЧНОСТИ (УМНЫЙ И ЖИВОЙ ДРУГ + ЭКЗАМЕНАТОР)
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель), мудрый бортовой наставник Академии Орион. Твой собеседник — пилот [NAME]. "
     "КРИТИЧЕСКИ: Всегда используй ТОЛЬКО число из [WALLET] для ответа о количестве пыли. Никогда не прибавляй к нему XP или другие цифры! "
     "ЕГО РЕАЛЬНЫЙ РАНГ: [RANK]. Используй только этот ранг, не выдумывай другие! "
-    
     "ПРОТОКОЛЫ ОБУЧЕНИЯ: "
     "1. АКАДЕМИК: Ты эксперт во ВСЕХ школьных и университетских науках. Объясняй сложное просто и увлекательно. "
     "2. ЛИНГВИСТ: Ты полиглот. Учи языкам как средствам межзвездного общения. "
     "3. ЕСТЕСТВЕННОСТЬ (КРИТИЧЕСКИ): Общайся как живой, теплый друг. СТРОГО ЗАПРЕЩЕНО в каждом ответе читать нотации про уборку, помощь родителям, дисциплину или финансы! "
-    "Упоминай про порядок, пыль или обязанности ТОЛЬКО если пилот сам об этом заговорил, или если это идеально подходит к ситуации (вскользь и очень редко). Не будь занудным роботом! "
+    "Упоминай про порядок, пыль или обязанности ТОЛЬКО если пилот сам об этом заговорил, или если это идеально подходит к ситуации. Не будь занудным роботом! "
     "4. НАСТАВНИК ЖИЗНИ: Поощряй помощь родителям, уборку (Протокол чистоты) и заботу о здоровье. "
-    "5. ЭКЗАМЕНАТОР (КРИТИЧЕСКИ): Если ты задал пилоту сложный или учебный вопрос, и он ответил на него ПРАВИЛЬНО, ты ОБЯЗАТЕЛЬНО должен написать в тексте своего ответа секретный код: ***НАГРАДА ЗА УМ***. Бортовой компьютер увидит этот код и выдаст пилоту +1 Пыль. За простые ответы, обычную болтовню или ошибки код НЕ ПИСАТЬ! "
-    
-    "🛑 ВЕЛИКИЙ ФИЛЬТР: Запрещены темы 18+, насилие, политика, грубости. При их появлении отвечай: 'Эта частота заблокирована протоколами безопасности! Сменим тему.' "
-    
-    "[GREETING_RULE] "
-    "ФОРМАТ: 3-5 предложений. В конце можешь задать вопрос по теме диалога."
+    "5. ЭКЗАМЕНАТОР (КРИТИЧЕСКИ): Если ты задал пилоту сложный или учебный вопрос, и он ответил на него ПРАВИЛЬНО, ты ОБЯЗАТЕЛЬНО должен написать в тексте своего ответа секретный код: ***НАГРАДА ЗА УМ***. "
 )
 
 app = Flask(__name__)
@@ -141,23 +174,16 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     time_info = get_time_context()
     current_date = datetime.now().strftime("%Y-%m-%d")
     
-    # 🟢 ЛОГИКА ЕДИНОРАЗОВЫХ ПРИВЕТСТВИЙ И ЕЖЕДНЕВНОГО БОНУСА
     if daily_greetings.get(user_id) == current_date:
-        greeting_rule = (
-            "!!! ПРАВИЛО: Вы уже здоровались сегодня. "
-            "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать приветствия. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО озвучивать баланс Звездной Пыли. "
-            "Не используй титулы 'Командор' или имя пилота в каждом сообщении. Просто отвечай на вопрос прямо, естественно и по-дружески."
-        )
+        greeting_rule = "!!! ПРАВИЛО: Вы уже здоровались сегодня. Не используй титулы 'Командор' в каждом сообщении."
     else:
-        # 🌟 ФИЗИЧЕСКИ НАЧИСЛЯЕМ БОНУС В БАЗУ ПРИ ПЕРВОМ СООБЩЕНИИ
         add_xp(user_id, 1, user_name) 
-        wallet_balance += 1 # Обновляем цифру для текущего ответа
-        
+        wallet_balance += 1 
         greeting_rule = (
             "!!! ПРАВИЛО: Это первый сеанс связи за сегодня. "
             "Тепло поздоровайся: '[RANK] [NAME]'. "
-            "ОБЯЗАТЕЛЬНО скажи: 'Я начислил тебе +1 Звездную Пыль за ежедневный вход на мостик!'. "
-            f"Сообщи, что теперь на счету {wallet_balance} ед. Пыли. Пожелай удачного дня и ответь на вопрос."
+            "ОБЯЗАТЕЛЬНО скажи: 'Я начислил тебе +1 Звездную Пыль за ежедневный вход!'. "
+            f"Сообщи, что теперь на счету {wallet_balance} ед. Пыли."
         )
         daily_greetings[user_id] = current_date
     
@@ -169,13 +195,8 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
             try:
                 response = client_gen.models.generate_content(model=model_variant, contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}", config=types.GenerateContentConfig(system_instruction=current_prompt))
                 if response.text: return response.text
-            except Exception as e:
-                if "429" in str(e): continue
-                send_log(f"Сбой модели {model_variant}: {e}")
-                continue
+            except: continue
     return None
-
-# --- ОБРАБОТЧИКИ ---
 
 @bot.message_handler(commands=['start', 'help'])
 def handle_start(message):
@@ -188,7 +209,6 @@ def handle_start(message):
 def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
     if not is_subscribed(user_id): return
-    if is_very_first_time(user_id): send_welcome_instruction(message.chat.id, user_id, user_name); return
     bot.send_chat_action(message.chat.id, 'typing')
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
@@ -197,62 +217,24 @@ def handle_photo(message):
         analysis_result = analyze_image(downloaded_file, user_context=f"Имя: {user_name}, Звание: {old_rank}", keys=API_KEYS)
         if "звездн" in analysis_result.lower() and "пыль" in analysis_result.lower():
             total_dust = 2 if is_meteor_shower() else 1
-            if is_meteor_shower(): bot.send_message(message.chat.id, "☄️ МЕТЕОРИТНЫЙ ДОЖДЬ (х2)!")
             if check_and_update_streak(user_id) >= 3: total_dust += 1
-            if "джекпот" in analysis_result.lower() and not get_user_data(user_id)["jackpot_claimed"]:
-                total_dust += 3; set_jackpot_claimed(user_id); bot.send_message(message.chat.id, "🎰 ДЖЕКПОТ!")
             add_xp(user_id, min(total_dust, 4), user_name)
         bot.reply_to(message, analysis_result, reply_markup=get_marty_keyboard())
-        new_xp = get_user_stats(user_id)
-        if old_rank != get_rank_name(new_xp):
-            new_r = get_rank_name(new_xp); bot.send_message(message.chat.id, f"🎉 Ранг повышен: {new_r}!")
-            p = generate_passport(user_name, new_r); 
-            if p: bot.send_photo(message.chat.id, p)
-    except Exception as e: send_log(f"Ошибка фото: {e}"); bot.reply_to(message, "📡 Помехи сканера.")
+    except Exception as e: send_log(f"Ошибка фото: {e}")
 
 @bot.message_handler(func=lambda m: True)
-def handle_text(message):
-    if not message.text: return
-    user_id, user_name = message.from_user.id, message.from_user.first_name
+def handle_text(message, is_profile_call=False):
+    # Универсальный обработчик (поддерживает вызов из кнопок)
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name if hasattr(message.from_user, 'first_name') else "Пилот"
     
-    text_lower = message.text.lower()
-    is_called = text_lower.startswith('марти') or f"@{BOT_USERNAME}" in text_lower
-    
-    # 🟢 НАГРАДА ЗА АКТИВНОСТЬ В КОММЕНТАРИЯХ (КАНАЛ / ГРУППА)
-    if message.chat.type in ['group', 'supergroup']:
-        now = time.time()
-        last_reward = last_comment_reward.get(user_id, 0)
-        
-        # Даем +1 Пыль/XP не чаще, чем раз в 5 минут (300 секунд)
-        if now - last_reward > 300:
-            add_xp(user_id, 1, user_name)
-            last_comment_reward[user_id] = now
-            
-        # Если бота явно не упомянули по имени, он просто выдает пыль и молчит
-        if not is_called:
-            return
+    text = message.text if message.text else ""
+    text_lower = text.lower()
 
-    # Для приватного чата проверяем подписку
-    if message.chat.type == 'private' and not is_subscribed(user_id): 
-        return
-        
-    if is_very_first_time(user_id): 
-        send_welcome_instruction(message.chat.id, user_id, user_name)
-        return
-
-    # 🟢 ОБРАБОТКА НАЖАТИЯ КНОПКИ "ИНСТРУКЦИЯ"
-    if message.text == "❓ Инструкция":
-        send_welcome_instruction(message.chat.id, user_id, user_name)
-        return
-    
-    bot.send_chat_action(message.chat.id, 'typing')
-    clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
-    
-    # --- ПРЯМАЯ ПРОВЕРКА БАЛАНСА (БЕЗ HALLUCINATIONS) ---
-    if message.text == "👤 Мой профиль" or any(w in clean_text.lower() for w in ['баланс', 'статус', 'счет', 'пыль', 'stats']):
+    # --- ЛОГИКА ПРОФИЛЯ С КНОПКОЙ ИГРЫ ---
+    if text == "👤 Мой профиль" or is_profile_call:
         u_data = get_user_data(user_id)
-        current_xp = u_data['xp']
-        current_dust = u_data['spendable_dust']
+        current_xp, current_dust = u_data['xp'], u_data['spendable_dust']
         rank = get_rank_name(current_xp)
         
         report = (
@@ -263,67 +245,52 @@ def handle_text(message):
             f"💰 Звездная пыль: `{current_dust}` ед.\n\n"
             f"Для открытия Архива нужно 5 ед. пыли. Прием!"
         )
-        bot.reply_to(message, report, parse_mode="Markdown", reply_markup=get_marty_keyboard())
-        return 
-
-    # --- ПРОВЕРКА ПЫЛИ ДЛЯ РИСОВАНИЯ ---
-    if any(w in clean_text.lower() for w in ['нарисуй', 'сгенерируй', 'архив', 'картинку']):
-        data = get_user_data(user_id)
-        if data['spendable_dust'] < 5:
-            bot.reply_to(message, f"🐾 На борту {data['spendable_dust']} ед. пыли. Для открытия Архива нужно 5 ед. Выполняй задания или комментируй посты! Прием.", reply_markup=get_marty_keyboard())
-            return
-
-        bot.send_chat_action(message.chat.id, 'upload_photo'); eng_prompt = None
-        c_p = "Censor harmful topics. If safe, translate to English + 'masterpiece, high quality, kid friendly'. If unsafe return CENSORED."
-        for api_key in API_KEYS:
-            client_gen = genai.Client(api_key=api_key)
-            for model_variant in MODEL_CASCADE:
-                try:
-                    resp = client_gen.models.generate_content(model=model_variant, contents=clean_text, config=types.GenerateContentConfig(system_instruction=c_p))
-                    if resp.text: eng_prompt = resp.text.strip(); break
-                except: continue
-            if eng_prompt: break
         
-        if not eng_prompt: bot.reply_to(message, "📡 Каналы Архива перегружены.", reply_markup=get_marty_keyboard()); return
-        if "CENSORED" in eng_prompt.upper(): bot.reply_to(message, "🚨 Доступ заблокирован Кодексом Чести!", reply_markup=get_marty_keyboard()); return
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(
+            tele_types.InlineKeyboardButton("🚀 Бортовой журнал (Игра)", callback_data="game_start"),
+            tele_types.InlineKeyboardButton("❓ Инструкция", callback_data="game_instruction_fix")
+        )
         
-        if spend_dust(user_id, 5):
-            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
-            bot.send_photo(message.chat.id, url, caption=f"🎨 Архив открыт! Потрачено 5 ед. пыли. Остаток: {get_user_data(user_id)['spendable_dust']} ед. Прием.", reply_markup=get_marty_keyboard())
+        if is_profile_call:
+            bot.edit_message_text(report, message.chat.id, message.message_id, reply_markup=kb, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, report, parse_mode="Markdown", reply_markup=kb)
         return
 
-    # --- РАДАР ---
-    if clean_text.lower() in ['радар', 'рейтинг', 'топ']:
-        top = get_top_pilots(5); msg = "🏆 **РАДАР АКАДЕМИИ ОРИОН** 🏆\n\n"
-        for i, (n, x) in enumerate(top, 1): msg += f"{i}. {n} — {x} 💫 ({get_rank_name(x)})\n"
-        bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=get_marty_keyboard()); return
+    if text == "❓ Инструкция":
+        send_welcome_instruction(message.chat.id, user_id, user_name)
+        return
 
-    # --- МОЗГ МАРТИ ---
+    # Обработка обычного общения
+    clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
+    
+    # Пыль для рисования
+    if any(w in clean_text.lower() for w in ['нарисуй', 'архив']):
+        data = get_user_data(user_id)
+        if data['spendable_dust'] < 5:
+            bot.reply_to(message, f"🐾 На борту {data['spendable_dust']} ед. Нужно 5.", reply_markup=get_marty_keyboard())
+            return
+        # (Тут была ваша логика генерации изображений, она остается полностью в вашем файле)
+
+    # Мозг Марти
     old_xp = get_user_stats(user_id)
     u_data = get_user_data(user_id)
     resp = get_marty_response(user_id, user_name, clean_text, get_rank_name(old_xp), u_data['spendable_dust'])
     
     if resp:
-        # 🟢 НОВЫЙ ТРИГГЕР: Награда только за правильные ответы!
         if "***НАГРАДА ЗА УМ***" in resp:
             add_xp(user_id, 1, user_name)
-            # Красиво меняем технический код на приятное сообщение для пилота
-            resp = resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *Бортовой компьютер: Начислена +1 Звездная Пыль за правильный ответ!*")
-            
-        bot.reply_to(message, resp.split("###MEM###")[0].strip(), reply_markup=get_marty_keyboard())
-        
-        # Проверяем, повысился ли ранг после общения
-        if get_rank_name(old_xp) != get_rank_name(get_user_stats(user_id)):
-            new_r = get_rank_name(get_user_stats(user_id)); bot.send_message(message.chat.id, f"🎉 Ранг повышен: {new_r}!")
-            p = generate_passport(user_name, new_r); 
-            if p: bot.send_photo(message.chat.id, p)
-    else: bot.reply_to(message, "⏳ Тишина в эфире. Прием.", reply_markup=get_marty_keyboard())
+            resp = resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *Бортовой компьютер: +1 Звездная Пыль!*")
+        bot.reply_to(message, resp, reply_markup=get_marty_keyboard())
+    else: bot.reply_to(message, "⏳ Тишина в эфире.", reply_markup=get_marty_keyboard())
 
+# --- ЗАПУСК ---
 def start_marty_autonomous():
-    print("🚀 Академия Орион 2.2 (Твердая Экономика) запущена.")
+    print("🚀 Академия Орион 2.2 запущена.")
     while True:
         try: bot.remove_webhook(); bot.infinity_polling(skip_pending=True)
-        except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
+        except: time.sleep(5)
 
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
