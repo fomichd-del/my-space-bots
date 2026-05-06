@@ -158,28 +158,65 @@ def handle_text(message, is_profile_call=False):
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
-    # --- ИСПРАВЛЕННЫЙ АРХИВ ---
-    if any(w in clean_text.lower() for w in ['нарисуй', 'архив']):
-        u = get_user_data(user_id)
-        if u['spendable_dust'] < 5:
-            bot.reply_to(message, f"🐾 Мало пыли! У тебя: {u['spendable_dust']}. Прием."); return
+   # === [УСИЛЕННЫЙ МОДУЛЬ АРХИВА] ===
+    if any(w in clean_text.lower() for w in ['нарисуй', 'архив', 'картинку', 'generate']):
+        # Проверка баланса
+        u_data = get_user_data(user_id)
+        if u_data['spendable_dust'] < 5:
+            bot.reply_to(message, f"🐾 Командор, для доступа к Архиву нужно 5 ед. пыли.\n\n📡 На борту: {u_data['spendable_dust']} ед.\n\nПрием!", reply_markup=get_marty_keyboard())
+            return
         
+        bot.send_chat_action(message.chat.id, 'upload_photo')
+        
+        # 1. Сбор и логирование данных
         eng_prompt = None
-        # Пробуем каскад для перевода!
-        for api_key in API_KEYS:
-            cl = genai.Client(api_key=api_key)
-            for m in MODEL_CASCADE:
-                try:
-                    r = cl.models.generate_content(model=m, contents=f"Translate to English for AI image prompt: {clean_text}")
-                    if r.text: eng_prompt = r.text.strip(); break
-                except: continue
-            if eng_prompt: break
+        translation_errors = []
+        start_time = time.time()
         
-        if eng_prompt and spend_dust(user_id, 5):
-            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&seed={int(time.time())}"
-            bot.send_photo(message.chat.id, url, caption="🎨 Извлечено из Архива! Прием."); return
-        else:
-            bot.reply_to(message, "📡 Сбой Архива. Попробуй позже! Прием."); return
+        # 2. Попытка перевода (Каскад моделей)
+        for i, api_key in enumerate(API_KEYS):
+            if eng_prompt: break
+            client_gen = genai.Client(api_key=api_key)
+            
+            for model_variant in MODEL_CASCADE:
+                try:
+                    prompt_task = f"Describe the object '{clean_text}' for image generation in English. List only high-quality keywords."
+                    resp = client_gen.models.generate_content(
+                        model=model_variant, 
+                        contents=prompt_task,
+                        config=types.GenerateContentConfig(system_instruction="Translate only. Kid-friendly keywords.")
+                    )
+                    if resp.text: 
+                        eng_prompt = resp.text.strip().replace("`", "")
+                        break
+                except Exception as e:
+                    translation_errors.append(f"Ключ {i+1} ({model_variant}): {str(e)}")
+                    continue
+        
+        # 3. Обработка результата перевода
+        if not eng_prompt:
+            # 🛑 Если перевод не удался — Марти докладывает о причине в чат
+            error_report = f"📡 **ОШИБКА СВЯЗИ С АРХИВОМ**\n\nНе удалось перевести запрос '{clean_text}'.\n\n_Технический лог:_\n" + "\n".join([f"• {e}" for e in translation_errors[-3:]]) # Показываем последние 3 ошибки
+            bot.reply_to(message, error_report, parse_mode="Markdown")
+            send_log(f"Сбой перевода 'нарисуй' для пользователя {user_name}. Ошибки: {translation_errors}")
+            return
+            
+        # 4. Генерация изображения
+        if spend_dust(user_id, 5):
+            seed = int(time.time() + user_id) # Уникальный сид
+            # Формируем URL для Pollinations.ai
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={seed}&nofeed=true"
+            
+            # 5. Отправка результата
+            caption = (
+                f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n"
+                f"📡 **Ваш запрос:** _{clean_text}_\n"
+                f"🔬 **English prompt:** _{eng_prompt}_\n"
+                f"💰 **Списание:** 5 Звездной Пыли.\n\n"
+                f"Прием!"
+            )
+            bot.send_photo(message.chat.id, url, caption=caption, parse_mode="Markdown", reply_markup=get_marty_keyboard())
+        return
 
     # --- ОБЫЧНЫЙ ОТВЕТ ---
     u = get_user_data(user_id); old_rank = get_rank_name(u['xp'])
