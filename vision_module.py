@@ -43,6 +43,8 @@ def analyze_image(image_data, user_context="", keys=[]):
     active_keys = [k for k in active_keys if k] # Убираем None
 
     if not active_keys:
+        # 🟢 ДОБАВЛЕНО: Лог при отсутствии ключей
+        send_log("СИСТЕМА ЗРЕНИЯ: Ключи API не найдены в системе!")
         return "📡 Ошибка: Отсутствуют ключи доступа к системе зрения."
 
     # РОТАЦИЯ: Перебираем Ключи, внутри каждого — Модели
@@ -66,9 +68,14 @@ def analyze_image(image_data, user_context="", keys=[]):
                     if response.text:
                         return response.text
                 except Exception as e:
-                    if "429" in str(e): continue # Лимит запросов — идем дальше
-                    send_log(f"Ключ №{i+1}, Модель {model_name}: {e}")
+                    if "429" in str(e): continue # Лимит запросов — идем дальше без лога
+                    # 🟢 ДОБАВЛЕНО: Лог технической ошибки модели/ключа
+                    send_log(f"ЗРЕНИЕ (Ключ №{i+1}, Модель {model_name}): {e}")
                     continue
-        except: continue
+        except Exception as e:
+            send_log(f"ЗРЕНИЕ: Критический сбой клиента на ключе №{i+1}: {e}")
+            continue
             
+    # 🟢 ДОБАВЛЕНО: Лог при полном отказе всех комбинаций
+    send_log("ЗРЕНИЕ: Полный отказ всех моделей сканирования (все линзы перегружены).")
     return "📡 Все линзы сканера перегружены. Попробуй через минуту, Пилот! Прием."
