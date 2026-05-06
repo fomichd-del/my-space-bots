@@ -20,7 +20,7 @@ FOLDER_NAME = "photo"
 GITHUB_PHOTO_BASE = f"https://raw.githubusercontent.com/{GITHUB_USER}/{REPO_NAME}/main/{FOLDER_NAME}/"
 
 # ❗ ВАЖНО: На скрине было 2 фото. Если добавишь еще — поменяй цифру.
-PHOTO_COUNT = 2 
+PHOTO_COUNT = 1 
 
 def post_star_guide():
     print("🛰 [СИСТЕМА] Запуск звёздной охоты v2.5...")
