@@ -1,71 +1,38 @@
-import telebot
-from datetime import datetime
-from telebot import types as tele_types
-# Импортируем функции базы данных
-from database import get_game_status, update_game_progress, set_game_timer
-
-def run_scenario(bot, call):
-    user_id = call.from_user.id
-    username = call.from_user.first_name if call.from_user.first_name else "Пилот"
-    
-    # Получаем статус игрока
-    current_node, timer_end = get_game_status(user_id)
-    
-    # 1. Проверка глобального таймера
-    if timer_end and datetime.now() < timer_end:
-        remaining = timer_end - datetime.now()
-        mins = int(remaining.total_seconds() // 60)
-        bot.answer_callback_query(call.id, f"⏳ Марти занят. Будет готов через {mins} мин.", show_alert=True)
-        return
-
-    # 2. Навигация по сюжету
-    if call.data == "game_start":
-        text = (f"🛰 **БОРТОВОЙ ЖУРНАЛ: ЗАПИСЬ #1**\n\n"
-                f"{username}, шлюз 'Авалона-7' встретил вас ледяным сквозняком. "
-                f"Марти замер, его сенсоры сканируют темноту. Перед вами — разбитая панель управления и "
-                f"ряд запертых шкафчиков экипажа.\n\n"
-                "С чего начнете?")
+# --- ВЕТКА: ВЗЯТЬ МЕДАЛЬОН (РИСК) ---
+    elif call.data == "game_node_medalion":
+        # Начисляем немного XP за смелость
+        # add_xp(user_id, 2) # Можно вызвать функцию из базы, если нужно
+        text = (f"🖐 Вы протягиваете руку и касаетесь холодного металла. В ту же секунду ваше зрение "
+                f"вспыхивает белым светом. Тело пронзает слабый электрический разряд.\n\n"
+                f"Прямо на сетчатке вашего глаза, поверх интерфейса шлема, начинают бежать кроваво-красные цифры:\n"
+                f"📍 **СЕКТОР: 0-Г-13**\n"
+                f"📍 **КООРДИНАТЫ: 42.0081 // -19.4402**\n\n"
+                f"Вы слышите хриплый, прерывающийся шепот в динамиках: 'Не ищите нас... оно уже здесь'.\n\n"
+                f"Марти подпрыгивает и толкает вас носом, приводя в чувство. Медальон в вашей руке "
+                f"мгновенно почернел и превратился в бесполезный кусок пластика. "
+                f"Но координаты теперь выжжены в вашей памяти.")
         
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
-            tele_types.InlineKeyboardButton("🔍 Осмотреть панель", callback_data="game_node_panel"),
-            tele_types.InlineKeyboardButton("📦 Вскрыть шкафчики", callback_data="game_node_closet")
+            tele_types.InlineKeyboardButton("🛰 Ввести данные в панель", callback_data="game_node_panel_with_coords"),
+            tele_types.InlineKeyboardButton("🏠 Вернуться на мостик", callback_data="game_back_to_profile")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "shluz_entry")
+        update_game_progress(user_id, "shluz_coords_found")
 
-    # --- ВЕТКА ШКАФЧИКОВ (ПУГАЮЩАЯ) ---
-    elif call.data == "game_node_closet":
-        text = (f"📦 Вы подошли к ряду шкафчиков. Один из них слегка приоткрыт, и оттуда тянет странным "
-                f"металлическим запахом. Вы тянете за ручку...\n\n"
-                f"Внутри — не просто вещи. Стенки шкафчика покрыты тонким слоем замерзшей фиолетовой субстанции. "
-                f"На дне лежит офицерский китель, но он разорван так, будто кто-то пытался выбраться из него "
-                f"слишком быстро. \n\n"
-                f"Марти внезапно оскалился и издал низкий, вибрирующий рык. Его налобный фонарь выхватил из-под "
-                f"вороха одежды **серебряный медальон**, который... пульсирует в такт вашему пульсу.\n\n"
-                f"Что сделаете?")
+    # --- ВЕТКА: МАРТИ ПРИНОСИТ (ОСТОРОЖНОСТЬ) ---
+    elif call.data == "game_node_marty_bring":
+        text = (f"🐕 Марти аккуратно подкрадывается к шкафчику и хватает медальон зубами. "
+                f"Раздается короткий треск статики. Пес испуганно роняет вещь и отскакивает.\n\n"
+                f"— Хозяин! — динамик Марти выдает помехи. — Мои системы зафиксировали "
+                f"передачу пакета данных. Это навигационный маяк. Он транслирует точку назначения "
+                f"глубоко внутри фиолетовой туманности.\n\n"
+                f"Медальон перестал пульсировать. Похоже, он передал всё, что мог, и 'умер'.")
         
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
-            tele_types.InlineKeyboardButton("🖐 Взять медальон в руки", callback_data="game_node_medalion"),
-            tele_types.InlineKeyboardButton("🐕 Попросить Марти принести его", callback_data="game_node_marty_bring"),
+            tele_types.InlineKeyboardButton("🔍 Посмотреть, куда ведут данные", callback_data="game_node_panel_with_coords"),
             tele_types.InlineKeyboardButton("⬅️ Назад к панели", callback_data="game_start")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "shluz_closet")
-
-    # --- ВЕТКА ПАНЕЛИ (ТАЙМЕР) ---
-    elif call.data == "game_node_panel":
-        set_game_timer(user_id, 10)
-        text = ("⚙️ Вы коснулись проводов. Марти тут же выпустил манипулятор:\n\n"
-                "— Хозяин, здесь зашифрованный протокол 'Эхо'. Мне нужно около **10 минут**, чтобы взломать систему. "
-                "Пока я работаю, не отходите далеко. Мне кажется, из вентиляции за нами кто-то наблюдает...")
-        kb = tele_types.InlineKeyboardMarkup()
-        kb.add(tele_types.InlineKeyboardButton("⬅️ Вернуться на мостик", callback_data="game_back_to_profile"))
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "hacking_panel")
-
-    # Возврат к профилю
-    elif call.data == "game_back_to_profile":
-        # Это вызовет handle_text в marty_chat.py, если правильно настроено
-        bot.answer_callback_query(call.id, "Возвращаемся на мостик...")
+        update_game_progress(user_id, "shluz_marty_data")
