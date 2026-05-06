@@ -9,14 +9,14 @@ from threading import Thread
 from flask import Flask
 from google import genai
 from google.genai import types
-from telebot import types as tele_types # 🟢 Для Inline-кнопок, чтобы не было конфликта с типами Gemini
+from telebot import types as tele_types # 🟢 Для Inline-кнопок
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
-# --- ИМПОРТЫ ИЗ ВАШЕЙ DATABASE.PY ---
+# --- ИМПОРТЫ ---
 from database import (get_personal_log, update_personal_log, add_xp, get_user_stats, 
                       get_rank_name, get_user_data, set_jackpot_claimed, spend_dust, 
                       check_and_update_streak, get_top_pilots,
-                      get_game_status, update_game_progress, set_game_timer) # 🟢 Добавлены игровые функции
+                      get_game_status, update_game_progress, set_game_timer)
 
 # --- КОНФИГУРАЦИЯ ---
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
@@ -34,10 +34,15 @@ bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
 last_comment_reward = {}
 
-# 🟢 ИГРОВОЙ ДВИЖОК (ТЕПЕРЬ ПЕРЕДАЕТ УПРАВЛЕНИЕ В SCENARIO1)
+# 🟢 ИГРОВОЙ ДВИЖОК
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game_'))
 def game_engine(call):
-    scenario1.run_scenario(bot, call)
+    # Если нажата кнопка возврата в профиль - останавливаем игру и показываем статы
+    if call.data == "game_back_to_profile":
+        handle_text(call.message, is_profile_call=True)
+    else:
+        # В остальных случаях передаем управление в сценарий
+        scenario1.run_scenario(bot, call)
 
 # ---------------------------
 # --- ПОЛНЫЙ ОРИГИНАЛЬНЫЙ КОД ---
@@ -179,18 +184,24 @@ def handle_photo(message):
             total_dust = 2 if is_meteor_shower() else 1
             if check_and_update_streak(user_id) >= 3: total_dust += 1
             add_xp(user_id, min(total_dust, 4), user_name)
-        bot.reply_to(message, analysis_result, reply_markup=get_mart_keyboard())
+        bot.reply_to(message, analysis_result, reply_markup=get_marty_keyboard())
     except Exception as e: send_log(f"Ошибка фото: {e}")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
-    # Универсальный обработчик (поддерживает вызов из кнопок)
     user_id = message.from_user.id
-    user_name = message.from_user.first_name if hasattr(message.from_user, 'first_name') else "Пилот"
+    # Используем данные из профиля, если это вызов из кнопок
+    if is_profile_call:
+        user_name = message.chat.first_name if message.chat.first_name else "Пилот"
+    else:
+        user_name = message.from_user.first_name if message.from_user.first_name else "Пилот"
+
+    # 🟢 ВКЛЮЧАЕМ ТАЙПИНГ (только если это не обновление профиля кнопкой)
+    if not is_profile_call:
+        bot.send_chat_action(message.chat.id, 'typing')
     
     text = message.text if message.text else ""
-    text_lower = text.lower()
-
+    
     # --- ЛОГИКА ПРОФИЛЯ С КНОПКОЙ ИГРЫ ---
     if text == "👤 Мой профиль" or is_profile_call:
         u_data = get_user_data(user_id)
@@ -222,16 +233,8 @@ def handle_text(message, is_profile_call=False):
         send_welcome_instruction(message.chat.id, user_id, user_name)
         return
 
-    # Обработка обычного общения
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
     
-    # Пыль для рисования
-    if any(w in clean_text.lower() for w in ['нарисуй', 'архив']):
-        data = get_user_data(user_id)
-        if data['spendable_dust'] < 5:
-            bot.reply_to(message, f"🐾 На борту {data['spendable_dust']} ед. Нужно 5.", reply_markup=get_marty_keyboard())
-            return
-
     # Мозг Марти
     old_xp = get_user_stats(user_id)
     u_data = get_user_data(user_id)
@@ -244,7 +247,6 @@ def handle_text(message, is_profile_call=False):
         bot.reply_to(message, resp, reply_markup=get_marty_keyboard())
     else: bot.reply_to(message, "⏳ Тишина в эфире.", reply_markup=get_marty_keyboard())
 
-# --- ЗАПУСК ---
 def start_marty_autonomous():
     print("🚀 Академия Орион 2.2 запущена.")
     while True:
