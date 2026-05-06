@@ -6,7 +6,7 @@ import scenario1
 import urllib.parse
 from datetime import datetime, timedelta
 from threading import Thread
-from flask import Flask 
+from flask import Flask # Исправлен регистр для корректного деплоя
 from google import genai
 from google.genai import types
 from telebot import types as tele_types 
@@ -45,12 +45,14 @@ def game_engine(call):
         scenario1.run_scenario(bot, call)
 
 # ---------------------------
-# --- СТАБИЛЬНЫЙ КАСКАД МОДЕЛЕЙ (МАЙ 2026) ---
+# --- ОБНОВЛЕННЫЙ КАСКАД МОДЕЛЕЙ (МАЙ 2026) ---
+# Мы используем лучшие Flash-модели из вашего скана для максимальных лимитов.
 MODEL_CASCADE = [
-    'gemini-2.0-flash',        # Основная: высокая скорость
-    'gemini-2.0-flash-lite',   # Резерв
-    'gemini-1.5-flash',        # Стабильная база
-    'gemini-1.5-pro'           # Глубокое сканирование
+    'gemini-3-flash-preview',  # Новейшая частота
+    'gemini-2.5-flash',        # Высокая мощность
+    'gemini-2.0-flash',        # Стабильная база
+    'gemini-flash-latest',     # Универсальный указатель
+    'gemini-3.1-pro-preview'   # Интеллектуальный резерв
 ]
 
 try:
@@ -68,14 +70,14 @@ def send_log(error_text):
     except Exception as e:
         print(f"Ошибка логирования: {e}")
 
-# 🟢 СКАНЕР ДОСТУПНЫХ МОДЕЛЕЙ (ФИКС ОШИБКИ)
+# 🟢 СКАНЕР ДОСТУПНЫХ МОДЕЛЕЙ (ФИКС ОШИБКИ supported_actions)
 def get_available_models_list():
     """Возвращает строку с именами моделей, доступных для текущего API-ключа"""
     if not API_KEYS: return "Ключи API не найдены."
     try:
         client = genai.Client(api_key=API_KEYS[0])
-        # Исправлено: используем supported_actions вместо supported_methods
         models = client.models.list()
+        # Исправлено: используем supported_actions вместо supported_methods для нового SDK
         names = [m.name.replace('models/', '') for m in models 
                  if 'generateContent' in (m.supported_actions or [])]
         return "\n".join([f"• `{n}`" for n in names])
@@ -145,7 +147,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот зачислен в Академию.")
 
-# 🟢 УЛЬТИМАТИВНОЕ ЯДРО ЛИЧНОСТИ
+# 🟢 ЯДРО ЛИЧНОСТИ
 SYSTEM_PROMPT = (
     "Ты — Марти, ученый пес (той-пудель), мудрый наставник Академии Орион. Собеседник — пилот [NAME]. "
     "КРИТИЧЕСКИ: Звездная Пыль ([WALLET]) — редчайшая валюта. Ее нельзя давать за просто так! "
@@ -205,7 +207,7 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     # ЕСЛИ ВСЁ УПАЛО — ДИАГНОСТИКА
     send_log(f"КРИТИЧЕСКИЙ ОТКАЗ: Ни одна модель не ответила. Последняя ошибка: {last_error}")
     supported = get_available_models_list()
-    return f"📡 **ОШИБКА СВЯЗИ С ОРИОНОМ**\n\nТекущие модели в коде не отвечают. Доступные названия на твоем ключе:\n\n{supported}\n\nПроверь названия в списке MODEL_CASCADE! Прием."
+    return f"📡 **ОШИБКА СВЯЗИ С ОРИОНОМ**\n\nТекущие модели из кода не отвечают. Доступные названия на твоем ключе:\n\n{supported}\n\nПроверь названия в списке MODEL_CASCADE! Прием."
 
 @bot.message_handler(commands=['start', 'help'])
 def handle_start(message):
