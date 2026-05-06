@@ -1,7 +1,8 @@
 import telebot
 from datetime import datetime
 from telebot import types as tele_types
-from database import get_game_status, update_game_progress, set_game_timer
+# Импортируем функции базы данных
+from database import get_game_status, update_game_progress, set_game_timer, add_xp
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
@@ -36,7 +37,6 @@ def run_scenario(bot, call):
     elif call.data == "game_reset":
         update_game_progress(user_id, "start")
         bot.answer_callback_query(call.id, "Бортовой журнал очищен.")
-        # Искусственно вызываем старт
         call.data = "game_start"
         run_scenario(bot, call)
 
@@ -128,49 +128,74 @@ def run_scenario(bot, call):
 
     # --- ДЕТЕКТИВНАЯ НАХОДКА В СЕЙФЕ ---
     elif call.data == "game_node_safe_search":
-        text = (f"🗄 Сейф не заперт. Внутри вы находите детскую игрушку — модель шаттла — и "
-                f"потрепанный дневник капитана. Последняя запись: \n\n"
+        text = (f"🗄 Сейф не заперт. Внутри вы находите дневник капитана. Последняя запись: \n\n"
                 f"'Сектор Зеро — это не лаборатория. Это убежище. Мы пытались спрятать их здесь от того, "
                 f"что пришло вместе с сигналом из Солнечной системы'. \n\n"
-                f"Вы понимаете: угроза пришла не из космоса, а с Земли.")
+                f"Вы понимаете: угроза пришла с Земли.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(tele_types.InlineKeyboardButton("🩺 Теперь к кокону...", callback_data="game_node_open_cocoon"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- ВЕТКА: ОСМОТР КОКОНА (СБОР ОБРАЗЦА) ---
+    # --- ОСМОТР КОКОНА (СБОР ОБРАЗЦА) ---
     elif call.data == "game_node_open_cocoon":
-        text = (f"🩺 Вы осторожно приближаетесь к пульсирующему кокону. Марти замер, его "
-                f"био-сенсоры работают на пределе. Вблизи фиолетовые нити выглядят как "
-                f"тончайшие нейронные сети.\n\n"
-                f"— Хозяин, — Марти (male) сканирует поверхность, — этот мох питается "
-                f"остаточной энергией станции. Если мы возьмем образец, я смогу проанализировать "
-                f"его в лаборатории Академии. Но это может спровоцировать защиту.\n\n"
-                f"Что предпримете?")
-        
+        text = (f"🩺 Вы приближаетесь к пульсирующему кокону. Фиолетовые нити похожи на живые нейроны.\n\n"
+                f"— Хозяин, если мы возьмем образец этого мха, я смогу его изучить. "
+                f"Это может спровоцировать систему, но награда того стоит.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
             tele_types.InlineKeyboardButton("🧪 Собрать образец (Бонус +3 Пыли)", callback_data="game_node_collect_moss"),
-            tele_types.InlineKeyboardButton("⚔️ Попробовать вскрыть кокон", callback_data="game_node_cut_cocoon"),
-            tele_types.InlineKeyboardButton("⬅️ Назад к сейфу", callback_data="game_node_marty_vision")
+            tele_types.InlineKeyboardButton("⚔️ Вскрыть кокон резаком", callback_data="game_node_cut_cocoon")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "at_the_cocoon")
 
-    # --- ВЕТКА: СБОР МХА (БОНУС) ---
     elif call.data == "game_node_collect_moss":
-        # Начисляем награду (XP и Пыль в вашей базе связаны 1:1)
         add_xp(user_id, 3, username) 
-        
-        text = (f"✨ Марти аккуратно выдвинул медицинский манипулятор и срезал фрагмент светящегося мха. "
-                f"Субстанция в контейнере зашипела, а по всей станции раздался едва слышный стон.\n\n"
-                f"✅ **Бортовой компьютер:** Начислено +3 Звездной пыли за научный вклад!\n\n"
-                f"— Образец изолирован, — Марти (male) спрятал контейнер в свой корпус. — Но мох "
-                f"снаружи стал темнеть. Кажется, он нас... почувствовал. Нужно действовать быстрее!")
-        
+        text = (f"🧪 Марти срезал образец мха. По всей станции раздался тихий стон.\n\n"
+                f"✅ **Бортовой компьютер:** Начислено +3 Звездной пыли!\n\n"
+                f"— Мох темнеет, — шепчет Марти. — Мы его разозлили. Действуем быстрее!")
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(tele_types.InlineKeyboardButton("⚔️ Вскрыть кокон немедленно", callback_data="game_node_cut_cocoon"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- ВСКРЫТИЕ КОКОНА И НАХОДКА КЛЮЧ-КАРТЫ ---
+    elif call.data == "game_node_cut_cocoon":
+        text = (f"⚔️ Лазерный резак рассекает оболочку. Изнутри вываливается тело капитана. "
+                f"Он не дышит, но его кожа мерцает холодным светом.\n\n"
+                f"Из зажатого кулака капитана выпадает **Золотая Ключ-карта**. На ней выгравирован "
+                f"логотип, которого нет в учебниках Академии.\n\n"
+                f"— Хозяин! — Марти (male) указывает на дверь в конце зала. — Эта карта от Секретной Лаборатории. "
+                f"Если мы зайдем туда, найдем ответы... и не только их.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
-            tele_types.InlineKeyboardButton("⚔️ Вскрыть кокон и спасти капитана", callback_data="game_node_cut_cocoon"),
-            tele_types.InlineKeyboardButton("🏃 Срочно уходить отсюда", callback_data="game_node_escape_zero")
+            tele_types.InlineKeyboardButton("🧬 Войти в Секретную Лабораторию", callback_data="game_node_secret_lab"),
+            tele_types.InlineKeyboardButton("🏃 Бежать к челноку (Конец главы)", callback_data="game_node_escape_chapter")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "moss_collected")
+        update_game_progress(user_id, "keycard_found")
+
+    # --- СЕКРЕТНАЯ ЛАБОРАТОРИЯ (ДВОЙНАЯ НАГРАДА) ---
+    elif call.data == "game_node_secret_lab":
+        text = (f"🧬 Вы входите в стерильную лабораторию. Здесь хранятся капсулы с "
+                f"**Концентрированной Звездной Пылью**. \n\n"
+                f"Вы нашли истинную цель экспедиции 'Авалона'. Это не была наука. Это была добыча.\n\n"
+                f"Вы забираете контейнеры. Ваша награда в конце главы будет максимальной!")
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(tele_types.InlineKeyboardButton("🚀 Завершить Главу 1", callback_data="game_node_escape_chapter_gold"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- ФИНАЛЫ ГЛАВЫ ---
+    elif call.data == "game_node_escape_chapter":
+        add_xp(user_id, 20, username)
+        text = (f"🏁 **ГЛАВА 1 ЗАВЕРШЕНА**\n\n"
+                f"Вы успешно покинули Сектор Зеро. Капитан спасен (?), но вопросов стало больше.\n\n"
+                f"💰 Награда за прохождение: **20 Звездной пыли**.\n\n"
+                f"Продолжение следует... Следите за обновлениями!")
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+
+    elif call.data == "game_node_escape_chapter_gold":
+        add_xp(user_id, 50, username) # Увеличенная награда за секретную лабу
+        text = (f"🏆 **ГЛАВА 1: ЗОЛОТОЙ ФИНАЛ**\n\n"
+                f"Вы не только выжили, но и раскрыли тайну 'Авалона'. Контрабанда пыли подтверждена.\n\n"
+                f"💰 Награда (с учетом секретов): **50 Звездной пыли**.\n\n"
+                f"Продолжение следует... Теперь Академия Орион у вас в долгу.")
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
