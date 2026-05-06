@@ -136,3 +136,41 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(tele_types.InlineKeyboardButton("🩺 Теперь к кокону...", callback_data="game_node_open_cocoon"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- ВЕТКА: ОСМОТР КОКОНА (СБОР ОБРАЗЦА) ---
+    elif call.data == "game_node_open_cocoon":
+        text = (f"🩺 Вы осторожно приближаетесь к пульсирующему кокону. Марти замер, его "
+                f"био-сенсоры работают на пределе. Вблизи фиолетовые нити выглядят как "
+                f"тончайшие нейронные сети.\n\n"
+                f"— Хозяин, — Марти (male) сканирует поверхность, — этот мох питается "
+                f"остаточной энергией станции. Если мы возьмем образец, я смогу проанализировать "
+                f"его в лаборатории Академии. Но это может спровоцировать защиту.\n\n"
+                f"Что предпримете?")
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(
+            tele_types.InlineKeyboardButton("🧪 Собрать образец (Бонус +3 Пыли)", callback_data="game_node_collect_moss"),
+            tele_types.InlineKeyboardButton("⚔️ Попробовать вскрыть кокон", callback_data="game_node_cut_cocoon"),
+            tele_types.InlineKeyboardButton("⬅️ Назад к сейфу", callback_data="game_node_marty_vision")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        update_game_progress(user_id, "at_the_cocoon")
+
+    # --- ВЕТКА: СБОР МХА (БОНУС) ---
+    elif call.data == "game_node_collect_moss":
+        # Начисляем награду (XP и Пыль в вашей базе связаны 1:1)
+        add_xp(user_id, 3, username) 
+        
+        text = (f"✨ Марти аккуратно выдвинул медицинский манипулятор и срезал фрагмент светящегося мха. "
+                f"Субстанция в контейнере зашипела, а по всей станции раздался едва слышный стон.\n\n"
+                f"✅ **Бортовой компьютер:** Начислено +3 Звездной пыли за научный вклад!\n\n"
+                f"— Образец изолирован, — Марти (male) спрятал контейнер в свой корпус. — Но мох "
+                f"снаружи стал темнеть. Кажется, он нас... почувствовал. Нужно действовать быстрее!")
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(
+            tele_types.InlineKeyboardButton("⚔️ Вскрыть кокон и спасти капитана", callback_data="game_node_cut_cocoon"),
+            tele_types.InlineKeyboardButton("🏃 Срочно уходить отсюда", callback_data="game_node_escape_zero")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        update_game_progress(user_id, "moss_collected")
