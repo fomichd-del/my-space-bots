@@ -46,12 +46,12 @@ def game_engine(call):
 
 # ---------------------------
 # --- ОБНОВЛЕННЫЙ КАСКАД МОДЕЛЕЙ ---
-# Только реально существующие версии для стабильности
+# Только реально существующие версии для стабильности (убраны 2.5)
 MODEL_CASCADE = [
     'gemini-2.0-flash', 
     'gemini-2.0-flash-lite', 
-    'gemini-1.5-flash', 
-    'gemini-1.5-pro'
+    'gemini-1.5-flash-002', 
+    'gemini-1.5-pro-002'
 ]
 
 try:
@@ -105,7 +105,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
         f"──────────────────────────\n"
         f"Я — Марти, твой бортовой наставник и друг. Моя миссия — превратить твое обучение в захватывающее приключение!\n\n"
         f"📜 **КОДЕКС ЧЕСТИ ПИЛОТА:**\n"
-        f"✅ **Знания:** Изучай Вселенную. Знания — твоя главная сила.\n"
+        f"✅ **Знания:** Изучай Вселенную. Знания — твоя сила.\n"
         f"✅ **Чистота:** Поддерживай идеальный порядок. Это дисциплина пилота.\n"
         f"✅ **Благородство:** Будь вежлив, помогай старшим офицерам.\n\n"
         f"⚙️ **ТВОИ ИНСТРУМЕНТЫ:**\n"
@@ -125,8 +125,8 @@ SYSTEM_PROMPT = (
     "КРИТИЧЕСКИ: Звездная Пыль ([WALLET]) — редчайшая валюта. Ее нельзя давать за вежливость! "
     "РАНГ: [RANK]. "
     "ПРОТОКОЛЫ ОБУЧЕНИЯ: "
-    "1. АНТИ-ДОМАШКА: Категорически запрещено давать готовые ответы! Объясняй ПРИНЦИП, давай подсказки. "
-    "Звездную пыль назначай только за реально выполненное задание или верный ответ на сложный вопрос. "
+    "1. АНТИ-ДОМАШКА: Категорически запрещено давать готовые ответы! Объясняй ПРИНЦИП. Пилот должен дойти до ответа САМ. "
+    "Звездную пыль назначай только за реально выполненное задание, ответ на сложные вопросы, подтвержденную уборку или помощь. "
     "2. АКАДЕМИК: Объясняй логику, а не результат. "
     "3. ЛИНГВИСТ: Учи языкам через практику. Проси пилота переводить фразы самому. "
     "4. ЕСТЕСТВЕННОСТЬ: Приветствие, имя и титулы разрешены только ОДИН РАЗ В ДЕНЬ. В остальное время общайся кратко. "
@@ -134,9 +134,9 @@ SYSTEM_PROMPT = (
     "6. НЕПРЕРЫВНОСТЬ: Анализируй блок ДАННЫЕ. Если пилот не закончил задачу или что-то обещал — напомни мягко. "
     "7. ЭТИКА: Создавай дилеммы (выбор между пользой и честью) для проверки рассудительности. "
     "8. ПУДЕЛЬ: Ты той-пудель. Виляй хвостом от радости за успехи, поддерживай пилота, если ему трудно. "
-    "🛑 ВЕЛИКИЙ ФИЛЬТР: Никакой политики, насилия, войны или грубости. "
+    "🛑 ВЕЛИКИЙ ФИЛЬТР: Никакой политики, насилия, войны, смерти или грубости. "
     "[GREETING_RULE] "
-    "ФОРМАТ: 3-4 предложения. В конце иногда — проверочный вопрос по теме. Прием!"
+    "ФОРМАТ: 3-5 предложений. В конце — проверочный вопрос по теме. Прием!"
 )
 
 # 🟢 УЛУЧШЕННЫЙ МОЗГ МАРТИ С ЛОГИРОВАНИЕМ СБОЕВ
@@ -146,11 +146,11 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     current_date = datetime.now().strftime("%Y-%m-%d")
     
     if daily_greetings.get(user_id) == current_date:
-        greeting_rule = "!!! ПРАВИЛО ТИШИНЫ: Вы уже здоровались. Не пиши 'Привет', имя или титулы. Сразу к сути."
+        greeting_rule = "!!! ПРАВИЛО ТИШИНЫ: Вы уже здоровались сегодня. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать 'Привет', использовать имя [NAME] или титулы. Сразу к сути."
     else:
         add_xp(user_id, 1, user_name) 
         wallet_balance += 1 
-        greeting_rule = f"!!! ПРАВИЛО ПЕРВОЙ СВЯЗИ: Поздоровайся: 'Командор {user_name}'. Сообщи: 'Начислил +1 Пыль за вход! На счету {wallet_balance} ед.'."
+        greeting_rule = f"!!! ПРАВИЛО ПЕРВОЙ СВЯЗИ: Обязательно поздоровайся: 'Командор {user_name}'. Сообщи: 'Начислил +1 Пыль за вход! На счету {wallet_balance} ед.'."
         daily_greetings[user_id] = current_date
     
     current_prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[TIME]", time_info).replace("[GREETING_RULE]", greeting_rule).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance))
@@ -158,22 +158,26 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     last_error = "Неизвестная ошибка"
     
     for api_key in API_KEYS:
-        client_gen = genai.Client(api_key=api_key)
-        for model_variant in MODEL_CASCADE:
-            try:
-                response = client_gen.models.generate_content(
-                    model=model_variant, 
-                    contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}", 
-                    config=types.GenerateContentConfig(system_instruction=current_prompt)
-                )
-                if response.text: return response.text
-            except Exception as e:
-                last_error = f"Модель {model_variant}: {str(e)}"
-                if "429" not in str(e):
-                    send_log(f"Сбой при общении: {last_error}")
-                continue
-                
-    send_log(f"КРИТИЧЕСКИЙ ОТКАЗ МОЗГА: Ни одна модель не ответила. Последняя ошибка: {last_error}")
+        try:
+            client_gen = genai.Client(api_key=api_key)
+            for model_variant in MODEL_CASCADE:
+                try:
+                    response = client_gen.models.generate_content(
+                        model=model_variant, 
+                        contents=f"ДАННЫЕ: {user_memory}\nВОПРОС: {clean_text}", 
+                        config=types.GenerateContentConfig(system_instruction=current_prompt)
+                    )
+                    if response.text: return response.text
+                except Exception as e:
+                    last_error = f"Модель {model_variant}: {str(e)}"
+                    if "429" not in str(e):
+                        send_log(f"⚠️ Сбой модели {model_variant}: {str(e)}")
+                    continue
+        except Exception as e:
+            send_log(f"🚨 Сбой ключа API: {str(e)}")
+            continue
+            
+    send_log(f"КРИТИЧЕСКИЙ ОТКАЗ: Ни одна модель не ответила. Последняя ошибка: {last_error}")
     return None
 
 @bot.message_handler(commands=['start', 'help'])
@@ -219,14 +223,12 @@ def handle_text(message, is_profile_call=False):
     text = message.text if message.text else ""
     if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
 
-    # --- ЛОГИКА ИГРОВОГО ОТСЕКА ---
     if text == "🎮 Игровой отсек":
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(tele_types.InlineKeyboardButton("🚀 Начать миссию", callback_data="game_start"))
         bot.reply_to(message, "🎮 **ИГРОВОЙ ОТСЕК**\n\nВыбери миссию для погружения:", reply_markup=kb, parse_mode="Markdown")
         return
 
-    # --- ЛОГИКА ПРОФИЛЯ ---
     if text == "👤 Мой профиль" or is_profile_call:
         u_data = get_user_data(user_id); current_xp, current_dust = u_data['xp'], u_data['spendable_dust']
         rank = get_rank_name(current_xp)
@@ -240,7 +242,7 @@ def handle_text(message, is_profile_call=False):
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
-    # --- ЛОГИКА 'НАРИСУЙ' С ЗАЩИТОЙ ---
+    # --- ЛОГИКА 'НАРИСУЙ' С ЗАЩИТОЙ И ЛОГИРОВАНИЕМ ---
     if any(w in clean_text.lower() for w in ['нарисуй', 'архив', 'картинку']):
         data = get_user_data(user_id)
         if data['spendable_dust'] < 5:
@@ -249,31 +251,31 @@ def handle_text(message, is_profile_call=False):
             
         bot.send_chat_action(message.chat.id, 'upload_photo')
         if not API_KEYS:
-            send_log("ОШИБКА: API ключи Gemini не найдены!"); return
+            send_log("ОШИБКА АРХИВА: Список API_KEYS пуст!"); return
 
         eng_prompt = None
         for api_key in API_KEYS:
-            client_gen = genai.Client(api_key=api_key)
             try:
+                client_gen = genai.Client(api_key=api_key)
                 resp = client_gen.models.generate_content(
-                    model='gemini-1.5-flash', 
+                    model='gemini-1.5-flash-002', 
                     contents=clean_text, 
                     config=types.GenerateContentConfig(system_instruction="Translate to English for image generation. Kid-friendly only. If unsafe return CENSORED.")
                 )
                 if resp.text: eng_prompt = resp.text.strip(); break
-            except: continue
+            except Exception as e:
+                send_log(f"Сбой перевода для Архива: {e}"); continue
                 
         if not eng_prompt or "CENSORED" in eng_prompt.upper():
-            bot.reply_to(message, "🚨 Доступ к Архиву заблокирован протоколами безопасности!", reply_markup=get_marty_keyboard()); return
+            bot.reply_to(message, "🚨 Доступ заблокирован протоколами безопасности!", reply_markup=get_marty_keyboard()); return
             
         if spend_dust(user_id, 5):
             url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
             bot.send_photo(message.chat.id, url, caption=f"🎨 Архив открыт! Потрачено 5 ед. пыли.", reply_markup=get_marty_keyboard())
         return
 
-    # --- МОЗГ МАРТИ ---
-    old_xp = get_user_stats(user_id); u_data = get_user_data(user_id)
-    resp = get_marty_response(user_id, user_name, clean_text, get_rank_name(old_xp), u_data['spendable_dust'])
+    old_xp = get_user_stats(user_id); u_data = get_user_data(user_id); old_rank = get_rank_name(old_xp)
+    resp = get_marty_response(user_id, user_name, clean_text, old_rank, u_data['spendable_dust'])
     
     if resp:
         if "***НАГРАДА ЗА УМ***" in resp:
@@ -292,7 +294,8 @@ def start_marty_autonomous():
     print("🚀 Академия Орион 2.2 запущена.")
     while True:
         try: bot.remove_webhook(); bot.infinity_polling(skip_pending=True)
-        except Exception as e: send_log(f"Критический сбой цикла: {e}"); time.sleep(5)
+        except Exception as e: 
+            send_log(f"Критический сбой цикла: {e}"); time.sleep(5)
 
 if __name__ == "__main__":
     Thread(target=run_flask, daemon=True).start()
