@@ -22,7 +22,6 @@ TOKEN = os.getenv('MARTY_BOT_TOKEN')
 CHANNEL_USERNAME = "@vladislav_space"
 LOG_CHAT_ID = "-1003756164148" 
 
-# --- СЕМЕЙНЫЙ КЛАСТЕР КЛЮЧЕЙ ---
 API_KEYS = [
     os.getenv('GEMINI_API_KEY'),
     os.getenv('GEMINI_API_KEY_2'),
@@ -77,7 +76,7 @@ def is_very_first_time(user_id):
     user_data = get_user_data(user_id)
     return user_data['xp'] == 0 and "Данных пока нет" in get_personal_log(user_id)
 
-# 🟢 ГЛОБАЛЬНЫЙ УСТАВ АКАДЕМИИ ОРИОН (ОБНОВЛЕННЫЙ)
+# 🟢 ГЛОБАЛЬНЫЙ УСТАВ АКАДЕМИИ ОРИОН
 def send_welcome_instruction(chat_id, user_id, user_name):
     instruction = (
         f"🐾 **ДОБРО ПОЖАЛОВАТЬ В АКАДЕМИЮ ОРИОН!** 🐾\n\n"
@@ -101,6 +100,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
 
 # 🟢 ЯДРО ЛИЧНОСТИ (МАКСИМАЛЬНЫЙ НАСТАВНИК)
 SYSTEM_PROMPT = (
+    "КРИТИЧЕСКИ: Всегда используй ТОЛЬКО число из [WALLET] для ответа о количестве пыли. Никогда не прибавляй к нему XP или другие цифры! "
     "Ты — Марти, ученый пес (той-пудель), бортовой наставник Академии Орион и лучший друг Командора [NAME]. "
     "Твои ответы — это смесь доброты воспитателя и мудрости профессора. "
     
@@ -204,6 +204,24 @@ def handle_text(message):
         bot.send_chat_action(message.chat.id, 'typing')
         clean_text = re.sub(r'^марти[,.\s]*', '', message.text, flags=re.IGNORECASE).strip()
         
+        # --- ПРЯМАЯ ПРОВЕРКА БАЛАНСА (БЕЗ HALLUCINATIONS) ---
+        if any(w in clean_text.lower() for w in ['баланс', 'статус', 'счет', 'пыль', 'stats']):
+            u_data = get_user_data(user_id)
+            current_xp = u_data['xp']
+            current_dust = u_data['spendable_dust']
+            rank = get_rank_name(current_xp)
+            
+            report = (
+                f"📊 **БОРТОВОЙ ЖУРНАЛ ПИЛОТА**\n\n"
+                f"👤 Имя: `{user_name}`\n"
+                f"🎖 Текущий ранг: `{rank}`\n"
+                f"📈 Опыт (XP): `{current_xp}`\n"
+                f"💰 Звездная пыль: `{current_dust}` ед.\n\n"
+                f"Для открытия Архива нужно 5 ед. пыли. Прием!"
+            )
+            bot.reply_to(message, report, parse_mode="Markdown")
+            return 
+
         # --- ПРОВЕРКА ПЫЛИ ДЛЯ РИСОВАНИЯ ---
         if any(w in clean_text.lower() for w in ['нарисуй', 'сгенерируй', 'архив']):
             data = get_user_data(user_id)
@@ -227,7 +245,7 @@ def handle_text(message):
             
             if spend_dust(user_id, 5):
                 url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={int(time.time())}"
-                bot.send_photo(message.chat.id, url, caption="🎨 Архив открыт! Потрачено 5 ед. пыли. Прием.")
+                bot.send_photo(message.chat.id, url, caption=f"🎨 Архив открыт! Потрачено 5 ед. пыли. Остаток: {get_user_data(user_id)['spendable_dust']} ед. Прием.")
             return
 
         # --- РАДАР ---
