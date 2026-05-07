@@ -255,33 +255,31 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "in_secret_lab")
 
-    # --- ФИНАЛЫ ГЛАВЫ (С ЗАЩИТОЙ) ---
+    # --- ФИНАЛЫ ГЛАВЫ С ЗАЩИТОЙ ОТ ПОВТОРНОГО НАЧИСЛЕНИЯ ---
     elif call.data == "game_node_escape_chapter":
-        # 🟢 ПРОВЕРКА: Была ли уже выдана награда?
-        if current_node == "chapter1_finished":
-            bot.answer_callback_query(call.id, "⚠️ Награда за эту миссию уже зачислена!", show_alert=True)
-            return
+        if current_node != "chapter1_finished":  # 🟢 Проверка: если еще не закончил
+            add_xp(user_id, 20, username)
+            update_game_progress(user_id, "chapter1_finished") # 🟢 Ставим метку финала
+            reward_text = "💰 Награда за прохождение: **20 Звездной пыли**."
+        else:
+            reward_text = "✨ Вы уже получили награду за эту миссию."
 
-        add_xp(user_id, 20, username)
-        update_game_progress(user_id, "chapter1_finished") # Ставим метку финала
-        
         text = (f"🏁 **ГЛАВА 1 ЗАВЕРШЕНА**\n\n"
                 f"Вы успешно покинули Сектор Зеро. Капитан спасен (?), но вопросов стало больше.\n\n"
-                f"💰 Награда за прохождение: **20 Звездной пыли**.\n\n"
+                f"{reward_text}\n\n"
                 f"Продолжение следует... Следите за обновлениями!")
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
 
     elif call.data == "game_node_escape_chapter_gold":
-        # 🟢 ПРОВЕРКА: Была ли уже выдана награда?
-        if current_node == "chapter1_finished":
-            bot.answer_callback_query(call.id, "⚠️ Ваша заслуженная пыль уже на счету!", show_alert=True)
-            return
+        if current_node != "chapter1_gold_finished": # 🟢 Проверка на золотой финал
+            add_xp(user_id, 50, username)
+            update_game_progress(user_id, "chapter1_gold_finished") # 🟢 Метка золотого финала
+            reward_text = "💰 Награда (с учетом секретов): **50 Звездной пыли**."
+        else:
+            reward_text = "✨ Вы уже получили максимальную награду за эту главу."
 
-        add_xp(user_id, 50, username)
-        update_game_progress(user_id, "chapter1_finished") # Ставим метку финала
-        
         text = (f"🏆 **ГЛАВА 1: ЗОЛОТОЙ ФИНАЛ**\n\n"
                 f"Вы не только выжили, но и раскрыли тайну 'Авалона'. Контрабанда пыли подтверждена.\n\n"
-                f"💰 Награда (с учетом секретов): **50 Звездной пыли**.\n\n"
+                f"{reward_text}\n\n"
                 f"Продолжение следует... Теперь Академия Орион у вас в долгу.")
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
