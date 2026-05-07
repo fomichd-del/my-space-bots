@@ -163,7 +163,7 @@ def get_top_pilots(limit=5):
             FROM users 
             WHERE user_id != 777000 
               AND user_id > 0 
-              AND username NOT ILIKE '%bot%'
+              AND username NOT ILIKE '%%bot%%'
               AND username != 'Telegram'
               AND username != 'GroupAnonymousBot'
             ORDER BY xp DESC 
