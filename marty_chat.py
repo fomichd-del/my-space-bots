@@ -194,8 +194,9 @@ def handle_text(message, is_profile_call=False):
 
     text = message.text if message.text else ""
     if text == "🎮 Игровой отсек":
-        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🚀 Старт", callback_data="game_start"))
-        bot.reply_to(message, "🎮 **МИССИИ АКАДЕМИИ**", reply_markup=kb, parse_mode="Markdown"); return
+        report, kb = menu.get_games_menu()
+        bot.reply_to(message, report, reply_markup=kb, parse_mode="Markdown")
+        return
 
     if text == "👤 Мой профиль" or is_profile_call:
         u = get_user_data(user_id); rank = get_rank_name(u['xp'])
