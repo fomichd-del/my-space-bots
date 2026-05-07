@@ -28,10 +28,14 @@ API_KEYS = [k for k in API_KEYS if k]
 bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
 
+# 🟢 ИСПРАВЛЕННЫЙ ИГРОВОЙ ДВИЖОК
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game'))
 def game_engine(call):
+    # ТЕПЕРЬ "МОСТИК" ВЕДЕТ В МЕНЮ ИГР, А НЕ В ПРОФИЛЬ
     if call.data == "game_back_to_profile":
-        handle_text(call.message, is_profile_call=True)
+        report, kb = menu.get_main_games_menu()
+        bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+    
     elif call.data == "game_instruction_fix":
         top = get_top_pilots(10)
         if not top:
@@ -40,8 +44,9 @@ def game_engine(call):
             text = "🏆 **ТОП ПИЛОТОВ АКАДЕМИИ**\n\n" + "\n".join([f"*{i+1}.* {p[0]} — `{p[1]} XP`" for i, p in enumerate(top)])
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
+    
     else:
-        # 🟢 ВСЁ! Роутер сам разберется, какая это глава
+        # Роутер сам разберется с главами и меню
         router.route_game(bot, call)
 
 MODEL_CASCADE = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
