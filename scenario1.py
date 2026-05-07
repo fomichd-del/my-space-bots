@@ -19,6 +19,32 @@ def run_scenario(bot, call):
 
     # 2. Навигация по сюжету
     if call.data == "game_start":
+        # 🟢 УМНЫЙ СТАРТ: Проверка точки сохранения
+        if current_node and current_node not in ["start", "shluz_entry"]:
+            text = (f"🛰 **БОРТОВОЙ ЖУРНАЛ**\n\n"
+                    f"{username}, системы восстановили последний сеанс связи.\n"
+                    f"Желаете продолжить миссию или начать заново?")
+            
+            kb = tele_types.InlineKeyboardMarkup(row_width=1)
+            
+            # Предлагаем нужную кнопку в зависимости от того, где игрок остановился
+            if current_node == "hacking_panel":
+                kb.add(tele_types.InlineKeyboardButton("🔄 Проверить статус взлома", callback_data="game_check_hack"))
+            elif current_node == "calculating_trajectory":
+                kb.add(tele_types.InlineKeyboardButton("🔄 Проверить расчеты", callback_data="game_check_trajectory"))
+            elif current_node == "shluz_unlocked":
+                kb.add(tele_types.InlineKeyboardButton("🚶 Войти в коридор", callback_data="game_node_corridor"))
+            elif current_node == "keycard_found":
+                kb.add(tele_types.InlineKeyboardButton("🧬 В Секретную Лабораторию", callback_data="game_node_secret_lab"))
+            else:
+                # Если узел промежуточный, просто предлагаем проверить статус панели как универсальный выход
+                kb.add(tele_types.InlineKeyboardButton("🔄 Обновить статус", callback_data="game_check_hack"))
+
+            kb.add(tele_types.InlineKeyboardButton("♻️ Начать заново (Сброс)", callback_data="game_reset"))
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+            return
+
+        # Обычный старт для новых игроков
         text = (f"🛰 **БОРТОВОЙ ЖУРНАЛ: ЗАПИСЬ #1**\n\n"
                 f"{username}, шлюз 'Авалона-7' встретил вас ледяным сквозняком. "
                 f"Марти замер, его сенсоры сканируют темноту. Перед вами — разбитая панель управления и "
@@ -37,6 +63,7 @@ def run_scenario(bot, call):
     elif call.data == "game_reset":
         update_game_progress(user_id, "start")
         bot.answer_callback_query(call.id, "Бортовой журнал очищен.")
+        # Искусственно вызываем старт
         call.data = "game_start"
         run_scenario(bot, call)
 
@@ -56,7 +83,7 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "shluz_closet")
 
-        # --- ВЕТКА ПАНЕЛИ (ТАЙМЕР 10 МИН) ---
+    # --- ВЕТКА ПАНЕЛИ (ТАЙМЕР 10 МИН) ---
     elif call.data == "game_node_panel":
         set_game_timer(user_id, 10)
         text = ("⚙️ Марти подключился к панели:\n\n"
@@ -64,17 +91,14 @@ def run_scenario(bot, call):
                 "Мне кажется, из вентиляции за нами кто-то наблюдает...")
         
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        # 🟢 ТЕПЕРЬ КНОПКА ВЕДЕТ НА ПРОВЕРКУ ВЗЛОМА
         kb.add(tele_types.InlineKeyboardButton("🔄 Проверить готовность", callback_data="game_check_hack"))
         kb.add(tele_types.InlineKeyboardButton("🏠 На мостик", callback_data="game_back_to_profile"))
         
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "hacking_panel")
 
-    # 🟢 НОВЫЙ УЗЕЛ: РЕЗУЛЬТАТ ВЗЛОМА ПЕРВОЙ ПАНЕЛИ
+    # --- РЕЗУЛЬТАТ ВЗЛОМА ПЕРВОЙ ПАНЕЛИ ---
     elif call.data == "game_check_hack":
-        # Если 10 минут НЕ прошли, сработает глобальная проверка в начале файла (return)
-        # Если время ВЫШЛО, бот покажет этот текст:
         text = (f"✅ **ВЗЛОМ ЗАВЕРШЕН**\n\n"
                 f"Марти довольно вильнул хвостом, и экран панели вспыхнул ровным зеленым светом. "
                 f"Тяжелые створки шлюза с лязгом разошлись, открывая путь в темный коридор станции.\n\n"
@@ -88,7 +112,7 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "shluz_unlocked")
 
-    # 🟢 СЦЕНА: КОРИДОР (Промежуточная точка)
+    # --- СЦЕНА: КОРИДОР ---
     elif call.data == "game_node_corridor":
         text = (f"🌌 Вы вышли в главный коридор. Здесь царит невесомость и хаос: парят обрывки документов "
                 f"и пустые контейнеры. В конце коридора видна дверь в Сектор Зеро.\n\n"
@@ -96,15 +120,13 @@ def run_scenario(bot, call):
                 f"вскрыть шкафчики в шлюзе, либо искать другой путь'.")
         
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        # Если у игрока уже есть координаты (он взял медальон), появится кнопка ввода
         kb.add(tele_types.InlineKeyboardButton("🛰 Ввести координаты (если есть)", callback_data="game_node_panel_with_coords"))
         kb.add(tele_types.InlineKeyboardButton("🔙 Вернуться в шлюз", callback_data="game_start"))
         
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-
     # --- ВЕТКА МЕДАЛЬОНА И КООРДИНАТ ---
-    elif call.data == "game_node_medalion":
+    elif call.data == "game_node_medalion" or call.data == "game_node_marty_bring":
         text = (f"🖐 Вы касаетесь металла. Зрение вспыхивает белым светом! \n\n"
                 f"В шлеме горят координаты: **42.0081 // -19.4402**.\n"
                 f"Шепот в динамиках: 'Не ищите нас... оно уже здесь'.\n\n"
@@ -115,6 +137,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🏠 На мостик", callback_data="game_back_to_profile")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        update_game_progress(user_id, "shluz_coords_found")
 
     elif call.data == "game_node_panel_with_coords":
         set_game_timer(user_id, 30)
@@ -147,6 +170,17 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🔦 Прожектор (Риск)", callback_data="game_node_light_trap"),
             tele_types.InlineKeyboardButton("🛰 Сенсоры Марти (Безопасно)", callback_data="game_node_marty_vision")
         )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # 🟢 ВОССТАНОВЛЕННАЯ ЛОВУШКА СВЕТА
+    elif call.data == "game_node_light_trap":
+        text = (f"💡 Вы щелкаете тумблером прожектора. Яркий луч разрезает мрак...\n\n"
+                f"И в ту же секунду фиолетовый мох на стенах начинает стремительно расти в сторону света! "
+                f"Щупальца оплетают ваши ноги. Система скафандра выдает каскад ошибок.\n\n"
+                f"— Назад! — Марти пытается перегрызть светящиеся нити.\n\n"
+                f"Энергия падает! Вам нужно срочно выключить свет, чтобы они отстали.")
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(tele_types.InlineKeyboardButton("🔋 Выключить свет и замереть", callback_data="game_node_sector_zero"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- СЕНСОРЫ МАРТИ И КАПИТАН ---
@@ -198,7 +232,7 @@ def run_scenario(bot, call):
                 f"Он не дышит, но его кожа мерцает холодным светом.\n\n"
                 f"Из зажатого кулака капитана выпадает **Золотая Ключ-карта**. На ней выгравирован "
                 f"логотип, которого нет в учебниках Академии.\n\n"
-                f"— Хозяин! — Марти (male) указывает на дверь в конце зала. — Эта карта от Секретной Лаборатории. "
+                f"— Хозяин! — Марти указывает на дверь в конце зала. — Эта карта от Секретной Лаборатории. "
                 f"Если мы зайдем туда, найдем ответы... и не только их.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
