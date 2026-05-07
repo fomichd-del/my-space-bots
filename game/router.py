@@ -1,17 +1,24 @@
-from game import scenario1, scenario2 # Сюда будешь добавлять новые сценарии
+from game import menu, scenario1, scenario2
 
 def route_game(bot, call):
-    """
-    Универсальный распределитель игровых запросов.
-    """
     data = call.data
     
-    # Глава 2 (Все кнопки начинаются на game2_)
-    if data.startswith('game2_'):
+    # --- НАВИГАЦИЯ ПО МЕНЮ ---
+    
+    # Показать главный список игр
+    if data == "game_main_menu":
+        report, kb = menu.get_main_games_menu()
+        bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+    
+    # Показать главы игры "Дневник"
+    elif data == "select_game_diary":
+        report, kb = menu.get_diary_chapters_menu()
+        bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- ЗАПУСК СЦЕНАРИЕВ ---
+
+    elif data.startswith('game2_'):
         scenario2.run_scenario(bot, call)
         
-    # Глава 1 (Все кнопки начинаются на game_ и не относятся ко 2 главе)
     elif data.startswith('game_'):
         scenario1.run_scenario(bot, call)
-        
-    # Сюда в будущем добавишь: elif data.startswith('game3_'): ...
