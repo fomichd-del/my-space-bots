@@ -52,6 +52,36 @@ def get_marty_keyboard():
     markup.row(KeyboardButton("🎮 Игровой отсек")) 
     return markup
 
+# 🟢 СКАНЕР ДОСТУПНЫХ МОДЕЛЕЙ (БРОНИРОВАННАЯ ВЕРСИЯ)
+def check_actual_names():
+    """Проверяет через API, какие модели реально доступны для ключа"""
+    print("📡 Запуск сканера частот Gemini...") 
+    if not API_KEYS:
+        send_log("🚨 ОШИБКА: Список API_KEYS пуст!")
+        print("🚨 ОШИБКА: Список API_KEYS пуст!")
+        return
+    try:
+        client = genai.Client(api_key=API_KEYS[0])
+        available = []
+        
+        for m in client.models.list():
+            if "gemini" in m.name.lower():
+                available.append(m.name.replace('models/', ''))
+                
+        report = "🛰 **РЕЗУЛЬТАТЫ СКАНЕРА ЧАСТОТ**\n\n✅ Доступные модели на борту:\n" + "\n".join([f"• `{m}`" for m in available])
+        
+        if len(report) > 3900:
+            report = report[:3900] + "\n... (список обрезан)"
+            
+        send_log(report)
+        print("✅ Сканирование успешно завершено. Отчет отправлен в Telegram.")
+        print(f"Доступные модели: {available}")
+        
+    except Exception as e:
+        error_msg = f"❌ Сбой сканера имен: {e}"
+        send_log(error_msg)
+        print(error_msg)
+
 # 🟢 РАСШИРЕННАЯ ИНСТРУКЦИЯ
 def send_welcome_instruction(chat_id, user_id, user_name):
     instruction = (
@@ -87,7 +117,6 @@ def send_welcome_instruction(chat_id, user_id, user_name):
     )
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот изучил полный справочник Академии v2.2")
-
 
 # 🟢 ГИПЕР-ЯДРО ЛИЧНОСТИ (ВЕРСИЯ 3.5 — "ДРУЖЕЛЮБНЫЙ НАСТАВНИК")
 SYSTEM_PROMPT = (
@@ -136,10 +165,6 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
 @bot.message_handler(commands=['start', 'help'])
 def handle_start(message):
     send_welcome_instruction(message.chat.id, message.from_user.id, message.from_user.first_name)
-
-def send_welcome_instruction(chat_id, user_id, user_name):
-    text = f"🐾 **ПРИВЕТ, ПИЛОТ {user_name.upper()}!**\n\nЯ твой наставник Марти. Учись, зарабатывай Пыль и открывай Архив командой 'Нарисуй'.\n\nПрием!"
-    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=get_marty_keyboard())
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
@@ -190,7 +215,6 @@ def handle_text(message, is_profile_call=False):
         # 1. Сбор и логирование данных
         eng_prompt = None
         translation_errors = []
-        start_time = time.time()
         
         # 2. Попытка перевода (Каскад моделей)
         for i, api_key in enumerate(API_KEYS):
@@ -214,19 +238,16 @@ def handle_text(message, is_profile_call=False):
         
         # 3. Обработка результата перевода
         if not eng_prompt:
-            # 🛑 Если перевод не удался — Марти докладывает о причине в чат
-            error_report = f"📡 **ОШИБКА СВЯЗИ С АРХИВОМ**\n\nНе удалось перевести запрос '{clean_text}'.\n\n_Технический лог:_\n" + "\n".join([f"• {e}" for e in translation_errors[-3:]]) # Показываем последние 3 ошибки
+            error_report = f"📡 **ОШИБКА СВЯЗИ С АРХИВОМ**\n\nНе удалось перевести запрос '{clean_text}'.\n\n_Технический лог:_\n" + "\n".join([f"• {e}" for e in translation_errors[-3:]])
             bot.reply_to(message, error_report, parse_mode="Markdown")
             send_log(f"Сбой перевода 'нарисуй' для пользователя {user_name}. Ошибки: {translation_errors}")
             return
             
         # 4. Генерация изображения
         if spend_dust(user_id, 5):
-            seed = int(time.time() + user_id) # Уникальный сид
-            # Формируем URL для Pollinations.ai
+            seed = int(time.time() + user_id) 
             url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={seed}&nofeed=true"
             
-            # 5. Отправка результата
             caption = (
                 f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n"
                 f"📡 **Ваш запрос:** _{clean_text}_\n"      
@@ -254,16 +275,14 @@ def handle_text(message, is_profile_call=False):
 app = Flask(__name__)
 @app.route('/')
 def h(): return "OK"
-if __name__ == "__main__":
-    Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
-    bot.infinity_polling(skip_pending=True)
 
 def start_marty_autonomous():
     print("🚀 Академия Орион 2.2 запущена.")
     while True:
         try: bot.remove_webhook(); bot.infinity_polling(skip_pending=True)
         except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
-if __name__ == "__main__":
-    Thread(target=run_flask, daemon=True).start()
-    start_marty_autonomous()
 
+if __name__ == "__main__":
+    Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
+    check_actual_names() # 🌟 Сканер запускается здесь!
+    start_marty_autonomous()
