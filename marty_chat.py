@@ -2,7 +2,7 @@ import os
 import telebot
 import time
 import re
-from game import scenario1
+from game import menu, router
 import urllib.parse
 from datetime import datetime, timedelta
 from threading import Thread
@@ -28,22 +28,21 @@ API_KEYS = [k for k in API_KEYS if k]
 bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('game_'))
+@bot.callback_query_handler(func=lambda call: call.data.startswith('game'))
 def game_engine(call):
     if call.data == "game_back_to_profile":
         handle_text(call.message, is_profile_call=True)
     elif call.data == "game_instruction_fix":
         top = get_top_pilots(10)
-        # 🟢 ИСПРАВЛЕНО: обращаемся к элементам по их номеру: p[0] (имя) и p[1] (XP)
         if not top:
             text = "🏆 **ТОП ПИЛОТОВ АКАДЕМИИ**\n\nСписок пока пуст. Стань первым!"
         else:
             text = "🏆 **ТОП ПИЛОТОВ АКАДЕМИИ**\n\n" + "\n".join([f"*{i+1}.* {p[0]} — `{p[1]} XP`" for i, p in enumerate(top)])
-            
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
     else:
-        scenario1.run_scenario(bot, call)
+        # 🟢 ВСЁ! Роутер сам разберется, какая это глава
+        router.route_game(bot, call)
 
 MODEL_CASCADE = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
 
