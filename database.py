@@ -157,7 +157,18 @@ def get_top_pilots(limit=5):
     if not conn: return []
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT username, xp FROM users ORDER BY xp DESC LIMIT %s', (limit,))
+        # 🟢 ИСПРАВЛЕНО: Мощный фильтр от ботов, групп и самого Telegram
+        cursor.execute('''
+            SELECT username, xp 
+            FROM users 
+            WHERE user_id != 777000 
+              AND user_id > 0 
+              AND username NOT ILIKE '%bot%'
+              AND username != 'Telegram'
+              AND username != 'GroupAnonymousBot'
+            ORDER BY xp DESC 
+            LIMIT %s
+        ''', (limit,))
         return cursor.fetchall()
     finally:
         cursor.close()
