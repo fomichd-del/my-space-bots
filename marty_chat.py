@@ -34,7 +34,12 @@ def game_engine(call):
         handle_text(call.message, is_profile_call=True)
     elif call.data == "game_instruction_fix":
         top = get_top_pilots(10)
-        text = "🏆 **ТОП ПИЛОТОВ АКАДЕМИИ**\n\n" + "\n".join([f"{i+1}. {p['name']} - {p['xp']} XP" for i, p in enumerate(top)])
+        # 🟢 ИСПРАВЛЕНО: обращаемся к элементам по их номеру: p[0] (имя) и p[1] (XP)
+        if not top:
+            text = "🏆 **ТОП ПИЛОТОВ АКАДЕМИИ**\n\nСписок пока пуст. Стань первым!"
+        else:
+            text = "🏆 **ТОП ПИЛОТОВ АКАДЕМИИ**\n\n" + "\n".join([f"*{i+1}.* {p[0]} — `{p[1]} XP`" for i, p in enumerate(top)])
+            
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
     else:
