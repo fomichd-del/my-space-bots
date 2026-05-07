@@ -210,8 +210,7 @@ def handle_text(message, is_profile_call=False):
             # 5. Отправка результата
             caption = (
                 f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n"
-                f"📡 **Ваш запрос:** _{clean_text}_\n"
-                f"🔬 **English prompt:** _{eng_prompt}_\n"
+                f"📡 **Ваш запрос:** _{clean_text}_\n"      
                 f"💰 **Списание:** 5 Звездной Пыли.\n\n"
                 f"Прием!"
             )
