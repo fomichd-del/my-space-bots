@@ -56,17 +56,52 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "shluz_closet")
 
-    # --- ВЕТКА ПАНЕЛИ (ТАЙМЕР 10 МИН) ---
+        # --- ВЕТКА ПАНЕЛИ (ТАЙМЕР 10 МИН) ---
     elif call.data == "game_node_panel":
         set_game_timer(user_id, 10)
         text = ("⚙️ Марти подключился к панели:\n\n"
                 "— Хозяин, тут протокол 'Эхо'. Мне нужно **10 минут**. "
                 "Мне кажется, из вентиляции за нами кто-то наблюдает...")
-        kb = tele_types.InlineKeyboardMarkup()
-        kb.add(tele_types.InlineKeyboardButton("🔄 Проверить готовность", callback_data="game_start"))
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        # 🟢 ТЕПЕРЬ КНОПКА ВЕДЕТ НА ПРОВЕРКУ ВЗЛОМА
+        kb.add(tele_types.InlineKeyboardButton("🔄 Проверить готовность", callback_data="game_check_hack"))
         kb.add(tele_types.InlineKeyboardButton("🏠 На мостик", callback_data="game_back_to_profile"))
+        
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "hacking_panel")
+
+    # 🟢 НОВЫЙ УЗЕЛ: РЕЗУЛЬТАТ ВЗЛОМА ПЕРВОЙ ПАНЕЛИ
+    elif call.data == "game_check_hack":
+        # Если 10 минут НЕ прошли, сработает глобальная проверка в начале файла (return)
+        # Если время ВЫШЛО, бот покажет этот текст:
+        text = (f"✅ **ВЗЛОМ ЗАВЕРШЕН**\n\n"
+                f"Марти довольно вильнул хвостом, и экран панели вспыхнул ровным зеленым светом. "
+                f"Тяжелые створки шлюза с лязгом разошлись, открывая путь в темный коридор станции.\n\n"
+                f"— Путь свободен, Хозяин. Но сканеры показывают странные колебания температуры впереди.")
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(
+            tele_types.InlineKeyboardButton("🚶 Войти в коридор", callback_data="game_node_corridor"),
+            tele_types.InlineKeyboardButton("📦 Вернуться к шкафчикам", callback_data="game_node_closet")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        update_game_progress(user_id, "shluz_unlocked")
+
+    # 🟢 СЦЕНА: КОРИДОР (Промежуточная точка)
+    elif call.data == "game_node_corridor":
+        text = (f"🌌 Вы вышли в главный коридор. Здесь царит невесомость и хаос: парят обрывки документов "
+                f"и пустые контейнеры. В конце коридора видна дверь в Сектор Зеро.\n\n"
+                f"Марти остановился: 'Хозяин, без координат мы не откроем ту дверь. Нужно либо "
+                f"вскрыть шкафчики в шлюзе, либо искать другой путь'.")
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        # Если у игрока уже есть координаты (он взял медальон), появится кнопка ввода
+        kb.add(tele_types.InlineKeyboardButton("🛰 Ввести координаты (если есть)", callback_data="game_node_panel_with_coords"))
+        kb.add(tele_types.InlineKeyboardButton("🔙 Вернуться в шлюз", callback_data="game_start"))
+        
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
 
     # --- ВЕТКА МЕДАЛЬОНА И КООРДИНАТ ---
     elif call.data == "game_node_medalion":
