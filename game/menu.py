@@ -30,7 +30,7 @@ def get_diary_chapters_menu():
         tele_types.InlineKeyboardButton("✅ Глава 1: Протокол 'Эхо'", callback_data="game_start"),
         tele_types.InlineKeyboardButton("🪐 Глава 2: Тень Земли", callback_data="game2_start"),
         # Будущие главы с пометкой "Скоро"
-        tele_types.InlineKeyboardButton("📡 Глава 3: Сигнал из пустоты", callback_data="game_soon_alert"),
+        tele_types.InlineKeyboardButton("📡 Глава 3: Сигнал из пустоты", callback_data="game3_start"),
         tele_types.InlineKeyboardButton("☣️ Глава 4: Объект 'Зеро' [СКОРО]", callback_data="game_soon_alert"),
         tele_types.InlineKeyboardButton("🌌 Глава 5: Последний рубеж [СКОРО]", callback_data="game_soon_alert"),
         
