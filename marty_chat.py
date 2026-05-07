@@ -194,7 +194,8 @@ def handle_text(message, is_profile_call=False):
 
     text = message.text if message.text else ""
     if text == "🎮 Игровой отсек":
-        report, kb = menu.get_games_menu()
+        # Вызываем список ВСЕХ игр
+        report, kb = menu.get_main_games_menu()
         bot.reply_to(message, report, reply_markup=kb, parse_mode="Markdown")
         return
 
