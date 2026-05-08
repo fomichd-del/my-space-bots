@@ -162,10 +162,13 @@ def get_top_pilots(limit=5):
             SELECT username, xp 
             FROM users 
             WHERE user_id != 777000 
+              AND user_id != 1087968824
               AND user_id > 0 
-              AND username NOT ILIKE '%%bot%%'
+              AND username NOT ILIKE '%%bot%%' 
               AND username != 'Telegram'
               AND username != 'GroupAnonymousBot'
+              AND username != 'Марти ученный'
+              AND username != 'Group'
             ORDER BY xp DESC 
             LIMIT %s
         ''', (limit,))
