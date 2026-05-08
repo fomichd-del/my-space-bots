@@ -187,13 +187,27 @@ def handle_photo(message):
     u_data = get_user_data(user_id)
     rank = get_rank_name(u_data['xp'])
     
+    # 🟢 ЛОГИКА КОНТЕКСТА: Определяем, личка это или комментарии канала
+    is_private_chat = message.chat.type == 'private'
+    current_mode = 'task' if is_private_chat else 'comment'
+    
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        res = analyze_image(downloaded_file, f"Пилот: {user_name}, Ранг: {rank}", keys=API_KEYS)
-        if "звездн" in res.lower(): add_xp(user_id, 1, user_name)
-        bot.reply_to(message, res, reply_markup=get_marty_keyboard())
-    except: send_log("Ошибка фото")
+        
+        # Отправляем фото в модуль зрения с нужным режимом
+        res = analyze_image(downloaded_file, f"Пилот: {user_name}, Ранг: {rank}", keys=API_KEYS, task_mode=current_mode)
+        
+        # 🟢 НАЧИСЛЕНИЕ ПЫЛИ: Работает ТОЛЬКО в личных сообщениях
+        if is_private_chat and "звездн" in res.lower(): 
+            add_xp(user_id, 1, user_name)
+            
+        # Если это личка — показываем клавиатуру. Если группа — клавиатуру не спамим.
+        reply_kb = get_marty_keyboard() if is_private_chat else None
+        bot.reply_to(message, res, reply_markup=reply_kb)
+        
+    except Exception as e: 
+        send_log(f"Ошибка обработки фото: {e}")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
