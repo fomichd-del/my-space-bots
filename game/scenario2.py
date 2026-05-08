@@ -40,8 +40,8 @@ def run_scenario(bot, call):
                 f"Если они найдут мох или артефакты, нас запрут до конца жизни. "
                 f"Мне нужно спрятать их в своем экранированном отсеке!")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🧳 Спрятать улики в Марти (15 мин)", callback_data="game2_hide_evidence"),
-            tele_types.InlineKeyboardButton("🚶 Идти открыто (Риск)", callback_data="game2_interrogation_room")
+            tele_types.InlineKeyboardButton("🧳 Спрятать улики в Марти", callback_data="game2_hide_evidence"),
+            tele_types.InlineKeyboardButton("🚶 Идти открыто", callback_data="game2_interrogation_room")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "ch2_start")
@@ -77,7 +77,7 @@ def run_scenario(bot, call):
                 f"Вы что-то привезли? Или ваша собака просто неисправна?")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("📜 Рассказать про 'Авалон-7'", callback_data="game2_talk_horror"),
-            tele_types.InlineKeyboardButton("🐕 Отвлечь его (Марти, давай!)", callback_data="game2_search_mode")
+            tele_types.InlineKeyboardButton("🐕 Отвлечь его", callback_data="game2_search_mode")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "ch2_interrogation")
@@ -129,7 +129,7 @@ def run_scenario(bot, call):
                 "В трубах липко и пахнет сыростью. Марти светит фонариком.\n"
                 "— Смотрите, Хозяин! Тут жетон охранника.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🪪 Забрать жетон (+1 Пыль)", callback_data="game2_item_token"),
+            tele_types.InlineKeyboardButton("🪪 Забрать жетон", callback_data="game2_item_token"),
             tele_types.InlineKeyboardButton("🚶 Ползти к Серверной", callback_data="game2_server_room")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -167,8 +167,8 @@ def run_scenario(bot, call):
                 "Чтобы открыть ангар, нужно перенаправить ток. Три рычага: 1, 2, 3.\n"
                 "Марти: 'Хозяин, я думаю комбинация — это просто число ваших конечностей плюс мои!'")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🎚 Рычаг 2 (Неверно)", callback_data="game2_puzzle_fail"),
-            tele_types.InlineKeyboardButton("🎚 Рычаг 6 (Верно)", callback_data="game2_reboot_start")
+            tele_types.InlineKeyboardButton("🎚 Рычаг 2", callback_data="game2_puzzle_fail"),
+            tele_types.InlineKeyboardButton("🎚 Рычаг 6", callback_data="game2_reboot_start")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "ch2_puzzle")
@@ -201,7 +201,7 @@ def run_scenario(bot, call):
         text = ("🩸 **ЭТАП 10: ТЕЛО ВЕКЛЕРА**\n\n"
                 "Вы нашли его у шлюза. Он не дышит. В руке зажат его личный дневник.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("📕 Взять дневник (+1 Пыль)", callback_data="game2_item_diary"),
+            tele_types.InlineKeyboardButton("📕 Взять дневник", callback_data="game2_item_diary"),
             tele_types.InlineKeyboardButton("🚀 Зайти в челнок", callback_data="game2_final_choice")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -219,9 +219,9 @@ def run_scenario(bot, call):
                 "Вы в кресле пилота. Марти смотрит на станцию: 'Она умирает, Хозяин'.\n"
                 "Выбор за вами. Как мы закончим этот кошмар?")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🛡 Спасти Академию (ГЕРОЙ)", callback_data="game2_end_hero"),
-            tele_types.InlineKeyboardButton("🚀 Улететь навсегда (БЕГЛЕЦ)", callback_data="game2_end_escape"),
-            tele_types.InlineKeyboardButton("🏳 Сдаться трибуналу (ПОДОЗРЕВАЕМЫЙ)", callback_data="game2_end_normal")
+            tele_types.InlineKeyboardButton("🛡 Спасти Академию", callback_data="game2_end_hero"),
+            tele_types.InlineKeyboardButton("🚀 Улететь навсегда", callback_data="game2_end_escape"),
+            tele_types.InlineKeyboardButton("🏳 Сдаться трибуналу", callback_data="game2_end_normal")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
