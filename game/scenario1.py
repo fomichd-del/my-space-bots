@@ -84,8 +84,8 @@ def run_scenario(bot, call):
         
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
-            tele_types.InlineKeyboardButton("🖐 Взять медальон (Риск)", callback_data="game_node_medalion"),
-            tele_types.InlineKeyboardButton("🐕 Попросить Марти (Безопасно)", callback_data="game_node_marty_bring"),
+            tele_types.InlineKeyboardButton("🖐 Взять медальон", callback_data="game_node_medalion"),
+            tele_types.InlineKeyboardButton("🐕 Попросить Марти", callback_data="game_node_marty_bring"),
             tele_types.InlineKeyboardButton("⬅️ Назад к панели", callback_data="game_start")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -169,8 +169,8 @@ def run_scenario(bot, call):
                 f"В конце коридора что-то движется.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
-            tele_types.InlineKeyboardButton("🔦 Прожектор (Риск)", callback_data="game_node_light_trap"),
-            tele_types.InlineKeyboardButton("🛰 Сенсоры Марти (Безопасно)", callback_data="game_node_marty_vision")
+            tele_types.InlineKeyboardButton("🔦 Прожектор", callback_data="game_node_light_trap"),
+            tele_types.InlineKeyboardButton("🛰 Сенсоры Марти", callback_data="game_node_marty_vision")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
@@ -210,7 +210,7 @@ def run_scenario(bot, call):
                 f"Это может спровоцировать систему, но награда того стоит.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
-            tele_types.InlineKeyboardButton("🧪 Собрать образец (Бонус +3 Пыли)", callback_data="game_node_collect_moss"),
+            tele_types.InlineKeyboardButton("🧪 Собрать образец", callback_data="game_node_collect_moss"),
             tele_types.InlineKeyboardButton("⚔️ Вскрыть кокон резаком", callback_data="game_node_cut_cocoon")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -240,7 +240,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         kb.add(
             tele_types.InlineKeyboardButton("🧬 Войти в Секретную Лабораторию", callback_data="game_node_secret_lab"),
-            tele_types.InlineKeyboardButton("🏃 Бежать к челноку (Конец главы)", callback_data="game_node_escape_chapter")
+            tele_types.InlineKeyboardButton("🏃 Бежать к челноку", callback_data="game_node_escape_chapter")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "keycard_found")
