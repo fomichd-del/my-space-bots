@@ -306,3 +306,16 @@ def update_pet_data(user_id, p):
     """, (p['level'], p['hunger'], p['clean'], p['happiness'], items_str, p['xp'], p['date'], p['feed_count'], p['clean_count'], p['play_count'], p['count'], p['status'], p['colors'], user_id))
     conn.commit()
     conn.close()
+
+def get_all_users_with_pets():
+    """Собирает данные всех пилотов, у которых есть живой Эко-отсек"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Достаем ID, дату последнего входа, сытость и чистоту
+        cursor.execute("SELECT user_id, pet_date, pet_hunger, pet_clean FROM users WHERE pet_status = 'alive'")
+        res = cursor.fetchall()
+    except:
+        res = []
+    conn.close()
+    return res
