@@ -1,5 +1,6 @@
 import time
 import urllib.parse
+import requests
 from datetime import datetime
 from telebot import types as tele_types
 from database import get_pet_data, update_pet_data, spend_dust, get_user_data
@@ -74,7 +75,16 @@ def send_eco_menu(bot, chat_id, user_id):
         tele_types.InlineKeyboardButton("🎾 Играть (-2 💰)", callback_data="eco_play"),
         tele_types.InlineKeyboardButton("🛒 Магазин", callback_data="eco_shop")
     )
-    bot.send_photo(chat_id, url, caption=text, parse_mode="Markdown", reply_markup=kb)
+    
+    # 🟢 НАДЕЖНАЯ ЗАГРУЗКА ИЗОБРАЖЕНИЯ
+    try:
+        img_response = requests.get(url, timeout=20)
+        if img_response.status_code == 200:
+            bot.send_photo(chat_id, img_response.content, caption=text, parse_mode="Markdown", reply_markup=kb)
+        else:
+            bot.send_message(chat_id, text + "\n\n_(📡 Помехи на линии визуализации)_", parse_mode="Markdown", reply_markup=kb)
+    except Exception as e:
+        bot.send_message(chat_id, text + "\n\n_(📡 Сбой камеры Эко-отсека)_", parse_mode="Markdown", reply_markup=kb)
 
 def send_shop_menu(bot, chat_id, user_id, message_id):
     pet = get_pet_data(user_id)
@@ -105,7 +115,10 @@ def handle_eco_callback(bot, call):
             update_pet_data(user_id, pet)
             bot.answer_callback_query(call.id, f"🎉 Куплено: {SHOP_ITEMS[item_key]['name']}!", show_alert=True)
             bot.delete_message(call.message.chat.id, call.message.message_id)
+            # Отправляем сообщение-заглушку, чтобы пилот не скучал, пока грузится картинка
+            msg = bot.send_message(call.message.chat.id, "🛠 _Устанавливаем декорации..._")
             send_eco_menu(bot, call.message.chat.id, user_id) 
+            bot.delete_message(call.message.chat.id, msg.message_id)
         else: bot.answer_callback_query(call.id, f"❌ Нужно {price} Пыли!", show_alert=True)
         return
 
@@ -140,9 +153,9 @@ def handle_eco_callback(bot, call):
             
             update_pet_data(user_id, pet)
             bot.answer_callback_query(call.id, msg, show_alert=True)
+            
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            send_eco_menu(bot, call.message.chat.id, user_id)
         else:
             bot.answer_callback_query(call.id, "❌ Не хватает Звездной Пыли!", show_alert=True)
             return
-
-    bot.delete_message(call.message.chat.id, call.message.message_id)
-    send_eco_menu(bot, call.message.chat.id, user_id)
