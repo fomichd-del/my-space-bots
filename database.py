@@ -255,7 +255,7 @@ def get_game_status(user_id):
 import json
 
 def setup_eco_bay():
-    conn = get_db_connection()
+    conn = get_connection()
     cursor = conn.cursor()
     columns = [
         ("pet_level", "INTEGER DEFAULT 1"),
@@ -279,7 +279,7 @@ def setup_eco_bay():
     conn.close()
 
 def get_pet_data(user_id):
-    conn = get_db_connection()
+    conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""SELECT pet_level, pet_hunger, pet_clean, pet_happiness, pet_items, 
                       pet_xp, pet_date, pet_feed_count, pet_clean_count, pet_play_count,
@@ -296,7 +296,7 @@ def get_pet_data(user_id):
     return {"level": 1, "hunger": 50, "clean": 50, "happiness": 50, "items": [], "xp": 0, "date": "", "feed_count": 0, "clean_count": 0, "play_count": 0, "count": 1, "status": "alive", "colors": "blue"}
 
 def update_pet_data(user_id, p):
-    conn = get_db_connection()
+    conn = get_connection()
     cursor = conn.cursor()
     items_str = ",".join([i for i in p['items'] if i.strip()])
     cursor.execute("""
@@ -309,7 +309,7 @@ def update_pet_data(user_id, p):
 
 def get_all_users_with_pets():
     """Собирает данные всех пилотов, у которых есть живой Эко-отсек"""
-    conn = get_db_connection()
+    conn = get_connection()
     cursor = conn.cursor()
     try:
         # Достаем ID, дату последнего входа, сытость и чистоту
