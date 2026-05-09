@@ -2,6 +2,8 @@ import os
 import telebot
 import time
 import re
+import eco_bay
+from database import setup_eco_bay # Добавляем импорт нашей новой функции БД
 import requests # 🟢 Добавили библиотеку для работы с Groq и Pollinations
 from game import menu, router
 import urllib.parse
@@ -29,6 +31,11 @@ API_KEYS = [k for k in API_KEYS if k]
 
 bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
+
+# 🟢 ВСТАВЛЯТЬ СЮДА (ПУНКТ 4):
+@bot.callback_query_handler(func=lambda call: call.data.startswith('eco_'))
+def eco_engine_handler(call):
+    eco_bay.handle_eco_callback(bot, call)
 
 # 🟢 ИСПРАВЛЕННЫЙ ИГРОВОЙ ДВИЖОК
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game'))
@@ -58,10 +65,10 @@ def send_log(text):
     except: pass
 
 def get_marty_keyboard():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
-    markup.row(KeyboardButton("🎮 Игровой отсек")) 
-    return markup
+       markup = ReplyKeyboardMarkup(resize_keyboard=True)
+       markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
+       markup.row(KeyboardButton("🎮 Игровой отсек"), KeyboardButton("🌿 Эко-отсек")) # 🟢 Добавили кнопку
+       return markup
 
 # 🟢 СКАНЕР ДОСТУПНЫХ МОДЕЛЕЙ (БРОНИРОВАННАЯ ВЕРСИЯ)
 def check_actual_names():
@@ -265,6 +272,12 @@ def handle_text(message, is_profile_call=False):
         bot.reply_to(message, report, reply_markup=kb, parse_mode="Markdown")
         return
 
+  # 🟢 ВСТАВЛЯТЬ СЮДА (ПУНКТ 3):
+    if text == "🌿 Эко-отсек":
+        bot.send_chat_action(message.chat.id, 'upload_photo')
+        eco_bay.send_eco_menu(bot, message.chat.id, user_id)
+        return
+
     if text == "👤 Мой профиль" or is_profile_call:
         u = get_user_data(user_id); rank = get_rank_name(u['xp'])
         msg = f"👤 Пилот: `{user_name}`\n🎖 Ранг: `{rank}`\n📈 Опыт: `{u['xp']}`\n💰 Пыль: `{u['spendable_dust']}`"
@@ -375,4 +388,5 @@ def start_marty_autonomous():
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     check_actual_names() # 🌟 Сканер запускается здесь!
+    setup_eco_bay() # 🟢 ВСТАВЛЯТЬ СЮДА (ПУНКТ 5) - База данных тамагочи
     start_marty_autonomous()
