@@ -81,9 +81,14 @@ def send_eco_menu(bot, chat_id, user_id):
             elif pet['count'] == 2: kb.add(tele_types.InlineKeyboardButton("🥚 Вывести потомство (-500 💰)", callback_data="eco_addpet"))
 
     try:
-        img = requests.get(url, timeout=20).content
-        bot.send_photo(chat_id, img, caption=text, parse_mode="Markdown", reply_markup=kb)
-    except: bot.send_message(chat_id, text, reply_markup=kb)
+        # Марти пытается скачать картинку
+        img_data = requests.get(url, timeout=20).content 
+        # И отправить её как файл, а не как ссылку
+        bot.send_photo(chat_id, img_data, caption=text, parse_mode="Markdown", reply_markup=kb)
+    except Exception as e:
+        # Если не вышло — прислать хотя бы текст
+        print(f"Ошибка отправки фото: {e}")
+        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации террариума!_", reply_markup=kb)
 
 def handle_eco_callback(bot, call):
     user_id = call.from_user.id
