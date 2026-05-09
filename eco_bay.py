@@ -111,4 +111,49 @@ def handle_eco_callback(bot, call):
     # ... логика feed, clean, play такая же, как раньше, но с умножением цены (cost * pet['count'])
     
     bot.delete_message(call.message.chat.id, call.message.message_id)
+
+    from threading import Thread
+
+# Глобальный словарь, чтобы Марти не спамил напоминаниями каждую секунду
+sent_reminders = {}
+
+def run_reminder_loop(bot):
+    """Автономный сканер Эко-отсеков. Крутится в фоне."""
+    def loop():
+        while True:
+            try:
+                from database import get_all_users_with_pets
+                users = get_all_users_with_pets()
+                today = datetime.now().strftime("%Y-%m-%d")
+                
+                for row in users:
+                    user_id, pet_date, hunger, clean = row
+                    
+                    # Если сегодня уже напоминали — пропускаем
+                    if sent_reminders.get(user_id) == today:
+                        continue
+                        
+                    # Марти бьет тревогу, если пилот сегодня не заходил (pet_date != today)
+                    # или если показатели уже критически низкие (меньше 40)
+                    if pet_date != today or hunger <= 40 or clean <= 40:
+                        try:
+                            text = (
+                                "🐾 **БОРТОВОЕ НАПОМИНАНИЕ ОТ МАРТИ**\n\n"
+                                "Прием, Командор! Сканеры фиксируют падение показателей в твоем террариуме. "
+                                "Улитки скучают, а уровень загрязнения растет.\n\n"
+                                "Срочно зайди в **🌿 Эко-отсек**, чтобы навести порядок, иначе эко-система погибнет! Прием!"
+                            )
+                            bot.send_message(user_id, text, parse_mode="Markdown")
+                            # Записываем, что сегодня этому пилоту уже напомнили
+                            sent_reminders[user_id] = today
+                        except Exception as e:
+                            pass # Если пилот заблокировал бота, просто игнорируем
+            except Exception as e:
+                print(f"Ошибка радара Эко-отсека: {e}")
+            
+            # Радар засыпает на 4 часа (14400 секунд), затем проверяет снова
+            time.sleep(14400)
+    
+    # Запускаем бесконечный цикл в отдельном независимом потоке
+    Thread(target=loop, daemon=True).start()
     send_eco_menu(bot, call.message.chat.id, user_id)
