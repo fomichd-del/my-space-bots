@@ -416,4 +416,5 @@ if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     check_actual_names() # 🌟 Сканер запускается здесь!
     setup_eco_bay() # 🟢 ВСТАВЛЯТЬ СЮДА (ПУНКТ 5) - База данных тамагочи
+    eco_bay.run_reminder_loop(bot)
     start_marty_autonomous()
