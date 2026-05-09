@@ -282,6 +282,17 @@ def handle_photo(message):
     except Exception as e: 
         send_log(f"Ошибка обработки фото: {e}")
 
+# 🟢 ШПИОНСКИЙ МОДУЛЬ (Ловец новостей из канала)
+@bot.channel_post_handler(func=lambda message: True)
+def handle_channel_post(message):
+    # Проверяем, что пост пришел именно из твоего канала
+    if message.chat.username == CHANNEL_USERNAME.replace("@", ""):
+        text = message.text or message.caption
+        if text:
+            today = datetime.now().strftime("%Y-%m-%d")
+            from database import add_news
+            add_news(today, text)
+
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
     # 🟢 ЩИТ ОТ БОТОВ
@@ -412,9 +423,80 @@ def start_marty_autonomous():
         try: bot.remove_webhook(); bot.infinity_polling(skip_pending=True)
         except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
 
+def run_daily_digest_loop(bot_instance):
+    """Скрытый таймер для вечерней газеты (18:00)"""
+    def loop():
+        last_sent_date = ""
+        while True:
+            now = datetime.now()
+            current_time = now.strftime("%H:%M")
+            today = now.strftime("%Y-%m-%d")
+
+            # Ждем ровно 18:00 и проверяем, не отправляли ли уже сегодня
+            if current_time == "18:00" and last_sent_date != today:
+                from database import get_today_news, get_all_user_ids
+                news_list = get_today_news(today)
+                
+                if news_list:
+                    # 1. Склеиваем все новости за день
+                    combined_news = "\n---\n".join(news_list)
+                    
+                    # 2. Промпт для ИИ (Просим сделать выжимку)
+                    prompt = (
+                        "Ты Марти, бортовой наставник Академии Орион. "
+                        "Вот новости из нашего канала за сегодня:\n"
+                        f"{combined_news}\n\n"
+                        "Сделай короткую, захватывающую выжимку (до 4-5 предложений) для пилотов. "
+                        "Заинтригуй их! В конце обязательно скажи: 'Залетай в канал @vladislav_space, чтобы узнать детали, или пиши мне сюда — обсудим! Прием!'"
+                    )
+                    
+                    digest_text = ""
+                    
+                    # 3. Пытаемся сгенерировать через Groq (Основной мозг)
+                    if GROQ_API_KEY:
+                        try:
+                            headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+                            data = {
+                                "model": "llama3-70b-8192", 
+                                "messages": [{"role": "system", "content": prompt}]
+                            }
+                            groq_resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=15)
+                            if groq_resp.status_code == 200:
+                                digest_text = groq_resp.json()["choices"][0]["message"]["content"]
+                        except: pass
+                    
+                    # 4. Резервный переводчик Gemini
+                    if not digest_text and API_KEYS:
+                        try:
+                            client = genai.Client(api_key=API_KEYS[0])
+                            resp = client.models.generate_content(model='gemini-2.0-flash', contents=prompt)
+                            digest_text = resp.text
+                        except: pass
+                    
+                    # 5. Массовая рассылка пилотам
+                    if digest_text:
+                        users = get_all_user_ids()
+                        for uid in users:
+                            try:
+                                bot_instance.send_message(uid, f"📰 **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ**\n\n{digest_text}", parse_mode="Markdown")
+                                time.sleep(0.05) # Защита от спам-блока Телеграма (лимит 30 сообщений в секунду)
+                            except: pass
+                        
+                        send_log(f"✅ Вечерняя сводка успешно разослана {len(users)} пилотам!")
+                        
+                last_sent_date = today
+            
+            # Проверяем время каждые 30 секунд
+            time.sleep(30)
+            
+    Thread(target=loop, daemon=True).start()
+
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     check_actual_names() # 🌟 Сканер запускается здесь!
+    from database import setup_news_db # 🟢 Подгружаем функцию
+    setup_news_db()                    # 🟢 Создаем таблицу новостей
     setup_eco_bay() # 🟢 ВСТАВЛЯТЬ СЮДА (ПУНКТ 5) - База данных тамагочи
     eco_bay.run_reminder_loop(bot)
+    run_daily_digest_loop(bot)         # 🟢 ЗАПУСКАЕМ ТАЙМЕР НА 18:00
     start_marty_autonomous()
