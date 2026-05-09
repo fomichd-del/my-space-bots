@@ -218,8 +218,29 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     # 💀 ЕСЛИ УПАЛО ВООБЩЕ ВСЁ
     return "📡 Командор, жесточайшая магнитная буря! Все нейросети отключены. Повторите запрос через пару минут. Прием!"
 
-@bot.message_handler(commands=['start', 'help'])
+@bot.message_handler(commands=['start'])
 def handle_start(message):
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    
+    # Заглядываем в модуль памяти пилота
+    user_memory = get_personal_log(user_id)
+    
+    # Проверяем, есть ли запись о прочтении
+    if "изучил полный справочник" in user_memory.lower() or "справочник академии" in user_memory.lower():
+        bot.send_message(
+            message.chat.id,
+            f"🛰 Рад возвращению на мостик, Командор {user_name}! Системы корабля работают в штатном режиме.\n\n"
+            f"Если нужно освежить протоколы, используй кнопку «❓ Инструкция» в меню ниже. Прием!",
+            reply_markup=get_marty_keyboard()
+        )
+    else:
+        # Пилот новенький — выдаем полную инструкцию
+        send_welcome_instruction(message.chat.id, user_id, user_name)
+
+@bot.message_handler(commands=['help'])
+def handle_help(message):
+    # Команда /help всегда принудительно показывает инструкцию
     send_welcome_instruction(message.chat.id, message.from_user.id, message.from_user.first_name)
 
 @bot.message_handler(content_types=['photo'])
