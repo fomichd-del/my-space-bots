@@ -223,33 +223,38 @@ def handle_start(message):
     send_welcome_instruction(message.chat.id, message.from_user.id, message.from_user.first_name)
 
 @bot.message_handler(content_types=['photo'])
+@bot.message_handler(content_types=['photo'])
 def handle_photo(message):
-    # 🟢 ЩИТ ОТ БОТОВ
+    user_id, user_name = message.from_user.id, message.from_user.first_name
+    is_private_chat = message.chat.type == 'private'
+    
+    # 🟢 ОПРЕДЕЛЯЕМ БОТОВ И СИСТЕМНЫЕ КАНАЛЫ
     bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group']
-    if message.from_user.is_bot or message.from_user.id in [777000, 1087968824] or message.from_user.first_name in bad_names:
+    is_system_acc = message.from_user.is_bot or user_id in [777000, 1087968824] or user_name in bad_names
+
+    # В личке ботам не отвечаем вообще
+    if is_private_chat and is_system_acc:
         return
 
-    user_id, user_name = message.from_user.id, message.from_user.first_name
     bot.send_chat_action(message.chat.id, 'typing')
-    u_data = get_user_data(user_id)
-    rank = get_rank_name(u_data['xp'])
     
-    # 🟢 ЛОГИКА КОНТЕКСТА: Определяем, личка это или комментарии канала
-    is_private_chat = message.chat.type == 'private'
+    # Если это живой пилот — берем ранг из базы. Если бот/канал — просто даем системное имя (чтобы не засорять базу мусором)
+    rank = "Системный Канал" if is_system_acc else get_rank_name(get_user_data(user_id)['xp'])
+    
+    # Логика: в личке — аттестация, в группе — просто комментатор
     current_mode = 'task' if is_private_chat else 'comment'
     
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         
-        # Отправляем фото в модуль зрения с нужным режимом
-        res = analyze_image(downloaded_file, f"Пилот: {user_name}, Ранг: {rank}", keys=API_KEYS, task_mode=current_mode)
+        # Отправляем фото в модуль зрения
+        res = analyze_image(downloaded_file, f"Отправитель: {user_name}, Ранг: {rank}", keys=API_KEYS, task_mode=current_mode)
         
-        # 🟢 НАЧИСЛЕНИЕ ПЫЛИ: Работает ТОЛЬКО в личных сообщениях
-        if is_private_chat and "звездн" in res.lower(): 
+        # 🟢 ВЫДАЕМ ПЫЛЬ ТОЛЬКО В ЛИЧКЕ И ТОЛЬКО ЖИВЫМ ПИЛОТАМ
+        if is_private_chat and not is_system_acc and "звездн" in res.lower(): 
             add_xp(user_id, 1, user_name)
             
-        # Если это личка — показываем клавиатуру. Если группа — клавиатуру не спамим.
         reply_kb = get_marty_keyboard() if is_private_chat else None
         bot.reply_to(message, res, reply_markup=reply_kb)
         
