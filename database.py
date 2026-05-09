@@ -254,40 +254,48 @@ def get_game_status(user_id):
 # ==========================================
 
 def setup_eco_bay():
-    """Автоматически добавляет нужные колонки в базу, если их нет"""
-    conn = get_db_connection() # Убедись, что тут имя твоей функции подключения к БД (например get_connection)
+    """Автоматически добавляет нужные колонки в базу"""
+    conn = get_db_connection()
     cursor = conn.cursor()
     columns = [
         ("pet_level", "INTEGER DEFAULT 1"),
         ("pet_hunger", "INTEGER DEFAULT 100"),
-        ("pet_clean", "INTEGER DEFAULT 100")
+        ("pet_clean", "INTEGER DEFAULT 100"),
+        ("pet_happiness", "INTEGER DEFAULT 100"), # 🟢 НОВОЕ: Радость (для игр)
+        ("pet_items", "TEXT DEFAULT ''")          # 🟢 НОВОЕ: Купленные декорации
     ]
     for col_name, col_type in columns:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};")
             conn.commit()
         except:
-            conn.rollback() # Игнорируем, если колонка уже существует
+            conn.rollback() 
     cursor.close()
     conn.close()
 
 def get_pet_data(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT pet_level, pet_hunger, pet_clean FROM users WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT pet_level, pet_hunger, pet_clean, pet_happiness, pet_items FROM users WHERE user_id = %s", (user_id,))
     res = cursor.fetchone()
     conn.close()
     if res:
-        return {"level": res[0], "hunger": res[1], "clean": res[2]}
-    return {"level": 1, "hunger": 100, "clean": 100}
+        items_str = res[4] if res[4] else ""
+        return {"level": res[0], "hunger": res[1], "clean": res[2], "happiness": res[3], "items": items_str.split(",")}
+    return {"level": 1, "hunger": 100, "clean": 100, "happiness": 100, "items": []}
 
-def update_pet_data(user_id, level, hunger, clean):
+def update_pet_data(user_id, level, hunger, clean, happiness, items_list):
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Ставим лимиты, чтобы параметры не уходили за 100
     hunger = min(100, max(0, hunger))
     clean = min(100, max(0, clean))
-    cursor.execute("UPDATE users SET pet_level = %s, pet_hunger = %s, pet_clean = %s WHERE user_id = %s", 
-                   (level, hunger, clean, user_id))
+    happiness = min(100, max(0, happiness))
+    
+    # Убираем пустые элементы из списка вещей и склеиваем в строку
+    clean_items = [i for i in items_list if i.strip()]
+    items_str = ",".join(clean_items)
+    
+    cursor.execute("UPDATE users SET pet_level = %s, pet_hunger = %s, pet_clean = %s, pet_happiness = %s, pet_items = %s WHERE user_id = %s", 
+                   (level, hunger, clean, happiness, items_str, user_id))
     conn.commit()
     conn.close()
