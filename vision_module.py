@@ -1,11 +1,14 @@
 import os
 import telebot
+import base64
+import requests # 🟢 Добавили для Groq и Pollinations
 from google import genai
 from google.genai import types
 
 TOKEN = os.getenv('MARTY_BOT_TOKEN')
 bot_log = telebot.TeleBot(TOKEN)
 LOG_CHAT_ID = "-1003756164148"
+GROQ_API_KEY = os.getenv('GROQ_API_KEY') # 🟢 Добавили ключ Groq
 
 def send_log(error_text):
     try:
@@ -49,11 +52,42 @@ def analyze_image(image_data, user_context="", keys=[], task_mode='task'):
             "🛑 Запрет 18+, алкоголь. В конце: Прием!"
         )
 
+    # 🟢 Подготовка фото для Groq и Pollinations (кодируем в Base64)
+    try:
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        image_url = f"data:image/jpeg;base64,{base64_image}"
+    except Exception as e:
+        send_log(f"Ошибка кодирования картинки: {e}")
+        image_url = None
+
+    # 1️⃣ УРОВЕНЬ 1: ОСНОВНОЙ МОЗГ ЗРЕНИЯ (GROQ)
+    if GROQ_API_KEY and image_url:
+        try:
+            headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+            data = {
+                "model": "llama-3.2-90b-vision-preview", # 🟢 Модель Groq для зрения
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": image_url}}
+                        ]
+                    }
+                ]
+            }
+            groq_resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=15)
+            if groq_resp.status_code == 200:
+                return groq_resp.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            send_log(f"Сбой Groq Vision: {e}")
+
+    # 2️⃣ УРОВЕНЬ 2: РЕЗЕРВНЫЙ МОЗГ (GEMINI) - Твой исходный код
     active_keys = keys if keys else [os.getenv('GEMINI_API_KEY')]
     active_keys = [k for k in active_keys if k]
 
     if not active_keys:
-        send_log("Критическая ошибка: В системе нет ни одного API ключа для зрения!")
+        send_log("Критическая ошибка: В системе нет ни одного API ключа Gemini!")
         return "📡 Ошибка: Отсутствуют ключи доступа к системе зрения."
 
     last_error = "Нет ответа от моделей"
@@ -86,5 +120,27 @@ def analyze_image(image_data, user_context="", keys=[], task_mode='task'):
             send_log(f"Ошибка инициализации клиента на ключе {i+1}: {e}")
             continue
             
+    # 3️⃣ УРОВЕНЬ 3: ЭКСТРЕННЫЙ КАНАЛ (POLLINATIONS)
+    if image_url:
+        try:
+            data = {
+                "model": "openai",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": image_url}}
+                        ]
+                    }
+                ]
+            }
+            pol_resp = requests.post("https://text.pollinations.ai/openai", json=data, timeout=15)
+            if pol_resp.status_code == 200:
+                return pol_resp.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            send_log(f"Сбой Pollinations Vision: {e}")
+
+    # 💀 ЕСЛИ УПАЛО ВООБЩЕ ВСЁ
     send_log(f"ПОЛНЫЙ ОТКАЗ СИСТЕМЫ ЗРЕНИЯ. Последняя ошибка: {last_error}")
     return "📡 Все линзы сканера перегружены. Попробуй через минуту, Пилот! Прием."
