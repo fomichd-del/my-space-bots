@@ -263,11 +263,14 @@ def setup_eco_bay():
         ("pet_clean", "INTEGER DEFAULT 50"),
         ("pet_happiness", "INTEGER DEFAULT 50"),
         ("pet_items", "TEXT DEFAULT ''"),
-        ("pet_xp", "INTEGER DEFAULT 0"),           # 🟢 Опыт до следующего уровня
-        ("pet_date", "TEXT DEFAULT ''"),           # 🟢 Дата последнего действия
-        ("pet_feed_count", "INTEGER DEFAULT 0"),   # 🟢 Кормежек за день
-        ("pet_clean_count", "INTEGER DEFAULT 0"),  # 🟢 Уборок за день
-        ("pet_play_count", "INTEGER DEFAULT 0")    # 🟢 Игр за день
+        ("pet_xp", "INTEGER DEFAULT 0"),
+        ("pet_date", "TEXT DEFAULT ''"),
+        ("pet_feed_count", "INTEGER DEFAULT 0"),
+        ("pet_clean_count", "INTEGER DEFAULT 0"),
+        ("pet_play_count", "INTEGER DEFAULT 0"),
+        ("pet_count", "INTEGER DEFAULT 1"),      # 🟢 Кол-во улиток (1, 2 или 3)
+        ("pet_status", "TEXT DEFAULT 'alive'"),  # 🟢 Статус: alive или dead
+        ("pet_colors", "TEXT DEFAULT 'blue'")    # 🟢 Цвета (например: "blue, red, purple")
     ]
     for col_name, col_type in columns:
         try: cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};"); conn.commit()
@@ -278,27 +281,28 @@ def setup_eco_bay():
 def get_pet_data(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT pet_level, pet_hunger, pet_clean, pet_happiness, pet_items, pet_xp, pet_date, pet_feed_count, pet_clean_count, pet_play_count FROM users WHERE user_id = %s", (user_id,))
+    cursor.execute("""SELECT pet_level, pet_hunger, pet_clean, pet_happiness, pet_items, 
+                      pet_xp, pet_date, pet_feed_count, pet_clean_count, pet_play_count,
+                      pet_count, pet_status, pet_colors FROM users WHERE user_id = %s""", (user_id,))
     res = cursor.fetchone()
     conn.close()
     if res:
         return {
             "level": res[0], "hunger": res[1], "clean": res[2], "happiness": res[3],
             "items": res[4].split(",") if res[4] else [],
-            "xp": res[5], "date": res[6], "feed_count": res[7], "clean_count": res[8], "play_count": res[9]
+            "xp": res[5], "date": res[6], "feed_count": res[7], "clean_count": res[8], "play_count": res[9],
+            "count": res[10], "status": res[11], "colors": res[12]
         }
-    return {"level": 1, "hunger": 50, "clean": 50, "happiness": 50, "items": [], "xp": 0, "date": "", "feed_count": 0, "clean_count": 0, "play_count": 0}
+    return {"level": 1, "hunger": 50, "clean": 50, "happiness": 50, "items": [], "xp": 0, "date": "", "feed_count": 0, "clean_count": 0, "play_count": 0, "count": 1, "status": "alive", "colors": "blue"}
 
 def update_pet_data(user_id, p):
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Защита от выхода за рамки 0-100
-    h = min(100, max(0, p['hunger'])); c = min(100, max(0, p['clean'])); hap = min(100, max(0, p['happiness']))
     items_str = ",".join([i for i in p['items'] if i.strip()])
-    
     cursor.execute("""
         UPDATE users SET pet_level=%s, pet_hunger=%s, pet_clean=%s, pet_happiness=%s, pet_items=%s, 
-        pet_xp=%s, pet_date=%s, pet_feed_count=%s, pet_clean_count=%s, pet_play_count=%s WHERE user_id=%s
-    """, (p['level'], h, c, hap, items_str, p['xp'], p['date'], p['feed_count'], p['clean_count'], p['play_count'], user_id))
+        pet_xp=%s, pet_date=%s, pet_feed_count=%s, pet_clean_count=%s, pet_play_count=%s,
+        pet_count=%s, pet_status=%s, pet_colors=%s WHERE user_id=%s
+    """, (p['level'], p['hunger'], p['clean'], p['happiness'], items_str, p['xp'], p['date'], p['feed_count'], p['clean_count'], p['play_count'], p['count'], p['status'], p['colors'], user_id))
     conn.commit()
     conn.close()
