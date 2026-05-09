@@ -319,3 +319,42 @@ def get_all_users_with_pets():
         res = []
     conn.close()
     return res
+
+# ==========================================
+# 📰 МОДУЛЬ НОВОСТЕЙ КАНАЛА
+# ==========================================
+
+def setup_news_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("CREATE TABLE IF NOT EXISTS channel_news (date TEXT, content TEXT);")
+        conn.commit()
+    except Exception as e:
+        print(f"Ошибка создания таблицы новостей: {e}")
+    cursor.close()
+    conn.close()
+
+def add_news(date, text):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO channel_news (date, content) VALUES (%s, %s)", (date, text))
+    conn.commit()
+    conn.close()
+
+def get_today_news(date):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT content FROM channel_news WHERE date = %s", (date,))
+    res = cursor.fetchall()
+    conn.close()
+    return [r[0] for r in res]
+
+def get_all_user_ids():
+    """Достает ID всех пилотов, когда-либо запускавших бота"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users")
+    res = cursor.fetchall()
+    conn.close()
+    return [r[0] for r in res]
