@@ -2,6 +2,7 @@ import os
 import telebot
 import time
 import re
+import requests # 🟢 Добавили библиотеку для работы с Groq и Pollinations
 from game import menu, router
 import urllib.parse
 from datetime import datetime, timedelta
@@ -21,6 +22,7 @@ from image_gen import generate_passport
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 CHANNEL_USERNAME = "@vladislav_space"
 LOG_CHAT_ID = "-1003756164148" 
+GROQ_API_KEY = os.getenv('GROQ_API_KEY') # 🟢 Добавили ключ Groq
 
 API_KEYS = [os.getenv('GEMINI_API_KEY'), os.getenv('GEMINI_API_KEY_2'), os.getenv('GEMINI_API_KEY_3')]
 API_KEYS = [k for k in API_KEYS if k]
@@ -115,7 +117,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
         f"📜 *3. УСТАВ АКАДЕМИИ*\n"
         f"✅ **Анти-решебник:** Я не решаю задачи за тебя, а учу тебя думать.\n"
         f"✅ **Правило тишины:** Приветствие и титулы — только один раз в день.\n\n"
-      
+        
         f"🚀 *4. ДОРОЖНАЯ КАРТА (В РАЗРАБОТКЕ)*\n"
         f"• 🧠 **Модуль Памяти:** - *ГОТОВО! ПРОХОДИТ ТЕСТ!!!* Я буду запоминать твои привычки и увлечения.\n"
         f"• 🌌 **Новые миссии:** Продолжение саги 'Авалон-7' уже готовится.\n"
@@ -154,6 +156,7 @@ SYSTEM_PROMPT = (
     "В конце всегда пиши: 'Прием!'"
 )
 
+# 🟢 ТРЕХУРОВНЕВЫЙ ИНТЕЛЛЕКТ
 def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance):
     user_memory = get_personal_log(user_id)
     current_date = datetime.now().strftime("%Y-%m-%d")
@@ -166,15 +169,46 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
         daily_greetings[user_id] = current_date
     
     prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance)).replace("[GREETING_RULE]", greeting_rule)
+    full_query = f"ПАМЯТЬ: {user_memory}\nЗАПРОС: {clean_text}"
     
+    # 1️⃣ УРОВЕНЬ 1: ОСНОВНОЙ МОЗГ (GROQ - Llama 3)
+    if GROQ_API_KEY:
+        try:
+            headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+            data = {
+                "model": "llama3-70b-8192", 
+                "messages": [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": full_query}
+                ]
+            }
+            groq_resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=10)
+            if groq_resp.status_code == 200:
+                return groq_resp.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            send_log(f"❌ Сбой Groq: {e}")
+
+    # 2️⃣ УРОВЕНЬ 2: РЕЗЕРВНЫЙ МОЗГ (GEMINI)
     for api_key in API_KEYS:
         client = genai.Client(api_key=api_key)
         for model in MODEL_CASCADE:
             try:
-                resp = client.models.generate_content(model=model, contents=f"ПАМЯТЬ: {user_memory}\nЗАПРОС: {clean_text}", config=types.GenerateContentConfig(system_instruction=prompt))
+                resp = client.models.generate_content(model=model, contents=full_query, config=types.GenerateContentConfig(system_instruction=prompt))
                 if resp.text: return resp.text
             except: continue
-    return None
+
+    # 3️⃣ УРОВЕНЬ 3: ЭКСТРЕННЫЙ КАНАЛ (POLLINATIONS)
+    try:
+        encoded_prompt = urllib.parse.quote(f"{prompt}\n\n{full_query}")
+        url = f"https://text.pollinations.ai/{encoded_prompt}?model=openai"
+        fallback_resp = requests.get(url, timeout=15)
+        if fallback_resp.status_code == 200 and fallback_resp.text:
+            return fallback_resp.text
+    except Exception as e:
+        send_log(f"❌ Сбой Pollinations: {e}")
+
+    # 💀 ЕСЛИ УПАЛО ВООБЩЕ ВСЁ
+    return "📡 Командор, жесточайшая магнитная буря! Все нейросети отключены. Повторите запрос через пару минут. Прием!"
 
 @bot.message_handler(commands=['start', 'help'])
 def handle_start(message):
@@ -182,6 +216,11 @@ def handle_start(message):
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
+    # 🟢 ЩИТ ОТ БОТОВ
+    bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group']
+    if message.from_user.is_bot or message.from_user.id in [777000, 1087968824] or message.from_user.first_name in bad_names:
+        return
+
     user_id, user_name = message.from_user.id, message.from_user.first_name
     bot.send_chat_action(message.chat.id, 'typing')
     u_data = get_user_data(user_id)
@@ -211,6 +250,11 @@ def handle_photo(message):
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
+    # 🟢 ЩИТ ОТ БОТОВ
+    bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group']
+    if message.from_user.is_bot or message.from_user.id in [777000, 1087968824] or message.from_user.first_name in bad_names:
+        return
+
     user_id, user_name = message.from_user.id, message.from_user.first_name
     if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
 
