@@ -252,50 +252,53 @@ def get_game_status(user_id):
 # ==========================================
 # 🌿 МОДУЛЬ ЭКО-ОТСЕКА (ТАМАГОЧИ)
 # ==========================================
+import json
 
 def setup_eco_bay():
-    """Автоматически добавляет нужные колонки в базу"""
     conn = get_db_connection()
     cursor = conn.cursor()
     columns = [
         ("pet_level", "INTEGER DEFAULT 1"),
-        ("pet_hunger", "INTEGER DEFAULT 100"),
-        ("pet_clean", "INTEGER DEFAULT 100"),
-        ("pet_happiness", "INTEGER DEFAULT 100"), # 🟢 НОВОЕ: Радость (для игр)
-        ("pet_items", "TEXT DEFAULT ''")          # 🟢 НОВОЕ: Купленные декорации
+        ("pet_hunger", "INTEGER DEFAULT 50"),
+        ("pet_clean", "INTEGER DEFAULT 50"),
+        ("pet_happiness", "INTEGER DEFAULT 50"),
+        ("pet_items", "TEXT DEFAULT ''"),
+        ("pet_xp", "INTEGER DEFAULT 0"),           # 🟢 Опыт до следующего уровня
+        ("pet_date", "TEXT DEFAULT ''"),           # 🟢 Дата последнего действия
+        ("pet_feed_count", "INTEGER DEFAULT 0"),   # 🟢 Кормежек за день
+        ("pet_clean_count", "INTEGER DEFAULT 0"),  # 🟢 Уборок за день
+        ("pet_play_count", "INTEGER DEFAULT 0")    # 🟢 Игр за день
     ]
     for col_name, col_type in columns:
-        try:
-            cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};")
-            conn.commit()
-        except:
-            conn.rollback() 
+        try: cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};"); conn.commit()
+        except: conn.rollback() 
     cursor.close()
     conn.close()
 
 def get_pet_data(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT pet_level, pet_hunger, pet_clean, pet_happiness, pet_items FROM users WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT pet_level, pet_hunger, pet_clean, pet_happiness, pet_items, pet_xp, pet_date, pet_feed_count, pet_clean_count, pet_play_count FROM users WHERE user_id = %s", (user_id,))
     res = cursor.fetchone()
     conn.close()
     if res:
-        items_str = res[4] if res[4] else ""
-        return {"level": res[0], "hunger": res[1], "clean": res[2], "happiness": res[3], "items": items_str.split(",")}
-    return {"level": 1, "hunger": 100, "clean": 100, "happiness": 100, "items": []}
+        return {
+            "level": res[0], "hunger": res[1], "clean": res[2], "happiness": res[3],
+            "items": res[4].split(",") if res[4] else [],
+            "xp": res[5], "date": res[6], "feed_count": res[7], "clean_count": res[8], "play_count": res[9]
+        }
+    return {"level": 1, "hunger": 50, "clean": 50, "happiness": 50, "items": [], "xp": 0, "date": "", "feed_count": 0, "clean_count": 0, "play_count": 0}
 
-def update_pet_data(user_id, level, hunger, clean, happiness, items_list):
+def update_pet_data(user_id, p):
     conn = get_db_connection()
     cursor = conn.cursor()
-    hunger = min(100, max(0, hunger))
-    clean = min(100, max(0, clean))
-    happiness = min(100, max(0, happiness))
+    # Защита от выхода за рамки 0-100
+    h = min(100, max(0, p['hunger'])); c = min(100, max(0, p['clean'])); hap = min(100, max(0, p['happiness']))
+    items_str = ",".join([i for i in p['items'] if i.strip()])
     
-    # Убираем пустые элементы из списка вещей и склеиваем в строку
-    clean_items = [i for i in items_list if i.strip()]
-    items_str = ",".join(clean_items)
-    
-    cursor.execute("UPDATE users SET pet_level = %s, pet_hunger = %s, pet_clean = %s, pet_happiness = %s, pet_items = %s WHERE user_id = %s", 
-                   (level, hunger, clean, happiness, items_str, user_id))
+    cursor.execute("""
+        UPDATE users SET pet_level=%s, pet_hunger=%s, pet_clean=%s, pet_happiness=%s, pet_items=%s, 
+        pet_xp=%s, pet_date=%s, pet_feed_count=%s, pet_clean_count=%s, pet_play_count=%s WHERE user_id=%s
+    """, (p['level'], h, c, hap, items_str, p['xp'], p['date'], p['feed_count'], p['clean_count'], p['play_count'], user_id))
     conn.commit()
     conn.close()
