@@ -2,6 +2,7 @@ import os
 import telebot
 import time
 import re
+import poodle_cabin
 import urllib.parse
 import requests
 from datetime import datetime, timedelta
@@ -39,6 +40,10 @@ daily_greetings = {}
 def eco_engine_handler(call):
     eco_bay.handle_eco_callback(bot, call)
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith('dog_'))
+def dog_engine_handler(call):
+    poodle_cabin.handle_dog_callback(bot, call)
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game'))
 def game_engine(call):
     if call.data == "game_back_to_profile":
@@ -67,6 +72,7 @@ def get_marty_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
     markup.row(KeyboardButton("🎮 Игровой отсек"), KeyboardButton("🌿 Эко-отсек"))
+    markup.row(KeyboardButton("🐕 Каюта питомца")) # 🟢 Новая кнопка
     return markup
 
 def check_actual_names():
@@ -265,6 +271,11 @@ def handle_text(message, is_profile_call=False):
     if text == "🌿 Эко-отсек":
         bot.send_chat_action(message.chat.id, 'upload_photo')
         eco_bay.send_eco_menu(bot, message.chat.id, user_id)
+        return
+
+    if text == "🐕 Каюта питомца":
+        bot.send_chat_action(message.chat.id, 'upload_photo')
+        poodle_cabin.send_dog_menu(bot, message.chat.id, user_id)
         return
 
     if text == "👤 Мой профиль" or is_profile_call:
