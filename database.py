@@ -257,41 +257,37 @@ import json
 def setup_eco_bay():
     conn = get_connection()
     if not conn: return
-    try:
-        cursor = conn.cursor()
-        columns = [
-            ("pet_level", "INTEGER DEFAULT 1"),
-            ("pet_hunger", "INTEGER DEFAULT 50"),
-            ("pet_clean", "INTEGER DEFAULT 50"),
-            ("pet_happiness", "INTEGER DEFAULT 50"),
-            ("pet_items", "TEXT DEFAULT ''"),
-            ("pet_xp", "INTEGER DEFAULT 0"),
-            ("pet_date", "TEXT DEFAULT ''"),
-            ("pet_feed_count", "INTEGER DEFAULT 0"),
-            ("pet_clean_count", "INTEGER DEFAULT 0"),
-            ("pet_play_count", "INTEGER DEFAULT 0"),
-            ("pet_count", "INTEGER DEFAULT 1"),
-            ("pet_status", "TEXT DEFAULT 'alive'"),
-            ("pet_colors", "TEXT DEFAULT 'blue'")
-        ]
-        for col_name, col_type in columns:
-            cursor.execute(f'''
-                DO $$ 
-                BEGIN 
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                                   WHERE table_name='users' AND column_name='{col_name}') THEN 
-                        ALTER TABLE users ADD COLUMN {col_name} {col_type};
-                    END IF; 
-                END $$;
-            ''')
-        conn.commit()
-        print("🌿 Таблица Эко-отсека успешно проверена и обновлена!")
-    except Exception as e:
-        print(f"Ошибка инициализации Эко-отсека: {e}")
-        if conn: conn.rollback()
-    finally:
-        if cursor: cursor.close()
-        if conn: conn.close()
+    
+    # 🟢 Просто список колонок, которые нам нужны
+    columns = [
+        "ADD COLUMN pet_level INTEGER DEFAULT 1",
+        "ADD COLUMN pet_hunger INTEGER DEFAULT 50",
+        "ADD COLUMN pet_clean INTEGER DEFAULT 50",
+        "ADD COLUMN pet_happiness INTEGER DEFAULT 50",
+        "ADD COLUMN pet_items TEXT DEFAULT ''",
+        "ADD COLUMN pet_xp INTEGER DEFAULT 0",
+        "ADD COLUMN pet_date TEXT DEFAULT ''",
+        "ADD COLUMN pet_feed_count INTEGER DEFAULT 0",
+        "ADD COLUMN pet_clean_count INTEGER DEFAULT 0",
+        "ADD COLUMN pet_play_count INTEGER DEFAULT 0",
+        "ADD COLUMN pet_count INTEGER DEFAULT 1",
+        "ADD COLUMN pet_status TEXT DEFAULT 'alive'",
+        "ADD COLUMN pet_colors TEXT DEFAULT 'blue'"
+    ]
+    
+    # 🟢 Пытаемся добавить каждую колонку отдельно
+    for col in columns:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"ALTER TABLE users {col};")
+            conn.commit()
+            cursor.close()
+        except Exception as e:
+            # Если колонка уже есть, будет ошибка "column exists". Мы просто отменяем эту микро-ошибку и идем дальше.
+            conn.rollback() 
+            
+    print("🌿 Эко-отсек: проверка колонок завершена.")
+    conn.close()
 
 def get_pet_data(user_id):
     conn = get_connection()
@@ -313,12 +309,20 @@ def get_pet_data(user_id):
 def update_pet_data(user_id, p):
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # 🟢 Броня от багов: параметры не могут быть больше 100 и меньше 0
+    h = min(100, max(0, p['hunger']))
+    c = min(100, max(0, p['clean']))
+    hap = min(100, max(0, p['happiness']))
+    
     items_str = ",".join([i for i in p['items'] if i.strip()])
+    
     cursor.execute("""
         UPDATE users SET pet_level=%s, pet_hunger=%s, pet_clean=%s, pet_happiness=%s, pet_items=%s, 
         pet_xp=%s, pet_date=%s, pet_feed_count=%s, pet_clean_count=%s, pet_play_count=%s,
         pet_count=%s, pet_status=%s, pet_colors=%s WHERE user_id=%s
-    """, (p['level'], p['hunger'], p['clean'], p['happiness'], items_str, p['xp'], p['date'], p['feed_count'], p['clean_count'], p['play_count'], p['count'], p['status'], p['colors'], user_id))
+    """, (p['level'], h, c, hap, items_str, p['xp'], p['date'], p['feed_count'], p['clean_count'], p['play_count'], p['count'], p['status'], p['colors'], user_id))
+    
     conn.commit()
     conn.close()
 
