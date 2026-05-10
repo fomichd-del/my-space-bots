@@ -55,19 +55,35 @@ def get_english_prompt(russian_text):
     return russian_text # Если всё упало, отдаем как есть
 
 def get_cascade_image(prompt, seed):
-    """Каскадная генерация самой картинки (уже знакомая нам логика)"""
-    # ... (код из прошлого сообщения: Flux -> Turbo -> HF)
+    """
+    КАСКАДНАЯ ГЕНЕРАЦИЯ КАРТИНКИ (3 уровня защиты)
+    """
+    # 1. ОСНОВНОЙ КАНАЛ: Pollinations (Модель FLUX - самая красивая)
     try:
         url_flux = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={seed}&model=flux"
         res = requests.get(url_flux, timeout=15)
         if res.status_code == 200: return res.content
-    except: pass
-    
-    # Резерв Turbo
+    except Exception as e:
+        print(f"Сбой FLUX: {e}")
+
+    # 2. БЫСТРЫЙ КАНАЛ: Pollinations (Модель TURBO - чуть проще, но надежнее)
     try:
         url_turbo = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={seed}&model=turbo"
         res = requests.get(url_turbo, timeout=10)
         if res.status_code == 200: return res.content
-    except: pass
-    
+    except Exception as e:
+        print(f"Сбой TURBO: {e}")
+
+    # 3. ЭКСТРЕННЫЙ КАНАЛ: Hugging Face (Вот здесь и нужен твой ключ HF_TOKEN!)
+    if HF_TOKEN:
+        try:
+            headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+            api_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+            payload = {"inputs": prompt, "parameters": {"seed": seed}}
+            res = requests.post(api_url, headers=headers, json=payload, timeout=15)
+            if res.status_code == 200: return res.content
+        except Exception as e:
+            print(f"Сбой Hugging Face: {e}")
+            
+    # Если магнитная буря отключила вообще всё
     return None
