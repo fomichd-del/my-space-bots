@@ -26,6 +26,7 @@ from game import menu, router
 
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 CHANNEL_USERNAME = "@vladislav_space"
+CHANNEL_ID = -1003700699360 # 🟢 Твой ID канала
 LOG_CHAT_ID = "-1003756164148" 
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
@@ -257,11 +258,14 @@ def handle_photo(message):
 
 @bot.channel_post_handler(func=lambda message: True)
 def handle_channel_post(message):
-    if message.chat.username == CHANNEL_USERNAME.replace("@", ""):
+    # Проверяем, что сообщение пришло именно из нашего канала по ID
+    if message.chat.id == CHANNEL_ID:
         text = message.text or message.caption
         if text:
             today = datetime.now().strftime("%Y-%m-%d")
             add_news(today, text)
+            # Отправим сигнал в лог-чат, чтобы мы видели, что запись прошла
+            send_log(f"✅ Марти записал новость из канала: {text[:30]}...")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
@@ -282,6 +286,18 @@ def handle_text(message, is_profile_call=False):
     # Обновляем активность пилота
     update_last_active(user_id)
 
+    # 🟢 ДИАГНОСТИКА СВЯЗИ С КАНАЛОМ
+    if text.lower() == "марти, статус связи":
+        today = datetime.now().strftime("%Y-%m-%d")
+        news = get_today_news(today)
+        bot.reply_to(message, 
+            f"📊 **ОТЧЕТ ПО КАНАЛУ:**\n"
+            f"📡 ID канала: `{CHANNEL_ID}`\n"
+            f"📅 Сегодня: `{today}`\n"
+            f"📰 Новостей в базе: `{len(news)}`"
+        , parse_mode="Markdown")
+        return
+  
     if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
     
     if text == "🎮 Игровой отсек":
