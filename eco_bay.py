@@ -62,6 +62,7 @@ def send_eco_menu(bot, chat_id, user_id):
         kb = tele_types.InlineKeyboardMarkup()
         kb.add(tele_types.InlineKeyboardButton("🧼 Дезинфекция (-50 💰)", callback_data="eco_sanitize"))
     else:
+        # Умножаем стоимость на кол-во улиток
         f_cost, c_cost, p_cost = 2*pet['count'], 3*pet['count'], 2*pet['count']
         text = (
             f"🌿 **ЭКО-ОТСЕК (Жильцов: {pet['count']})**\n"
@@ -83,12 +84,16 @@ def send_eco_menu(bot, chat_id, user_id):
             elif pet['count'] == 2: kb.add(tele_types.InlineKeyboardButton("🥚 Вывести потомство (-500 💰)", callback_data="eco_addpet"))
 
     try:
-        # Скачиваем картинку напрямую и отправляем как файл
-        img_data = requests.get(url, timeout=20).content 
-        bot.send_photo(chat_id, img_data, caption=text, parse_mode="Markdown", reply_markup=kb)
+        # 🟢 Скачиваем фото на наш сервер с запасом времени
+        response = requests.get(url, timeout=25)
+        if response.status_code == 200:
+            # 🟢 Отправляем как готовый байт-файл (photo=response.content)
+            bot.send_photo(chat_id, photo=response.content, caption=text, parse_mode="Markdown", reply_markup=kb)
+        else:
+            raise Exception(f"Pollinations вернул статус {response.status_code}")
     except Exception as e:
-        print(f"Ошибка отправки фото террариума: {e}")
-        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации террариума! Попробуйте позже._", reply_markup=kb)
+        print(f"Ошибка загрузки фото террариума: {e}")
+        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации! Нейросеть-художник сейчас перегружена, но параметры террариума сохранены._", parse_mode="Markdown", reply_markup=kb)
 
 def send_shop_menu(bot, chat_id, user_id, message_id):
     pet = get_pet_data(user_id)
