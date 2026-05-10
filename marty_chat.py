@@ -3,6 +3,7 @@ import telebot
 import time
 import re
 import poodle_cabin
+import neural_draw  # 🟢 Добавь эту строку
 import urllib.parse
 import requests
 from datetime import datetime, timedelta
@@ -313,11 +314,11 @@ def handle_text(message, is_profile_call=False):
             return
         
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        eng_prompt = poodle_cabin.neural_draw.get_english_prompt(clean_text)
+        eng_prompt = neural_draw.get_english_prompt(clean_text)
         
         if spend_dust(user_id, 5):
             seed = int(time.time() + user_id)
-            image_bytes = poodle_cabin.neural_draw.get_cascade_image(eng_prompt, seed)
+            image_bytes = neural_draw.get_cascade_image(eng_prompt, seed)
             
             if image_bytes:
                 caption = f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n📡 **Запрос:** _{clean_text}_\n💰 **Списание:** 5 Пыли.\n\nПрием!"
