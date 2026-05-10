@@ -200,27 +200,40 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text("🚢 Вы в кресле пилота. Какой финал выберете?", call.message.chat.id, call.message.message_id, reply_markup=kb)
 
-    # --- ФИНАЛЫ С ЗАЩИТОЙ ОТ ПОВТОРНОЙ ВЫПЛАТЫ ---
+   # --- ФИНАЛЫ С УМНОЙ ВЫПЛАТНОЙ ---
+    
     elif call.data == "game2_end_hero":
+        # Проверяем, есть ли флаг получения ГЛАВНОЙ награды
         if "ch2_claimed" not in current_node:
             add_xp(user_id, 50, username)
             update_game_progress(user_id, "ch2_done_hero_ch2_claimed")
-            res = "💰 Награда: +50 Пыли."
-        else: res = "✨ Награда получена."
-        bot.edit_message_text(f"🏆 **ГЕРОЙ**\n\nВы спасли станцию. {res}", call.message.chat.id, call.message.message_id)
+            res = "💰 Вы получили основной гонорар: **50 Пыли**!"
+        else:
+            # Если уже проходил — даем минимальный бонус
+            add_xp(user_id, 5, username)
+            res = "✨ Вы прошли эту главу снова. Награда за повтор: **5 Пыли**."
+            
+        bot.edit_message_text(f"🏆 **ФИНАЛ: ГЕРОЙ**\n\nВы спасли станцию 'Орион'.\n\n{res}", 
+                               call.message.chat.id, call.message.message_id, parse_mode="Markdown")
 
     elif call.data == "game2_end_escape":
         if "ch2_claimed" not in current_node:
             add_xp(user_id, 25, username)
             update_game_progress(user_id, "ch2_done_escape_ch2_claimed")
-            res = "💰 Награда: +25 Пыли."
-        else: res = "✨ Награда получена."
-        bot.edit_message_text(f"🥈 **БЕГЛЕЦ**\n\nСвобода в пустоте. {res}", call.message.chat.id, call.message.message_id)
-
-    elif call.data == "game2_end_normal":
-        if "ch2_claimed" not in current_node:
+            res = "💰 Ваша награда: **25 Пыли**."
+        else:
             add_xp(user_id, 5, username)
-            update_game_progress(user_id, "ch2_done_normal_ch2_claimed")
-            res = "💰 Награда: +5 Пыли."
-        else: res = "✨ Награда получена."
-        bot.edit_message_text(f"🥉 **ПОДОЗРЕВАЕМЫЙ**\n\nЗакон суров. {res}", call.message.chat.id, call.message.message_id)
+            res = "✨ Награда за повторный полет: **5 Пыли**."
+            
+        bot.edit_message_text(f"🥈 **ФИНАЛ: БЕГЛЕЦ**\n\nПустота приняла вас.\n\n{res}", 
+                               call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+
+    # ЛОГИКА ПРЕДМЕТОВ (Оставляем как было, она работает идеально)
+    elif call.data == "game2_item_chip":
+        if "item_chip" not in current_node: # Проверка: находил ли ТЫ этот предмет РАНЬШЕ?
+            add_xp(user_id, 1, username)
+            update_game_progress(user_id, current_node + "_item_chip")
+            msg = "✅ **НОВЫЙ ПРЕДМЕТ:** Чип СБ (+1 Пыль).\n\n"
+        else:
+            msg = "📦 Этот предмет уже есть в вашей коллекции.\n\n"
+        # ... (дальше текст кнопки)
