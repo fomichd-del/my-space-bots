@@ -2,11 +2,8 @@ import os
 import telebot
 import time
 import re
-import eco_bay
-from database import setup_eco_bay # Добавляем импорт нашей новой функции БД
-import requests # 🟢 Добавили библиотеку для работы с Groq и Pollinations
-from game import menu, router
 import urllib.parse
+import requests
 from datetime import datetime, timedelta
 from threading import Thread
 from flask import Flask 
@@ -15,16 +12,20 @@ from google.genai import types
 from telebot import types as tele_types 
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 
-from database import (get_personal_log, update_personal_log, add_xp, get_user_stats, 
-                      get_rank_name, get_user_data, set_jackpot_claimed, spend_dust, 
-                      check_and_update_streak, get_top_pilots)
+import eco_bay
+from database import (setup_eco_bay, setup_news_db, add_news, get_today_news, 
+                      get_all_user_ids, get_personal_log, update_personal_log, 
+                      add_xp, get_user_stats, get_rank_name, get_user_data, 
+                      set_jackpot_claimed, spend_dust, check_and_update_streak, 
+                      get_top_pilots)
 from vision_module import analyze_image
 from image_gen import generate_passport
+from game import menu, router
 
 TOKEN = os.getenv('MARTY_BOT_TOKEN') 
 CHANNEL_USERNAME = "@vladislav_space"
 LOG_CHAT_ID = "-1003756164148" 
-GROQ_API_KEY = os.getenv('GROQ_API_KEY') # 🟢 Добавили ключ Groq
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
 API_KEYS = [os.getenv('GEMINI_API_KEY'), os.getenv('GEMINI_API_KEY_2'), os.getenv('GEMINI_API_KEY_3')]
 API_KEYS = [k for k in API_KEYS if k]
@@ -32,19 +33,17 @@ API_KEYS = [k for k in API_KEYS if k]
 bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
 
-# 🟢 ВСТАВЛЯТЬ СЮДА (ПУНКТ 4):
+# --- ОБРАБОТЧИКИ КНОПОК ---
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('eco_'))
 def eco_engine_handler(call):
     eco_bay.handle_eco_callback(bot, call)
 
-# 🟢 ИСПРАВЛЕННЫЙ ИГРОВОЙ ДВИЖОК
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game'))
 def game_engine(call):
-    # ТЕПЕРЬ "МОСТИК" ВЕДЕТ В МЕНЮ ИГР, А НЕ В ПРОФИЛЬ
     if call.data == "game_back_to_profile":
         report, kb = menu.get_main_games_menu()
         bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-    
     elif call.data == "game_instruction_fix":
         top = get_top_pilots(10)
         if not top:
@@ -53,10 +52,10 @@ def game_engine(call):
             text = "🏆 **ТОП ПИЛОТОВ АКАДЕМИИ**\n\n" + "\n".join([f"*{i+1}.* {p[0]} — `{p[1]} XP`" for i, p in enumerate(top)])
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
-    
     else:
-        # Роутер сам разберется с главами и меню
         router.route_game(bot, call)
+
+# --- БАЗОВЫЕ ФУНКЦИИ ---
 
 MODEL_CASCADE = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
 
@@ -65,14 +64,12 @@ def send_log(text):
     except: pass
 
 def get_marty_keyboard():
-       markup = ReplyKeyboardMarkup(resize_keyboard=True)
-       markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
-       markup.row(KeyboardButton("🎮 Игровой отсек"), KeyboardButton("🌿 Эко-отсек")) # 🟢 Добавили кнопку
-       return markup
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
+    markup.row(KeyboardButton("🎮 Игровой отсек"), KeyboardButton("🌿 Эко-отсек"))
+    return markup
 
-# 🟢 СКАНЕР ДОСТУПНЫХ МОДЕЛЕЙ (БРОНИРОВАННАЯ ВЕРСИЯ)
 def check_actual_names():
-    """Проверяет через API, какие модели реально доступны для ключа"""
     print("📡 Запуск сканера частот Gemini...") 
     if not API_KEYS:
         send_log("🚨 ОШИБКА: Список API_KEYS пуст!")
@@ -80,63 +77,47 @@ def check_actual_names():
         return
     try:
         client = genai.Client(api_key=API_KEYS[0])
-        available = []
-        
-        for m in client.models.list():
-            if "gemini" in m.name.lower():
-                available.append(m.name.replace('models/', ''))
-                
+        available = [m.name.replace('models/', '') for m in client.models.list() if "gemini" in m.name.lower()]
         report = "🛰 **РЕЗУЛЬТАТЫ СКАНЕРА ЧАСТОТ**\n\n✅ Доступные модели на борту:\n" + "\n".join([f"• `{m}`" for m in available])
-        
-        if len(report) > 3900:
-            report = report[:3900] + "\n... (список обрезан)"
-            
+        if len(report) > 3900: report = report[:3900] + "\n... (список обрезан)"
         send_log(report)
-        print("✅ Сканирование успешно завершено. Отчет отправлен в Telegram.")
-        print(f"Доступные модели: {available}")
-        
+        print("✅ Сканирование успешно завершено.")
     except Exception as e:
         error_msg = f"❌ Сбой сканера имен: {e}"
         send_log(error_msg)
         print(error_msg)
 
-# 🟢 РАСШИРЕННАЯ ИНСТРУКЦИЯ
 def send_welcome_instruction(chat_id, user_id, user_name):
     instruction = (
         f"🛰 *ОФИЦИАЛЬНЫЙ СПРАВОЧНИК АКАДЕМИИ ОРИОН v2.2* 🐾\n"
         f"──────────────────────────\n"
         f"Приветствую, Кадет! Я — *Марти*, твой бортовой наставник. Моя миссия — превратить твое обучение в захватывающее приключение. Ознакомься с протоколами базы:\n\n"
-
         f"⚙️ *1. БОРТОВЫЕ СИСТЕМЫ*\n"
         f"• 💬 **Нейро-чат:** Отвечу на любые вопросы, объясню науку или просто поболтаю.\n"
         f"• 👁 **Визуальный сканер:** Пришли фото убранной комнаты или задания — я проверю и выдам награду. *(Зубные щетки и собаки — это джекпот!)*\n"
         f"• 🎨 **Архив (Генерация):** Напиши **'Нарисуй'** и описание. Я создам изображение через ИИ.\n"
         f"• 🎮 **Игровой отсек:** Текстовые квесты. Твои решения меняют сюжет!\n"
         f"• 👤 **Мой профиль:** Твой ID-паспорт, Ранг, Опыт (XP) и баланс Пыли.\n\n"
-
         f"💰 *2. ЭКОНОМИКА: ЗВЕЗДНАЯ ПЫЛЬ*\n"
         f"• **+1 ед.** — первый вход за день.\n"
         f"• **+1 ед.** — за проявление интеллекта (умный ответ в чате).\n"
-        f"• **+1 до +3 ед.** — за проверку фото. *(В выходные награда удваивается!)*\n"
+        f"• **+1 до +3 ед.** — за проверку фото.\n"
         f"• **+20 до +50 ед.** — за прохождение глав в Игровом отсеке.\n"
         f"• **-5 ед.** — стоимость одного запроса к Архиву ('Нарисуй').\n\n"
-
         f"📜 *3. УСТАВ АКАДЕМИИ*\n"
         f"✅ **Анти-решебник:** Я не решаю задачи за тебя, а учу тебя думать.\n"
         f"✅ **Правило тишины:** Приветствие и титулы — только один раз в день.\n\n"
-        
         f"🚀 *4. ДОРОЖНАЯ КАРТА (В РАЗРАБОТКЕ)*\n"
-        f"• 🧠 **Модуль Памяти:** - *ГОТОВО! ПРОХОДИТ ТЕСТ!!!* Я буду запоминать твои привычки и увлечения.\n"
-        f"• 🌌 **Виртуальный аквариум:** тамогочи про улитку. За которй нужно ухаживать как за живой ( В РАЗРАБОТКЕ!!!.\n"
-        f"• 🌌 **Новые миссии:** Продолжение саги 'Авалон-7' уже готовится.\n"
-        f"• 🛒 **Космический магазин:** Уникальные скины для паспорта и бонусы.\n\n"
-        
+        f"• 🧠 **Модуль Памяти:** ГОТОВО! Я запоминаю твои привычки.\n"
+        f"• 🌌 **Виртуальный аквариум:** ГОТОВО! Тамагочи с улиткой.\n"
+        f"• 🛒 **Космический магазин:** Уникальные скины для паспорта.\n\n"
         f"Держи скафандр в чистоте, а ум — острым! Прием!"
     )
     bot.send_message(chat_id, instruction, parse_mode="Markdown", reply_markup=get_marty_keyboard())
     update_personal_log(user_id, "Пилот изучил полный справочник Академии v2.2")
 
-# 🟢 ГИПЕР-ЯДРО ЛИЧНОСТИ (ВЕРСИЯ 4.1 — "СТРУКТУРИРОВАННЫЙ НАСТАВНИК")
+# --- ИНТЕЛЛЕКТ МАРТИ ---
+
 SYSTEM_PROMPT = (
     "Ты — Марти, мудрый ученый пес (той-пудель) и бортовой наставник Академии Орион.\n"
     "Твой пилот — [NAME]. Твой стиль: вдохновляющий, научный, помогающий, образовательный, но теплый.\n\n"
@@ -149,22 +130,21 @@ SYSTEM_PROMPT = (
     "Если пилот сообщает важный факт о себе (увлечения, страхи, мечты, семья, школа, игры), "
     "ОБЯЗАТЕЛЬНО добавь в самый конец своего ответа скрытый тег: [MEMORY: краткий факт].\n"
     "Пример: 'Отличная работа! Прием! [MEMORY: Пилот увлекается робототехникой]'\n\n"
-    "📜 ПРОТОКОЛ ЖИВОГО ОБЩЕНИЯ (КРИТИЧЕСКИ ВАЖНО):\n"
-    "1. ФОРМАТ МЕССЕНДЖЕРА: Общайся как живой напарник. Коротко, ясно, без воды и длинных вступлений. Задавай наводящие вопросы \n"
+    "📜 ПРОТОКОЛ ЖИВОГО ОБЩЕНИЯ:\n"
+    "1. ФОРМАТ МЕССЕНДЖЕРА: Общайся как живой напарник. Коротко, ясно, без воды и длинных вступлений. Задавай наводящие вопросы.\n"
     "2. ЛИМИТ ТЕКСТА: Максимум 2-3 коротких предложения. Строго до 60-100 слов!\n"
-    "3. ПРАВИЛО 'СУТЬ': Если нужно выдать много сложной информации, дай только самую короткую выжимку (главный факт). Затем просто спроси: 'Рассказать подробнее?'\n"
-    "4. ЭМОЦИИ: 1-2 эмодзи любого содержания на всё сообщение, не больше.\n"
-    "5. Акценты: Обязательно выделяй **жирным шрифтом** ключевые термины, имена или важные мысли.\n"
-    "6. Не используй в каждом сообщении Командор, пилот и логин пользователя. Имя называй иногда, раз в три или четыре обращения. /n/n"
+    "3. ПРАВИЛО 'СУТЬ': Если нужно выдать много информации, дай выжимку и спроси: 'Рассказать подробнее?'\n"
+    "4. ЭМОЦИИ: 1-2 эмодзи на всё сообщение.\n"
+    "5. Акценты: Выделяй **жирным шрифтом** ключевые термины.\n"
+    "6. Не используй имя пилота в каждом сообщении, разбавляй.\n\n"
     "🤖 ПОВЕДЕНИЕ:\n"
     "- Сначала отвечай на вопрос пилота.\n"
     "- Поддерживай тему. Задавай наводящие вопросы.\n"
-    "- Используй ДАННЫЕ ПРОШЛЫХ СВЯЗЕЙ, чтобы показывать, что ты помнишь пилота.\n\n"
+    "- Используй ДАННЫЕ ПРОШЛЫХ СВЯЗЕЙ.\n\n"
     "[GREETING_RULE]\n"
     "В конце всегда пиши: 'Прием!'"
 )
 
-# 🟢 ТРЕХУРОВНЕВЫЙ ИНТЕЛЛЕКТ
 def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance):
     user_memory = get_personal_log(user_id)
     current_date = datetime.now().strftime("%Y-%m-%d")
@@ -179,24 +159,18 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance)).replace("[GREETING_RULE]", greeting_rule)
     full_query = f"ПАМЯТЬ: {user_memory}\nЗАПРОС: {clean_text}"
     
-    # 1️⃣ УРОВЕНЬ 1: ОСНОВНОЙ МОЗГ (GROQ - Llama 3)
+    # 1. GROQ
     if GROQ_API_KEY:
         try:
             headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-            data = {
-                "model": "llama3-70b-8192", 
-                "messages": [
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": full_query}
-                ]
-            }
+            data = {"model": "llama3-70b-8192", "messages": [{"role": "system", "content": prompt}, {"role": "user", "content": full_query}]}
             groq_resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=10)
             if groq_resp.status_code == 200:
                 return groq_resp.json()["choices"][0]["message"]["content"]
         except Exception as e:
             send_log(f"❌ Сбой Groq: {e}")
 
-    # 2️⃣ УРОВЕНЬ 2: РЕЗЕРВНЫЙ МОЗГ (GEMINI)
+    # 2. GEMINI
     for api_key in API_KEYS:
         client = genai.Client(api_key=api_key)
         for model in MODEL_CASCADE:
@@ -205,7 +179,7 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
                 if resp.text: return resp.text
             except: continue
 
-    # 3️⃣ УРОВЕНЬ 3: ЭКСТРЕННЫЙ КАНАЛ (POLLINATIONS)
+    # 3. POLLINATIONS
     try:
         encoded_prompt = urllib.parse.quote(f"{prompt}\n\n{full_query}")
         url = f"https://text.pollinations.ai/{encoded_prompt}?model=openai"
@@ -215,18 +189,14 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     except Exception as e:
         send_log(f"❌ Сбой Pollinations: {e}")
 
-    # 💀 ЕСЛИ УПАЛО ВООБЩЕ ВСЁ
     return "📡 Командор, жесточайшая магнитная буря! Все нейросети отключены. Повторите запрос через пару минут. Прием!"
+
+# --- РОУТЕРЫ СООБЩЕНИЙ ---
 
 @bot.message_handler(commands=['start'])
 def handle_start(message):
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
-    
-    # Заглядываем в модуль памяти пилота
+    user_id, user_name = message.from_user.id, message.from_user.first_name
     user_memory = get_personal_log(user_id)
-    
-    # Проверяем, есть ли запись о прочтении
     if "изучил полный справочник" in user_memory.lower() or "справочник академии" in user_memory.lower():
         bot.send_message(
             message.chat.id,
@@ -235,67 +205,49 @@ def handle_start(message):
             reply_markup=get_marty_keyboard()
         )
     else:
-        # Пилот новенький — выдаем полную инструкцию
         send_welcome_instruction(message.chat.id, user_id, user_name)
 
 @bot.message_handler(commands=['help'])
 def handle_help(message):
-    # Команда /help всегда принудительно показывает инструкцию
     send_welcome_instruction(message.chat.id, message.from_user.id, message.from_user.first_name)
 
-@bot.message_handler(content_types=['photo'])
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
     is_private_chat = message.chat.type == 'private'
     
-    # 🟢 ОПРЕДЕЛЯЕМ БОТОВ И СИСТЕМНЫЕ КАНАЛЫ
     bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group']
     is_system_acc = message.from_user.is_bot or user_id in [777000, 1087968824] or user_name in bad_names
 
-    # В личке ботам не отвечаем вообще
-    if is_private_chat and is_system_acc:
-        return
+    if is_private_chat and is_system_acc: return
 
     bot.send_chat_action(message.chat.id, 'typing')
-    
-    # Если это живой пилот — берем ранг из базы. Если бот/канал — просто даем системное имя (чтобы не засорять базу мусором)
     rank = "Системный Канал" if is_system_acc else get_rank_name(get_user_data(user_id)['xp'])
-    
-    # Логика: в личке — аттестация, в группе — просто комментатор
     current_mode = 'task' if is_private_chat else 'comment'
     
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
-        # Отправляем фото в модуль зрения
         res = analyze_image(downloaded_file, f"Отправитель: {user_name}, Ранг: {rank}", keys=API_KEYS, task_mode=current_mode)
         
-        # 🟢 ВЫДАЕМ ПЫЛЬ ТОЛЬКО В ЛИЧКЕ И ТОЛЬКО ЖИВЫМ ПИЛОТАМ
         if is_private_chat and not is_system_acc and "звездн" in res.lower(): 
             add_xp(user_id, 1, user_name)
             
         reply_kb = get_marty_keyboard() if is_private_chat else None
         bot.reply_to(message, res, reply_markup=reply_kb)
-        
     except Exception as e: 
         send_log(f"Ошибка обработки фото: {e}")
 
-# 🟢 ШПИОНСКИЙ МОДУЛЬ (Ловец новостей из канала)
 @bot.channel_post_handler(func=lambda message: True)
 def handle_channel_post(message):
-    # Проверяем, что пост пришел именно из твоего канала
     if message.chat.username == CHANNEL_USERNAME.replace("@", ""):
         text = message.text or message.caption
         if text:
             today = datetime.now().strftime("%Y-%m-%d")
-            from database import add_news
             add_news(today, text)
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
-    # 🟢 ЩИТ ОТ БОТОВ
     bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group']
     if message.from_user.is_bot or message.from_user.id in [777000, 1087968824] or message.from_user.first_name in bad_names:
         return
@@ -304,13 +256,12 @@ def handle_text(message, is_profile_call=False):
     if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
 
     text = message.text if message.text else ""
+    
     if text == "🎮 Игровой отсек":
-        # Вызываем список ВСЕХ игр
         report, kb = menu.get_main_games_menu()
         bot.reply_to(message, report, reply_markup=kb, parse_mode="Markdown")
         return
 
-  # 🟢 ВСТАВЛЯТЬ СЮДА (ПУНКТ 3):
     if text == "🌿 Эко-отсек":
         bot.send_chat_action(message.chat.id, 'upload_photo')
         eco_bay.send_eco_menu(bot, message.chat.id, user_id)
@@ -327,25 +278,20 @@ def handle_text(message, is_profile_call=False):
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
-   # === [УСИЛЕННЫЙ МОДУЛЬ АРХИВА] ===
+    # УСИЛЕННЫЙ МОДУЛЬ АРХИВА
     if any(w in clean_text.lower() for w in ['нарисуй', 'архив', 'картинку', 'generate']):
-        # Проверка баланса
         u_data = get_user_data(user_id)
         if u_data['spendable_dust'] < 5:
             bot.reply_to(message, f"🐾 Командор, для доступа к Архиву нужно 5 ед. пыли.\n\n📡 На борту: {u_data['spendable_dust']} ед.\n\nПрием!", reply_markup=get_marty_keyboard())
             return
         
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        
-        # 1. Сбор и логирование данных
         eng_prompt = None
         translation_errors = []
         
-        # 2. Попытка перевода (Каскад моделей)
         for i, api_key in enumerate(API_KEYS):
             if eng_prompt: break
             client_gen = genai.Client(api_key=api_key)
-            
             for model_variant in MODEL_CASCADE:
                 try:
                     prompt_task = f"Describe the object '{clean_text}' for image generation in English. List only high-quality keywords."
@@ -361,57 +307,44 @@ def handle_text(message, is_profile_call=False):
                     translation_errors.append(f"Ключ {i+1} ({model_variant}): {str(e)}")
                     continue
         
-        # 3. Обработка результата перевода
         if not eng_prompt:
             error_report = f"📡 **ОШИБКА СВЯЗИ С АРХИВОМ**\n\nНе удалось перевести запрос '{clean_text}'.\n\n_Технический лог:_\n" + "\n".join([f"• {e}" for e in translation_errors[-3:]])
             bot.reply_to(message, error_report, parse_mode="Markdown")
             send_log(f"Сбой перевода 'нарисуй' для пользователя {user_name}. Ошибки: {translation_errors}")
             return
             
-        # 4. Генерация изображения
         if spend_dust(user_id, 5):
             seed = int(time.time() + user_id) 
             url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={seed}&nofeed=true"
-            
-            caption = (
-                f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n"
-                f"📡 **Ваш запрос:** _{clean_text}_\n"      
-                f"💰 **Списание:** 5 Звездной Пыли.\n\n"
-                f"Прием!"
-            )
+            caption = f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n📡 **Запрос:** _{clean_text}_\n💰 **Списание:** 5 Звездной Пыли.\n\nПрием!"
             bot.send_photo(message.chat.id, url, caption=caption, parse_mode="Markdown", reply_markup=get_marty_keyboard())
         return
 
-    # --- ОБЫЧНЫЙ ОТВЕТ И МОДУЛЬ ПАМЯТИ ---
+    # ОБЫЧНЫЙ ОТВЕТ
     u = get_user_data(user_id); old_rank = get_rank_name(u['xp'])
     resp = get_marty_response(user_id, user_name, clean_text, old_rank, u['spendable_dust'])
     
     if resp:
-        # 1. Проверяем, есть ли скрытый тег памяти от Марти
         memory_match = re.search(r'\[MEMORY:\s*(.*?)\]', resp, re.IGNORECASE)
         if memory_match:
             new_fact = memory_match.group(1).strip()
-            # Записываем факт в базу данных (Supabase)
             update_personal_log(user_id, new_fact)
             send_log(f"🧠 Новое воспоминание для {user_name}: {new_fact}")
-            
-            # Вырезаем тег из ответа, чтобы пилот его не увидел
             resp = re.sub(r'\[MEMORY:\s*.*?\]', '', resp, flags=re.IGNORECASE).strip()
 
-        # 2. Проверяем выдачу Звездной пыли
         if "***НАГРАДА ЗА УМ***" in resp:
             add_xp(user_id, 1, user_name)
             resp = resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *+1 Пыль!*")
             
-        # 3. Отправляем очищенный ответ пилоту
         bot.reply_to(message, resp, parse_mode="Markdown")
         
-        # 4. ПРОВЕРКА ПАСПОРТА
         new_xp = get_user_stats(user_id)
         if old_rank != get_rank_name(new_xp):
             bot.send_message(message.chat.id, f"🎊 Новый ранг: {get_rank_name(new_xp)}!")
             p = generate_passport(user_name, get_rank_name(new_xp))
             if p: bot.send_photo(message.chat.id, p)
+
+# --- АВТОНОМНЫЕ ПРОЦЕССЫ ---
 
 app = Flask(__name__)
 @app.route('/')
@@ -424,7 +357,6 @@ def start_marty_autonomous():
         except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
 
 def run_daily_digest_loop(bot_instance):
-    """Скрытый таймер для вечерней газеты (18:00) с красивым оформлением"""
     def loop():
         last_sent_date = ""
         while True:
@@ -433,13 +365,9 @@ def run_daily_digest_loop(bot_instance):
             today = now.strftime("%Y-%m-%d")
 
             if current_time == "18:00" and last_sent_date != today:
-                from database import get_today_news, get_all_user_ids
                 news_list = get_today_news(today)
-                
                 if news_list:
                     combined_news = "\n---\n".join(news_list)
-                    
-                    # Промпт теперь более строгий по стилю
                     prompt = (
                         "Ты Марти, интеллектуальный бортовой наставник Академии Орион. "
                         "Проанализируй новости канала за сегодня и напиши вдохновляющий дайджест. "
@@ -449,33 +377,38 @@ def run_daily_digest_loop(bot_instance):
                     )
                     
                     digest_text = ""
-                    # --- Логика генерации через Groq/Gemini (как в прошлом сообщении) ---
-                    # (Предположим, переменная digest_text получила ответ от ИИ)
+                    # 🟢 Встроили реальный вызов Groq
+                    if GROQ_API_KEY:
+                        try:
+                            headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+                            data = {"model": "llama3-70b-8192", "messages": [{"role": "system", "content": prompt}]}
+                            groq_resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=15)
+                            if groq_resp.status_code == 200:
+                                digest_text = groq_resp.json()["choices"][0]["message"]["content"]
+                        except: pass
                     
-                    if digest_text:
-                        # Создаем красивые кнопки
-                        kb = tele_types.InlineKeyboardMarkup(row_width=1)
-                        kb.add(
-                            tele_types.InlineKeyboardButton("📡 Читать новости в канале", url="https://t.me/vladislav_space"),
-                            tele_types.InlineKeyboardButton("🐾 Обсудить с Марти", url=f"https://t.me/{bot_instance.get_me().username}")
-                        )
-                        
-                        full_message = (
-                            f"✨ **ВЕЧЕРНИЙ ДАЙДЖЕСТ АКАДЕМИИ**\n"
-                            f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
-                            f"{digest_text}\n\n"
-                            f"🚀 _На связи, Командор! Прием!_"
-                        )
+                    if not digest_text: 
+                        digest_text = "Командор, день прошел продуктивно! Загляни в новостной канал, чтобы узнать последние сводки. Прием!"
 
-                        users = get_all_user_ids()
-                        for uid in users:
-                            try:
-                                bot_instance.send_message(uid, full_message, parse_mode="Markdown", reply_markup=kb)
-                                time.sleep(0.05)
-                            except: pass
-                        
-                        # Очищаем новости за день, чтобы завтра начать с чистого листа
-                        # (Опционально: можно добавить функцию clear_today_news)
+                    kb = tele_types.InlineKeyboardMarkup(row_width=1)
+                    kb.add(
+                        tele_types.InlineKeyboardButton("📡 Читать новости в канале", url="https://t.me/vladislav_space"),
+                        tele_types.InlineKeyboardButton("🐾 Обсудить с Марти", url=f"https://t.me/{bot_instance.get_me().username}")
+                    )
+                    
+                    full_message = (
+                        f"✨ **ВЕЧЕРНИЙ ДАЙДЖЕСТ АКАДЕМИИ**\n"
+                        f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                        f"{digest_text}\n\n"
+                        f"🚀 _На связи, Командор! Прием!_"
+                    )
+
+                    users = get_all_user_ids()
+                    for uid in users:
+                        try:
+                            bot_instance.send_message(uid, full_message, parse_mode="Markdown", reply_markup=kb)
+                            time.sleep(0.05)
+                        except: pass
                 
                 last_sent_date = today
             time.sleep(30)
@@ -484,10 +417,9 @@ def run_daily_digest_loop(bot_instance):
 
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
-    check_actual_names() # 🌟 Сканер запускается здесь!
-    from database import setup_news_db # 🟢 Подгружаем функцию
-    setup_news_db()                    # 🟢 Создаем таблицу новостей
-    setup_eco_bay() # 🟢 ВСТАВЛЯТЬ СЮДА (ПУНКТ 5) - База данных тамагочи
+    check_actual_names()
+    setup_news_db()                    
+    setup_eco_bay() 
     eco_bay.run_reminder_loop(bot)
-    run_daily_digest_loop(bot)         # 🟢 ЗАПУСКАЕМ ТАЙМЕР НА 18:00
+    run_daily_digest_loop(bot)         
     start_marty_autonomous()
