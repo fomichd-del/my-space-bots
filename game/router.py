@@ -1,4 +1,4 @@
-from game import menu, scenario1, scenario2, scenario3 # 🟢 Проверь, что импорт scenario3 тут есть
+from game import menu, scenario1, scenario2, scenario3, scenario4, scenario5 # 🟢 Проверь, что импорт scenario3 тут есть
 from database import get_game_status
 
 def route_game(bot, call):
@@ -48,6 +48,14 @@ def route_game(bot, call):
     elif data == "game_locked_alert":
         bot.answer_callback_query(call.id, "🔒 Требуется ранг Капитана. Продолжайте обучение!", show_alert=True)
 
+    # 🟢 ОБРАБОТКА ВСЕХ КНОПОК пятой ГЛАВЫ
+    elif data.startswith('game5_'):
+        scenario3.run_scenario(bot, call)
+    
+    # 🟢 ОБРАБОТКА ВСЕХ КНОПОК четвертой ГЛАВЫ
+    elif data.startswith('game4_'):
+        scenario3.run_scenario(bot, call)
+    
     # 🟢 ОБРАБОТКА ВСЕХ КНОПОК ТРЕТЬЕЙ ГЛАВЫ
     elif data.startswith('game3_'):
         scenario3.run_scenario(bot, call)
