@@ -18,7 +18,7 @@ from database import (setup_eco_bay, setup_news_db, add_news, get_today_news,
                       get_all_user_ids, get_personal_log, update_personal_log, 
                       add_xp, get_user_stats, get_rank_name, get_user_data, 
                       set_jackpot_claimed, spend_dust, check_and_update_streak, 
-                      get_top_pilots)
+                      get_top_pilots, update_last_active, set_silence, get_users_for_ping) # 🟢 Добавлены функции активности
 from vision_module import analyze_image
 from image_gen import generate_passport
 from game import menu, router
@@ -72,7 +72,7 @@ def get_marty_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
     markup.row(KeyboardButton("🎮 Игровой отсек"), KeyboardButton("🌿 Эко-отсек"))
-    markup.row(KeyboardButton("🐕 Каюта питомца")) # 🟢 Новая кнопка
+    markup.row(KeyboardButton("🐕 Каюта питомца"))
     return markup
 
 def check_actual_names():
@@ -116,7 +116,7 @@ def send_welcome_instruction(chat_id, user_id, user_name):
         f"🚀 *4. ДОРОЖНАЯ КАРТА (В РАЗРАБОТКЕ)*\n"
         f"• 🧠 *Модуль Памяти:* ГОТОВО! Я запоминаю твои привычки.\n"
         f"• 🌌 *Виртуальный аквариум (эко-отсек):* ГОТОВО! ТЕСТ! Тамагочи с улиткой.\n"
-         f"• 🌌 *Каюта питомца:* ГОТОВО! ТЕСТ! Тамагочи с собачкой.\n"
+        f"• 🌌 *Каюта питомца:* ГОТОВО! ТЕСТ! Тамагочи с собачкой.\n"
         f"• 🛒 *Космический магазин:* В РАЗРАБОТКЕ!!! Уникальные скины для паспорта.\n\n"
         f"Держи скафандр в чистоте, а ум — острым! Прием!"
     )
@@ -139,7 +139,7 @@ SYSTEM_PROMPT = (
     "Пример: 'Отличная работа! Прием! [MEMORY: Пилот увлекается робототехникой]'\n\n"
     "📜 ПРОТОКОЛ ЖИВОГО ОБЩЕНИЯ:\n"
     "1. ФОРМАТ МЕССЕНДЖЕРА: Общайся как живой напарник. Коротко, ясно, без воды и длинных вступлений. Задавай наводящие вопросы.\n"
-    "2. ЛИМИТ ТЕКСТА: Максимум 2-3 коротких предложения. Строго до 60-100 слов!\n"
+    "2. ЛИМИТ ТЕКСТА: Максимум 2-3 коротких предложения. Строго до 100-150  слов!\n"
     "3. ПРАВИЛО 'СУТЬ': Если нужно выдать много информации, дай выжимку и спроси: 'Рассказать подробнее?'\n"
     "4. ЭМОЦИИ: 1-2 эмодзи на всё сообщение.\n"
     "5. Акценты: Выделяй **жирным шрифтом** ключевые термины.\n"
@@ -260,9 +260,19 @@ def handle_text(message, is_profile_call=False):
         return
 
     user_id, user_name = message.from_user.id, message.from_user.first_name
-    if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
-
     text = message.text if message.text else ""
+
+    # 🟢 ШАГ 3: ДЕТЕКТОР «ПРОЩАНИЙ»
+    stop_words = ['пока', 'спокойной ночи', 'до свидания', 'прощай', 'увидимся', 'отбой']
+    if any(word in text.lower() for word in stop_words):
+        set_silence(user_id, hours=12) # Затихаем на 12 часов
+        bot.reply_to(message, f"Принято, Командор {user_name}! Ухожу в режим радиомолчания. Доброй ночи! Прием.")
+        return
+
+    # Обновляем активность пилота
+    update_last_active(user_id)
+
+    if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
     
     if text == "🎮 Игровой отсек":
         report, kb = menu.get_main_games_menu()
@@ -298,13 +308,10 @@ def handle_text(message, is_profile_call=False):
             return
         
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        
-        # 1. Получаем английский промпт через каскад переводчиков
-        eng_prompt = poodle_cabin.neural_draw.get_english_prompt(clean_text) # Вызываем из нашего нового модуля
+        eng_prompt = poodle_cabin.neural_draw.get_english_prompt(clean_text)
         
         if spend_dust(user_id, 5):
             seed = int(time.time() + user_id)
-            # 2. Генерируем картинку через каскад нейросетей
             image_bytes = poodle_cabin.neural_draw.get_cascade_image(eng_prompt, seed)
             
             if image_bytes:
@@ -312,8 +319,6 @@ def handle_text(message, is_profile_call=False):
                 bot.send_photo(message.chat.id, photo=image_bytes, caption=caption, parse_mode="Markdown")
             else:
                 bot.reply_to(message, "📡 Командор, все заводы по производству картинок во вселенной временно перегружены. Пыль сохранена! Прием.")
-                # Возвращаем пыль, если не нарисовали
-                add_xp(user_id, 0, user_name) # Это просто для баланса, если нужно
         return
 
     # ОБЫЧНЫЙ ОТВЕТ
@@ -346,8 +351,28 @@ app = Flask(__name__)
 @app.route('/')
 def h(): return "OK"
 
+# 🟢 ШАГ 4: МОДУЛЬ «ИНИЦИАТИВА МАРТИ»
+def run_proactive_marty(bot_instance):
+    def loop():
+        while True:
+            # Проверяем базу каждые 6 часов
+            time.sleep(21600) 
+            candidate_ids = get_users_for_ping()
+            for uid in candidate_ids:
+                try:
+                    u = get_user_data(uid)
+                    # Генерируем "пинг"-сообщение через каскад Марти
+                    msg_text = get_marty_response(uid, u['name'], "Марти, напомни о себе пилоту коротко.", "Пилот", u['spendable_dust'])
+                    msg_text = re.sub(r'\[MEMORY:\s*.*?\]', '', msg_text).strip()
+                    
+                    bot_instance.send_message(uid, msg_text, parse_mode="Markdown")
+                    set_silence(uid, hours=24) # Не пишем чаще раза в сутки
+                    time.sleep(0.5)
+                except: continue
+    Thread(target=loop, daemon=True).start()
+
 def start_marty_autonomous():
-    print("🚀 Академия Орион 2.2 запущена.")
+    print("🚀 Академия Орион 2.3 запущена.")
     while True:
         try: bot.remove_webhook(); bot.infinity_polling(skip_pending=True)
         except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
@@ -365,15 +390,10 @@ def run_daily_digest_loop(bot_instance):
                 if news_list:
                     combined_news = "\n---\n".join(news_list)
                     prompt = (
-                        "Ты Марти, интеллектуальный бортовой наставник Академии Орион. "
-                        "Проанализируй новости канала за сегодня и напиши вдохновляющий дайджест. "
-                        "Стиль: футуристичный, дружелюбный, лаконичный. "
-                        "Не используй приветствие 'Привет', начни сразу с сути дня. "
-                        f"Вот новости:\n{combined_news}"
+                        "Ты Марти, ученый пес. Напиши вдохновляющий дайджест новостей дня. "
+                        f"Новости:\n{combined_news}"
                     )
-                    
                     digest_text = ""
-                    # 🟢 Встроили реальный вызов Groq
                     if GROQ_API_KEY:
                         try:
                             headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
@@ -383,21 +403,12 @@ def run_daily_digest_loop(bot_instance):
                                 digest_text = groq_resp.json()["choices"][0]["message"]["content"]
                         except: pass
                     
-                    if not digest_text: 
-                        digest_text = "Командор, день прошел продуктивно! Загляни в новостной канал, чтобы узнать последние сводки. Прием!"
+                    if not digest_text: digest_text = "Командор, день прошел продуктивно! Прием!"
 
                     kb = tele_types.InlineKeyboardMarkup(row_width=1)
-                    kb.add(
-                        tele_types.InlineKeyboardButton("📡 Читать новости в канале", url="https://t.me/vladislav_space"),
-                        tele_types.InlineKeyboardButton("🐾 Обсудить с Марти", url=f"https://t.me/{bot_instance.get_me().username}")
-                    )
+                    kb.add(tele_types.InlineKeyboardButton("📡 Читать новости", url="https://t.me/vladislav_space"))
                     
-                    full_message = (
-                        f"✨ **ВЕЧЕРНИЙ ДАЙДЖЕСТ АКАДЕМИИ**\n"
-                        f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
-                        f"{digest_text}\n\n"
-                        f"🚀 _На связи, Командор! Прием!_"
-                    )
+                    full_message = f"✨ **ВЕЧЕРНИЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{digest_text}\n\n🚀 _Прием!_"
 
                     users = get_all_user_ids()
                     for uid in users:
@@ -405,17 +416,17 @@ def run_daily_digest_loop(bot_instance):
                             bot_instance.send_message(uid, full_message, parse_mode="Markdown", reply_markup=kb)
                             time.sleep(0.05)
                         except: pass
-                
                 last_sent_date = today
             time.sleep(30)
-            
     Thread(target=loop, daemon=True).start()
 
+# 🟢 ШАГ 5: ЗАПУСК СИСТЕМЫ
 if __name__ == "__main__":
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     check_actual_names()
     setup_news_db()                    
     setup_eco_bay() 
     eco_bay.run_reminder_loop(bot)
-    run_daily_digest_loop(bot)         
+    run_daily_digest_loop(bot)
+    run_proactive_marty(bot) # 🟢 Запуск инициативы Марти
     start_marty_autonomous()
