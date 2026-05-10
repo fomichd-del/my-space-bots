@@ -22,23 +22,19 @@ def get_dynamic_image_url(pet, user_id):
         prompt = "macro photography of an empty dirty glass terrarium, broken glass, dried grey moss, murky water, gloomy dim lighting, depressing realistic look, no life"
         return f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={user_id}&nofeed=true"
 
-    # 🟢 ОСНОВА ПРОМПТА: РЕАЛИСТИЧНЫЙ АКВАРИУМ
-    base = "macro photography of one beautiful realistic garden snail (Cornu aspersum) in a realistic freshwater aquarium tank, 4k, natural realistic photographic style, cinematic lighting"
+    base = "macro photography of realistic garden snails (Cornu aspersum) in a realistic freshwater aquarium tank, 4k, natural realistic photographic style, cinematic lighting"
     
-    # 1. КОЛИЧЕСТВО УЛИТОК (Растут с уровнем, а не статичны)
-    if pet['level'] < 5:
-        snails_count = "one cute realistic baby snail"
-    elif pet['level'] < 10:
-        snails_count = "two small realistic snails"
-    elif pet['level'] < 15:
-        snails_count = "three realistic adult snails"
+    # 1. КОЛИЧЕСТВО УЛИТОК (Зависит только от покупок, а не от уровня)
+    if pet['count'] == 1:
+        snails_count = "exactly one realistic garden snail"
+    elif pet['count'] == 2:
+        snails_count = "exactly two realistic garden snails interacting"
     else:
-        snails_count = "a diverse family of realistic snails (5+ individuals)"
+        snails_count = "a diverse family of realistic garden snails (multiple individuals of different sizes)"
         
-    # 2. ЦВЕТА ПАНЦИРЕЙ (Натуральные, не космические)
     shells_style = "natural realistic brown and beige shells with intricate dark stripes"
     
-    # 3. ЭВОЛЮЦИЯ И РОСТ (Стадии жизни обычной улитки)
+    # 2. ЭВОЛЮЦИЯ (Внешний вид самой старой улитки в аквариуме зависит от уровня)
     if pet['level'] < 3:
         evo = "very tiny new born snail, semi-translucent shell, just hatched"
     elif pet['level'] < 7:
@@ -50,20 +46,20 @@ def get_dynamic_image_url(pet, user_id):
     else:
         evo = "ancient matriarch snail, colossal size, incredibly complex and detailed shell patterns"
         
-    # 4. СОСТОЯНИЕ (Грязь и радость - не неоновые)
+    # 3. СОСТОЯНИЕ ВОДЫ
     if pet['clean'] < 30:
         state = "murky green dirty water, messy environment, withering aquatic plants, sad gloomy mood"
     elif pet['happiness'] < 30:
-        state = "snail hiding inside shell, lonely atmosphere, dim natural lighting"
+        state = "snails hiding inside shells, lonely atmosphere, dim natural lighting"
     else:
-        state = "crystal clear water, healthy vibrant green moss, happy active snail, realistic natural background, floating bubbles"
+        state = "crystal clear water, healthy vibrant green moss, happy active snails, realistic natural background, floating bubbles"
         
-    # 5. ДЕКОРАЦИИ ИЗ МАГАЗИНА (Аквариум изначально пустой)
+    # 4. ДЕКОРАЦИИ
     decor = [SHOP_ITEMS[k]["prompt"] for k in pet['items'] if k in SHOP_ITEMS]
-    decor_prompt = "decorated with " + " and ".join(decor) if decor else "minimalist minimalist glass setup with only a few river pebbles on the bottom"
+    decor_prompt = "decorated with " + " and ".join(decor) if decor else "minimalist glass setup with only a few river pebbles on the bottom"
         
     eng_prompt = f"{base}, {snails_count}, {shells_style}, {evo}, {state}, {decor_prompt}, photorealistic"
-    seed = int(time.time() / 3600) + user_id # Обновляем seed раз в час
+    seed = int(time.time() / 3600) + user_id 
     return f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={seed}&nofeed=true"
 
 def check_daily_decay(pet):
@@ -91,13 +87,19 @@ def send_eco_menu(bot, chat_id, user_id):
         kb = tele_types.InlineKeyboardMarkup()
         kb.add(tele_types.InlineKeyboardButton("🧼 Дезинфекция (-50 💰)", callback_data="eco_sanitize"))
     else:
-        # Умножаем стоимость на кол-во улиток (Синдикат)
+        # Умножаем стоимость ухода на кол-во улиток (чем больше семья, тем дороже)
         f_cost, c_cost, p_cost = 2*pet['count'], 3*pet['count'], 2*pet['count']
         status = "🟢 Счастлива" if pet['hunger'] > 50 and pet['clean'] > 50 and pet['happiness'] > 50 else "🔴 Требует ухода!"
+        
+        # Текст статуса семьи
+        family_status = "Одинокая улитка"
+        if pet['count'] == 2: family_status = "Пара улиток"
+        elif pet['count'] >= 3: family_status = "Семья улиток"
+
         text = (
             f"🌿 **ЭКО-ОТСЕК (Уровень: {pet['level']})**\n\n"
             f"Опыт: {pet['xp']}/10 | Статус: {status}\n"
-            f"🧬 **Количество улиток в промпте:** (автомат от уровня)\n\n"
+            f"🐌 Жильцы: **{family_status}**\n\n"
             f"🔋 Сытость: {pet['hunger']}% _({pet['feed_count']}/3)_\n"
             f"💧 Чистота: {pet['clean']}% _({pet['clean_count']}/3)_\n"
             f"🎾 Радость: {pet['happiness']}% _({pet['play_count']}/3)_\n\n"
@@ -110,12 +112,15 @@ def send_eco_menu(bot, chat_id, user_id):
             tele_types.InlineKeyboardButton(f"🎾 Играть (-{p_cost} 💰)", callback_data="eco_play"),
             tele_types.InlineKeyboardButton("🛒 Магазин", callback_data="eco_shop")
         )
+        
+        # 🟢 ЛОГИКА РАЗМНОЖЕНИЯ (Только с 15 уровня!)
         if pet['level'] >= 15:
-            if pet['count'] == 1: kb.add(tele_types.InlineKeyboardButton("➕ Найти пару (-300 💰)", callback_data="eco_addpet"))
-            elif pet['count'] == 2: kb.add(tele_types.InlineKeyboardButton("🥚 Вывести потомство (-500 💰)", callback_data="eco_addpet"))
+            if pet['count'] == 1: 
+                kb.add(tele_types.InlineKeyboardButton("➕ Найти пару (-200 💰)", callback_data="eco_addpet"))
+            elif pet['count'] == 2: 
+                kb.add(tele_types.InlineKeyboardButton("🥚 Создать семью (-300 💰)", callback_data="eco_addpet"))
 
     try:
-        # Скачиваем фото на наш сервер с запасом времени
         response = requests.get(url, timeout=25)
         if response.status_code == 200:
             bot.send_photo(chat_id, photo=response.content, caption=text, parse_mode="Markdown", reply_markup=kb)
@@ -145,7 +150,7 @@ def handle_eco_callback(bot, call):
     elif action == "back": bot.delete_message(call.message.chat.id, call.message.message_id); send_eco_menu(bot, call.message.chat.id, user_id); return
     elif action == "none": bot.answer_callback_query(call.id, "Уже установлено в террариум!"); return
 
-    # --- ВОЗРОЖДЕНИЕ И РАЗМНОЖЕНИЕ ---
+    # --- ВОЗРОЖДЕНИЕ ---
     if action == "sanitize":
         if spend_dust(user_id, 50):
             new_pet = {"level": 1, "hunger": 100, "clean": 100, "happiness": 100, "items": [], "xp": 0, "date": datetime.now().strftime("%Y-%m-%d"), "feed_count": 0, "clean_count": 0, "play_count": 0, "count": 1, "status": "alive", "colors": "blue"}
@@ -153,15 +158,22 @@ def handle_eco_callback(bot, call):
             bot.answer_callback_query(call.id, "🧼 Стерилизация завершена! Заселена новая улитка.", show_alert=True)
         else: bot.answer_callback_query(call.id, "❌ Нужно 50 Пыли!", show_alert=True)
     
+    # --- ПОКУПКА СЕМЬИ ---
     elif action == "addpet":
-        cost = 300 if pet['count'] == 1 else 500
+        if pet['level'] < 15:
+            bot.answer_callback_query(call.id, "❌ Доступно только с 15 уровня!", show_alert=True)
+            return
+            
+        cost = 200 if pet['count'] == 1 else 300
+        
         if spend_dust(user_id, cost):
             pet['count'] += 1
-            new_color = "red" if pet['count'] == 2 else "purple"
-            pet['colors'] += f", {new_color}"
+            success_msg = "💖 Ты купил пару для своей улитки!" if pet['count'] == 2 else "🥚 Улитки создали семью! Ждем потомство!"
             update_pet_data(user_id, pet)
-            bot.answer_callback_query(call.id, "💖 Пополнение в семействе!", show_alert=True)
-        else: bot.answer_callback_query(call.id, f"❌ Нужно {cost} Пыли!", show_alert=True)
+            bot.answer_callback_query(call.id, success_msg, show_alert=True)
+        else: 
+            bot.answer_callback_query(call.id, f"❌ Нужно {cost} Пыли!", show_alert=True)
+            return
 
     # --- МАГАЗИН (ПОКУПКА) ---
     elif action.startswith("buy_"):
@@ -175,11 +187,10 @@ def handle_eco_callback(bot, call):
         if spend_dust(user_id, price):
             pet['items'].append(item_key)
             update_pet_data(user_id, pet)
-            bot.answer_callback_query(call.id, f"🎉 Куплено: {SHOP_ITEMS[item_key]['name']}! Подожди, террариум обновляется...", show_alert=True)
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-            send_eco_menu(bot, call.message.chat.id, user_id) 
-        else: bot.answer_callback_query(call.id, f"❌ Не хватает Пыли (Нужно {price})!", show_alert=True)
-        return
+            bot.answer_callback_query(call.id, f"🎉 Куплено: {SHOP_ITEMS[item_key]['name']}!", show_alert=True)
+        else: 
+            bot.answer_callback_query(call.id, f"❌ Не хватает Пыли (Нужно {price})!", show_alert=True)
+            return
 
     # --- УХОД ЗА ПИТОМЦЕМ ---
     limits = {"feed": ("feed_count", "hunger", 30, 2, "🥬"), "clean": ("clean_count", "clean", 40, 3, "🧽"), "play": ("play_count", "happiness", 30, 2, "🎾")}
@@ -202,7 +213,7 @@ def handle_eco_callback(bot, call):
                 if pet['clean'] >= 50 and pet['happiness'] >= 50:
                     pet['xp'] += 1
                     msg += "\n📈 +1 Опыт!"
-                    if pet['xp'] >= 10 and pet['level'] < 15:
+                    if pet['xp'] >= 10:
                         pet['level'] += 1
                         pet['xp'] = 0
                         msg += f"\n🌌 ЭВОЛЮЦИЯ! Уровень {pet['level']}!"
