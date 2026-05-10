@@ -286,8 +286,8 @@ def handle_text(message, is_profile_call=False):
     # Обновляем активность пилота
     update_last_active(user_id)
 
-    # 🟢 ДИАГНОСТИКА СВЯЗИ С КАНАЛОМ
-    if text.lower() == "марти, статус связи":
+    # 🟢 ДИАГНОСТИКА СВЯЗИ (Улучшенная чувствительность)
+    if "статус связи" in text.lower():
         today = datetime.now().strftime("%Y-%m-%d")
         news = get_today_news(today)
         bot.reply_to(message, 
