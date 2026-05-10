@@ -1,4 +1,4 @@
-from game import menu, scenario1, scenario2, scenario3, scenario4, scenario5 # 🟢 Проверь, что импорт scenario3 тут есть
+from game import menu, scenario1, scenario2, scenario3, scenario4, scenario5
 from database import get_game_status
 
 def route_game(bot, call):
@@ -14,56 +14,69 @@ def route_game(bot, call):
     if data == "game_main_menu":
         report, kb = menu.get_main_games_menu()
         bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return # Добавляем return, чтобы не идти дальше по условиям
     
     elif data == "game_select_diary":
         report, kb = menu.get_diary_chapters_menu()
         bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return
 
-    # --- 2. ПРОВЕРКА ДОСТУПА К ГЛАВАМ (БЛОКИРОВКИ) ---
+    # --- 2. ЗАПУСК ГЛАВ (СТАРТОВЫЕ КНОПКИ) ---
 
-    # Запуск ГЛАВЫ 2
+    # ГЛАВА 2
     elif data == "game2_start":
         ch1_ready = any(mark in current_node for mark in ["chapter1_finished", "chapter1_gold_finished"])
         if ch1_ready or current_node.startswith("ch2_"):
             scenario2.run_scenario(bot, call)
         else:
-            bot.answer_callback_query(call.id, "🛑 ДОСТУП ОГРАНИЧЕН! Сначала завершите Главу 1.", show_alert=True)
+            bot.answer_callback_query(call.id, "🛑 Сначала завершите Главу 1!", show_alert=True)
 
-    # Запуск ГЛАВЫ 3 (🟢 ОБНОВЛЕНО)
+    # ГЛАВА 3
     elif data == "game3_start":
-        # Проверяем метки завершения второй главы
         ch2_ready = any(mark in current_node for mark in ["ch2_done_hero", "ch2_done_escape", "ch2_done_normal"])
-        
-        # Если 2 глава пройдена ИЛИ пилот уже находится внутри 3 главы (для перезаходов)
         if ch2_ready or current_node.startswith("ch3_"):
-            bot.answer_callback_query(call.id, "🚀 Прыжок в гиперпространство...")
-            scenario3.run_scenario(bot, call) # 🟢 АКТИВИРУЕМ ВЫЗОВ
+            scenario3.run_scenario(bot, call)
         else:
-            bot.answer_callback_query(call.id, "🔒 ЗАБЛОКИРОВАНО! Пройдите Главу 2, чтобы открыть Гл. 3.", show_alert=True)
+            bot.answer_callback_query(call.id, "🔒 Пройдите Главу 2, чтобы открыть Гл. 3.", show_alert=True)
 
-    # --- 3. ОБРАБОТКА АЛЕРТОВ И СЦЕНАРИЕВ ---
-    elif data == "game_soon_alert":
-        bot.answer_callback_query(call.id, "🚧 Эта глава еще в разработке. Марти полирует обшивку...", show_alert=True)
-    
-    elif data == "game_locked_alert":
-        bot.answer_callback_query(call.id, "🔒 Требуется ранг Капитана. Продолжайте обучение!", show_alert=True)
+    # ГЛАВА 4 (Добавил проверку)
+    elif data == "game4_start":
+        ch3_ready = any(mark in current_node for mark in ["ch3_done_true", "ch3_done_bad"])
+        if ch3_ready or current_node.startswith("ch4_"):
+            scenario4.run_scenario(bot, call)
+        else:
+            bot.answer_callback_query(call.id, "🔒 Глава 4 заблокирована. Пройдите Гл. 3.", show_alert=True)
 
-    # 🟢 ОБРАБОТКА ВСЕХ КНОПОК пятой ГЛАВЫ
+    # ГЛАВА 5 (Добавил проверку)
+    elif data == "game5_start":
+        ch4_ready = any(mark in current_node for mark in ["ch4_done_hero", "ch4_done_escape", "ch4_done_dark"])
+        if ch4_ready or current_node.startswith("ch5_"):
+            scenario5.run_scenario(bot, call)
+        else:
+            bot.answer_callback_query(call.id, "🔒 Финал закрыт. Пройдите Гл. 4.", show_alert=True)
+
+    # --- 3. ОБРАБОТКА ВСЕХ ВНУТРЕННИХ КНОПОК ГЛАВ ---
+
+    # ГЛАВА 5 (Исправлено: вызываем scenario5)
     elif data.startswith('game5_'):
-        scenario3.run_scenario(bot, call)
+        scenario5.run_scenario(bot, call)
     
-    # 🟢 ОБРАБОТКА ВСЕХ КНОПОК четвертой ГЛАВЫ
+    # ГЛАВА 4 (Исправлено: вызываем scenario4)
     elif data.startswith('game4_'):
-        scenario3.run_scenario(bot, call)
+        scenario4.run_scenario(bot, call)
     
-    # 🟢 ОБРАБОТКА ВСЕХ КНОПОК ТРЕТЬЕЙ ГЛАВЫ
+    # ГЛАВА 3
     elif data.startswith('game3_'):
         scenario3.run_scenario(bot, call)
 
-    # Обработка второй главы
+    # ГЛАВА 2
     elif data.startswith('game2_'):
         scenario2.run_scenario(bot, call)
 
-    # Обработка первой главы
+    # ГЛАВА 1 (Общий префикс 'game_')
     elif data.startswith('game_'):
         scenario1.run_scenario(bot, call)
+
+    # Обработка алертов
+    elif data == "game_soon_alert":
+        bot.answer_callback_query(call.id, "🚧 Эта глава еще в разработке.", show_alert=True)
