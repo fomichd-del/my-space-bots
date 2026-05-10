@@ -256,27 +256,42 @@ import json
 
 def setup_eco_bay():
     conn = get_connection()
-    cursor = conn.cursor()
-    columns = [
-        ("pet_level", "INTEGER DEFAULT 1"),
-        ("pet_hunger", "INTEGER DEFAULT 50"),
-        ("pet_clean", "INTEGER DEFAULT 50"),
-        ("pet_happiness", "INTEGER DEFAULT 50"),
-        ("pet_items", "TEXT DEFAULT ''"),
-        ("pet_xp", "INTEGER DEFAULT 0"),
-        ("pet_date", "TEXT DEFAULT ''"),
-        ("pet_feed_count", "INTEGER DEFAULT 0"),
-        ("pet_clean_count", "INTEGER DEFAULT 0"),
-        ("pet_play_count", "INTEGER DEFAULT 0"),
-        ("pet_count", "INTEGER DEFAULT 1"),      # 🟢 Кол-во улиток (1, 2 или 3)
-        ("pet_status", "TEXT DEFAULT 'alive'"),  # 🟢 Статус: alive или dead
-        ("pet_colors", "TEXT DEFAULT 'blue'")    # 🟢 Цвета (например: "blue, red, purple")
-    ]
-    for col_name, col_type in columns:
-        try: cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};"); conn.commit()
-        except: conn.rollback() 
-    cursor.close()
-    conn.close()
+    if not conn: return
+    try:
+        cursor = conn.cursor()
+        columns = [
+            ("pet_level", "INTEGER DEFAULT 1"),
+            ("pet_hunger", "INTEGER DEFAULT 50"),
+            ("pet_clean", "INTEGER DEFAULT 50"),
+            ("pet_happiness", "INTEGER DEFAULT 50"),
+            ("pet_items", "TEXT DEFAULT ''"),
+            ("pet_xp", "INTEGER DEFAULT 0"),
+            ("pet_date", "TEXT DEFAULT ''"),
+            ("pet_feed_count", "INTEGER DEFAULT 0"),
+            ("pet_clean_count", "INTEGER DEFAULT 0"),
+            ("pet_play_count", "INTEGER DEFAULT 0"),
+            ("pet_count", "INTEGER DEFAULT 1"),
+            ("pet_status", "TEXT DEFAULT 'alive'"),
+            ("pet_colors", "TEXT DEFAULT 'blue'")
+        ]
+        for col_name, col_type in columns:
+            cursor.execute(f'''
+                DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='{col_name}') THEN 
+                        ALTER TABLE users ADD COLUMN {col_name} {col_type};
+                    END IF; 
+                END $$;
+            ''')
+        conn.commit()
+        print("🌿 Таблица Эко-отсека успешно проверена и обновлена!")
+    except Exception as e:
+        print(f"Ошибка инициализации Эко-отсека: {e}")
+        if conn: conn.rollback()
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
 
 def get_pet_data(user_id):
     conn = get_connection()
