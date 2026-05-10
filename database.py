@@ -256,38 +256,39 @@ import json
 
 def setup_eco_bay():
     conn = get_connection()
-    if not conn: return
-    
-    # 🟢 Просто список колонок, которые нам нужны
+    if not conn: 
+        print("❌ Ошибка: Нет подключения к БД при запуске Эко-отсека.")
+        return
+        
     columns = [
-        "ADD COLUMN pet_level INTEGER DEFAULT 1",
-        "ADD COLUMN pet_hunger INTEGER DEFAULT 50",
-        "ADD COLUMN pet_clean INTEGER DEFAULT 50",
-        "ADD COLUMN pet_happiness INTEGER DEFAULT 50",
-        "ADD COLUMN pet_items TEXT DEFAULT ''",
-        "ADD COLUMN pet_xp INTEGER DEFAULT 0",
-        "ADD COLUMN pet_date TEXT DEFAULT ''",
-        "ADD COLUMN pet_feed_count INTEGER DEFAULT 0",
-        "ADD COLUMN pet_clean_count INTEGER DEFAULT 0",
-        "ADD COLUMN pet_play_count INTEGER DEFAULT 0",
-        "ADD COLUMN pet_count INTEGER DEFAULT 1",
-        "ADD COLUMN pet_status TEXT DEFAULT 'alive'",
-        "ADD COLUMN pet_colors TEXT DEFAULT 'blue'"
+        "pet_level INTEGER DEFAULT 1",
+        "pet_hunger INTEGER DEFAULT 50",
+        "pet_clean INTEGER DEFAULT 50",
+        "pet_happiness INTEGER DEFAULT 50",
+        "pet_items TEXT DEFAULT ''",
+        "pet_xp INTEGER DEFAULT 0",
+        "pet_date TEXT DEFAULT ''",
+        "pet_feed_count INTEGER DEFAULT 0",
+        "pet_clean_count INTEGER DEFAULT 0",
+        "pet_play_count INTEGER DEFAULT 0",
+        "pet_count INTEGER DEFAULT 1",
+        "pet_status TEXT DEFAULT 'alive'",
+        "pet_colors TEXT DEFAULT 'blue'"
     ]
     
-    # 🟢 Пытаемся добавить каждую колонку отдельно
-    for col in columns:
-        try:
-            cursor = conn.cursor()
-            cursor.execute(f"ALTER TABLE users {col};")
-            conn.commit()
-            cursor.close()
-        except Exception as e:
-            # Если колонка уже есть, будет ошибка "column exists". Мы просто отменяем эту микро-ошибку и идем дальше.
-            conn.rollback() 
-            
-    print("🌿 Эко-отсек: проверка колонок завершена.")
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        for col in columns:
+            # PostgreSQL сам проверит, есть ли колонка, и не выдаст ошибку, если она уже существует
+            cursor.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col};")
+        conn.commit()
+        print("🌿 Эко-отсек: база данных успешно обновлена (IF NOT EXISTS).")
+    except Exception as e:
+        print(f"❌ КРИТИЧЕСКАЯ ОШИБКА ОБНОВЛЕНИЯ БАЗЫ: {e}")
+        conn.rollback()
+    finally:
+        if 'cursor' in locals(): cursor.close()
+        conn.close()
 
 def get_pet_data(user_id):
     conn = get_connection()
