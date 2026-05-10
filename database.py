@@ -341,6 +341,37 @@ def get_all_users_with_pets():
     return res
 
 # ==========================================
+# 🐕 МОДУЛЬ ЖИЛОГО ОТСЕКА (ПУДЕЛЬ)
+# ==========================================
+
+def get_dog_data(user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""SELECT dog_level, dog_hunger, dog_energy, dog_mood, dog_items, 
+                      dog_xp, dog_date, dog_status FROM users WHERE user_id = %s""", (user_id,))
+    res = cursor.fetchone()
+    conn.close()
+    if res:
+        return {
+            "level": res[0], "hunger": res[1], "energy": res[2], "mood": res[3],
+            "items": res[4].split(",") if res[4] else [],
+            "xp": res[5], "date": res[6], "status": res[7]
+        }
+    return {"level": 1, "hunger": 80, "energy": 80, "mood": 80, "items": [], "xp": 0, "date": "", "status": "alive"}
+
+def update_dog_data(user_id, d):
+    conn = get_connection()
+    cursor = conn.cursor()
+    h, e, m = min(100, max(0, d['hunger'])), min(100, max(0, d['energy'])), min(100, max(0, d['mood']))
+    items_str = ",".join([i for i in d['items'] if i.strip()])
+    cursor.execute("""
+        UPDATE users SET dog_level=%s, dog_hunger=%s, dog_energy=%s, dog_mood=%s, 
+        dog_items=%s, dog_xp=%s, dog_date=%s, dog_status=%s WHERE user_id=%s
+    """, (d['level'], h, e, m, items_str, d['xp'], d['date'], d['status'], user_id))
+    conn.commit()
+    conn.close()
+
+# ==========================================
 # 📰 МОДУЛЬ НОВОСТЕЙ КАНАЛА
 # ==========================================
 
