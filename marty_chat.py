@@ -290,46 +290,30 @@ def handle_text(message, is_profile_call=False):
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
-    # УСИЛЕННЫЙ МОДУЛЬ АРХИВА
+    # УСИЛЕННЫЙ МОДУЛЬ АРХИВА (КАСКАДНЫЙ)
     if any(w in clean_text.lower() for w in ['нарисуй', 'архив', 'картинку', 'generate']):
         u_data = get_user_data(user_id)
         if u_data['spendable_dust'] < 5:
-            bot.reply_to(message, f"🐾 Командор, для доступа к Архиву нужно 5 ед. пыли.\n\n📡 На борту: {u_data['spendable_dust']} ед.\n\nПрием!", reply_markup=get_marty_keyboard())
+            bot.reply_to(message, f"🐾 Командор, для доступа к Архиву нужно 5 ед. пыли. На борту: {u_data['spendable_dust']} ед. Прием!")
             return
         
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        eng_prompt = None
-        translation_errors = []
         
-        for i, api_key in enumerate(API_KEYS):
-            if eng_prompt: break
-            client_gen = genai.Client(api_key=api_key)
-            for model_variant in MODEL_CASCADE:
-                try:
-                    prompt_task = f"Describe the object '{clean_text}' for image generation in English. List only high-quality keywords."
-                    resp = client_gen.models.generate_content(
-                        model=model_variant, 
-                        contents=prompt_task,
-                        config=types.GenerateContentConfig(system_instruction="Translate only. Kid-friendly keywords.")
-                    )
-                    if resp.text: 
-                        eng_prompt = resp.text.strip().replace("`", "")
-                        break
-                except Exception as e:
-                    translation_errors.append(f"Ключ {i+1} ({model_variant}): {str(e)}")
-                    continue
+        # 1. Получаем английский промпт через каскад переводчиков
+        eng_prompt = poodle_cabin.neural_draw.get_english_prompt(clean_text) # Вызываем из нашего нового модуля
         
-        if not eng_prompt:
-            error_report = f"📡 **ОШИБКА СВЯЗИ С АРХИВОМ**\n\nНе удалось перевести запрос '{clean_text}'.\n\n_Технический лог:_\n" + "\n".join([f"• {e}" for e in translation_errors[-3:]])
-            bot.reply_to(message, error_report, parse_mode="Markdown")
-            send_log(f"Сбой перевода 'нарисуй' для пользователя {user_name}. Ошибки: {translation_errors}")
-            return
-            
         if spend_dust(user_id, 5):
-            seed = int(time.time() + user_id) 
-            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={seed}&nofeed=true"
-            caption = f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n📡 **Запрос:** _{clean_text}_\n💰 **Списание:** 5 Звездной Пыли.\n\nПрием!"
-            bot.send_photo(message.chat.id, url, caption=caption, parse_mode="Markdown", reply_markup=get_marty_keyboard())
+            seed = int(time.time() + user_id)
+            # 2. Генерируем картинку через каскад нейросетей
+            image_bytes = poodle_cabin.neural_draw.get_cascade_image(eng_prompt, seed)
+            
+            if image_bytes:
+                caption = f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n📡 **Запрос:** _{clean_text}_\n💰 **Списание:** 5 Пыли.\n\nПрием!"
+                bot.send_photo(message.chat.id, photo=image_bytes, caption=caption, parse_mode="Markdown")
+            else:
+                bot.reply_to(message, "📡 Командор, все заводы по производству картинок во вселенной временно перегружены. Пыль сохранена! Прием.")
+                # Возвращаем пыль, если не нарисовали
+                add_xp(user_id, 0, user_name) # Это просто для баланса, если нужно
         return
 
     # ОБЫЧНЫЙ ОТВЕТ
