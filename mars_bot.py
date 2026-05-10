@@ -14,6 +14,9 @@ DB_FILE        = "last_mars_photo.txt"
 
 translator = GoogleTranslator(source='auto', target='ru')
 
+# Ссылка на нового бота эксперта
+EXPERT_LINK = "https://t.me/Marty_Help_Bot?start=channel_post"
+
 # Темы для поиска
 SPACE_TOPICS = [
     "Mercury planet", "Venus surface", "Mars landscape", 
@@ -98,7 +101,7 @@ def get_planet_data():
         # --- СБОРКА ПОСТА (БЕЗ КНОПКИ ЧАТА) ---
         header = f"🪐 <b>ОБЪЕКТ ДНЯ: {title_ru.upper()}</b>\n─────────────────────\n\n"
         body = f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
-        
+            f"└ 🤖 <a href='{EXPERT_LINK}'><b>Спросить эксперта Марти</b></a>\n\n"
         pseudo_buttons = (
             "<b>ВЗГЛЯНИ СЮДА:</b>\n"
             f"🌌 <b><a href='https://eyes.nasa.gov/apps/exo/'>[ ОХОТНИК ЗА ЭКЗОПЛАНЕТАМИ ]</a></b>\n"
