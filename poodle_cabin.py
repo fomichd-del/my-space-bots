@@ -75,9 +75,14 @@ def send_dog_menu(bot, chat_id, user_id):
 
     try:
         res = requests.get(url, timeout=25)
-        bot.send_photo(chat_id, res.content, caption=text, parse_mode="Markdown", reply_markup=kb)
-    except:
-        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации каюты!_", reply_markup=kb)
+        if res.status_code == 200:
+            # 🟢 Явное указание photo=res.content решает проблему отправки
+            bot.send_photo(chat_id, photo=res.content, caption=text, parse_mode="Markdown", reply_markup=kb)
+        else:
+            raise Exception(f"Сервер генерации вернул ошибку {res.status_code}")
+    except Exception as e:
+        print(f"Ошибка загрузки фото пуделя: {e}")
+        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации каюты! Нейросеть сейчас перегружена._", parse_mode="Markdown", reply_markup=kb)
 
 def handle_dog_callback(bot, call):
     user_id = call.from_user.id
