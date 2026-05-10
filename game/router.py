@@ -1,4 +1,4 @@
-from . game import menu, scenario1, scenario2, scenario3, scenario4, scenario5
+from . import menu, scenario1, scenario2, scenario3, scenario4, scenario5
 from database import get_game_status
 
 def route_game(bot, call):
