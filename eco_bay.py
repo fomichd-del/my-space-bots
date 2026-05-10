@@ -6,11 +6,12 @@ from threading import Thread
 from telebot import types as tele_types
 from database import get_pet_data, update_pet_data, spend_dust, get_user_data, get_all_users_with_pets
 
-# 🛒 КАТАЛОГ МАГАЗИНА
+# 🛒 КАТАЛОГ МАГАЗИНА (НАТУРАЛЬНЫЙ СТИЛЬ)
 SHOP_ITEMS = {
-    "neon_rocks": {"name": "Светящиеся камни", "prompt": "glowing neon cosmic rocks", "price": 10},
-    "alien_castle": {"name": "Замок НЛО", "prompt": "miniature crashed UFO castle", "price": 25},
-    "disco_ball": {"name": "Звездный диско-шар", "prompt": "tiny floating space disco ball", "price": 15}
+    "natural_pebbles": {"name": "Речные камешки", "prompt": "small smooth river pebbles on the bottom", "price": 10},
+    "castle_ruin": {"name": "Руины замка", "prompt": "ancient miniature castle ruin decoration", "price": 25},
+    "dark_driftwood": {"name": "Темная коряга", "prompt": "natural looking piece of dark driftwood", "price": 15},
+    "live_plants": {"name": "Живые растения", "prompt": "vibrant natural freshwater aquatic plants (Java moss, Anubias)", "price": 20}
 }
 
 # 📡 СЛОВАРЬ НАПОМИНАНИЙ
@@ -18,23 +19,51 @@ sent_reminders = {}
 
 def get_dynamic_image_url(pet, user_id):
     if pet['status'] == 'dead':
-        prompt = "empty dirty glass terrarium, broken glass, dried moss, dark gloomy lighting, depressing atmosphere, no life"
+        prompt = "macro photography of an empty dirty glass terrarium, broken glass, dried grey moss, murky water, gloomy dim lighting, depressing realistic look, no life"
         return f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={user_id}&nofeed=true"
 
-    base = f"macro photography of {pet['count']} cute alien space snails, {pet['colors']} shells, high-tech glass terrarium"
+    # 🟢 ОСНОВА ПРОМПТА: РЕАЛИСТИЧНЫЙ АКВАРИУМ
+    base = "macro photography of one beautiful realistic garden snail (Cornu aspersum) in a realistic freshwater aquarium tank, 4k, natural realistic photographic style, cinematic lighting"
     
-    if pet['clean'] < 30: state = "murky green dirty water, messy environment, withered moss"
-    else: state = "clean crystal clear water, glowing neon moss, bubbles"
+    # 1. КОЛИЧЕСТВО УЛИТОК (Растут с уровнем, а не статичны)
+    if pet['level'] < 5:
+        snails_count = "one cute realistic baby snail"
+    elif pet['level'] < 10:
+        snails_count = "two small realistic snails"
+    elif pet['level'] < 15:
+        snails_count = "three realistic adult snails"
+    else:
+        snails_count = "a diverse family of realistic snails (5+ individuals)"
         
-    if pet['level'] < 5: evo = "baby snails"
-    elif pet['level'] < 15: evo = "majestic cosmic snails with nebula patterns"
-    else: evo = "god-like ancient star snails, galactic aura"
+    # 2. ЦВЕТА ПАНЦИРЕЙ (Натуральные, не космические)
+    shells_style = "natural realistic brown and beige shells with intricate dark stripes"
+    
+    # 3. ЭВОЛЮЦИЯ И РОСТ (Стадии жизни обычной улитки)
+    if pet['level'] < 3:
+        evo = "very tiny new born snail, semi-translucent shell, just hatched"
+    elif pet['level'] < 7:
+        evo = "growing adolescent snail, distinctly visible spiral shell, active"
+    elif pet['level'] < 11:
+        evo = "large fully grown adult snail, detailed shell patterns, healthy appearance"
+    elif pet['level'] < 14:
+        evo = "mature old snail, heavy massive shell, slightly duller shell colors, wise look"
+    else:
+        evo = "ancient matriarch snail, colossal size, incredibly complex and detailed shell patterns"
         
+    # 4. СОСТОЯНИЕ (Грязь и радость - не неоновые)
+    if pet['clean'] < 30:
+        state = "murky green dirty water, messy environment, withering aquatic plants, sad gloomy mood"
+    elif pet['happiness'] < 30:
+        state = "snail hiding inside shell, lonely atmosphere, dim natural lighting"
+    else:
+        state = "crystal clear water, healthy vibrant green moss, happy active snail, realistic natural background, floating bubbles"
+        
+    # 5. ДЕКОРАЦИИ ИЗ МАГАЗИНА (Аквариум изначально пустой)
     decor = [SHOP_ITEMS[k]["prompt"] for k in pet['items'] if k in SHOP_ITEMS]
-    decor_prompt = "decorated with " + " and ".join(decor) if decor else "minimalist glass setup"
+    decor_prompt = "decorated with " + " and ".join(decor) if decor else "minimalist minimalist glass setup with only a few river pebbles on the bottom"
         
-    eng_prompt = f"{base}, {evo}, {state}, {decor_prompt}, 4k, cinematic lighting"
-    seed = int(time.time() / 3600) + user_id
+    eng_prompt = f"{base}, {snails_count}, {shells_style}, {evo}, {state}, {decor_prompt}, photorealistic"
+    seed = int(time.time() / 3600) + user_id # Обновляем seed раз в час
     return f"https://image.pollinations.ai/prompt/{urllib.parse.quote(eng_prompt)}?width=1024&height=1024&nologo=true&seed={seed}&nofeed=true"
 
 def check_daily_decay(pet):
@@ -62,15 +91,17 @@ def send_eco_menu(bot, chat_id, user_id):
         kb = tele_types.InlineKeyboardMarkup()
         kb.add(tele_types.InlineKeyboardButton("🧼 Дезинфекция (-50 💰)", callback_data="eco_sanitize"))
     else:
-        # Умножаем стоимость на кол-во улиток
+        # Умножаем стоимость на кол-во улиток (Синдикат)
         f_cost, c_cost, p_cost = 2*pet['count'], 3*pet['count'], 2*pet['count']
+        status = "🟢 Счастлива" if pet['hunger'] > 50 and pet['clean'] > 50 and pet['happiness'] > 50 else "🔴 Требует ухода!"
         text = (
-            f"🌿 **ЭКО-ОТСЕК (Жильцов: {pet['count']})**\n"
-            f"🧬 Уровень: {pet['level']} | Опыт: {pet['xp']}/10\n"
+            f"🌿 **ЭКО-ОТСЕК (Уровень: {pet['level']})**\n\n"
+            f"Опыт: {pet['xp']}/10 | Статус: {status}\n"
+            f"🧬 **Количество улиток в промпте:** (автомат от уровня)\n\n"
             f"🔋 Сытость: {pet['hunger']}% _({pet['feed_count']}/3)_\n"
             f"💧 Чистота: {pet['clean']}% _({pet['clean_count']}/3)_\n"
             f"🎾 Радость: {pet['happiness']}% _({pet['play_count']}/3)_\n\n"
-            f"💰 _Пыль: {u_data['spendable_dust']} ед._"
+            f"💰 _Твой баланс: {u_data['spendable_dust']} пыли._"
         )
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         kb.add(
@@ -84,25 +115,24 @@ def send_eco_menu(bot, chat_id, user_id):
             elif pet['count'] == 2: kb.add(tele_types.InlineKeyboardButton("🥚 Вывести потомство (-500 💰)", callback_data="eco_addpet"))
 
     try:
-        # 🟢 Скачиваем фото на наш сервер с запасом времени
+        # Скачиваем фото на наш сервер с запасом времени
         response = requests.get(url, timeout=25)
         if response.status_code == 200:
-            # 🟢 Отправляем как готовый байт-файл (photo=response.content)
             bot.send_photo(chat_id, photo=response.content, caption=text, parse_mode="Markdown", reply_markup=kb)
         else:
             raise Exception(f"Pollinations вернул статус {response.status_code}")
     except Exception as e:
         print(f"Ошибка загрузки фото террариума: {e}")
-        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации! Нейросеть-художник сейчас перегружена, но параметры террариума сохранены._", parse_mode="Markdown", reply_markup=kb)
+        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации террариума! Попробуйте позже._", parse_mode="Markdown", reply_markup=kb)
 
 def send_shop_menu(bot, chat_id, user_id, message_id):
     pet = get_pet_data(user_id)
-    text = f"🛒 **МАГАЗИН ЭКО-ОТСЕКА**\n\nПокупай декорации! Марти установит их, и они появятся на фото!"
+    text = f"🛒 **МАГАЗИН ЭКО-ОТСЕКА**\n\n💰 Твоя пыль: {get_user_data(user_id)['spendable_dust']}\nПокупай натуральные декорации! Они появятся на фото аквариума!"
     kb = tele_types.InlineKeyboardMarkup(row_width=1)
     for key, data in SHOP_ITEMS.items():
-        if key in pet['items']: kb.add(tele_types.InlineKeyboardButton(f"✅ {data['name']} (Куплено)", callback_data="eco_none"))
+        if key in pet['items']: kb.add(tele_types.InlineKeyboardButton(f"✅ {data['name']} (Установлено)", callback_data="eco_none"))
         else: kb.add(tele_types.InlineKeyboardButton(f"📦 Купить {data['name']} (-{data['price']} 💰)", callback_data=f"eco_buy_{key}"))
-    kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="eco_back"))
+    kb.add(tele_types.InlineKeyboardButton("🔙 Назад к террариуму", callback_data="eco_back"))
     bot.edit_message_caption(caption=text, chat_id=chat_id, message_id=message_id, parse_mode="Markdown", reply_markup=kb)
 
 def handle_eco_callback(bot, call):
@@ -113,7 +143,7 @@ def handle_eco_callback(bot, call):
     # --- НАВИГАЦИЯ ---
     if action == "shop": send_shop_menu(bot, call.message.chat.id, user_id, call.message.message_id); return
     elif action == "back": bot.delete_message(call.message.chat.id, call.message.message_id); send_eco_menu(bot, call.message.chat.id, user_id); return
-    elif action == "none": bot.answer_callback_query(call.id, "Уже установлено!"); return
+    elif action == "none": bot.answer_callback_query(call.id, "Уже установлено в террариум!"); return
 
     # --- ВОЗРОЖДЕНИЕ И РАЗМНОЖЕНИЕ ---
     if action == "sanitize":
@@ -133,16 +163,23 @@ def handle_eco_callback(bot, call):
             bot.answer_callback_query(call.id, "💖 Пополнение в семействе!", show_alert=True)
         else: bot.answer_callback_query(call.id, f"❌ Нужно {cost} Пыли!", show_alert=True)
 
-    # --- МАГАЗИН ---
+    # --- МАГАЗИН (ПОКУПКА) ---
     elif action.startswith("buy_"):
         item_key = action.replace("buy_", "")
+        if item_key not in SHOP_ITEMS:
+            bot.answer_callback_query(call.id, "❌ Ошибка: Предмет не найден!", show_alert=True)
+            return
+            
         price = SHOP_ITEMS[item_key]["price"]
         if item_key in pet['items']: bot.answer_callback_query(call.id, "Уже куплено!", show_alert=True); return
         if spend_dust(user_id, price):
             pet['items'].append(item_key)
             update_pet_data(user_id, pet)
-            bot.answer_callback_query(call.id, f"🎉 Куплено: {SHOP_ITEMS[item_key]['name']}!", show_alert=True)
-        else: bot.answer_callback_query(call.id, f"❌ Нужно {price} Пыли!", show_alert=True)
+            bot.answer_callback_query(call.id, f"🎉 Куплено: {SHOP_ITEMS[item_key]['name']}! Подожди, террариум обновляется...", show_alert=True)
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            send_eco_menu(bot, call.message.chat.id, user_id) 
+        else: bot.answer_callback_query(call.id, f"❌ Не хватает Пыли (Нужно {price})!", show_alert=True)
+        return
 
     # --- УХОД ЗА ПИТОМЦЕМ ---
     limits = {"feed": ("feed_count", "hunger", 30, 2, "🥬"), "clean": ("clean_count", "clean", 40, 3, "🧽"), "play": ("play_count", "happiness", 30, 2, "🎾")}
@@ -160,7 +197,7 @@ def handle_eco_callback(bot, call):
             pet[count_key] += 1
             msg = f"{emoji} Выполнено! +{boost}%"
             
-            # Логика Опыта
+            # Логика Опыта (выдается ТОЛЬКО при кормлении в хороших условиях)
             if action == "feed":
                 if pet['clean'] >= 50 and pet['happiness'] >= 50:
                     pet['xp'] += 1
@@ -178,7 +215,7 @@ def handle_eco_callback(bot, call):
             bot.answer_callback_query(call.id, f"❌ Не хватает Пыли (Нужно {total_cost})!", show_alert=True)
             return
 
-    # Перерисовываем меню
+    # Перерисовываем меню после действия
     bot.delete_message(call.message.chat.id, call.message.message_id)
     send_eco_menu(bot, call.message.chat.id, user_id)
 
@@ -195,7 +232,7 @@ def run_reminder_loop(bot):
                         
                     if pet_date != today or hunger <= 40 or clean <= 40:
                         try:
-                            text = "🐾 **БОРТОВОЕ НАПОМИНАНИЕ**\n\nПрием! В твоем Эко-отсеке падают показатели. Срочно зайди и наведи порядок, иначе улитка погибнет!"
+                            text = "🐾 **БОРТОВОЕ НАПОМИНАНИЕ ОТ МАРТИ**\n\nПрием! В твоем Эко-отсеке падают показатели. Срочно зайди в **🌿 Эко-отсек**, чтобы навести порядок, иначе улитка погибнет!"
                             bot.send_message(user_id, text, parse_mode="Markdown")
                             sent_reminders[user_id] = today
                         except: pass 
