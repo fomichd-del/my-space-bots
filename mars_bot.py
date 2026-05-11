@@ -54,7 +54,11 @@ def get_best_image_url(asset_manifest_url):
     except:
         return None
 
-def get_planet_data():
+def get_planet_data(attempts=0):
+    # Ограничим попытки рекурсии, чтобы бот не завис навсегда
+    if attempts > 10:
+        return None, None, None
+
     source = random.choice(['apod', 'search'])
     sent_ids = []
     if os.path.exists(DB_FILE):
@@ -67,7 +71,7 @@ def get_planet_data():
             url = f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}&date={y}-{m}-{d}"
             data = requests.get(url).json()
             if data.get('media_type') != 'image' or is_earth_content(data.get('title', '')):
-                return get_planet_data()
+                return get_planet_data(attempts + 1)
             img_url = data.get('hdurl') or data.get('url')
             if get_file_size_mb(img_url) > 48: img_url = data.get('url')
             title_en = data.get('title')
@@ -85,27 +89,32 @@ def get_planet_data():
                 if data['nasa_id'] not in sent_ids and not is_earth_content(data['title']):
                     target = item
                     break
-            if not target: return get_planet_data()
+            if not target: return get_planet_data(attempts + 1)
             nasa_id = target['data'][0]['nasa_id']
             title_en = target['data'][0]['title']
             desc_en = target['data'][0].get('description', '')
             img_url = get_best_image_url(target['href'])
 
         if not img_url or nasa_id in sent_ids:
-            return get_planet_data()
+            return get_planet_data(attempts + 1)
 
         title_ru = translator.translate(title_en)
         short_desc_en = '. '.join(desc_en.split('.')[:3]) + '.'
         desc_ru = translator.translate(short_desc_en)
 
-        # --- СБОРКА ПОСТА (БЕЗ КНОПКИ ЧАТА) ---
+        # --- СБОРКА ПОСТА ---
         header = f"🪐 <b>ОБЪЕКТ ДНЯ: {title_ru.upper()}</b>\n─────────────────────\n\n"
-        body = f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
+        
+        # Здесь была ошибка (добавлена переменная и правильное объединение строк)
+        body = (
+            f"📖 <b>Интересный факт:</b>\n{desc_ru}\n\n"
             f"└ 🤖 <a href='{EXPERT_LINK}'><b>«Пилоты! У нас есть свой бортовой ИИ — Марти! 🐾 Заходите к нему в чат, чтобы растить своего кибер-питомца, генерировать картинки и получать вечернюю секретную сводку новостей прямо в личку</b></a>\n\n"
+        )
+        
         pseudo_buttons = (
             "<b>ВЗГЛЯНИ СЮДА:</b>\n"
-            f"🌌 <b><a href='https://eyes.nasa.gov/apps/exo/'>[ ОХОТНИК ЗА ЭКЗОПЛАНЕТАМИ ]</a></b>\n"
-            f"🚜 <b><a href='https://eyes.nasa.gov/apps/mars2020/'>[ ГДЕ СЕЙЧАС РОВЕР? ]</a></b>\n"
+            "🌌 <b><a href='https://eyes.nasa.gov/apps/exo/'>[ ОХОТНИК ЗА ЭКЗОПЛАНЕТАМИ ]</a></b>\n"
+            "🚜 <b><a href='https://eyes.nasa.gov/apps/mars2020/'>[ ГДЕ СЕЙЧАС РОВЕР? ]</a></b>\n"
             "─────────────────────\n"
         )
         
@@ -114,12 +123,15 @@ def get_planet_data():
         caption = header + body + pseudo_buttons + footer
         return img_url, caption, nasa_id
         
-    except:
+    except Exception as e:
+        print(f"❌ Ошибка в получении данных: {e}")
         return None, None, None
 
 def send_to_telegram():
     img_url, caption, nasa_id = get_planet_data()
-    if not img_url: return
+    if not img_url: 
+        print("📭 Не удалось найти подходящий контент.")
+        return
 
     payload = {
         'chat_id': CHANNEL_NAME,
@@ -128,12 +140,13 @@ def send_to_telegram():
         'parse_mode': 'HTML'
     }
     
-    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", json=payload)
+    # Используем data=payload для передачи простых полей
+    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
     
     if r.status_code == 200:
         with open(DB_FILE, 'a', encoding='utf-8') as f:
             f.write(f"{nasa_id}\n")
-        print(f"✅ Пост {nasa_id} отправлен. Лишние кнопки удалены.")
+        print(f"✅ Пост {nasa_id} отправлен!")
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
