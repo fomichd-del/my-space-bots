@@ -7,13 +7,20 @@ def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Пилот"
     current_node, timer_end = get_game_status(user_id)
+    if current_node is None:
+        current_node = ""
     
+    # --- [ АНТИ-ФАРМ СИСТЕМА ] ---
+    # Вытаскиваем "несгораемые" метки, чтобы они не стирались при смене локаций
+    saved_flags = ""
+    for flag in ["_ch3_claimed", "_item_stars", "_item_cup", "_item_wires"]:
+        if flag in current_node:
+            saved_flags += flag
+            
     # 0. ПРОВЕРКА ЗАВЕРШЕНИЯ ГЛАВЫ
-    # Проверяем, закончил ли игрок главу когда-либо
     is_finished = any(mark in current_node for mark in ["ch3_done_true", "ch3_done_bad"])
 
     # 1. ГЛОБАЛЬНАЯ ПРОВЕРКА ТАЙМЕРА
-    # Блокируем, если таймер активен и глава еще не пройдена
     if timer_end and datetime.now() < timer_end and not is_finished:
         remaining = timer_end - datetime.now()
         mins = int(remaining.total_seconds() // 60)
@@ -28,7 +35,6 @@ def run_scenario(bot, call):
                     f"Марти готов продолжать. Прием!")
             kb = tele_types.InlineKeyboardMarkup(row_width=1)
             
-            # ПРИОРИТЕТНАЯ ПРОВЕРКА (от конца к началу)
             if "climax" in current_node:
                 kb.add(tele_types.InlineKeyboardButton("🤝 К Кристаллу", callback_data="game3_node_gate_open"))
             elif "gate" in current_node:
@@ -59,13 +65,10 @@ def run_scenario(bot, call):
             kb.add(tele_types.InlineKeyboardButton("🏃 К ангару", callback_data="game3_node_prejump"))
         
         bot.edit_message_text(t, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch3_start")
+        update_game_progress(user_id, "ch3_start" + saved_flags)
 
     elif call.data == "game3_reset":
-        # При сбросе сохраняем метку, если Пыль уже была получена
-        new_start = "ch2_done_hero"
-        if "ch3_claimed" in current_node:
-            new_start += "_ch3_claimed"
+        new_start = "ch2_done_hero" + saved_flags # Награды теперь не сгорают при сбросе
         update_game_progress(user_id, new_start)
         bot.answer_callback_query(call.id, "Журнал обнулен. Награды защищены.")
         run_scenario(bot, type('obj', (object,), {'from_user': call.from_user, 'data': 'game3_start', 'message': call.message}))
@@ -83,13 +86,13 @@ def run_scenario(bot, call):
         bot.edit_message_text("🚀 Прыжок (20 мин)... Марти калибрует щиты.", 
                                call.message.chat.id, call.message.message_id, 
                                reply_markup=tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔄 Проверить", callback_data="game3_check_jump")))
-        update_game_progress(user_id, "ch3_jump_wait")
+        update_game_progress(user_id, "ch3_jump_wait" + saved_flags)
 
     elif call.data == "game3_check_jump":
         bot.edit_message_text("✨ Станция 'Стикс-9' на экранах. Свечение манит.", 
                                call.message.chat.id, call.message.message_id, 
                                reply_markup=tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🚢 Стыковка", callback_data="game3_node_arrival")))
-        update_game_progress(user_id, "ch3_arrival")
+        update_game_progress(user_id, "ch3_arrival" + saved_flags)
 
     # ЭТАПЫ 4-6: ОБЫСК (ПРЕДМЕТЫ)
     elif call.data == "game3_node_arrival":
@@ -99,40 +102,44 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🚧 К терминалу", callback_data="game3_node_horrorevent")
         )
         bot.edit_message_text("🏚 Станция пуста. Марти: 'Смотрите в оба!'", call.message.chat.id, call.message.message_id, reply_markup=kb)
-        update_game_progress(user_id, "ch3_hub_search")
+        update_game_progress(user_id, "ch3_hub_search" + saved_flags)
 
     elif call.data == "game3_search_locker":
         if "item_stars" not in current_node:
-            add_xp(user_id, 1, username); update_game_progress(user_id, current_node + "_item_stars")
+            add_xp(user_id, 1, username)
+            update_game_progress(user_id, current_node + "_item_stars")
             msg = "✅ Карта Звезд в инвентаре (+1 Пыль).\n\n"
-        else: msg = "Тут уже пусто.\n\n"
+        else: 
+            msg = "Тут уже пусто.\n\n"
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="game3_node_arrival"))
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=kb)
 
     elif call.data == "game3_search_canteen":
         if "item_cup" not in current_node:
-            add_xp(user_id, 1, username); update_game_progress(user_id, current_node + "_item_cup")
+            add_xp(user_id, 1, username)
+            update_game_progress(user_id, current_node + "_item_cup")
             msg = "✅ Найдена кружка с кодом 8811 (+1 Пыль).\n\n"
-        else: msg = "Кофе-машина молчит.\n\n"
+        else: 
+            msg = "Кофе-машина молчит.\n\n"
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="game3_node_arrival"))
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=kb)
 
     # ЭТАП 8: СКАНЕР
     elif call.data == "game3_node_scan_start":
-        if "ch3_scan_done" in current_node: # Защита от повторного таймера
+        if "ch3_scan_done" in current_node:
             run_scenario(bot, type('obj', (object,), {'from_user': call.from_user, 'data': 'game3_check_scan', 'message': call.message}))
             return
         set_game_timer(user_id, 30)
         bot.edit_message_text("🖥 Сканирование (30 мин)... Марти блокирует двери.", 
                                call.message.chat.id, call.message.message_id, 
                                reply_markup=tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔄 Результаты", callback_data="game3_check_scan")))
-        update_game_progress(user_id, "ch3_scan_wait")
+        update_game_progress(user_id, "ch3_scan_wait" + saved_flags)
 
     elif call.data == "game3_check_scan":
         bot.edit_message_text("✅ Скан готов. Цель — в шахтах астероида.", 
                                call.message.chat.id, call.message.message_id, 
                                reply_markup=tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🕵️ В шахты", callback_data="game3_node_mines")))
-        update_game_progress(user_id, "ch3_scan_done")
+        update_game_progress(user_id, "ch3_scan_done" + saved_flags)
 
     # ЭТАПЫ 9-11: ШАХТЫ
     elif call.data == "game3_node_mines":
@@ -141,13 +148,15 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🚪 К Двери", callback_data="game3_node_final_gate")
         )
         bot.edit_message_text("⛏ Шахты 'Стикса'. Мох светится во тьме.", call.message.chat.id, call.message.message_id, reply_markup=kb)
-        update_game_progress(user_id, "ch3_mines")
+        update_game_progress(user_id, "ch3_mines" + saved_flags)
 
     elif call.data == "game3_item_wires":
         if "item_wires" not in current_node:
-            add_xp(user_id, 1, username); update_game_progress(user_id, current_node + "_item_wires")
+            add_xp(user_id, 1, username)
+            update_game_progress(user_id, current_node + "_item_wires")
             msg = "✅ Провода найдены (+1 Пыль).\n\n"
-        else: msg = "Тут только камни.\n\n"
+        else: 
+            msg = "Тут только камни.\n\n"
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="game3_node_mines"))
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=kb)
 
@@ -158,9 +167,9 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🔢 Ввести 0000", callback_data="game3_node_fail_puzzle")
         )
         bot.edit_message_text("🗿 Дверь Колыбели заперта. Нужен код с кружки.", call.message.chat.id, call.message.message_id, reply_markup=kb)
-        update_game_progress(user_id, "ch3_gate")
+        update_game_progress(user_id, "ch3_gate" + saved_flags)
 
-    # ЭТАПЫ 15-18: ФИНАЛ (С УМНОЙ НАГРАДОЙ)
+    # ЭТАПЫ 15-18: ФИНАЛ
     elif call.data == "game3_node_gate_open":
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("🤝 Поверить себе", callback_data="game3_end_twist_good"),
@@ -168,28 +177,28 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🐕 Слушать Марти", callback_data="game3_end_marty_logic")
         )
         bot.edit_message_text("🔓 Дверь открыта. Вы и ваш Двойник. Время замерло.", call.message.chat.id, call.message.message_id, reply_markup=kb)
-        update_game_progress(user_id, "ch3_climax")
+        update_game_progress(user_id, "ch3_climax" + saved_flags)
 
     elif call.data == "game3_end_twist_bad":
         if "ch3_claimed" not in current_node:
             add_xp(user_id, 70, username)
-            update_game_progress(user_id, "ch3_done_true_ch3_claimed")
+            update_game_progress(user_id, "ch3_done_true" + saved_flags + "_ch3_claimed")
             res = "💰 Награда: +70 Пыли."
         else:
             add_xp(user_id, 5, username)
+            update_game_progress(user_id, "ch3_done_true" + saved_flags)
             res = "✨ Награда за повтор: +5 Пыли."
-            update_game_progress(user_id, "ch3_done_true")
         bot.edit_message_text(f"🏆 **ФИНАЛ: СВОБОДА**\n\nВы разбили кристалл. Петля разорвана. {res}", call.message.chat.id, call.message.message_id)
 
     elif call.data == "game3_end_twist_good":
         if "ch3_claimed" not in current_node:
             add_xp(user_id, 30, username)
-            update_game_progress(user_id, "ch3_done_bad_ch3_claimed")
+            update_game_progress(user_id, "ch3_done_bad" + saved_flags + "_ch3_claimed")
             res = "💰 Награда: +30 Пыли."
         else:
             add_xp(user_id, 5, username)
+            update_game_progress(user_id, "ch3_done_bad" + saved_flags)
             res = "✨ Награда за повтор: +5 Пыли."
-            update_game_progress(user_id, "ch3_done_bad")
         bot.edit_message_text(f"🤝 **ФИНАЛ: МАРИОНЕТКА**\n\nВы стали частью системы. {res}", call.message.chat.id, call.message.message_id)
 
     # Прочие переходы
