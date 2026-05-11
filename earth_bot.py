@@ -143,6 +143,22 @@ def post_to_telegram():
             if r.status_code == 200:
                 save_sent_id(img_id)
                 print(f"✅ Успешно опубликовано: {img_id}")
+
+                # 🟢 ШАГ 2: ПЕРЕДАЧА СИГНАЛА В МОЗГ МАРТИ
+                try:
+                    # URL твоего Марти на Render
+                    marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+                    
+                    # Формируем краткую новость для дайджеста
+                    # Используем переменную mode, чтобы Марти знал, какой это вид
+                    source_desc = "Глобальный вид (DSCOVR)" if mode == "EPIC" else "Орбитальный репортаж (МКС)"
+                    news_for_marty = f"🌍 Новый снимок Земли: {source_desc}\nID объекта: {img_id}"
+                    
+                    requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+                    print("📡 Сигнал о снимке Земли передан Марти!")
+                except Exception as e:
+                    print(f"⚠️ Не удалось связаться с Марти: {e}")
+
             else:
                 print(f"❌ Ошибка Telegram: {r.text}")
         except Exception as e:
