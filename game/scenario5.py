@@ -7,7 +7,15 @@ def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Пилот"
     current_node, timer_end = get_game_status(user_id)
-    
+    if current_node is None:
+        current_node = ""
+        
+    # --- [ АНТИ-ФАРМ СИСТЕМА ] ---
+    saved_flags = ""
+    for flag in ["_ch5_claimed", "_item_tools", "_item_diary_5"]:
+        if flag in current_node:
+            saved_flags += flag
+
     # 0. ПРОВЕРКА ЗАВЕРШЕНИЯ ГЛАВЫ
     is_finished = any(mark in current_node for mark in ["ch5_done_ascend", "ch5_done_return", "ch5_done_sacrifice"])
 
@@ -59,10 +67,10 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🌿 В Сектор Колыбели (Детектив)", callback_data="game5_node_archives")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch5_start")
+        update_game_progress(user_id, "ch5_start" + saved_flags)
 
     elif call.data == "game5_reset":
-        new_status = "ch4_done_hero" if "ch5_claimed" not in current_node else "ch4_done_hero_ch5_claimed"
+        new_status = "ch4_done_hero" + saved_flags
         update_game_progress(user_id, new_status)
         bot.answer_callback_query(call.id, "Журнал финала обнулен.")
         run_scenario(bot, type('obj', (object,), {'from_user': call.from_user, 'data': 'game5_start', 'message': call.message}))
@@ -82,11 +90,12 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🌉 Идти на мостик", callback_data="game5_node_bridge")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch5_archive_search")
+        update_game_progress(user_id, "ch5_archive_search" + saved_flags)
 
     elif call.data == "game5_item_tools":
         if "item_tools" not in current_node:
-            add_xp(user_id, 2, username); update_game_progress(user_id, current_node + "_item_tools")
+            add_xp(user_id, 2, username)
+            update_game_progress(user_id, current_node + "_item_tools")
             msg = "✅ **СЕКРЕТ:** Найдены антикварные щипцы и зеркало (+2 Пыли).\n\n"
         else: msg = "📦 Инструменты уже у вас в сумке.\n\n"
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="game5_node_archives"))
@@ -94,7 +103,8 @@ def run_scenario(bot, call):
 
     elif call.data == "game5_item_diary":
         if "item_diary_5" not in current_node:
-            add_xp(user_id, 1, username); update_game_progress(user_id, current_node + "_item_diary_5")
+            add_xp(user_id, 1, username)
+            update_game_progress(user_id, current_node + "_item_diary_5")
             msg = "✅ **ПРЕДМЕТ:** Дневник исследователя 1985 (+1 Пыль).\n\n"
         else: msg = "📦 Дневник уже просканирован.\n\n"
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="game5_node_archives"))
@@ -110,7 +120,7 @@ def run_scenario(bot, call):
                 "понять истинные цели Адмирала'.")
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔄 Завершить синхронизацию", callback_data="game5_check_sync"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch5_memory_sync_wait")
+        update_game_progress(user_id, "ch5_memory_sync_wait" + saved_flags)
 
     elif call.data == "game5_check_sync":
         text = ("✅ **СИНХРОНИЗАЦИЯ 100%**\n\n"
@@ -122,7 +132,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🔫 Выстрелить в консоль", callback_data="game5_end_sacrifice")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch5_sync_done")
+        update_game_progress(user_id, "ch5_sync_done" + saved_flags)
 
     # --- ЭТАП 10-15: ФИНАЛЬНЫЙ ВЗЛОМ (Таймер 2) ---
     elif call.data == "game5_node_hack_start":
@@ -138,7 +148,7 @@ def run_scenario(bot, call):
                 "Из вентиляции начинают выходить охранные дроны...")
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔄 Удержать позицию", callback_data="game5_check_hack"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch5_final_hack_wait")
+        update_game_progress(user_id, "ch5_final_hack_wait" + saved_flags)
 
     elif call.data == "game5_check_hack":
         text = ("🔥 **ПОБЕДА В КИБЕРПРОСТРАНСТВЕ**\n\n"
@@ -151,16 +161,17 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("💥 Уничтожить Объект (Жертва)", callback_data="game5_end_sacrifice")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch5_final_hack_done")
+        update_game_progress(user_id, "ch5_final_hack_done" + saved_flags)
 
     # --- ФИНАЛЫ С ЗАЩИТОЙ ---
     elif call.data == "game5_end_ascend":
         if "ch5_claimed" not in current_node:
             add_xp(user_id, 200, username)
-            update_game_progress(user_id, "ch5_done_ascend_ch5_claimed")
+            update_game_progress(user_id, "ch5_done_ascend" + saved_flags + "_ch5_claimed")
             res = "💰 **ГРАН-ПРИ:** 200 Пыли (Финал: Бессмертие)."
         else:
             add_xp(user_id, 20, username)
+            update_game_progress(user_id, "ch5_done_ascend" + saved_flags)
             res = "✨ **НАГРАДА ЗА ПОВТОР:** 20 Пыли."
         
         bot.edit_message_text(f"🌟 **ФИНАЛ: НОВАЯ ЭВОЛЮЦИЯ**\n\nВы слились с Объектом Зеро. Теперь вы — голос звезд. Академии больше нет, но человечество никогда не будет прежним.\n\n{res}", call.message.chat.id, call.message.message_id)
@@ -168,10 +179,11 @@ def run_scenario(bot, call):
     elif call.data == "game5_end_return":
         if "ch5_claimed" not in current_node:
             add_xp(user_id, 100, username)
-            update_game_progress(user_id, "ch5_done_return_ch5_claimed")
+            update_game_progress(user_id, "ch5_done_return" + saved_flags + "_ch5_claimed")
             res = "💰 **НАГРАДА:** 100 Пыли (Финал: Дом)."
         else:
             add_xp(user_id, 20, username)
+            update_game_progress(user_id, "ch5_done_return" + saved_flags)
             res = "✨ **НАГРАДА ЗА ПОВТОР:** 20 Пыли."
             
         bot.edit_message_text(f"🏡 **ФИНАЛ: ДОРОГА ДОМОЙ**\n\nВы заблокировали Ядро и улетели на Землю. Вы стали обычным стоматологом, как и хотели. Но иногда, глядя на звезды, вы слышите тихий лай Марти.\n\n{res}", call.message.chat.id, call.message.message_id)
@@ -179,10 +191,11 @@ def run_scenario(bot, call):
     elif call.data == "game5_end_sacrifice":
         if "ch5_claimed" not in current_node:
             add_xp(user_id, 50, username)
-            update_game_progress(user_id, "ch5_done_sacrifice_ch5_claimed")
+            update_game_progress(user_id, "ch5_done_sacrifice" + saved_flags + "_ch5_claimed")
             res = "💰 **НАГРАДА:** 50 Пыли (Финал: Чистый лист)."
         else:
             add_xp(user_id, 20, username)
+            update_game_progress(user_id, "ch5_done_sacrifice" + saved_flags)
             res = "✨ **НАГРАДА ЗА ПОВТОР:** 20 Пыли."
             
         bot.edit_message_text(f"💥 **ФИНАЛ: ПОСЛЕДНЯЯ ВСПЫШКА**\n\nВы взорвали Объект Зеро вместе с собой. Угроза устранена. Ваше имя станет легендой, которую будут шепотом рассказывать кадеты.\n\n{res}", call.message.chat.id, call.message.message_id)
