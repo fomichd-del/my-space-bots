@@ -127,6 +127,20 @@ def run_radar():
             if r.status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{l_id}\n")
                 print(f"✅ ПОСТ ОТПРАВЛЕН: {l['name']}")
+
+                # 🟢 ШАГ 2: ПЕРЕДАЧА СИГНАЛА В МОЗГ МАРТИ
+                try:
+                    # URL твоего Марти на Render
+                    marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+                    
+                    # Краткая сводка для вечернего дайджеста
+                    # Рассказываем Марти, какой именно запуск мы поймали в эфире
+                    news_for_marty = f"📡 Радар: Обнаружена прямая трансляция запуска {l['rocket']['configuration']['name']} (Миссия: {l['name']})"
+                    
+                    requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+                    print("📡 Сигнал радара передан Марти!")
+                except Exception as e:
+                    print(f"⚠️ Не удалось связаться с Марти: {e}")
             else:
                 print(f"❌ Ошибка Telegram: {r.text}")
 
