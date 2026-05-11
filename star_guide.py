@@ -61,7 +61,7 @@ def post_star_guide():
     base_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
     
     try:
-        # Отправка фото
+        # 1. Отправка фото
         photo_payload = {
             'chat_id': CHANNEL_NAME, 
             'photo': photo_url, 
@@ -72,7 +72,8 @@ def post_star_guide():
         
         if r_photo.status_code == 200:
             print(f"✅ Фото отправлено успешно.")
-            # Отправка подробного текста
+            
+            # 2. Отправка подробного текста
             text_payload = {
                 'chat_id': CHANNEL_NAME, 
                 'text': main_text, 
@@ -81,7 +82,24 @@ def post_star_guide():
             }
             requests.post(f"{base_url}/sendMessage", json=text_payload, timeout=25)
             print(f"✅ Текст квеста опубликован.")
-        else:
+
+            # 🟢 ШАГ 2: ПЕРЕДАЧА СИГНАЛА В МОЗГ МАРТИ
+            try:
+                # URL твоего Марти на Render
+                marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+                
+                # Формируем краткую запись для дайджеста
+                news_for_marty = (
+                    f"🔭 Звездная охота: Сегодня ищем созвездие {item['name_ru']}!\n"
+                    f"✨ Факт: {item['fact'][:100]}..."
+                )
+                
+                requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+                print("📡 Сигнал о звездной охоте передан Марти!")
+            except Exception as e:
+                print(f"⚠️ Не удалось связаться с Марти: {e}")
+                
+        else: # ⬅️ Оставили только один правильный else
             print(f"❌ Ошибка фото: {r_photo.text}")
             # Резервная отправка только текста, если фото подвело
             requests.post(f"{base_url}/sendMessage", json={'chat_id': CHANNEL_NAME, 'text': main_text, 'parse_mode': 'HTML'})
