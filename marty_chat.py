@@ -293,62 +293,64 @@ def handle_text(message, is_profile_call=False):
         return
 
     # Обновляем активность пилота
-    update_last_active(user_id)
+    try:
+        update_last_active(user_id)
+    except Exception as e:
+        print(f"⚠️ Сбой обновления активности: {e}")
 
-    # 🟢 ДИАГНОСТИКА СВЯЗИ (Улучшенная чувствительность)
+    # 🟢 ДИАГНОСТИКА СВЯЗИ С КАНАЛОМ (С защитой)
     if "статус связи" in text.lower():
-        today = datetime.now().strftime("%Y-%m-%d")
-        news = get_today_news(today)
-        bot.reply_to(message, 
-            f"📊 **ОТЧЕТ ПО КАНАЛУ:**\n"
-            f"📡 ID канала: `{CHANNEL_ID}`\n"
-            f"📅 Сегодня: `{today}`\n"
-            f"📰 Новостей в базе: `{len(news)}`"
-        , parse_mode="Markdown")
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            news = get_today_news(today)
+            bot.reply_to(message, 
+                f"📊 **ОТЧЕТ ПО КАНАЛУ:**\n"
+                f"📡 ID канала: `{CHANNEL_ID}`\n"
+                f"📅 Сегодня: `{today}`\n"
+                f"📰 Новостей в базе: `{len(news)}`"
+            , parse_mode="Markdown")
+        except Exception as e:
+            bot.reply_to(message, f"🚨 Командор, критический сбой сканера базы: {e}")
         return
 
-    # 🟢 ЭКСТРЕННЫЙ ЗАПУСК ДАЙДЖЕСТА (ВСТАВЛЯТЬ СЮДА!)
+    # 🟢 ЭКСТРЕННЫЙ ЗАПУСК ДАЙДЖЕСТА (С защитой)
     if "отправить дайджест" in text.lower():
-        today = datetime.now().strftime("%Y-%m-%d")
-        news_list = get_today_news(today)
-        
-        if not news_list:
-            bot.reply_to(message, "❌ Командор, в базе за сегодня пусто! Марти не из чего делать дайджест.")
-            return
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            news_list = get_today_news(today)
             
-        bot.reply_to(message, "🚀 Запускаю нейросети! Формирую дайджест...")
-        
-        # Собираем текст
-        combined_news = "\n---\n".join(news_list)
-        prompt = f"Ты Марти, ученый пес. Напиши короткий вдохновляющий дайджест новостей дня. Новости:\n{combined_news}"
-        digest_text = ""
-        
-        # Пробуем через Groq
-        if GROQ_API_KEY:
-            try:
+            if not news_list:
+                bot.reply_to(message, "❌ Командор, в базе за сегодня пусто! Марти не из чего делать дайджест.")
+                return
+                
+            bot.reply_to(message, "🚀 Запускаю нейросети! Формирую дайджест...")
+            
+            combined_news = "\n---\n".join(news_list)
+            prompt = f"Ты Марти, ученый пес. Напиши короткий вдохновляющий дайджест новостей дня. Новости:\n{combined_news}"
+            digest_text = ""
+            
+            if GROQ_API_KEY:
                 headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
                 data = {"model": "llama3-70b-8192", "messages": [{"role": "system", "content": prompt}]}
                 groq_resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=15)
                 if groq_resp.status_code == 200:
                     digest_text = groq_resp.json()["choices"][0]["message"]["content"]
-            except Exception as e:
-                send_log(f"Сбой Groq при ручном дайджесте: {e}")
-                
-        if not digest_text: digest_text = "Командор, день прошел продуктивно! Прием!"
-        
-        # Рассылаем
-        kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        kb.add(tele_types.InlineKeyboardButton("📡 Читать новости", url="https://t.me/vladislav_space"))
-        full_message = f"✨ **ЭКСТРЕННЫЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{digest_text}\n\n🚀 _Прием!_"
-        
-        users = get_all_user_ids()
-        for uid in users:
-            try:
-                bot.send_message(uid, full_message, parse_mode="Markdown", reply_markup=kb)
-                time.sleep(0.05)
-            except: pass
+                    
+            if not digest_text: digest_text = "Командор, день прошел продуктивно! Прием!"
+            
+            kb = tele_types.InlineKeyboardMarkup(row_width=1)
+            kb.add(tele_types.InlineKeyboardButton("📡 Читать новости", url="https://t.me/vladislav_space"))
+            full_message = f"✨ **ЭКСТРЕННЫЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{digest_text}\n\n🚀 _Прием!_"
+            
+            users = get_all_user_ids()
+            for uid in users:
+                try:
+                    bot.send_message(uid, full_message, parse_mode="Markdown", reply_markup=kb)
+                    time.sleep(0.05)
+                except: pass
+        except Exception as e:
+            bot.reply_to(message, f"🚨 Сбой генерации дайджеста: {e}")
         return
-    # ==========================================
   
     if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
     
