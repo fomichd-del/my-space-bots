@@ -179,6 +179,23 @@ def send_to_telegram(target_type):
         with open(db_file, mode, encoding='utf-8') as f:
             f.write(f"{data['id']}\n")
         print(f"✅ Успешно отправлено из источника: {data['source']}")
+
+        # 🟢 ШАГ 2: ПЕРЕДАЧА СИГНАЛА В МОЗГ МАРТИ
+        try:
+            # Твой URL на Render
+            marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+            
+            # Определяем иконку в зависимости от типа контента
+            icon = "🎬" if target_type == 'video' else "🌌"
+            
+            # Формируем краткую сводку для дайджеста
+            news_for_marty = f"{icon} Космический архив: {ru_title}\n🔭 Источник: {data['source']}"
+            
+            requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+            print("📡 Сигнал архива передан Марти!")
+        except Exception as e:
+            print(f"⚠️ Не удалось связаться с Марти: {e}")
+
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
