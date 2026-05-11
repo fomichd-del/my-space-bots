@@ -33,9 +33,24 @@ def run_scenario(bot, call):
             return
 
         if current_node and current_node.startswith("ch4_") and current_node != "ch4_start":
+            
+            # --- [ АТМОСФЕРНЫЙ ЛОКАТОР ГЛАВЫ 4 ] ---
+            if "core_diag" in current_node:
+                location_text = "Сердце Объекта Зеро. Гигантский био-сервер пульсирует во тьме."
+            elif "puzzle" in current_node:
+                location_text = "Коридоры у нейро-замка. Голоса в голове становятся громче."
+            elif "lab_search" in current_node or "item_" in current_node:
+                location_text = "Заброшенная Био-лаборатория. Старые капсулы и загадки 1985 года."
+            elif "dock" in current_node:
+                location_text = "Внутренний шлюз астероида. Пахнет древностью и светящимся мхом."
+            else:
+                location_text = "Глубины Объекта Зеро. Сканирование био-сигнатур..."
+
             text = (f"🛰 **БОРТОВОЙ ЖУРНАЛ: ГЛАВА 4**\n\n"
-                    f"Пилот {username}, системы зафиксировали статус: `{current_node}`.\n"
-                    f"Марти: 'Хозяин, я нашел лазейку в коде Объекта Зеро. Продолжим?'")
+                    f"Пилот {username}, системы жизнеобеспечения восстановлены.\n"
+                    f"📍 **Сектор:** *{location_text}*\n\n"
+                    f"Марти навострил уши: 'Хозяин, я нашел лазейку в коде. Продолжим?'")
+            
             kb = tele_types.InlineKeyboardMarkup(row_width=1)
             
             # Строгая проверка статусов
