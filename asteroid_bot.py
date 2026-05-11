@@ -133,8 +133,29 @@ def send():
     text, keyb, photo, ast_id = get_asteroid_data()
     if text:
         payload = {'chat_id': CHANNEL_NAME, 'photo': photo, 'caption': text, 'parse_mode': 'HTML', 'reply_markup': json.dumps(keyb)}
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
-        with open(DB_FILE, 'a', encoding='utf-8') as f: f.write(f"{ast_id}\n")
+        
+        # 🟢 Отправляем пост в канал
+        resp = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPhoto", data=payload)
+        
+        if resp.status_code == 200:
+            with open(DB_FILE, 'a', encoding='utf-8') as f: 
+                f.write(f"{ast_id}\n")
+            print(f"✅ Досье астероида {ast_id} опубликовано.")
+
+            # 🟢 ШАГ 2: ПЕРЕДАЧА СИГНАЛА В МОЗГ МАРТИ
+            try:
+                # Твой URL на Render (проверь, чтобы совпадал)
+                marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+                
+                # Формируем краткую выжимку для вечернего дайджеста
+                # Очищаем текст от HTML-тегов, чтобы Марти было проще
+                clean_summary = text.split('─────────────────────')[0].replace('<b>', '').replace('</b>', '').strip()
+                news_for_marty = f"☄️ Засечен астероид!\n{clean_summary}"
+                
+                requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+                print("📡 Данные об астероиде переданы Марти!")
+            except Exception as e:
+                print(f"⚠️ Не удалось связаться с Марти: {e}")
 
 if __name__ == '__main__':
     send()
