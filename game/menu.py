@@ -5,14 +5,18 @@ def get_main_games_menu():
     report = (
         "🌌 **ИГРОВОЙ ОТСЕК АКАДЕМИИ ОРИОН** 🌌\n"
         "──────────────────────────\n"
-        "Здесь стирается грань между реальностью и тренировкой. Каждая симуляция — это проверка твоего интеллекта, "
-        "смелости и умения принимать решения в критических ситуациях.\n\n"
-        "📡 **СИСТЕМЫ ГОТОВЫ:** Выбери активную миссию из списка ниже и начни свое погружение. Прием!"
+        "Выберите активную симуляцию из списка ниже. Каждое решение влияет на ваш ранг и запас Звездной Пыли.\n\n"
+        "📡 **ДОСТУПНЫЕ МИССИИ:**"
     )
     kb = tele_types.InlineKeyboardMarkup(row_width=1)
     kb.add(
+        # Кнопка старой игры
         tele_types.InlineKeyboardButton("🚀 Дневник юного космонавта", callback_data="game_select_diary"),
-        tele_types.InlineKeyboardButton("🔒 [ДОСТУП ЗАКРЫТ: РАНГ КАПИТАН]", callback_data="game_locked_alert")
+        
+        # Кнопка НОВОЙ игры
+        tele_types.InlineKeyboardButton("☢️ Протокол: Чистое Небо (NEW)", callback_data="apoc_start"),
+        
+        tele_types.InlineKeyboardButton("🏆 Рейтинг пилотов", callback_data="game_instruction_fix")
     )
     return report, kb
 
