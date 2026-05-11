@@ -12,7 +12,7 @@ def run_scenario(bot, call):
     # --- [ СИСТЕМА ФЛАГОВ ГЛАВЫ 3 ] ---
     saved_flags = ""
     # Новые флаги: ключ-карта, частота-эхо, шифр-стоматолога, демпфер
-    important_flags = ["_clue_frequency", "_item_keycard", "_logic_drill_done", "_clue_blueprint"]
+    important_flags = ["_clue_frequency", "_item_keycard", "_logic_drill_done", "_clue_blueprint", "_clue_tooth_map"]
     for flag in important_flags:
         if flag in current_node: saved_flags += flag
 
@@ -538,6 +538,23 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s3_clue_dna_bank":
         bot.answer_callback_query(call.id, "🦷 МАРКИРОВКА: 'Образец 1985-А. Генетическая память сохранена'. Это база данных целого поколения!", show_alert=True)
 
+# --- [ ПРОПУЩЕННЫЕ СЮЖЕТНЫЕ ДЕЙСТВИЯ (ОБЯЗАТЕЛЬНО) ] ---
+    elif call.data == "apoc_s3_analyze_port":
+        bot.answer_callback_query(call.id, "🔌 Марти: 'Док, порт защищен шифром деда. Прямой взлом не выйдет, резать провода было быстрее!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s3_elevator_start":
+        bot.answer_callback_query(call.id, "🚫 ЛИФТ ЗАБЛОКИРОВАН. Марти: 'Навигатор перерезал питание сверху! Только Бор, Док! Жгите замок!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s3_nav_talk":
+        bot.answer_callback_query(call.id, "🎭 Навигатор лишь ухмыляется: 'Слова — это шум. Ваша ДНК говорит громче'. Он готов к атаке!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s3_clue_dna_bank":
+        bot.answer_callback_query(call.id, "🦷 МАРКИРОВКА: 'Образец 1985-А. Генетическая память сохранена'. Это база данных целого поколения!", show_alert=True)
+        return
+    
     # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ ] ---
     elif call.data == "apoc_s3_clue_track":
         bot.answer_callback_query(call.id, "👣 Следы ведут вглубь города. Это не человеческая походка, а тяжелые шаги Навигатора.", show_alert=True)
