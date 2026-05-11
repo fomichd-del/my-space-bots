@@ -258,14 +258,30 @@ def handle_photo(message):
 
 @bot.channel_post_handler(func=lambda message: True)
 def handle_channel_post(message):
-    # Проверяем, что сообщение пришло именно из нашего канала по ID
-    if message.chat.id == CHANNEL_ID:
+    try:
+        # 1. Отправляем сигнал в логи, чтобы знать, что бот вообще реагирует
+        chat_id = message.chat.id
         text = message.text or message.caption
-        if text:
-            today = datetime.now().strftime("%Y-%m-%d")
-            add_news(today, text)
-            # Отправим сигнал в лог-чат, чтобы мы видели, что запись прошла
-            send_log(f"✅ Марти записал новость из канала: {text[:30]}...")
+        
+        send_log(f"📡 Пойман сигнал из канала! Реальный ID: `{chat_id}`")
+        
+        # 2. Сравниваем ID (приводим к строке для абсолютной надежности)
+        if str(chat_id) == str(CHANNEL_ID):
+            if text:
+                today = datetime.now().strftime("%Y-%m-%d")
+                # 3. Пробуем сохранить в базу с отловом ошибок
+                try:
+                    add_news(today, text)
+                    send_log(f"✅ Новость успешно сохранена в базу: {text[:20]}...")
+                except Exception as db_error:
+                    send_log(f"🚨 Ошибка базы данных (add_news): {db_error}")
+            else:
+                send_log("⚠️ Пост проигнорирован: нет текста (только картинка/видео без описания).")
+        else:
+            send_log(f"⚠️ ID не совпал! Ждали `{CHANNEL_ID}`, а пришло от `{chat_id}`")
+            
+    except Exception as e:
+        send_log(f"🚨 Глобальный сбой в обработчике канала: {e}")
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
