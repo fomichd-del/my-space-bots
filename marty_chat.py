@@ -277,10 +277,19 @@ def handle_text(message, is_profile_call=False):
     text = message.text if message.text else ""
 
     # 🟢 ШАГ 3: ДЕТЕКТОР «ПРОЩАНИЙ»
-    stop_words = ['пока', 'спокойной ночи', 'до свидания', 'прощай', 'увидимся', 'отбой']
-    if any(word in text.lower() for word in stop_words):
+    sleep_words = ['пока', 'спокойной ночи', 'до свидания', 'прощай', 'увидимся', 'отбой', 'спать']
+    stop_words = ['хватит', 'стоп', 'отстань', 'не пиши', 'замолчи', 'тихо']
+    
+    # Если пилот просто уходит спать
+    if any(word in text.lower() for word in sleep_words):
         set_silence(user_id, hours=12) # Затихаем на 12 часов
-        bot.reply_to(message, f"Принято, Командор {user_name}! Ухожу в режим радиомолчания. Доброй ночи! Прием.")
+        bot.reply_to(message, f"Принято, Командор {user_name}! Ухожу в режим радиомолчания на 12 часов. Доброй ночи! Прием.")
+        return
+        
+    # Если пилот требует прекратить спам
+    if any(word in text.lower() for word in stop_words):
+        set_silence(user_id, hours=48) # Глубокая тишина на 48 часов
+        bot.reply_to(message, f"Вас понял, Командор. Отключаю инициативные протоколы. Буду молчать, пока вы сами не выйдете на связь. Прием.")
         return
 
     # Обновляем активность пилота
