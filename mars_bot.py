@@ -147,6 +147,21 @@ def send_to_telegram():
         with open(DB_FILE, 'a', encoding='utf-8') as f:
             f.write(f"{nasa_id}\n")
         print(f"✅ Пост {nasa_id} отправлен!")
+
+        # 🟢 ШАГ 2: ПЕРЕДАЧА СИГНАЛА В МОЗГ МАРТИ
+        try:
+            # Твой URL на Render
+            marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+            
+            # Формируем короткую сводку для дайджеста. 
+            # Мы не шлем весь caption с HTML, а делаем лаконичную запись.
+            news_for_marty = f"🪐 Новый объект дня: {nasa_id}\nСистемы зафиксировали уникальный снимок из глубокого космоса. Данные добавлены в бортовой журнал."
+            
+            requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+            print("📡 Сигнал об объекте дня передан Марти!")
+        except Exception as e:
+            print(f"⚠️ Не удалось связаться с Марти: {e}")
+            
     else:
         print(f"❌ Ошибка Telegram: {r.text}")
 
