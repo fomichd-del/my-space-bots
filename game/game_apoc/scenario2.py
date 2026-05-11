@@ -11,7 +11,10 @@ def run_scenario(bot, call):
 
     # --- [ СИСТЕМА ФЛАГОВ ГЛАВЫ 2 ] ---
     saved_flags = ""
-    important_flags = ["_item_bio_frame", "_clue_pollen", "_scanner_upgraded", "_item_reagent"]
+    important_flags = [
+    "_item_bio_frame", "_clue_pollen", "_scanner_upgraded", "_item_reagent",
+    "_clue_fruit", "_clue_notes", "_clue_info", "_clue_arm", "_clue_extractor" # Добавь эти!
+]
     for flag in important_flags:
         if flag in current_node: saved_flags += flag
 
@@ -477,7 +480,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 2 ] ---
+   # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 2 ] ---
     elif call.data == "apoc_s2_30":
         update_game_progress(user_id, "apoc_ch2_done" + saved_flags)
         add_xp(user_id, 150, username) # Награда за сложную главу
@@ -491,3 +494,36 @@ def run_scenario(bot, call):
                 f"💰 **НАГРАДА:** 150 Пыли.\n"
                 f"🚀 **ГЛАВА 2 ЗАВЕРШЕНА. Глава 3: Эхо Небоскребов разблокирована.**")
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+
+    # --- [ БЛОК: ОБРАБОТКА ОШИБОК И НЕВЕРНЫХ ВЫБОРОВ ] ---
+    elif call.data in ["apoc_s2_synth_fail", "apoc_s2_freq_fail", "apoc_s2_dna_fail", "apoc_s2_visco_fail", "apoc_s2_pass_fail", "apoc_n1_pc_f"]:
+        bot.answer_callback_query(call.id, "❌ ОШИБКА СИНХРОНИЗАЦИИ. Марти: 'Док, вы уверены? Мои датчики говорят, что это путь в никуда!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s2_hack_fail":
+        bot.answer_callback_query(call.id, "🚫 ОТКАЗ В ДОСТУПЕ. Марти: 'Тут нужна ваша рука, Док. Мой хвост система не распознает!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s2_reagent_fail":
+        bot.answer_callback_query(call.id, "⚠️ ОПАСНО: Флакон под давлением! Марти: 'Док, используйте зажим, не рискуйте пальцами!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s2_will_fail":
+        bot.answer_callback_query(call.id, "🌀 ГАЛЛЮЦИНАЦИЯ УСИЛИВАЕТСЯ: Вашей воли недостаточно. Нужно немедленно ввести антисептик!", show_alert=True)
+        return
+
+    # --- [ БЛОК: ДЕТЕКТИВНЫЕ НАХОДКИ (Кнопки «Изучить») ] ---
+    elif call.data == "apoc_s2_clue_fruit":
+        update_game_progress(user_id, current_node + "_clue_fruit")
+        bot.answer_callback_query(call.id, "🧬 АНАЛИЗ: Плод содержит ДНК, идентичную вашей на 99.8%. Марти: 'Это не дерево, это инкубатор!'", show_alert=True)
+
+    elif call.data == "apoc_s2_clue_notes":
+        update_game_progress(user_id, current_node + "_clue_notes")
+        bot.answer_callback_query(call.id, "📝 ЗАПИСЬ: 'Дмитрий, если читаешь это — Семя требует ключа'. Почерк деда... он знал, что вы придете'.", show_alert=True)
+
+    elif call.data == "apoc_s2_clue_info":
+        add_xp(user_id, 3, username)
+        bot.answer_callback_query(call.id, "🖥 ДАННЫЕ: ТЦ 'Зенит' был построен как колыбель для системы 'Архив'. Вы получили +3 Пыли!", show_alert=True)
+
+    elif call.data == "apoc_s2_clue_arm":
+        bot.answer_callback_query(call.id, "🦾 ОСМОТР: Протез андроида собран из инструментов вашей стоматологии. Серийный номер: М-85.", show_alert=True)
