@@ -7,7 +7,15 @@ def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Пилот"
     current_node, timer_end = get_game_status(user_id)
+    if current_node is None:
+        current_node = ""
     
+    # --- [ АНТИ-ФАРМ СИСТЕМА ] ---
+    saved_flags = ""
+    for flag in ["_ch4_claimed", "_item_photo", "_item_module"]:
+        if flag in current_node:
+            saved_flags += flag
+
     # 0. ГЛОБАЛЬНЫЙ ФЛАГ ЗАВЕРШЕНИЯ
     is_finished = any(mark in current_node for mark in ["ch4_done_hero", "ch4_done_escape", "ch4_done_dark"])
 
@@ -57,11 +65,10 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("💥 Лобовая атака (Опасно!)", callback_data="game4_node_dock_success")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch4_start")
+        update_game_progress(user_id, "ch4_start" + saved_flags)
 
     elif call.data == "game4_reset":
-        # Сброс с сохранением метки награды
-        new_status = "ch3_done_true" if "ch4_claimed" not in current_node else "ch3_done_true_ch4_claimed"
+        new_status = "ch3_done_true" + saved_flags # Награды сохранены
         update_game_progress(user_id, new_status)
         bot.answer_callback_query(call.id, "Журнал обнулен. Ранги сохранены.")
         run_scenario(bot, type('obj', (object,), {'from_user': call.from_user, 'data': 'game4_start', 'message': call.message}))
@@ -75,13 +82,13 @@ def run_scenario(bot, call):
                 "Замрите и не дышите!")
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔄 Проверить радары", callback_data="game4_check_dock"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch4_stealth_dock_wait")
+        update_game_progress(user_id, "ch4_stealth_dock_wait" + saved_flags)
 
     elif call.data == "game4_check_dock":
         text = ("✅ **УСПЕХ**\n\nВы внутри. Коридоры пахнут древностью и чем-то органическим. Мох здесь светится ярче.")
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🚶 Идти дальше", callback_data="game4_node_dock_success"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch4_dock_done")
+        update_game_progress(user_id, "ch4_dock_done" + saved_flags)
 
     # --- ЭТАП 3-6: ЛАБОРАТОРИЯ И ДЕТЕКТИВ ---
     elif call.data == "game4_node_dock_success":
@@ -96,11 +103,12 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🚪 К центральному узлу", callback_data="game4_node_scare")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch4_lab_search")
+        update_game_progress(user_id, "ch4_lab_search" + saved_flags)
 
     elif call.data == "game4_item_photo":
         if "item_photo" not in current_node:
-            add_xp(user_id, 1, username); update_game_progress(user_id, current_node + "_item_photo")
+            add_xp(user_id, 1, username)
+            update_game_progress(user_id, current_node + "_item_photo")
             msg = "✅ **ПРЕДМЕТ:** Помятое фото команды 'Мариуполь-1' (+1 Пыль).\n\n"
         else: msg = "📦 Фото уже в вашем планшете.\n\n"
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 К обыску", callback_data="game4_node_lab"))
@@ -108,7 +116,8 @@ def run_scenario(bot, call):
 
     elif call.data == "game4_item_module":
         if "item_module" not in current_node:
-            add_xp(user_id, 1, username); update_game_progress(user_id, current_node + "_item_module")
+            add_xp(user_id, 1, username)
+            update_game_progress(user_id, current_node + "_item_module")
             msg = "✅ **ПРЕДМЕТ:** Шифровальный модуль (+1 Пыль).\n\n"
         else: msg = "📦 Модуль уже извлечен.\n\n"
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 К обыску", callback_data="game4_node_lab"))
@@ -126,7 +135,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🧩 Выбрать Зеленый", callback_data="game4_puzzle_fail")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch4_puzzle_node")
+        update_game_progress(user_id, "ch4_puzzle_node" + saved_flags)
 
     elif call.data == "game4_puzzle_fail":
         bot.answer_callback_query(call.id, "❌ Неверно! Мох начал выделять токсичный газ. Назад!", show_alert=True)
@@ -146,7 +155,7 @@ def run_scenario(bot, call):
                 "Хозяин, я чувствую... я чувствую всё их горе'.")
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔄 Завершить анализ", callback_data="game4_check_core"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch4_core_diag_wait")
+        update_game_progress(user_id, "ch4_core_diag_wait" + saved_flags)
 
     elif call.data == "game4_check_core":
         text = ("✅ **АНАЛИЗ ЗАВЕРШЕН**\n\n"
@@ -159,16 +168,17 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("💀 Уничтожить всё (Мрак)", callback_data="game4_end_dark")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "ch4_core_diag_done")
+        update_game_progress(user_id, "ch4_core_diag_done" + saved_flags)
 
     # --- ЭТАП 15-20: ФИНАЛЫ С ЗАЩИТОЙ ---
     elif call.data == "game4_end_hero":
         if "ch4_claimed" not in current_node:
             add_xp(user_id, 100, username)
-            update_game_progress(user_id, "ch4_done_hero_ch4_claimed")
+            update_game_progress(user_id, "ch4_done_hero" + saved_flags + "_ch4_claimed")
             res = "💰 **НАГРАДА:** 100 Пыли (Легенда Академии)."
         else:
             add_xp(user_id, 10, username)
+            update_game_progress(user_id, "ch4_done_hero" + saved_flags)
             res = "✨ **НАГРАДА ЗА ПОВТОР:** 10 Пыли."
         
         bot.edit_message_text(f"🏆 **ФИНАЛ: ГОЛОС ЗЕМЛИ**\n\nВы спасли данные и дали надежду. {res}", call.message.chat.id, call.message.message_id)
@@ -176,10 +186,11 @@ def run_scenario(bot, call):
     elif call.data == "game4_end_escape":
         if "ch4_claimed" not in current_node:
             add_xp(user_id, 50, username)
-            update_game_progress(user_id, "ch4_done_escape_ch4_claimed")
+            update_game_progress(user_id, "ch4_done_escape" + saved_flags + "_ch4_claimed")
             res = "💰 **НАГРАДА:** 50 Пыли."
         else:
             add_xp(user_id, 10, username)
+            update_game_progress(user_id, "ch4_done_escape" + saved_flags)
             res = "✨ **НАГРАДА ЗА ПОВТОР:** 10 Пыли."
             
         bot.edit_message_text(f"🥈 **ФИНАЛ: ХРАНИТЕЛЬ ТАЙН**\n\nВы исчезли в пустоте, забрав Ядро с собой. {res}", call.message.chat.id, call.message.message_id)
@@ -187,10 +198,11 @@ def run_scenario(bot, call):
     elif call.data == "game4_end_dark":
         if "ch4_claimed" not in current_node:
             add_xp(user_id, 15, username)
-            update_game_progress(user_id, "ch4_done_dark_ch4_claimed")
+            update_game_progress(user_id, "ch4_done_dark" + saved_flags + "_ch4_claimed")
             res = "💰 **НАГРАДА:** 15 Пыли."
         else:
             add_xp(user_id, 5, username)
+            update_game_progress(user_id, "ch4_done_dark" + saved_flags)
             res = "✨ **НАГРАДА ЗА ПОВТОР:** 5 Пыли."
             
         bot.edit_message_text(f"💀 **ФИНАЛ: ПЕПЕЛ В ПУСТОТЕ**\n\nВы решили, что человечество не готово к этому. Станция взорвана. {res}", call.message.chat.id, call.message.message_id)
