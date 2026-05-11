@@ -170,6 +170,20 @@ def send_history():
             with open(DB_FILE, 'a', encoding='utf-8') as f:
                 f.write(f"{event_data['key']}\n")
             log_status("УСПЕХ: Пост опубликован.")
+
+            # 🟢 ШАГ 2: ПЕРЕДАЧА СИГНАЛА В МОЗГ МАРТИ
+            try:
+                # URL твоего Марти на Render
+                marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+                
+                # Формируем краткую выжимку для дайджеста
+                # Берем год и заголовок, чтобы Марти мог красиво об этом рассказать
+                news_for_marty = f"📜 Историческая веха ({event_data['year']} г.): {title_ru}\n{desc_ru[:150]}..."
+                
+                requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+                log_status("📡 Данные об истории переданы Марти!")
+            except Exception as e:
+                log_status(f"⚠️ Не удалось связаться с Марти: {e}")
         else:
             log_status(f"ОШИБКА TG: {r.text}")
     except Exception as e:
