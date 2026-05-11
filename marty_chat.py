@@ -306,6 +306,49 @@ def handle_text(message, is_profile_call=False):
             f"📰 Новостей в базе: `{len(news)}`"
         , parse_mode="Markdown")
         return
+
+    # 🟢 ЭКСТРЕННЫЙ ЗАПУСК ДАЙДЖЕСТА (ВСТАВЛЯТЬ СЮДА!)
+    if "отправить дайджест" in text.lower():
+        today = datetime.now().strftime("%Y-%m-%d")
+        news_list = get_today_news(today)
+        
+        if not news_list:
+            bot.reply_to(message, "❌ Командор, в базе за сегодня пусто! Марти не из чего делать дайджест.")
+            return
+            
+        bot.reply_to(message, "🚀 Запускаю нейросети! Формирую дайджест...")
+        
+        # Собираем текст
+        combined_news = "\n---\n".join(news_list)
+        prompt = f"Ты Марти, ученый пес. Напиши короткий вдохновляющий дайджест новостей дня. Новости:\n{combined_news}"
+        digest_text = ""
+        
+        # Пробуем через Groq
+        if GROQ_API_KEY:
+            try:
+                headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+                data = {"model": "llama3-70b-8192", "messages": [{"role": "system", "content": prompt}]}
+                groq_resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=15)
+                if groq_resp.status_code == 200:
+                    digest_text = groq_resp.json()["choices"][0]["message"]["content"]
+            except Exception as e:
+                send_log(f"Сбой Groq при ручном дайджесте: {e}")
+                
+        if not digest_text: digest_text = "Командор, день прошел продуктивно! Прием!"
+        
+        # Рассылаем
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(tele_types.InlineKeyboardButton("📡 Читать новости", url="https://t.me/vladislav_space"))
+        full_message = f"✨ **ЭКСТРЕННЫЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{digest_text}\n\n🚀 _Прием!_"
+        
+        users = get_all_user_ids()
+        for uid in users:
+            try:
+                bot.send_message(uid, full_message, parse_mode="Markdown", reply_markup=kb)
+                time.sleep(0.05)
+            except: pass
+        return
+    # ==========================================
   
     if not is_profile_call: bot.send_chat_action(message.chat.id, 'typing')
     
@@ -420,7 +463,7 @@ def run_daily_digest_loop(bot_instance):
             current_time = now.strftime("%H:%M")
             today = now.strftime("%Y-%m-%d")
 
-            if current_time == "18:00" and last_sent_date != today:
+            if "18:00" <= current_time <= "18:05" and last_sent_date != today:
                 news_list = get_today_news(today)
                 if news_list:
                     combined_news = "\n---\n".join(news_list)
