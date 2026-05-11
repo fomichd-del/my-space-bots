@@ -14,7 +14,9 @@ def run_scenario(bot, call):
     # Флаги предметов, улик и прогресса
     important_flags = [
         "_ch1_claimed", "_item_cloth", "_item_parts", "_suit_fixed", 
-        "_scanner_fixed", "_clue_wire", "_clue_boot", "_logic_pc_done"
+        "_scanner_fixed", "_clue_wire", "_clue_boot", "_logic_pc_done",
+        "_item_meds", "_clue_liquid", "_clue_files", "_item_super_motor",
+        "_clue_radio", "_secret_found", "_clue_mask", "_clue_liquid"
     ]
     for flag in important_flags:
         if flag in current_node: saved_flags += flag
@@ -261,16 +263,15 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 16: ТЕХНИЧЕСКИЙ ШЛЮЗ (Детектив продолжается) ] ---
+    # --- [ ЭТАП 16: ТЕХНИЧЕСКИЙ ШЛЮЗ ] ---
     elif call.data == "apoc_n1_search_2":
-        text = (f"🚿 **СЕКТОР Б: ТЕХНИЧЕСКИЙ УЗЕЛ**\n\n"
-                f"Вы пробираетесь через душевые. Вода здесь не текла уже лет десять, но на полу — свежие лужи.\n\n"
-                f"Марти: 'Док, либо у нас завелись очень чистоплотные призраки, либо кто-то слил охлаждающую жидкость из вашего старого автоклава. "
-                f"Запах... это стерилизатор. Тот, кто здесь был, явно имел отношение к медицине или биологии. "
-                f"Смотрите, на стене кровавый след, но он... фиолетовый?'.")
+        text = (f"🚿 **ЭТАП 16: ТЕХНИЧЕСКИЙ УЗЕЛ**\n\n"
+                f"Вы пробираетесь через старый блок дезинфекции. Под ногами хрустит битое стекло. На кафеле — свежие фиолетовые лужи.\n\n"
+                f"Марти: 'Док, это не просто грязь. Это питательная среда 'Фиолетовый Реагент'. Ее использовали в НИИ для ускорения роста клеток. "
+                f"Запах... как в стоматологии, только с примесью гнили. Смотрите, на двери — отпечаток ладони. Он свежий!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("🧬 Взять пробу жидкости", callback_data="apoc_n1_clue_liquid"),
-            tele_types.InlineKeyboardButton("🛠 Искать запчасти для сканера", callback_data="apoc_n1_search_parts"),
+            tele_types.InlineKeyboardButton("❄️ Дверь в лабораторию (Этап 17)", callback_data="apoc_n1_frozen_door"),
             tele_types.InlineKeyboardButton("🔙 В центральный отсек", callback_data="apoc_n1_base_menu")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -279,42 +280,44 @@ def run_scenario(bot, call):
         if "_clue_liquid" not in current_node:
             add_xp(user_id, 3, username)
             update_game_progress(user_id, current_node + "_clue_liquid")
-            msg = "✅ **УЛИКА:** Фиолетовый био-реагент. Это не кровь, а питательная среда для мха.\n\n"
-        else: msg = "📦 Проба уже в пробирке.\n\n"
-        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 Назад к шлюзу", callback_data="apoc_n1_search_2"))
-        bot.edit_message_text(msg + "Марти: 'Док, кажется, наш вор — не просто мародер. Он что-то выращивает прямо у нас под боком'.", call.message.chat.id, call.message.message_id, reply_markup=kb)
+            msg = "✅ **УЛИКА:** Фиолетовый био-реагент. Это среда для выращивания 'Умного Мха'.\n\n"
+        else: msg = "📦 Проба уже взята.\n\n"
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="apoc_n1_search_2"))
+        bot.edit_message_text(msg + "Марти: 'Кажется, наш вор — биолог. Или очень умный мутант'.", call.message.chat.id, call.message.message_id, reply_markup=kb)
 
-# --- [ ЭТАП 17: ЗАМЕРЗШАЯ ДВЕРЬ (Химия) ] ---
+    # --- [ ЭТАП 17: ЗАМЕРЗШАЯ ДВЕРЬ ] ---
     elif call.data == "apoc_n1_frozen_door":
         text = ("❄️ **ЭТАП 17: ЛЕДЯНОЙ ЗАМОК**\n\n"
-                "Дверь в лабораторию покрыта инеем. Механизм заклинило. \n\n"
-                "Марти: 'Док, если мы просто дернем — сломаем ручку. У нас есть баллон с реагентом. "
-                "Нужно смешать его с чем-то, что вызывает экзотермическую реакцию. Помните уроки химии?'.")
-        kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🧪 Использовать Йод из аптечки", callback_data="apoc_n1_melt_success"),
-            tele_types.InlineKeyboardButton("🔥 Попробовать нагреть паяльником", callback_data="apoc_n1_melt_fail")
-        )
+                "Дверь в лабораторию покрыта инеем. Система охлаждения дала сбой, и механизм намертво заклинило.\n\n"
+                "Марти: 'Док, если мы дернем — сломаем ручку. Помните, мы нашли флакон с йодом в кладовой? "
+                "Если смешать его с остатками спирта в замке, произойдет реакция с выделением тепла. Пробуем?'.")
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        if "_item_meds" in current_node:
+            kb.add(tele_types.InlineKeyboardButton("🧪 Использовать Йод из аптечки", callback_data="apoc_n1_melt_success"))
+        else:
+            kb.add(tele_types.InlineKeyboardButton("🔥 Пытаться отогреть руками (Риск)", callback_data="apoc_n1_melt_fail"))
+        kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="apoc_n1_search_2"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 18: ТЕНЬ В ТЕМНОТЕ (Детектив) ] ---
+    # --- [ ЭТАП 18: ТЕНЬ В ТЕМНОТЕ ] ---
     elif call.data == "apoc_n1_melt_success":
         text = ("👥 **ЭТАП 18: ТЕНЬ В ТЕМНОТЕ**\n\n"
-                "Лед зашипел и стаял. Дверь медленно открылась. В глубине лаборатории вы увидели... тень человека. Он стоял спиной к вам.\n\n"
-                "Марти: 'Док... я не чую запаха живого человека. Это... либо робот, либо что-то похуже. "
-                "Смотрите, он держит в руках ваш старый дневник!'.")
+                "Лед зашипел и стаял. Дверь со стоном открылась. В глубине лаборатории вы видите... фигуру человека. Он стоит спиной к вам и что-то ищет в шкафах.\n\n"
+                "Марти (шепотом): 'Док... я не чую тепла. Это не человек. Это либо старая голограмма, либо... Тс-с-с! Он оборачивается!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🎤 Окликнуть незнакомца", callback_data="apoc_n1_shadow_talk"),
-            tele_types.InlineKeyboardButton("🤫 Подкрасться сзади", callback_data="apoc_n1_shadow_sneak")
+            tele_types.InlineKeyboardButton("🎤 Окликнуть: 'Кто здесь?'", callback_data="apoc_n1_shadow_talk"),
+            tele_types.InlineKeyboardButton("🤫 Подкрасться ближе", callback_data="apoc_n1_shadow_sneak")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 19: УЛИКА: МАСКА (Детектив) ] ---
+    # --- [ ЭТАП 19: УЛИКА: МАСКА ] ---
     elif call.data == "apoc_n1_shadow_talk":
+        update_game_progress(user_id, current_node + "_clue_mask")
         text = ("👤 **ЭТАП 19: ПУСТОТА**\n\n"
-                "Вы выкрикиваете имя деда, но тень рассыпается прахом. Это была лишь старая голограмма. \n\n"
-                "На полу осталась лежать маска — точно такая же, как в Академии Орион, но со стертым серийным номером.\n\n"
-                "Марти: 'Док, Академия была здесь. Они искали то же, что и мы. И, судя по всему, они не ушли с пустыми руками'.")
-        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🏃 К вентиляции", callback_data="apoc_n1_vent_enter"))
+                "Вы выкрикиваете имя, но фигура рассыпается облаком пыли. Это была запись системы безопасности. \n\n"
+                "На полу, там где стоял призрак, вы находите маску Академии Орион. \n\n"
+                "Марти: 'Док, Академия была здесь недавно. Они что-то забрали из сейфа вашего деда. Нам нужно в вентиляцию, чтобы догнать их!'.")
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🏃 Прыгнуть в вентиляцию (Этап 20)", callback_data="apoc_n1_vent_enter"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
     
     # --- [ ЭТАП 20: ВЕНТИЛЯЦИОННЫЕ ШАХТЫ (Стелс) ] ---
@@ -336,45 +339,43 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🚶 Идти к генератору", callback_data="apoc_n1_generator_room"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-# --- [ ЭТАП 21: ТУННЕЛЬ ОБСЛУЖИВАНИЯ (Препятствие) ] ---
+# --- [ ЭТАП 21: ВЕРТИКАЛЬНЫЙ ПОДЪЕМ ] ---
     elif call.data == "apoc_n1_stealth_success":
-        text = ("🧗 **ЭТАП 21: ВЕРТИКАЛЬНЫЙ ПОДЪЕМ**\n\n"
-                "Вы миновали дрона. Впереди — шахта лифта. Трос оборван, нужно лезть по скобам.\n\n"
-                "Марти: 'Док, я прыгну вам в капюшон, но если упадете — чур я первый занимаю лучшее место в раю!'.")
-        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🧗 Лезть вверх", callback_data="apoc_n1_climb"))
+        text = ("🧗 **ЭТАП 21: ВЕРТИКАЛЬНЫЙ ПРЕДЕЛ**\n\n"
+                "Дрон остался позади. Вы выходите в шахту грузового лифта. Трос оборван, нужно лезть вверх по ржавым скобам прямо над пропастью.\n\n"
+                "Марти: 'Я запрыгну к вам в рюкзак. Только не смотрите вниз, Док, я не хочу, чтобы мой последний вид был кучей мусора на дне шахты!'.")
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🧗 Лезть вверх (Этап 22)", callback_data="apoc_n1_climb"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 22: КАМЕРА СЛЕЖЕНИЯ (Hacking) ] ---
+    # --- [ ЭТАП 22: КАМЕРА СЛЕЖЕНИЯ ] ---
     elif call.data == "apoc_n1_climb":
         text = ("👁 **ЭТАП 22: ГЛАЗ АКАДЕМИИ**\n\n"
-                "На середине пути вы замечаете скрытую камеру. Она всё еще работает, её объектив следит за каждым вашим движением.\n\n"
-                "Марти: 'Нас снимают! Если сигнал дойдет до поверхности — нас встретят с пулеметами. "
-                "Нужно перерезать кабель данных, не задев питание!'.")
+                "На уровне 3-го этажа вы замираете. Прямо перед вашим лицом — скрытая камера. Ее линза поворачивается, фокусируясь на вас.\n\n"
+                "Марти: 'Нас засекли! Нужно отключить ее, пока сигнал не ушел на сервер Академии. Перережьте кабель!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=2).add(
-            tele_types.InlineKeyboardButton("✂️ Синий провод", callback_data="apoc_n1_cam_success"),
-            tele_types.InlineKeyboardButton("✂️ Красный провод", callback_data="apoc_n1_cam_fail")
+            tele_types.InlineKeyboardButton("✂️ Синий провод (Данные)", callback_data="apoc_n1_cam_success"),
+            tele_types.InlineKeyboardButton("✂️ Красный провод (Питание)", callback_data="apoc_n1_cam_fail")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 23: ПАРОВОЙ ПРОРЫВ (Action) ] ---
+    # --- [ ЭТАП 23: ПАРОВОЙ ПРОРЫВ ] ---
     elif call.data == "apoc_n1_cam_success":
         text = ("💨 **ЭТАП 23: ГОРЯЧИЙ ПРИЕМ**\n\n"
-                "Камера ослепла, но внезапно из трубы рядом вырывается струя раскаленного пара! Путь перекрыт.\n\n"
-                "Марти: 'Док, вентиль справа! Крутите его против часовой стрелки! Или мы станем учеными, приготовленными на пару!'.")
-        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("⚙️ Крутить вентиль", callback_data="apoc_n1_valve_turn"))
+                "Камера ослепла, но в этот момент из лопнувшей трубы рядом вырывается струя раскаленного пара! Путь перекрыт.\n\n"
+                "Марти: 'Док, вентиль справа! Его заклинило, нужно приложить всю силу!'.")
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("⚙️ Крутить вентиль (Этап 24)", callback_data="apoc_n1_valve_turn"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 24: РЖАВЫЙ РЫЧАГ (Выбор) ] ---
+    # --- [ ЭТАП 24: РЖАВЫЙ РЫЧАГ ] ---
     elif call.data == "apoc_n1_valve_turn":
-        text = ("🏗 **ЭТАП 24: РЕШАЮЩИЙ РЫЧАГ**\n\n"
-                "Пар утих. Вы стоите перед дверью в генераторную. Но рычаг заржавел намертво.\n\n"
-                "Марти: 'Тут нужно либо смазать его (если у нас есть масло), либо ударить ломом. "
-                "Удар может привлечь мутантов из соседнего сектора'.")
+        text = ("🏗 **ЭТАП 24: РЫЧАГ СУДЬБЫ**\n\n"
+                "Пар утих. Вы стоите перед дверью в генераторную. Огромный рычаг блокировки заржавел намертво.\n\n"
+                "Марти: 'Помните тот медный кабель со смазкой, который мы нашли в начале? Он весь в машинном масле! Это наш шанс!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        if "_clue_wire" in current_node: # Помнишь, там была смазка на кабеле?
-            kb.add(tele_types.InlineKeyboardButton("💧 Использовать смазку с кабеля", callback_data="apoc_n1_generator_room"))
+        if "_clue_wire" in current_node:
+            kb.add(tele_types.InlineKeyboardButton("💧 Смазать рычаг маслом (Успех)", callback_data="apoc_n1_generator_room"))
         else:
-            kb.add(tele_types.InlineKeyboardButton("🔨 Ударить ломом (Риск!)", callback_data="apoc_n1_gen_noise"))
+            kb.add(tele_types.InlineKeyboardButton("🔨 Ударить ломом (Шум привлечет врагов)", callback_data="apoc_n1_gen_noise"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
     
     # --- [ ЭТАП 25: ЗАГАДКА ГЕНЕРАТОРА (Логика) ] ---
@@ -476,5 +477,22 @@ def run_scenario(bot, call):
 
 # --- ФУНКЦИЯ КРАФТА (УСЛОЖНЕННАЯ) ---
 def handle_craft(bot, call):
-    # Здесь логика требует не только ткань, но и калибровку (таймер + выбор правильного параметра)
-    pass
+    user_id = call.from_user.id
+    current_node, _ = get_game_status(user_id)
+    
+    # ПРОВЕРКА БОНУСА (Мотор из подвала)
+    time_needed = 20
+    if "_item_super_motor" in current_node:
+        time_needed = 12 # Существенное ускорение!
+        bonus_text = "⚡️ Благодаря мотору из кабинета деда, работа идет в два раза быстрее!"
+    else:
+        bonus_text = "🔧 Обычные инструменты работают медленно, но верно."
+
+    if "suit" in call.data:
+        set_game_timer(user_id, time_needed)
+        update_game_progress(user_id, current_node + "_suit_fixed")
+        msg = (f"⚒ **ИДЕТ КРАФТ КОСТЮМА**\n\n"
+               f"{bonus_text}\n\n"
+               f"Марти подбадривает: 'Док, еще немного, и вы будете выглядеть как настоящий герой пустошей!'.\n\n"
+               f"Готовность через **{time_needed} минут**.")
+        bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
