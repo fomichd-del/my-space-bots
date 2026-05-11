@@ -14,6 +14,7 @@ from database import init_db, add_xp, get_user_stats, get_rank_name
 from base_fact_star import CONSTELLATIONS
 # 🟢 ДОБАВЛЕНО: Пробуждаем Марти-Ученого из его файла
 from marty_chat import start_marty_autonomous 
+from game import menu, router, main_router
 
 # --- [ КОНФИГУРАЦИЯ ПУТЕЙ ] ---
 TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -200,6 +201,18 @@ def callback_orig(call):
             bot.send_document(call.message.chat.id, doc, caption="🚀 <b>Full HD оригинал вашего сектора.</b>", parse_mode='HTML')
     else:
         bot.answer_callback_query(call.id, "❌ Файл утерян (время хранения 15 мин истекло).", show_alert=True)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith(('game', 'apoc')))
+def game_engine(call):
+    if call.data == "game_back_to_profile":
+        report, kb = menu.get_main_games_menu()
+        bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+    elif call.data == "game_instruction_fix":
+        # ... твой код рейтинга ...
+        pass
+    else:
+        # Передаем управление Главному Роутеру
+        main_router.handle_game_selection(bot, call)
 
 app = Flask(__name__)
 @app.route('/')
