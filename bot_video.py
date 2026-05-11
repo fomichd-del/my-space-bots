@@ -203,11 +203,45 @@ async def process_mission(v_url, title, desc_raw, is_russian=False, source_name=
             f"📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
+        # --- [ ОТПРАВКА В TELEGRAM ] ---
         with open(f_to_send, 'rb') as v:
             files = {"video": v}
             if os.path.exists(f_thumb): files["thumbnail"] = open(f_thumb, 'rb')
-            requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", files=files, data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": "true"}, timeout=600)
-            print("✅ ПОБЕДА! Видео отправлено."); return True
+            
+            # 🟢 ВАЖНО: Приравниваем запрос к переменной resp
+            resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo", 
+                files=files, 
+                data={"chat_id": CHANNEL_NAME, "caption": caption, "parse_mode": "HTML", "supports_streaming": "true"}, 
+                timeout=600
+            )
+
+            # Проверяем, успешно ли ушло видео
+            if resp.status_code == 200:
+                print("✅ ПОБЕДА! Видео отправлено.")
+
+                # 🟢 ШАГ 2: ТЕПЕРЬ СИГНАЛ ПЕРЕДАЕТСЯ ПРАВИЛЬНО
+                try:
+                    marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+                    
+                    # Собираем короткую новость для дайджеста
+                    news_for_marty = f"🚀 Новое видео: {ru_title}\n{summary}"
+                    
+                    requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+                    print("📡 Сигнал успешно передан в базу Марти!")
+                except Exception as e:
+                    print(f"⚠️ Не удалось связаться с Марти: {e}")
+                
+                # И только в самом конце, когда всё сделано — выходим
+                return True
+            else:
+                print(f"❌ Ошибка Telegram: {resp.text}")
+                return False
+                
+    except Exception as e: 
+        print(f"⚠️ Сбой миссии: {e}")
+        return False
+    
     except Exception as e: print(f"⚠️ Сбой миссии: {e}"); return False
 
 async def main():
