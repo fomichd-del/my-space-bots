@@ -520,6 +520,24 @@ def run_scenario(bot, call):
         bot.answer_callback_query(call.id, "⚠️ ОПАСНО: Прямое столкновение приведет к гибели! Марти: 'Ищите обходной путь, Док, не лезьте на рожон!'", show_alert=True)
         return
 
+    # Этап 11: Порт
+    elif call.data == "apoc_s3_analyze_port":
+        bot.answer_callback_query(call.id, "🔌 Порт защищен шифром деда. Марти: 'Док, тут нужен прямой контакт, резать провода было быстрее!'", show_alert=True)
+        return
+
+    # Этап 20: Лифт
+    elif call.data == "apoc_s3_elevator_start":
+        bot.answer_callback_query(call.id, "🚫 ЛИФТ ЗАБЛОКИРОВАН. Навигатор перерезал питание сверху! Марти: 'Только Бор, Док! Жгите замок!'", show_alert=True)
+        return
+
+    # Этап 21: Разговор с Навигатором
+    elif call.data == "apoc_s3_nav_talk":
+        bot.answer_callback_query(call.id, "🎭 Навигатор смеется: 'Слова — это шум. Ваша ДНК говорит громче'. Он поднимает оружие!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s3_clue_dna_bank":
+        bot.answer_callback_query(call.id, "🦷 МАРКИРОВКА: 'Образец 1985-А. Генетическая память сохранена'. Это база данных целого поколения!", show_alert=True)
+
     # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ ] ---
     elif call.data == "apoc_s3_clue_track":
         bot.answer_callback_query(call.id, "👣 Следы ведут вглубь города. Это не человеческая походка, а тяжелые шаги Навигатора.", show_alert=True)
