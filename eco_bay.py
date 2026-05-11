@@ -48,7 +48,7 @@ def get_dynamic_prompt(pet, user_id):
     decor_prompt = "decorated with " + " and ".join(decor) if decor else "minimalist glass setup with only a few river pebbles on the bottom"
         
     full_prompt = f"{base}, {snails_prompt}, {state_modifier}, {decor_prompt}, photorealistic"
-    seed = int(time.time() / 3600) + user_id 
+    seed = user_id
     
     return full_prompt, seed # Возвращаем текст промпта и зерно, а не готовую ссылку
 
