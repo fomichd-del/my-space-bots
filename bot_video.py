@@ -199,7 +199,7 @@ async def process_mission(v_url, title, desc_raw, is_russian=False, source_name=
             f"<b>Марти:</b> <i>{random.choice(MARTY_QUOTES)}</i>\n\n"
             f"──────────────────────\n"
             f"🤖 <b>Остались вопросы после просмотра?</b>\n"
-            f"👉 <a href='https://t.me/Marty_Help_Bot?start=channel_post'><b>Спросить бортового компьютера Марти</b></a>\n\n"
+            f"👉 <a href='https://t.me/Marty_Help_Bot?start=channel_post'><b>«Пилоты! У нас есть свой бортовой ИИ — Марти! 🐾 Заходите к нему в чат, чтобы растить своего кибер-питомца, генерировать картинки и получать вечернюю секретную сводку новостей прямо в личку</b></a>\n\n"
             f"📡 <a href='https://t.me/vladislav_space'>ДНЕВНИК ЮНОГО КОСМОНАВТА</a>"
         )
 
