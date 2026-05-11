@@ -30,9 +30,26 @@ def run_scenario(bot, call):
     # 2. УМНЫЙ СТАРТ (Точки восстановления)
     if call.data == "game3_start":
         if current_node and current_node.startswith("ch3_") and current_node != "ch3_start":
+            
+            # --- [ АТМОСФЕРНЫЙ ЛОКАТОР ] ---
+            if "climax" in current_node:
+                location_text = "Центральный зал. Пространство и время искажены."
+            elif "gate" in current_node:
+                location_text = "У запертых врат Колыбели. Панель ждет ввода."
+            elif "scan_wait" in current_node or "scan_done" in current_node:
+                location_text = "Орбита станции. Данные сканирования."
+            elif "mines" in current_node:
+                location_text = "Заброшенные шахты 'Стикса'. Мох пульсирует во тьме."
+            elif "jump_wait" in current_node or "arrival" in current_node:
+                location_text = "Шлюз станции 'Стикс-9'. Системы жизнеобеспечения активны."
+            else:
+                location_text = "Неизвестный сектор. Восстановление логов..."
+
             text = (f"🛰 **СЕАНС СВЯЗИ: ГЛАВА 3**\n\n"
-                    f"Пилот {username}, восстанавливаем сектор: `{current_node}`.\n"
-                    f"Марти готов продолжать. Прием!")
+                    f"Пилот {username}, системы успешно перезагружены.\n"
+                    f"📍 **Текущая геопозиция:** *{location_text}*\n\n"
+                    f"Марти бодро вильнул хвостом: 'Хозяин, я сохранил все наши зацепки! Продолжаем погружение?'")
+            
             kb = tele_types.InlineKeyboardMarkup(row_width=1)
             
             if "climax" in current_node:
