@@ -151,20 +151,85 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
     
-    # --- [ ЭТАП 10: ВЕРСТАК И КРАФТ (Усложнение) ] ---
+   # --- [ ЭТАП 10: ЦЕНТРАЛЬНЫЙ ОТСЕК И ТАЙНЫЙ ЛЮК ] ---
     elif call.data == "apoc_n1_base_menu":
-        text = (f"🛠 **ЦЕНТРАЛЬНЫЙ ОТСЕК**\n\n"
-                f"Итак, у нас есть улики, но нет энергии. Чтобы выйти в шахты и поймать вора, нужно собрать снаряжение.\n\n"
-                f"Марти: 'Я нашел ваш старый чертеж. Чтобы починить костюм, нам нужно не просто кусок ткани, а **многослойная изоляция**. Ищем брезент и медные пластины!'.")
-        kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🧵 Верстак (Крафт)", callback_data="apoc_n1_workbench"),
+        text = (f"🛠 **ЭТАП 10: ЦЕНТРАЛЬНЫЙ ОТСЕК**\n"
+                f"──────────────────────────\n"
+                f"Вы стоите в центре своего убежища. Сверху капает конденсат, а старый стоматологический кабинет деда в углу выглядит "
+                f"пугающе мирно на фоне ржавых стен бункера. \n\n"
+                f"Марти запрыгнул на кожаное кресло и начал интенсивно царапать пол под ним лапой: "
+                f"'Док, я не хочу вас пугать, но из-под этого антикварного трона тянет холодом, как из открытого космоса. "
+                f"И пахнет... старым формалином и секретами. Похоже, под нами есть еще один ярус!'.\n\n"
+                f"Чтобы пробраться дальше, вам нужно решить: искать ресурсы на поверхности или спуститься в прошлое?")
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        kb.add(
+            tele_types.InlineKeyboardButton("🕳 Спуститься в секретный подвал", callback_data="apoc_n1_secret_entry"),
+            tele_types.InlineKeyboardButton("🧵 Перейти к Верстаку (Крафт)", callback_data="apoc_n1_workbench"),
             tele_types.InlineKeyboardButton("📦 Обыскать склад (Этап 1/3)", callback_data="apoc_n1_search_1"),
             tele_types.InlineKeyboardButton("🔦 Обыскать лабораторию (Этап 2/3)", callback_data="apoc_n1_search_2"),
-            tele_types.InlineKeyboardButton("⬅️ Назад", callback_data="apoc_start")
+            tele_types.InlineKeyboardButton("⬅️ Назад к входу", callback_data="apoc_start")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, "apoc_n1_main_hub" + saved_flags)
 
+# --- [ ЭТАП 10-A: ВХОД В АРХИВ-X ] ---
+    elif call.data == "apoc_n1_secret_entry":
+        text = ("📉 **ЭТАП 10-A: ЛОГИЧЕСКИЙ ЗАМОК**\n\n"
+                "Вы отодвигаете кресло. Под ним — люк из титанового сплава. На панели ввода всего две цифры. \n\n"
+                "Марти: 'Док, тут гравировка на латыни. *Dentes*... это зубы! И дата... 1985. "
+                "Подсказка гласит: Число зубов взрослого человека минус последние две цифры года, когда этот кабинет был запечатан'.\n\n"
+                "**МАРТИ:** 'Док, вы же профи! 32 зуба минус... сколько там было? Шевелите извилинами!'")
+        
+        # Загадка: 32 - 85 = -53 (берем 53)
+        kb = tele_types.InlineKeyboardMarkup(row_width=2).add(
+            tele_types.InlineKeyboardButton("⌨️ 32", callback_data="apoc_n1_secret_fail"),
+            tele_types.InlineKeyboardButton("⌨️ 53", callback_data="apoc_n1_secret_hall"),
+            tele_types.InlineKeyboardButton("⌨️ 13", callback_data="apoc_n1_secret_fail"),
+            tele_types.InlineKeyboardButton("⌨️ 85", callback_data="apoc_n1_secret_fail")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    elif call.data == "apoc_n1_secret_fail":
+        bot.answer_callback_query(call.id, "🚫 НЕВЕРНЫЙ КОД. Попробуйте еще раз!", show_alert=True)
+        return
+
+    # --- [ ЭТАП 10-B: СЕКРЕТНЫЙ КАБИНЕТ ] ---
+    elif call.data == "apoc_n1_secret_hall":
+        add_xp(user_id, 10, username)
+        text = ("🦷 **ЭТАП 10-B: ЗАПРЕТНАЯ ЗОНА**\n\n"
+                "Люк открывается с пневматическим шипением. Вы спускаетесь в идеально чистую комнату. "
+                "Здесь хранятся прототипы инструментов, которые опередили свое время на десятилетия.\n\n"
+                "Марти замер у шкафа: 'Док, посмотрите на этот мотор для бормашины. Он выдает 500 тысяч оборотов в минуту. "
+                "Если мы вставим его в мой сканер, я смогу различать молекулы на расстоянии километра!'.")
+        kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
+            tele_types.InlineKeyboardButton("⚙️ Снять мотор (Улучшение сканера)", callback_data="apoc_n1_secret_motor"),
+            tele_types.InlineKeyboardButton("📂 Открыть папку 'Мариуполь-85'", callback_data="apoc_n1_secret_files"),
+            tele_types.InlineKeyboardButton("🧗 Вернуться наверх", callback_data="apoc_n1_base_menu")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- [ ЭТАП 10-C: СЕКРЕТНЫЕ ФАЙЛЫ ] ---
+    elif call.data == "apoc_n1_secret_files":
+        update_game_progress(user_id, current_node + "_clue_files")
+        text = ("📜 **ЭТАП 10-C: ТАЙНЫЙ ОТЧЕТ**\n\n"
+                "В папке лежит рентгеновский снимок. На нем запечатлена челюсть, полностью заросшая фиолетовыми кристаллами. \n\n"
+                "Марти читает подпись: 'Заражение произошло через пломбу из метеоритного железа. Пациент номер ноль'. \n\n"
+                "Док, ваш дед первым обнаружил этот вирус еще в 1985-м в Мариуполе! И Академия Орион знала об этом... Они следили за ним'.")
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 Назад к инструментам", callback_data="apoc_n1_secret_hall"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- [ ЭТАП 10-D: ЛЕГЕНДАРНЫЙ МОТОР ] ---
+    elif call.data == "apoc_n1_secret_motor":
+        update_game_progress(user_id, current_node + "_item_super_motor")
+        text = ("✅ **ЭТАП 10-D: ЛЕГЕНДАРНЫЙ ТРОФЕЙ**\n\n"
+                "Вы бережно извлекаете мотор. Это настоящее сокровище старого мира.\n\n"
+                "Марти: 'Теперь я не просто той-пудель, я — стратегический радар! Док, с этой штукой мы "
+                "скрафтим сканер гораздо быстрее!'.\n\n"
+                "🎁 **БОНУС:** Таймеры крафта сокращены на 5 минут!")
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🧗 Вернуться в хаб", callback_data="apoc_n1_base_menu"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+    
     # --- [ ЭТАПЫ 11-15: СЛОЖНЫЙ ПОИСК (Таймеры и Детектив) ] ---
     elif call.data == "apoc_n1_search_1":
         set_game_timer(user_id, 15)
