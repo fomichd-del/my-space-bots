@@ -162,6 +162,23 @@ def main():
             if r.status_code == 200:
                 with open(DB_FILE, 'a') as f: f.write(f"{m_key}\n")
                 print(f"✅ Успешно отправлено: {l['name']}")
+               
+# 🟢 ШАГ 2: ПЕРЕДАЧА СИГНАЛА В МОЗГ МАРТИ
+                try:
+                    # URL твоего Марти на Render
+                    marty_url = "https://my-astro-bots.onrender.com/orion_uplink"
+                    
+                    # Формируем чистый текст для дайджеста
+                    # Убираем HTML-теги для базы данных
+                    clean_mission = l.get('mission', {}).get('description', 'Научный запуск.')
+                    news_for_marty = f"🚀 Готовится запуск: {l['name']}\n📅 Старт через {int(diff // 60)}ч. Организатор: {prov}.\n📖 {clean_mission}"
+                    
+                    # Отправляем POST запрос Марти
+                    requests.post(marty_url, json={"text": news_for_marty}, timeout=10)
+                    print("📡 Сигнал о запуске передан Марти!")
+                except Exception as e:
+                    print(f"⚠️ Не удалось связаться с Марти: {e}")
+                
                 break
 
 if __name__ == '__main__':
