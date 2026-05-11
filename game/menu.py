@@ -42,3 +42,25 @@ def get_diary_chapters_menu():
         tele_types.InlineKeyboardButton("⬅️ Назад в Игровой отсек", callback_data="game_main_menu")
     )
     return report, kb
+
+# --- [ 2. МЕНЮ ГЛАВ: ПРОТОКОЛ ЧИСТОЕ НЕБО ] ---
+def get_apoc_chapters_menu():
+    report = (
+        "☢️ **СИМУЛЯЦИЯ: ПРОТОКОЛ «ЧИСТОЕ НЕБО»**\n"
+        "──────────────────────────\n"
+        "**ОБСТАНОВКА:**\n"
+        "Мир после «Великого Сбоя». Руины городов, дефицит энергии и опасные пустоши. \n\n"
+        "**ВАША МИССИЯ:**\n"
+        "В роли ученого-генетика найти «Семя Жизни» и восстановить экосистему Земли. С вами верный напарник — Марти, оснащенный звуковым модулем.\n\n"
+        "🛠 **НОВЫЕ ПРОТОКОЛЫ:**\n"
+        "• **Крафт:** Собирайте хлам и создавайте снаряжение.\n"
+        "• **Стелс:** Используйте звуковые обманки Марти.\n\n"
+        "💾 **АРХИВЫ ДОСТУПНЫХ ГЛАВ:**"
+    )
+    kb = tele_types.InlineKeyboardMarkup(row_width=1)
+    kb.add(
+        tele_types.InlineKeyboardButton("🌑 Глава 1: Радиомолчание", callback_data="apoc_n1_start"),
+        tele_types.InlineKeyboardButton("🌫 Глава 2: Кислотные болота [В РАЗРАБОТКЕ]", callback_data="apoc_soon"),
+        tele_types.InlineKeyboardButton("⬅️ Назад в Игровой отсек", callback_data="hub_main_menu")
+    )
+    return report, kb
