@@ -27,7 +27,7 @@ def get_dog_prompt(dog, user_id):
     style_prompt = ", ".join(clothes) if clothes else "natural fluffy fur"
 
     full_prompt = f"{base}, {evo}, {state}, {style_prompt}, photorealistic"
-    seed = int(time.time() / 3600) + user_id 
+    seed = user_id
     
     return full_prompt, seed
 
