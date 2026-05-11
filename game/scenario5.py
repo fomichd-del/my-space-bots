@@ -33,8 +33,24 @@ def run_scenario(bot, call):
             return
 
         if current_node and current_node.startswith("ch5_") and current_node != "ch5_start":
-            text = (f"🌌 **ФИНАЛЬНЫЙ СЕКТОР: `{current_node}`**\n\n"
-                    f"Пилот {username}, мы на самом краю реальности. Марти держит лапу на пульсе.")
+            
+            # --- [ АТМОСФЕРНЫЙ ЛОКАТОР ГЛАВЫ 5 ] ---
+            if "final_hack" in current_node:
+                location_text = "Киберпространство. Решающая битва за коды управления."
+            elif "sync" in current_node:
+                location_text = "Главный терминал. Идет слияние с коллективным разумом."
+            elif "archive" in current_node or "item_" in current_node:
+                location_text = "Запретные архивы. Старые дневники и тайна Мариуполя."
+            elif "bridge" in current_node:
+                location_text = "Мостик управления Колыбели. Энергия пространства зашкаливает."
+            else:
+                location_text = "Граница реальности. Законы физики здесь не работают..."
+
+            text = (f"🌌 **ФИНАЛЬНЫЙ СЕКТОР**\n\n"
+                    f"Пилот {username}, нейро-связь стабильна.\n"
+                    f"📍 **Точка погружения:** *{location_text}*\n\n"
+                    f"Марти держит лапу на пульсе. Вы готовы сделать решающий шаг?")
+            
             kb = tele_types.InlineKeyboardMarkup(row_width=1)
             
             # Приоритетная проверка этапов
