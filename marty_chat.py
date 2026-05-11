@@ -8,7 +8,7 @@ import urllib.parse
 import requests
 from datetime import datetime, timedelta
 from threading import Thread
-from flask import Flask 
+from flask import Flask, request, jsonify
 from google import genai
 from google.genai import types
 from telebot import types as tele_types 
@@ -457,6 +457,22 @@ def handle_text(message, is_profile_call=False):
 app = Flask(__name__)
 @app.route('/')
 def h(): return "OK"
+
+# 🟢 СЕКРЕТНЫЙ API-ШЛЮЗ ДЛЯ ДРУГИХ БОТОВ
+@app.route('/orion_uplink', methods=['POST'])
+def orion_uplink():
+    try:
+        data = request.json
+        if data and 'text' in data:
+            text = data['text']
+            today = datetime.now().strftime("%Y-%m-%d")
+            add_news(today, text) # Марти сам кладет это в базу
+            send_log(f"📡 API-Шлюз: Получена новость от скрипта: {text[:20]}...")
+            return jsonify({"status": "success"}), 200
+        return jsonify({"status": "error", "message": "No text provided"}), 400
+    except Exception as e:
+        send_log(f"🚨 Ошибка API-шлюза: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # 🟢 ШАГ 4: МОДУЛЬ «ИНИЦИАТИВА МАРТИ»
 def run_proactive_marty(bot_instance):
