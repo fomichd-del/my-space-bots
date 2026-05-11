@@ -339,8 +339,18 @@ def handle_text(message, is_profile_call=False):
             if not digest_text: digest_text = "Командор, день прошел продуктивно! Прием!"
             
             kb = tele_types.InlineKeyboardMarkup(row_width=1)
-            kb.add(tele_types.InlineKeyboardButton("📡 Читать новости", url="https://t.me/vladislav_space"))
-            full_message = f"✨ **ЭКСТРЕННЫЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{digest_text}\n\n🚀 _Прием!_"
+            # Кнопка перехода в канал
+            kb.add(tele_types.InlineKeyboardButton("🌌 Читать в канале «КОСМОС»", url="https://t.me/vladislav_space"))
+            # Кнопка для общения с ботом
+            kb.add(tele_types.InlineKeyboardButton("💬 Обсудить с Марти", url="https://t.me/Marty_Help_Bot"))
+            
+            # Обновленный дизайн самого текста
+            full_message = (
+                f"✨ **СВЕЖИЕ ДАННЫЕ ИЗ БОРТОВОГО ЖУРНАЛА**\n"
+                f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                f"{digest_text}\n\n"
+                f"🚀 _Есть вопросы по этим темам? Спроси меня прямо здесь! Прием!_"
+            )
             
             users = get_all_user_ids()
             for uid in users:
@@ -465,7 +475,7 @@ def run_daily_digest_loop(bot_instance):
             current_time = now.strftime("%H:%M")
             today = now.strftime("%Y-%m-%d")
 
-            if "18:00" <= current_time <= "18:05" and last_sent_date != today:
+            if "18:00" <= current_time <= "18:15" and last_sent_date != today:
                 news_list = get_today_news(today)
                 if news_list:
                     combined_news = "\n---\n".join(news_list)
@@ -486,9 +496,15 @@ def run_daily_digest_loop(bot_instance):
                     if not digest_text: digest_text = "Командор, день прошел продуктивно! Прием!"
 
                     kb = tele_types.InlineKeyboardMarkup(row_width=1)
-                    kb.add(tele_types.InlineKeyboardButton("📡 Читать новости", url="https://t.me/vladislav_space"))
+                    kb.add(tele_types.InlineKeyboardButton("🌌 Читать в канале «КОСМОС»", url="https://t.me/vladislav_space"))
+                    kb.add(tele_types.InlineKeyboardButton("💬 Обсудить с Марти", url="https://t.me/Marty_Help_Bot"))
                     
-                    full_message = f"✨ **ВЕЧЕРНИЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{digest_text}\n\n🚀 _Прием!_"
+                    full_message = (
+                        f"✨ **СВЕЖИЕ ДАННЫЕ ИЗ БОРТОВОГО ЖУРНАЛА**\n"
+                        f"⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                        f"{digest_text}\n\n"
+                        f"🚀 _Есть вопросы по этим темам? Спроси меня прямо здесь! Прием!_"
+                    )
 
                     users = get_all_user_ids()
                     for uid in users:
