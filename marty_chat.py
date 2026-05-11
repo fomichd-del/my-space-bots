@@ -432,7 +432,8 @@ def handle_text(message, is_profile_call=False):
         new_xp = get_user_stats(user_id)
         if old_rank != get_rank_name(new_xp):
             bot.send_message(message.chat.id, f"🎊 Новый ранг: {get_rank_name(new_xp)}!")
-            p = generate_passport(user_name, get_rank_name(new_xp))
+            # 🟢 ДОБАВИЛИ user_id В КОНЕЦ:
+            p = generate_passport(user_name, get_rank_name(new_xp), user_id)
             if p: bot.send_photo(message.chat.id, p)
 
 # --- АВТОНОМНЫЕ ПРОЦЕССЫ ---
