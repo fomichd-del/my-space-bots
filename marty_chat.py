@@ -174,7 +174,7 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
         greeting_rule = f"!!! ПРАВИЛО: Поздоровайся кратко: 'Командор {user_name}, статус систем: норма. +1 🌟'."
         daily_greetings[user_id] = current_date
     
-    prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[WALLET]", str(wallet_balance)).replace("[GREETING_RULE]", greeting_rule)
+    prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance)).replace("[GREETING_RULE]", greeting_rule)
     full_query = f"История диалога:\n{chat_history}\n\nДолгосрочная память: {user_memory}\n\nЗапрос: {clean_text}"
     
     # 1. GROQ
@@ -329,13 +329,23 @@ def run_daily_digest_loop(bot_instance):
         while True:
             from database import get_ship_date
             today = get_ship_date()
+            # Учитывай, что на Render время UTC. 18:00 EEST — это 15:00 UTC
             if "18:00" <= datetime.now().strftime("%H:%M") <= "18:15" and last_sent_date != today:
                 news = get_today_news(today)
                 if news:
-                    msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{news[0][:150]}...\n\n🚀 Обсудим? Прием!"
+                    # 🟢 ИСПРАВЛЕНО: Правильные отступы и сборка всех новостей
+                    combined_text = "\n• ".join(news)
+                    if len(combined_text) > 500:
+                        combined_text = combined_text[:500] + "..."
+                        
+                    msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n• {combined_text}\n\n🚀 Обсудим? Прием!"
+                    
                     for uid in get_all_user_ids():
-                        try: bot_instance.send_message(uid, msg, parse_mode="Markdown")
-                        except: pass
+                        try:
+                            bot_instance.send_message(uid, msg, parse_mode="Markdown")
+                            time.sleep(0.05) # Защита от спам-фильтра Telegram
+                        except:
+                            pass
                 last_sent_date = today
             time.sleep(60)
     Thread(target=loop, daemon=True).start()
