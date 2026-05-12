@@ -113,5 +113,8 @@ def handle_dog_callback(bot, call):
             bot.answer_callback_query(call.id, "🛰 Новый щенок на борту!")
         else: bot.answer_callback_query(call.id, "❌ Нужно 100 пыли!")
 
-    bot.delete_message(call.message.chat.id, call.message.message_id)
+    try:
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+    except:
+        pass # Если сообщение уже удалено, просто идем дальше
     send_dog_menu(bot, call.message.chat.id, user_id)
