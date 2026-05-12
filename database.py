@@ -35,7 +35,7 @@ def init_db():
             )
         ''')
         
-        # 🟢 ДОБАВЛЕНЫ КОЛОНКИ: last_interact и silence_until
+        # 🟢 ДОБАВЛЕНЫ КОЛОНКИ: last_interact и silence_until + ПАМЯТЬ ЗРЕНИЯ
         new_columns = [
             ("spendable_dust", "INTEGER DEFAULT 0"),
             ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"),
@@ -44,7 +44,10 @@ def init_db():
             ("game_node", "TEXT DEFAULT 'start'"),
             ("game_timer_end", "TIMESTAMP"),
             ("last_interact", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
-            ("silence_until", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
+            ("silence_until", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
+            # 👇 НОВЫЕ КОЛОНКИ ДЛЯ ПАМЯТИ МАРТИ 👇
+            ("last_vision_context", "TEXT DEFAULT ''"),
+            ("last_vision_time", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
         ]
         
         for col_name, col_type in new_columns:
