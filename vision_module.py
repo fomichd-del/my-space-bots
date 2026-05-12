@@ -33,7 +33,6 @@ def analyze_image(image_data, user_context="", user_query="", keys=[], task_mode
 
     if task_mode == 'task':
         prompt = (
-        prompt = (
             f"ДАННЫЕ ПИЛОТА: {user_context}\n"
             f"{question_block}"
             "Ты — Марти, высокотехнологичный бортовой ИИ и ученый пес. \n"
