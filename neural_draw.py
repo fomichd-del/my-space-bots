@@ -2,16 +2,17 @@ import requests
 import urllib.parse
 import os
 import time
+import base64  # 🟢 НОВЫЙ ИМПОРТ ДЛЯ РАСШИФРОВКИ КАРТИНОК
 from google import genai
 from google.genai import types
 
 HF_TOKEN = os.getenv('HF_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+TOGETHER_API_KEY = os.getenv('TOGETHER_API_KEY') # 🟢 Подключаем новый ключ
 API_KEYS = [os.getenv('GEMINI_API_KEY'), os.getenv('GEMINI_API_KEY_2'), os.getenv('GEMINI_API_KEY_3')]
 API_KEYS = [k for k in API_KEYS if k]
 
 def get_english_prompt(russian_text):
-    # (Твой текущий код переводчика остается без изменений)
     system_instruction = "Translate to English for image generation. Output ONLY high-quality, descriptive keywords. Kid-friendly."
     user_prompt = f"Describe object: {russian_text}"
     for key in API_KEYS:
@@ -35,70 +36,63 @@ def get_english_prompt(russian_text):
 
 def get_cascade_image(prompt, seed):
     """
-    Ультра-стелс каскад с маскировкой под живого человека
+    Каскад с элитным заводом Together AI во главе
     """
     print(f"🎨 Запуск генерации. Промпт: {prompt[:50]}...")
 
-    # Маскируемся под новейший Google Chrome
-    stealth_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-        'Referer': 'https://pollinations.ai/',
-        'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"'
-    }
+    # 🥇 1. ЭЛИТНЫЙ ЗАВОД: Together AI (FLUX) - Самый быстрый и надежный
+    if TOGETHER_API_KEY:
+        print("🛰 Запрос к премиум-серверу Together AI...")
+        headers = {
+            "Authorization": f"Bearer {TOGETHER_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": "black-forest-labs/FLUX.1-schnell",
+            "prompt": prompt,
+            "width": 1024,
+            "height": 1024,
+            "steps": 4, # FLUX Schnell работает идеально за 4 шага
+            "n": 1,
+            "response_format": "b64_json" # Просим вернуть картинку кодом
+        }
+        try:
+            res = requests.post("https://api.together.xyz/v1/images/generations", headers=headers, json=data, timeout=30)
+            if res.status_code == 200:
+                print("✅ Успех: Together AI сгенерировал изображение!")
+                b64_img = res.json()["data"][0]["b64_json"]
+                return base64.b64decode(b64_img) # Расшифровываем в картинку
+            else:
+                print(f"⚠️ Сбой Together AI. Код: {res.status_code}. Ошибка: {res.text[:100]}")
+        except Exception as e:
+            print(f"⚠️ Ошибка связи с Together AI: {e}")
+    else:
+        print("🚨 TOGETHER_API_KEY не найден в системе!")
 
-    # 1. FLUX (Pollinations)
+    # 🥈 2. БЕСПЛАТНЫЙ ЗАВОД: FLUX (Pollinations) - Стелс-режим
+    stealth_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    }
     try:
         url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={seed}&model=flux"
         res = requests.get(url, headers=stealth_headers, timeout=25)
-        
         if res.status_code == 200 and 'image' in res.headers.get('Content-Type', ''):
-            print("✅ Успех: Модель FLUX")
+            print("✅ Успех: Модель FLUX (Pollinations)")
             return res.content
         else:
-            print(f"⚠️ FLUX сбой. Код: {res.status_code}, Тип: {res.headers.get('Content-Type')[:30]}")
+            print(f"⚠️ Pollinations FLUX сбой. Код: {res.status_code}")
     except Exception as e:
-        print(f"⚠️ Ошибка FLUX: {e}")
+        print(f"⚠️ Ошибка Pollinations FLUX: {e}")
 
-    # 2. TURBO (Pollinations)
+    # 🥉 3. БЕСПЛАТНЫЙ ЗАВОД: TURBO (Pollinations)
     try:
         url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={seed}&model=turbo"
         res = requests.get(url, headers=stealth_headers, timeout=20)
         if res.status_code == 200 and 'image' in res.headers.get('Content-Type', ''):
-            print("✅ Успех: Модель TURBO")
+            print("✅ Успех: Модель TURBO (Pollinations)")
             return res.content
-        else:
-            print(f"⚠️ TURBO сбой. Код: {res.status_code}")
     except Exception as e:
-        print(f"⚠️ Ошибка TURBO: {e}")
-
-    # 3. HUGGING FACE (SDXL) - Бронебойный резерв
-    if HF_TOKEN:
-        print("🛰 Попытка через Hugging Face...")
-        hf_headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        # Меняем модель на более безотказную!
-        api_url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
-        
-        for attempt in range(3):
-            try:
-                res = requests.post(api_url, headers=hf_headers, json={"inputs": prompt}, timeout=30)
-                if res.status_code == 200:
-                    print(f"✅ Успех: Hugging Face (Попытка {attempt + 1})")
-                    return res.content
-                elif res.status_code == 503:
-                    wait = min(int(res.json().get('estimated_time', 5)) + 1, 15)
-                    print(f"⏳ HF грузится. Ждем {wait} сек...")
-                    time.sleep(wait)
-                else:
-                    print(f"⚠️ HF код {res.status_code}: {res.text[:80]}")
-                    break
-            except Exception as e:
-                print(f"⚠️ Ошибка HF: {e}")
-                break
-    else:
-        print("🚨 HF_TOKEN НЕ НАЙДЕН! Резерв отключен.")
+        print(f"⚠️ Ошибка Pollinations TURBO: {e}")
 
     print("❌ ПОЛНЫЙ ОТКАЗ всех систем визуализации.")
     return None
