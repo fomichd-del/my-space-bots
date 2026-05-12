@@ -35,47 +35,64 @@ def get_english_prompt(russian_text):
 
 def get_cascade_image(prompt, seed):
     """
-    Улучшенный каскад с расширенным логированием
+    Улучшенный каскад с защитой от спящих серверов и блокировок
     """
     print(f"🎨 Запуск генерации. Промпт: {prompt[:50]}...")
 
-    # 1. FLUX (Pollinations) - Самый красивый
+    # 1. FLUX (Pollinations)
     try:
         url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={seed}&model=flux"
-        res = requests.get(url, timeout=20) # Увеличили до 20 сек
-        if res.status_code == 200 and len(res.content) > 5000:
-            print("✅ Успех: Модель FLUX")
+        # Делаем вид, что мы обычный браузер, а не скрипт с сервера Render
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        res = requests.get(url, headers=headers, timeout=20)
+        
+        # Проверяем, что нам вернули именно картинку, а не HTML-страницу с ошибкой
+        if res.status_code == 200 and 'image' in res.headers.get('Content-Type', ''):
+            print("✅ Успех: Модель FLUX (Pollinations)")
             return res.content
+        else:
+            print(f"⚠️ FLUX выдал сбой. Код: {res.status_code}, Тип: {res.headers.get('Content-Type')}")
     except Exception as e:
         print(f"⚠️ FLUX недоступен: {e}")
 
-    # 2. TURBO (Pollinations) - Самый быстрый
+    # 2. TURBO (Pollinations)
     try:
         url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={seed}&model=turbo"
-        res = requests.get(url, timeout=15)
-        if res.status_code == 200 and len(res.content) > 5000:
-            print("✅ Успех: Модель TURBO")
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        res = requests.get(url, headers=headers, timeout=15)
+        if res.status_code == 200 and 'image' in res.headers.get('Content-Type', ''):
+            print("✅ Успех: Модель TURBO (Pollinations)")
             return res.content
     except Exception as e:
         print(f"⚠️ TURBO недоступен: {e}")
 
-    # 3. HUGGING FACE (Stable Diffusion XL) - Наша главная страховка
+    # 3. HUGGING FACE (SDXL) - Бронебойная страховка с ожиданием "пробуждения"
     if HF_TOKEN:
         print("🛰 Попытка через Hugging Face...")
-        try:
-            headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-            # Используем быструю модель Lightning, она реже "спит"
-            api_url = "https://api-inference.huggingface.co/models/stabilityai/sdxl-turbo"
-            res = requests.post(api_url, headers=headers, json={"inputs": prompt}, timeout=25)
-            if res.status_code == 200:
-                print("✅ Успех: Hugging Face")
-                return res.content
-            else:
-                print(f"⚠️ HF вернул код: {res.status_code}")
-        except Exception as e:
-            print(f"⚠️ Hugging Face недоступен: {e}")
+        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+        api_url = "https://api-inference.huggingface.co/models/stabilityai/sdxl-turbo"
+        
+        # Делаем до 3 попыток, если сервер спит
+        for attempt in range(3):
+            try:
+                res = requests.post(api_url, headers=headers, json={"inputs": prompt}, timeout=25)
+                if res.status_code == 200:
+                    print(f"✅ Успех: Hugging Face (Попытка {attempt + 1})")
+                    return res.content
+                elif res.status_code == 503:
+                    # Ошибка 503 означает "Model is loading"
+                    estimated_time = res.json().get('estimated_time', 5)
+                    wait_time = min(int(estimated_time) + 1, 10) # Ждем не больше 10 секунд
+                    print(f"⏳ Сервер HF спит (503). Ждем {wait_time} сек. пробуждения...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"⚠️ HF вернул код: {res.status_code}. Ответ: {res.text[:100]}")
+                    break # Если ошибка другая (например, неверный токен), прекращаем попытки
+            except Exception as e:
+                print(f"⚠️ Ошибка связи с HF: {e}")
+                break
     else:
-        print("🚨 Критическая ошибка: HF_TOKEN не найден в системе!")
+        print("🚨 ВНИМАНИЕ: HF_TOKEN не найден! Третий уровень защиты отключен.")
 
     print("❌ ПОЛНЫЙ ОТКАЗ всех систем визуализации.")
     return None
