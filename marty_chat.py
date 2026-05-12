@@ -37,6 +37,21 @@ API_KEYS = [k for k in API_KEYS if k]
 bot = telebot.TeleBot(TOKEN)
 daily_greetings = {} 
 
+# Хранилище последних 5 сообщений для каждого пилота
+short_term_memory = {} 
+
+def add_to_history(user_id, role, text):
+    if user_id not in short_term_memory:
+        short_term_memory[user_id] = []
+    short_term_memory[user_id].append({"role": role, "content": text})
+    # Ограничиваем историю 6 сообщениями (3 вопроса и 3 ответа)
+    if len(short_term_memory[user_id]) > 6:
+        short_term_memory[user_id].pop(0)
+
+def get_history_as_text(user_id):
+    history = short_term_memory.get(user_id, [])
+    return "\n".join([f"{'Пилот' if m['role']=='user' else 'Марти'}: {m['content']}" for m in history])
+
 # --- ОБРАБОТЧИКИ КНОПОК ---
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('eco_'))
