@@ -68,6 +68,61 @@ def init_db():
         cursor.close()
         conn.close()
 
+# --- КРАТКОСРОЧНАЯ ПАМЯТЬ ЗРЕНИЯ ---
+
+def save_vision_context(user_id, context_text):
+    """Записывает результат анализа фото в память Марти"""
+    conn = get_connection()
+    if not conn: return
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE users 
+            SET last_vision_context = %s, last_vision_time = CURRENT_TIMESTAMP 
+            WHERE user_id = %s
+        ''', (context_text, user_id))
+        conn.commit()
+    except Exception as e:
+        send_log(f"Ошибка сохранения памяти зрения: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_vision_context(user_id):
+    """Извлекает последнее увиденное, если оно было не дольше 30 минут назад"""
+    conn = get_connection()
+    if not conn: return None
+    try:
+        cursor = conn.cursor()
+        # Вытаскиваем память, только если она "свежая" (меньше 30 минут)
+        cursor.execute('''
+            SELECT last_vision_context 
+            FROM users 
+            WHERE user_id = %s 
+              AND last_vision_time > NOW() - INTERVAL '30 minutes'
+              AND last_vision_context != ''
+        ''', (user_id,))
+        res = cursor.fetchone()
+        return res[0] if res else None
+    except Exception as e:
+        send_log(f"Ошибка чтения памяти зрения: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def clear_vision_context(user_id):
+    """Очищает память (полезно, если пилот хочет сменить тему)"""
+    conn = get_connection()
+    if not conn: return
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET last_vision_context = '' WHERE user_id = %s", (user_id,))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
 # --- ФУНКЦИИ АКТИВНОСТИ ПИЛОТОВ ---
 
 def update_last_active(user_id):
