@@ -19,7 +19,8 @@ from database import (setup_eco_bay, setup_news_db, add_news, get_today_news,
                       get_all_user_ids, get_personal_log, update_personal_log, 
                       add_xp, get_user_stats, get_rank_name, get_user_data, 
                       set_jackpot_claimed, spend_dust, check_and_update_streak, 
-                      get_top_pilots, update_last_active, set_silence, get_users_for_ping) # 🟢 Добавлены функции активности
+                      get_top_pilots, update_last_active, set_silence, get_users_for_ping,
+                      save_vision_context, get_vision_context, clear_vision_context) # 🟢 Добавлены функции памяти
 from vision_module import analyze_image
 from image_gen import generate_passport
 from game import menu, router
@@ -243,10 +244,19 @@ def handle_photo(message):
     rank = "Системный Канал" if is_system_acc else get_rank_name(get_user_data(user_id)['xp'])
     current_mode = 'task' if is_private_chat else 'comment'
     
+    # 🟢 ИЗВЛЕКАЕМ ВОПРОС ПИЛОТА ИЗ ПОДПИСИ К ФОТО
+    question = message.caption if message.caption else ""
+    
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        res = analyze_image(downloaded_file, f"Отправитель: {user_name}, Ранг: {rank}", keys=API_KEYS, task_mode=current_mode)
+        
+        # 🟢 ПЕРЕДАЕМ ВОПРОС В МОДУЛЬ ЗРЕНИЯ (параметр user_query)
+        res = analyze_image(downloaded_file, user_context=f"Отправитель: {user_name}, Ранг: {rank}", user_query=question, keys=API_KEYS, task_mode=current_mode)
+        
+        # 🟢 СОХРАНЯЕМ РЕЗУЛЬТАТ В ПАМЯТЬ
+        if not is_system_acc:
+            save_vision_context(user_id, f"Вопрос пилота: {question} | Результат сканирования: {res}")
         
         if is_private_chat and not is_system_acc and "звездн" in res.lower(): 
             add_xp(user_id, 1, user_name)
@@ -429,6 +439,15 @@ def handle_text(message, is_profile_call=False):
 
     # ОБЫЧНЫЙ ОТВЕТ
     u = get_user_data(user_id); old_rank = get_rank_name(u['xp'])
+    
+    # 🟢 ПРОВЕРЯЕМ КРАТКОСРОЧНУЮ ПАМЯТЬ ЗРЕНИЯ
+    photo_memory = get_vision_context(user_id)
+    if photo_memory:
+        # Подшиваем воспоминание о фото к текущему вопросу пилота
+        clean_text = f"[КОНТЕКСТ НЕДАВНЕГО ФОТО: {photo_memory}]\nТЕКУЩИЙ ЗАПРОС ПИЛОТА: {clean_text}"
+        clear_vision_context(user_id) # 🧹 Очищаем память, чтобы не вспоминать это фото бесконечно
+        send_log(f"🧠 Использована память зрения для пилота {user_name}")
+    
     resp = get_marty_response(user_id, user_name, clean_text, old_rank, u['spendable_dust'])
     
     if resp:
@@ -436,7 +455,7 @@ def handle_text(message, is_profile_call=False):
         if memory_match:
             new_fact = memory_match.group(1).strip()
             update_personal_log(user_id, new_fact)
-            send_log(f"🧠 Новое воспоминание для {user_name}: {new_fact}")
+            send_log(f"🧠 Новое долгосрочное воспоминание для {user_name}: {new_fact}")
             resp = re.sub(r'\[MEMORY:\s*.*?\]', '', resp, flags=re.IGNORECASE).strip()
 
         if "***НАГРАДА ЗА УМ***" in resp:
@@ -448,7 +467,6 @@ def handle_text(message, is_profile_call=False):
         new_xp = get_user_stats(user_id)
         if old_rank != get_rank_name(new_xp):
             bot.send_message(message.chat.id, f"🎊 Новый ранг: {get_rank_name(new_xp)}!")
-            # 🟢 ДОБАВИЛИ user_id В КОНЕЦ:
             p = generate_passport(user_name, get_rank_name(new_xp), user_id)
             if p: bot.send_photo(message.chat.id, p)
 
