@@ -3,14 +3,16 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from telebot import apihelper
 import os, time, concurrent.futures, random, io
 from pathlib import Path
-from flask import Flask
+from flask import Flask, request, jsonify  # 🟢 Добавили request и jsonify для шлюза
 from threading import Thread, Timer 
 import requests
 from PIL import Image
+from datetime import datetime  # 🟢 Добавили для фиксации времени новостей
 
 # --- [ ИМПОРТ МОДУЛЕЙ КОРАБЛЯ ] ---
 from draw_map import generate_star_map
-from database import init_db, add_xp, get_user_stats, get_rank_name
+# 🟢 Добавили add_news в импорт из базы
+from database import init_db, add_xp, get_user_stats, get_rank_name, add_news 
 from base_fact_star import CONSTELLATIONS
 # 🟢 ДОБАВЛЕНО: Пробуждаем Марти-Ученого из его файла
 from marty_chat import start_marty_autonomous 
@@ -45,6 +47,11 @@ SPACE_FACTS = [
     "🌠 <b>Квантовый поток:</b> Каждую секунду через тебя пролетают триллионы нейтрино от Солнца."
 ]
 
+# --- [ ЛОГИРОВАНИЕ ] ---
+def send_log(text):
+    try: bot.send_message(LOG_CHAT_ID, f"🚨 **LOG:** `{text}`", parse_mode="Markdown")
+    except: pass
+
 # --- [ МАКСИМАЛЬНО ПОДРОБНАЯ ИНСТРУКЦИЯ ] ---
 def get_instruction_text():
     return (
@@ -52,51 +59,45 @@ def get_instruction_text():
         "─────────────────────────\n\n"
         "<b>Пилот! Перед тобой руководство по управлению звездными системами:</b>\n\n"
         "📡 <b>1. Кнопка «МОЕ НЕБО» (Локация)</b>\n"
-        "Это главная навигационная функция. Нажми её и подтверди отправку геолокации. "
-        "Бот мгновенно вычислит твой сектор и отрисует карту звезд, планет и Млечного Пути именно над твоей крышей. "
-        "Центр круга — это зенит (точка над головой), края — твой реальный горизонт.\n"
+        "Нажми её и подтверди отправку геолокации. "
+        "Бот мгновенно вычислит твой сектор и отрисует карту звезд.\n"
         "🎁 <i>Награда за вылет: +1 XP и +1 Пыль.</i>\n\n"
         "🌌 <b>2. Кнопка «ДОСЬЕ»</b>\n"
-        "Появляется под готовой картой. Я выбираю самое яркое созвездие в твоем секторе (цель) "
-        "и готовлю секретную выписку: его историю, фото в высоком качестве и научные факты.\n\n"
+        "Выбираю самое яркое созвездие и готовлю секретную выписку.\n\n"
         "🖼️ <b>3. Кнопка «FULL HD» (Оригинал)</b>\n"
-        "Телеграм сжимает фото. Чтобы получить четкий снимок для печати или обоев — жми эту кнопку. "
-        "Файл хранится в памяти корабля <b>всего 15 минут</b>, потом он самоуничтожается для экономии ресурсов!\n\n"
+        "Файл хранится в памяти корабля <b>всего 15 минут</b>!\n\n"
         "🎖️ <b>4. Ранги и Опыт (XP)</b>\n"
-        "Твои успехи фиксируются в общей базе данных Ориона. Чем больше вылетов, тем выше звание:\n"
-        "Кадет | Навигатор | Бортинженер | Исследователь | Ученый Пилот | Капитан | Командор | Адмирал | Академик\n\n"
+        "Твои успехи фиксируются в общей базе данных Ориона.\n\n"
         "🤖 <b>ГДЕ МАРТИ?</b>\n"
-        "Я — Навигатор (мозг корабля). Если хочешь попросить Марти нарисовать картинку за Пыль или спросить совета — переходи по связи: @Marty_Help_Bot"
+        "Для общения с Ученым Псом Марти переходи: @Marty_Help_Bot"
     )
 
 @bot.message_handler(func=lambda m: True, content_types=['text'])
 def unified_text_handler(message):
-    menu = get_main_menu() 
+    menu_kb = get_main_menu() 
     
     if message.text == "❓❓ ИНСТРУКЦИЯ ПИЛОТА":
-        bot.send_message(message.chat.id, get_instruction_text(), reply_markup=menu, parse_mode='HTML')
+        bot.send_message(message.chat.id, get_instruction_text(), reply_markup=menu_kb, parse_mode='HTML')
     elif message.text == "/start":
         welcome = (
             f"🛰️ <b>Системы Навигации инициализированы!</b>\n"
             f"Рад видеть тебя на мостике, пилот <b>{message.from_user.first_name}</b>!\n\n"
-            f"Я — твой бортовой компьютер. Готов проложить курс через тернии к звездам. "
             f"Панель управления активирована в нижней части экрана. 🐾"
         )
-        bot.send_message(message.chat.id, welcome, reply_markup=menu, parse_mode='HTML')
+        bot.send_message(message.chat.id, welcome, reply_markup=menu_kb, parse_mode='HTML')
     else:
         bot.send_message(
             message.chat.id, 
-            "🛰️ <b>Я — Навигационный модуль.</b> Моя задача — расчет звездных карт.\n\n"
-            "Для общения переключись на канал Ученого Пса Марти: @Marty_Help_Bot\n"
-            "Или выбери команду на панели ниже:", 
-            reply_markup=menu, 
+            "🛰️ <b>Я — Навигационный модуль.</b>\n\n"
+            "Для общения переключись на канал Ученого Пса Марти: @Marty_Help_Bot", 
+            reply_markup=menu_kb, 
             parse_mode='HTML'
         )
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
-    status_msg = bot.send_message(message.chat.id, "🚀 <b>Прогреваю варп-двигатель... Подключаюсь к спутникам.</b>", parse_mode='HTML')
+    status_msg = bot.send_message(message.chat.id, "🚀 <b>Прогреваю варп-двигатель...</b>", parse_mode='HTML')
     
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(generate_star_map, message.location.latitude, message.location.longitude, user_name, user_id)
@@ -109,10 +110,9 @@ def handle_location(message):
         success, res_jpg, res_png, target_name, err_msg = future.result()
 
     if success:
-        # 🟢 ОБНОВЛЕННЫЙ БЛОК НАЧИСЛЕНИЯ
-        add_xp(user_id, 1, user_name) # Начислит и XP, и Пыль, так как database.py общая
+        add_xp(user_id, 1, user_name)
         stats = get_user_stats(user_id)
-        rank = get_rank_name(stats) # Возьмет новые ранги из единой базы
+        rank = get_rank_name(stats)
         
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(f"🌌 Открыть досье: {target_name}", callback_data=f"wiki_{target_name}"))
@@ -121,11 +121,10 @@ def handle_location(message):
         
         caption = (
             f"✨ <b>СЕКТОР ПРОСКАНИРОВАН УСПЕШНО!</b>\n\n"
-            f"Пилот <b>{user_name}</b>, твоя цель-ориентир на сегодня — <b>{target_name}</b>.\n"
-            f"Оно выделено на карте розовым неоновым кругом.\n"
+            f"Пилот <b>{user_name}</b>, твоя цель-ориентир — <b>{target_name}</b>.\n"
             f"─────────────────────\n"
             f"🎖️ <b>Твой текущий статус:</b> {rank}\n"
-            f"📈 <b>Опыт экспедиции:</b> {stats} XP (начислено +1 XP и +1 Пыль)" # 🟢 ИСПРАВЛЕН ТЕКСТ
+            f"📈 <b>Опыт экспедиции:</b> {stats} XP"
         )
         with open(res_jpg, 'rb') as ph:
             bot.send_photo(message.chat.id, ph, caption=caption, reply_markup=markup, parse_mode='HTML')
@@ -207,27 +206,41 @@ def game_engine(call):
     if call.data == "game_back_to_profile":
         report, kb = menu.get_main_games_menu()
         bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-    elif call.data == "game_instruction_fix":
-        # ... твой код рейтинга ...
-        pass
     else:
-        # Передаем управление Главному Роутеру
         main_router.handle_game_selection(bot, call)
 
+# --- [ FLASK СЕРВЕР И API-ШЛЮЗ ] ---
 app = Flask(__name__)
+
 @app.route('/')
-def home(): return "<h1>Navigator Marty: Online</h1>"
+def home(): 
+    return "<h1>Navigator Marty: Online</h1>"
+
+# 🟢 НОВЫЙ ШЛЮЗ: Принимает новости от сторонних скриптов
+@app.route('/orion_uplink', methods=['POST'])
+def orion_uplink():
+    try:
+        data = request.json
+        if data and 'text' in data:
+            text = data['text']
+            today = datetime.now().strftime("%Y-%m-%d")
+            add_news(today, text) # Сохраняем новость в базу для вечернего дайджеста
+            send_log(f"📡 API-Шлюз: Получена новость: {text[:30]}...")
+            return jsonify({"status": "success"}), 200
+        return jsonify({"status": "error", "message": "No text provided"}), 400
+    except Exception as e:
+        send_log(f"🚨 Ошибка API-шлюза: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     init_db()
     
-    # Запуск Flask
+    # Запуск Flask сервера (Render использует порт 10000)
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     
-    # 🟢 ЗАПУСК МАРТИ-УЧЕНОГО (Просыпайся, Марти!)
+    # 🟢 ЗАПУСК МАРТИ-УЧЕНОГО
     Thread(target=start_marty_autonomous, daemon=True).start()
     
-    # КРИТИЧЕСКИЙ ФИКС ОШИБКИ 409
     print("🚀 Корабль Навигатор на орбите. Перезагрузка систем связи...")
     bot.remove_webhook()
     time.sleep(1) 
