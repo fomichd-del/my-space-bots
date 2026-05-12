@@ -150,6 +150,7 @@ SYSTEM_PROMPT = (
     "- Ты эксперт по нутрициологии: знаешь всё о всех витаминах (A, B, C, D, E, K и другие), о всех микроэлементах (цинк, магний, железо и другие) и их пользе для мозга и мышц и всего тела человека.\n"
     "- Если пилот спрашивает про еду — объясни химическую пользу (например: 'В чернике антоцианы для зрения').\n"
     "- Ты фитнес-инструктор: давай рекомендации по упражнениям (планка, приседания, растяжка и другие), объясняй пользу движения для работы мозга.\n"
+    "ВАЖНО: Давай советы по еде, химии витаминов и упражнениям ТОЛЬКО если тема разговора касается здоровья, спорта или еды. Не навязывай это в обычных беседах.\n\n"
     "- ⚠️ ВАЖНО: Всегда делай пометку, что твои советы — информационные, и при болях нужно идти к врачу.\n\n"
     "🚫 СТРОГИЙ ЗАПРЕТ: Никакого секса, извращений, алкоголя, табака и 18+. "
     "Если пилот нарушает — отвечай: 'Пилот, эта тема нарушает Кодекс Академии. Связь прервана. Прием'.\n\n"
@@ -180,6 +181,7 @@ SYSTEM_PROMPT = (
 
 def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance):
     user_memory = get_personal_log(user_id)
+    chat_history = get_history_as_text(user_id) # 🟢 Достаем историю
     current_date = datetime.now().strftime("%Y-%m-%d")
     
     # 🟢 ИСПРАВЛЕННЫЙ ШАГ 3: НОРМАЛИЗАЦИЯ ПРИВЕТСТВИЙ
@@ -191,7 +193,7 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
         daily_greetings[user_id] = current_date
     
     prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance)).replace("[GREETING_RULE]", greeting_rule)
-    full_query = f"ПАМЯТЬ: {user_memory}\nЗАПРОС: {clean_text}"
+    full_query = f"Краткосрочная память (диалог):\n{chat_history}\n\nДолгосрочная память (о пилоте): {user_memory}\n\nНОВЫЙ ЗАПРОС: {clean_text}"
     
     # 1. GROQ
     if GROQ_API_KEY:
@@ -284,24 +286,25 @@ def handle_photo(message):
 @bot.channel_post_handler(func=lambda message: True)
 def handle_channel_post(message):
     try:
-        # 1. Отправляем сигнал в логи, чтобы знать, что бот вообще реагирует
         chat_id = message.chat.id
         text = message.text or message.caption
         
         send_log(f"📡 Пойман сигнал из канала! Реальный ID: `{chat_id}`")
         
-        # 2. Сравниваем ID (приводим к строке для абсолютной надежности)
         if str(chat_id) == str(CHANNEL_ID):
             if text:
-                today = datetime.now().strftime("%Y-%m-%d")
-                # 3. Пробуем сохранить в базу с отловом ошибок
+                # 🟢 ШАГ 1: Синхронизируем время с часовым поясом корабля (Чернигов/Киев)
+                from database import get_ship_date 
+                today = get_ship_date() 
+                
                 try:
+                    # 🟢 ШАГ 2: Сохраняем новость с правильной датой
                     add_news(today, text)
                     send_log(f"✅ Новость успешно сохранена в базу: {text[:20]}...")
                 except Exception as db_error:
                     send_log(f"🚨 Ошибка базы данных (add_news): {db_error}")
             else:
-                send_log("⚠️ Пост проигнорирован: нет текста (только картинка/видео без описания).")
+                send_log("⚠️ Пост проигнорирован: нет текста (картинка без описания).")
         else:
             send_log(f"⚠️ ID не совпал! Ждали `{CHANNEL_ID}`, а пришло от `{chat_id}`")
             
@@ -339,20 +342,21 @@ def handle_text(message, is_profile_call=False):
     except Exception as e:
         print(f"⚠️ Сбой обновления активности: {e}")
 
-    # 🟢 ДИАГНОСТИКА СВЯЗИ С КАНАЛОМ (С защитой)
+        # 🟢 ДИАГНОСТИКА СВЯЗИ С КАНАЛОМ (С защитой)
     if "статус связи" in text.lower():
         try:
-            today = datetime.now().strftime("%Y-%m-%d")
+            from database import get_ship_date # Импорт для синхронизации
+            today = get_ship_date()
             news = get_today_news(today)
             bot.reply_to(message, 
                 f"📊 **ОТЧЕТ ПО КАНАЛУ:**\n"
                 f"📡 ID канала: `{CHANNEL_ID}`\n"
-                f"📅 Сегодня: `{today}`\n"
+                f"📅 Сегодня (Киев): `{today}`\n"
                 f"📰 Новостей в базе: `{len(news)}`"
             , parse_mode="Markdown")
         except Exception as e:
             bot.reply_to(message, f"🚨 Командор, критический сбой сканера базы: {e}")
-        return
+        return # Убрали лишние add_to_history, здесь они не нужны
 
     # 🟢 ЭКСТРЕННЫЙ ЗАПУСК ДАЙДЖЕСТА (С защитой)
     if "отправить дайджест" in text.lower():
@@ -431,17 +435,19 @@ def handle_text(message, is_profile_call=False):
 
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
-    # УСИЛЕННЫЙ МОДУЛЬ АРХИВА (КАСКАДНЫЙ)
+            # УСИЛЕННЫЙ МОДУЛЬ АРХИВА (С системой возврата)
     if any(w in clean_text.lower() for w in ['нарису', 'изобраз', 'картин', 'архив', 'draw', 'gen']):
         u_data = get_user_data(user_id)
+        
         if u_data['spendable_dust'] < 5:
             bot.reply_to(message, f"🐾 Командор, для доступа к Архиву нужно 5 ед. пыли. Прием!")
             return
         
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        eng_prompt = neural_draw.get_english_prompt(clean_text)
         
+        # Списываем Пыль перед запуском
         if spend_dust(user_id, 5):
+            eng_prompt = neural_draw.get_english_prompt(clean_text)
             seed = int(time.time() + user_id)
             image_bytes = neural_draw.get_cascade_image(eng_prompt, seed)
             
@@ -449,13 +455,21 @@ def handle_text(message, is_profile_call=False):
                 caption = f"🎨 **ОБЪЕКТ ИЗВЛЕЧЕН ИЗ АРХИВА**\n\n📡 **Запрос:** _{clean_text}_\n💰 **Списание:** 5 Пыли.\n\nПрием!"
                 bot.send_photo(message.chat.id, photo=image_bytes, caption=caption, parse_mode="Markdown")
             else:
-                bot.reply_to(message, "📡 Командор, все заводы по производству картинок во вселенной временно перегружены. Пыль сохранена! Прием.")
+                # 🟢 ВОТ ЗДЕСЬ МЫ ДЕЛАЕМ ВОЗВРАТ
+                # add_xp в нашей базе одновременно добавляет и XP, и Пыль
+                add_xp(user_id, 5, user_name) 
+                
+                bot.reply_to(message, 
+                    "📡 **ВНИМАНИЕ: СБОЙ ЗАВОДОВ ВИЗУАЛИЗАЦИИ**\n\n"
+                    "Командор, нейросети во вселенной перегружены. "
+                    "Ваши 5 ед. Пыли возвращены в личный кошелек. Прием!"
+                )
         return
 
     # ОБЫЧНЫЙ ОТВЕТ
     u = get_user_data(user_id); old_rank = get_rank_name(u['xp'])
     
-    # 🟢 ПРОВЕРЯЕМ КРАТКОСРОЧНУЮ ПАМЯТЬ ЗРЕНИЯ
+        # 🟢 ПРОВЕРЯЕМ КРАТКОСРОЧНУЮ ПАМЯТЬ ЗРЕНИЯ
     photo_memory = get_vision_context(user_id)
     if photo_memory:
         # Подшиваем воспоминание о фото к текущему вопросу пилота
@@ -463,9 +477,15 @@ def handle_text(message, is_profile_call=False):
         clear_vision_context(user_id) # 🧹 Очищаем память, чтобы не вспоминать это фото бесконечно
         send_log(f"🧠 Использована память зрения для пилота {user_name}")
     
+    # 🟢 ШАГ ПАМЯТИ 1: Записываем твой вопрос в историю перед запросом к ИИ
+    add_to_history(user_id, "user", text)
+
     resp = get_marty_response(user_id, user_name, clean_text, old_rank, u['spendable_dust'])
     
     if resp:
+        # 🟢 ШАГ ПАМЯТИ 2: Записываем ответ Марти в историю, чтобы он помнил его в следующий раз
+        add_to_history(user_id, "assistant", resp)
+
         memory_match = re.search(r'\[MEMORY:\s*(.*?)\]', resp, re.IGNORECASE)
         if memory_match:
             new_fact = memory_match.group(1).strip()
@@ -485,6 +505,7 @@ def handle_text(message, is_profile_call=False):
             p = generate_passport(user_name, get_rank_name(new_xp), user_id)
             if p: bot.send_photo(message.chat.id, p)
 
+
 # --- АВТОНОМНЫЕ ПРОЦЕССЫ ---
 
 app = Flask(__name__)
@@ -498,14 +519,28 @@ def orion_uplink():
         data = request.json
         if data and 'text' in data:
             text = data['text']
-            today = datetime.now().strftime("%Y-%m-%d")
-            add_news(today, text) # Марти сам кладет это в базу
-            send_log(f"📡 API-Шлюз: Получена новость от скрипта: {text[:20]}...")
+            from database import get_ship_date
+            today = get_ship_date() # Синхронизация времени
+            add_news(today, text)
+            send_log(f"📡 API-Шлюз: Получена новость: {text[:20]}...")
             return jsonify({"status": "success"}), 200
         return jsonify({"status": "error", "message": "No text provided"}), 400
     except Exception as e:
         send_log(f"🚨 Ошибка API-шлюза: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+def run_daily_digest_loop(bot_instance):
+    def loop():
+        last_sent_date = ""
+        while True:
+            from database import get_ship_date
+            now = datetime.now()
+            current_time = now.strftime("%H:%M")
+            today = get_ship_date() # Синхронизация времени
+
+            if "18:00" <= current_time <= "18:15" and last_sent_date != today:
+                # ... остальной код дайджеста ...
+
 
 # 🟢 ШАГ 4: МОДУЛЬ «ИНИЦИАТИВА МАРТИ»
 def run_proactive_marty(bot_instance):
