@@ -569,22 +569,23 @@ def start_marty_autonomous():
         except Exception as e: send_log(f"Критический сбой: {e}"); time.sleep(5)
 
 def run_daily_digest_loop(bot_instance):
+    """Модуль автоматической вечерней рассылки"""
     def loop():
         last_sent_date = ""
         while True:
+            from database import get_ship_date
             now = datetime.now()
             current_time = now.strftime("%H:%M")
-            today = now.strftime("%Y-%m-%d")
+            today = get_ship_date()
 
+            # Если наступило время рассылки и мы еще не отправляли её сегодня
             if "18:00" <= current_time <= "18:15" and last_sent_date != today:
                 news_list = get_today_news(today)
                 if news_list:
                     combined_news = "\n---\n".join(news_list)
-                    prompt = (
-                        "Ты Марти, ученый пес. Напиши вдохновляющий дайджест новостей дня. "
-                        f"Новости:\n{combined_news}"
-                    )
+                    prompt = f"Ты Марти, ученый пес. Напиши вдохновляющий дайджест новостей дня. Новости:\n{combined_news}"
                     digest_text = ""
+                    
                     if GROQ_API_KEY:
                         try:
                             headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
@@ -594,7 +595,7 @@ def run_daily_digest_loop(bot_instance):
                                 digest_text = groq_resp.json()["choices"][0]["message"]["content"]
                         except: pass
                     
-                    if not digest_text: digest_text = "Командор, день прошел продуктивно! Прием!"
+                    if not digest_text: digest_text = "Командор, день прошел продуктивно! Все системы в норме. Прием!"
 
                     kb = tele_types.InlineKeyboardMarkup(row_width=1)
                     kb.add(tele_types.InlineKeyboardButton("🌌 Читать в канале «КОСМОС»", url="https://t.me/vladislav_space"))
@@ -612,18 +613,52 @@ def run_daily_digest_loop(bot_instance):
                         try:
                             bot_instance.send_message(uid, full_message, parse_mode="Markdown", reply_markup=kb)
                             time.sleep(0.05)
-                        except: pass
-                last_sent_date = today
-            time.sleep(30)
+                        except: continue
+                
+                last_sent_date = today # Фиксируем отправку
+            
+            time.sleep(30) # Проверка каждые 30 секунд
+
     Thread(target=loop, daemon=True).start()
+
+# 🟢 МОДУЛЬ «ИНИЦИАТИВА МАРТИ»
+def run_proactive_marty(bot_instance):
+    def loop():
+        while True:
+            time.sleep(21600) # Проверяем каждые 6 часов
+            candidate_ids = get_users_for_ping()
+            for uid in candidate_ids:
+                try:
+                    u = get_user_data(uid)
+                    msg_text = get_marty_response(uid, u['name'], "Марти, напомни о себе пилоту коротко.", "Пилот", u['spendable_dust'])
+                    msg_text = re.sub(r'\[MEMORY:\s*.*?\]', '', msg_text).strip()
+                    bot_instance.send_message(uid, msg_text, parse_mode="Markdown")
+                    set_silence(uid, hours=24)
+                    time.sleep(0.5)
+                except: continue
+    Thread(target=loop, daemon=True).start()
+
+def start_marty_autonomous():
+    print("🚀 Академия Орион 2.3 запущена.")
+    while True:
+        try: 
+            bot.remove_webhook()
+            bot.infinity_polling(skip_pending=True)
+        except Exception as e: 
+            send_log(f"Критический сбой: {e}")
+            time.sleep(5)
 
 # 🟢 ШАГ 5: ЗАПУСК СИСТЕМЫ
 if __name__ == "__main__":
+    # Запуск Flask в отдельном потоке
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
+    
     check_actual_names()
     setup_news_db()                    
     setup_eco_bay() 
     eco_bay.run_reminder_loop(bot)
-    run_daily_digest_loop(bot)
-    run_proactive_marty(bot) # 🟢 Запуск инициативы Марти
-    start_marty_autonomous()
+    
+    run_daily_digest_loop(bot) # Запуск дайджеста
+    run_proactive_marty(bot)   # Запуск инициативы
+    
+    start_marty_autonomous()   # Основной цикл бота
