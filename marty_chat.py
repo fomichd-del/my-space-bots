@@ -231,14 +231,50 @@ def handle_channel_post(message):
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
+    # 1. СРАЗУ ГАСИМ СИСТЕМНЫЕ АККАУНТЫ
+    bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group']
+    if message.from_user.is_bot or message.from_user.id in [777000, 1087968824] or message.from_user.first_name in bad_names:
+        return
+
     user_id, user_name = message.from_user.id, message.from_user.first_name
     text = message.text or ""
 
-    # Проверка на режим сна
-    if any(word in text.lower() for word in ['пока', 'спокойной ночи', 'отбой', 'спать']):
+    # 2. СРАЗУ ВКЛЮЧАЕМ СТАТУС ПЕЧАТАНИЯ (До любых проверок базы)
+    try:
+        bot.send_chat_action(message.chat.id, 'typing')
+    except:
+        pass
+
+    # 3. ТЕХНИЧЕСКАЯ ДИАГНОСТИКА (БЕЗ ЛИШНИХ ВЛОЖЕНИЙ)
+    if "статус связи" in text.lower():
+        try:
+            from database import get_ship_date 
+            today = get_ship_date()
+            news = get_today_news(today)
+            bot.reply_to(message, 
+                f"📊 **ОТЧЕТ ПО КАНАЛУ:**\n"
+                f"📡 ID канала: `{CHANNEL_ID}`\n"
+                f"📅 Дата (Киев): `{today}`\n"
+                f"📰 Новостей в базе: `{len(news)}`"
+            , parse_mode="Markdown")
+            return # Выходим, чтобы не тратить Пыль и не запускать ИИ
+        except Exception as e:
+            bot.reply_to(message, f"🚨 Ошибка сканера: {e}")
+            return
+
+    # 4. ОБНОВЛЕНИЕ АКТИВНОСТИ (Перенесено ниже диагностики)
+    try:
+        update_last_active(user_id)
+    except:
+        pass
+
+    # 5. ПРОВЕРКА РЕЖИМА СНА
+    if any(word in text.lower() for word in ['пока', 'отбой', 'спать']):
         set_silence(user_id, hours=12)
-        bot.reply_to(message, "Принято, Командор! Режим тишины на 12 часов. Доброй ночи! Прием.")
+        bot.reply_to(message, "Принято! Ухожу в радиомолчание. Прием.")
         return
+
+    # ... далее идет остальная логика (Меню, Профиль, Архив и т.д.) ...
 
     update_last_active(user_id)
 
