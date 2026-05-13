@@ -362,44 +362,56 @@ def handle_channel_post(message):
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
-    bot.send_chat_action(message.chat.id, 'record_audio') # Марти делает вид, что слушает
+    bot.send_chat_action(message.chat.id, 'record_audio')
     
+    file_name = f"voice_{user_id}.ogg"
     try:
-        # 1. Скачиваем голосовое сообщение
+        # 🟢 ЭТАП 1: Скачивание
         file_info = bot.get_file(message.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        
-        # Сохраняем временно на диск
-        file_name = f"voice_{user_id}.ogg"
         with open(file_name, 'wb') as f:
             f.write(downloaded_file)
-
-        # 2. Отправляем в Gemini на расшифровку и ответ
-        # Мы используем ту же логику, что и для фото, но для аудио
+        
+        # 🟢 ЭТАП 2: Передача в ИИ
         for api_key in API_KEYS:
             client = genai.Client(api_key=api_key)
             try:
-                # Загружаем файл в Google File API
-                uploaded_file = client.files.upload(path=file_name)
+                # Явно указываем mime_type для Telegram-голоса
+                uploaded_file = client.files.upload(path=file_name, config={'mime_type': 'audio/ogg'})
                 
-                # Формируем запрос
-                prompt = "Это голосовое сообщение от твоего Командора. Расшифруй его и ответь в своем стиле Марти-ученого."
+                prompt = "Это голосовое сообщение от твоего Командора. Расшифруй его дословно и ответь на него в своем стиле Марти-ученого."
+                
+                # Используем 1.5-flash, она лучше всего подходит для аудио
                 response = client.models.generate_content(
-                    model='gemini-1.5-flash', # Flash отлично справляется с аудио
+                    model='gemini-1.5-flash',
                     contents=[uploaded_file, prompt]
                 )
                 
                 if response.text:
-                    # Передаем текст в наш обычный обработчик, чтобы сработала логика XP и памяти
-                    message.text = response.text
-                    bot.reply_to(message, f"🎤 *Расшифровка:* _{response.text}_")
-                    handle_text(message) # Запускаем основной интеллект
-                    break
+                    # 🟢 ЭТАП 3: Синхронизация с чатом
+                    text_version = response.text
+                    bot.reply_to(message, f"🎤 *Сигнал расшифрован:* \n\n_{text_version}_")
+                    
+                    # Подменяем текст сообщения и отправляем в общую логику (XP, память, ответ)
+                    message.text = text_version
+                    handle_text(message) 
+                    return # Выходим после успешного ответа
+                else:
+                    send_log(f"⚠️ Пустой ответ от ИИ на голос {user_name}")
+
             except Exception as e:
-                continue
-            finally:
-                # Удаляем временный файл
-                if os.path.exists(file_name): os.remove(file_name)
+                send_log(f"❌ Сбой ключа Gemini в аудио-модуле: {e}")
+                continue # Пробуем следующий ключ
+                
+    except Exception as e:
+        send_log(f"🚨 Критическая ошибка аудио-сенсора: {e}")
+        bot.reply_to(message, "📡 Командор, произошел разрыв связи при обработке звука. Прием.")
+    
+    finally:
+        # 🟢 ЭТАП 4: Очистка палубы
+        if os.path.exists(file_name):
+            try: os.remove(file_name)
+            except: pass
                 
     except Exception as e:
         send_log(f"Ошибка аудио-сенсора: {e}")
