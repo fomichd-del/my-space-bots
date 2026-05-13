@@ -2,6 +2,7 @@ import os
 import telebot
 import time
 import re
+import random
 import poodle_cabin
 import neural_draw
 import urllib.parse
@@ -20,7 +21,7 @@ from database import (setup_eco_bay, setup_news_db, add_news, get_today_news,
                       add_xp, get_user_stats, get_rank_name, get_user_data, 
                       set_jackpot_claimed, spend_dust, check_and_update_streak, 
                       get_top_pilots, update_last_active, set_silence, get_users_for_ping,
-                      save_vision_context, get_vision_context, clear_vision_context)
+save_vision_context, get_vision_context, clear_vision_context, get_dog_data)
 from vision_module import analyze_image
 from image_gen import generate_passport
 from game import menu, router
@@ -167,6 +168,26 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
     chat_history = get_history_as_text(user_id)
     current_date = datetime.now().strftime("%Y-%m-%d")
     
+    # 🟢 1. СВЯЗЬ ЖЕЛУДКА И МОЗГА (Эмоции пуделя)
+    dog = get_dog_data(user_id)
+    emotional_state = ""
+    if dog:
+        if dog['hunger'] < 30:
+            emotional_state += "Ты очень голоден. Тонко намекни, что у тебя урчит в животе и попроси покормить тебя за 5 Пыли. "
+        if dog['energy'] < 30:
+            emotional_state += "Ты засыпаешь на ходу. Делай паузы, используй '...' и скажи, что слипаются глаза. "
+        if dog['mood'] < 30:
+            emotional_state += "Тебе грустно. Попроси Командора бросить тебе грави-мяч в Каюте. "
+
+    # 🟢 2. ДОЛГОСРОЧНАЯ ПАМЯТЬ (Внезапные воспоминания)
+    memory_injection = ""
+    if user_memory and user_memory != "Данных пока нет.":
+        memories = [m.strip() for m in user_memory.split('|') if m.strip()]
+        if memories:
+            random_fact = random.choice(memories)
+            memory_injection = f"\n!!! ВАЖНО: Невзначай упомяни в своем ответе этот факт о пилоте, как бы между делом: '{random_fact}'"
+
+    # Обычная логика приветствия
     if daily_greetings.get(user_id) == current_date:
         greeting_rule = "!!! ПРАВИЛО: Не здоровайся. Пиши сразу по сути."
     else:
@@ -174,8 +195,17 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
         greeting_rule = f"!!! ПРАВИЛО: Поздоровайся кратко: 'Командор {user_name}, статус систем: норма. +1 🌟'."
         daily_greetings[user_id] = current_date
     
+    # Сборка финального промпта
     prompt = SYSTEM_PROMPT.replace("[NAME]", user_name).replace("[RANK]", user_rank).replace("[WALLET]", str(wallet_balance)).replace("[GREETING_RULE]", greeting_rule)
-    full_query = f"История диалога:\n{chat_history}\n\nДолгосрочная память: {user_memory}\n\nЗапрос: {clean_text}"
+    
+    # Вживляем эмоции собаки, если они есть
+    if emotional_state:
+        prompt += f"\n\nТВОЕ ТЕКУЩЕЕ ФИЗИЧЕСКОЕ СОСТОЯНИЕ: {emotional_state}"
+
+    # Собираем итоговый запрос с памятью
+    full_query = f"История диалога:\n{chat_history}\n\nДолгосрочная память: {user_memory}{memory_injection}\n\nЗапрос: {clean_text}"
+    
+    # ... дальше идет твой вызов GROQ и GEMINI (ничего не меняем) ...
     
     # 1. GROQ
     if GROQ_API_KEY:
@@ -322,7 +352,32 @@ def handle_text(message, is_profile_call=False):
     if text == "❓ Инструкция":
         send_welcome_instruction(message.chat.id, user_id, user_name); return
 
-    clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
+        clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
+
+    # 🟢 3. СИСТЕМА ПАСХАЛОК (Скрытые достижения)
+    lower_text = clean_text.lower()
+    user_memory = get_personal_log(user_id)
+
+    # Главная космическая пасхалка канала
+    if "бетельгейзе" in lower_text and "Пасхалка: Бетельгейзе" not in user_memory:
+        update_personal_log(user_id, "Пасхалка: Бетельгейзе")
+        add_xp(user_id, 50, user_name)
+        bot.reply_to(message, "🚨 **СЕКРЕТНЫЙ КОД ПРИНЯТ!**\nОткрыт скрытый отсек корабля. Найдено тайное хранилище!\n🌟 *Начислено 50 Пыли!*")
+        return
+
+    # Профессиональная пасхалка
+    if ("стоматолог" in lower_text or "кариес" in lower_text) and "Пасхалка: Медик" not in user_memory:
+        update_personal_log(user_id, "Пасхалка: Медик")
+        add_xp(user_id, 30, user_name)
+        bot.reply_to(message, "🦷 **ПРОФЕССИОНАЛЬНАЯ ПАСХАЛКА!**\nБортовой пес-медик подтверждает: в невесомости эмаль требует особой защиты! Улыбка должна сиять, как сверхновая!\n🌟 *Начислено 30 Пыли!*")
+        return
+
+    # Географическая пасхалка
+    if ("чернигов" in lower_text or "мариуполь" in lower_text) and "Пасхалка: Локация" not in user_memory:
+        update_personal_log(user_id, "Пасхалка: Локация")
+        add_xp(user_id, 25, user_name)
+        bot.reply_to(message, "🌍 **ЛОКАЦИЯ ПОДТВЕРЖДЕНА!**\nНавигационные системы синхронизированы с родными координатами. Орбита стабильна!\n🌟 *Начислено 25 Пыли!*")
+        return
 
     # 🎨 АРХИВ (С ВОЗВРАТОМ)
     if any(w in clean_text.lower() for w in ['нарису', 'изобраз', 'картин', 'архив']):
