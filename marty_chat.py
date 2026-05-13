@@ -200,11 +200,29 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
 @bot.message_handler(commands=['start', 'help'])
 def handle_start_help(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
-    user_memory = get_personal_log(user_id)
-    if "справочник" in user_memory.lower() and message.text == '/start':
-        bot.send_message(message.chat.id, f"🛰 Рад возвращению, Командор {user_name}! Системы в норме.", reply_markup=get_marty_keyboard())
-    else:
+    
+    # Проверяем, есть ли уже пилот в базе (используем функцию из database.py)
+    from database import is_user_new, add_xp
+    new_pilot = is_user_new(user_id)
+    
+    # Обязательно регистрируем пилота, чтобы при следующем /start он был "своим"
+    add_xp(user_id, 0, user_name)
+
+    if message.text == '/help':
+        # Если пилот сам нажал кнопку "Инструкция" — всегда показываем полный текст
         send_welcome_instruction(message.chat.id, user_id, user_name)
+        
+    elif new_pilot:
+        # Если это совершенно новый пилот — показываем полную инструкцию
+        send_welcome_instruction(message.chat.id, user_id, user_name)
+        
+    else:
+        # Если пилот уже опытный — даем красивое короткое приветствие
+        welcome_text = (
+            f"✨ С возвращением на мостик, Командор {user_name}! 🛰️\n\n"
+            f"Системы корабля работают в штатном режиме, запасы Звездной Пыли под охраной. Готов к выполнению команд! 🐾"
+        )
+        bot.send_message(message.chat.id, welcome_text, reply_markup=get_marty_keyboard())
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
