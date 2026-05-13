@@ -21,7 +21,7 @@ DOG_SHOP = {
     "comet_bowtie": {"name": "Галстук-комета", "prompt": "wearing a glowing cosmic bowtie", "price": 20},
     "radar_monocle": {"name": "Монокль-радар", "prompt": "wearing a high-tech glowing radar monocle", "price": 50},
     "alien_antenna": {"name": "Антенны пришельца", "prompt": "having funny green alien head antennas", "price": 15},
-    "astro_boots": {"name": "Астро-ботинки", "prompt": "wearing miniature white moon boots", "price": 35}
+    "astro_boots": {"name": "Астро-ботинки", "prompt": "wearing miniature white moon boots", "price": 35},
       # --- ЮВЕЛИРКА И ЦЕПОЧКИ ---
     "heavy_gold_chain": {"name": "Золотая цепь", "prompt": "wearing a thick heavy gold rapper chain with a bone pendant", "price": 55},
     "diamond_collar": {"name": "Бриллиантовый ошейник", "prompt": "wearing a sparkling luxury diamond-encrusted collar", "price": 90},
