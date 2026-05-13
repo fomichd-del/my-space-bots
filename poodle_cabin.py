@@ -98,30 +98,40 @@ def send_dog_menu(bot, chat_id, user_id):
         # Список надетых вещей для текста
         equipped_names = [DOG_SHOP[k]['name'] for k in dog.get('equipped', []) if k in DOG_SHOP]
         style_info = ", ".join(equipped_names) if equipped_names else "Ничего не надето"
+
+        # 🟢 ДОСТАЕМ ПРОФЕССИЮ ИЗ БАЗЫ
+        from database import get_dog_profession
+        current_prof = get_dog_profession(user_id)
         
+        # 🟢 ИСПРАВЛЕНИЕ: Добавили {current_prof} в заголовок!
         text = (
-            f"🐕 **КАЮТА ПИТОМЦА**\n\n"
+            f"🐕 **КАЮТА ПИТОМЦА ({current_prof})**\n\n"
             f"Уровень: {dog['level']} | Опыт: {dog['xp']}/15\n"
             f"🍖 Сытость: {dog['hunger']}% | 🔋 Энергия: {dog['energy']}%\n"
             f"🎾 Настроение: {dog['mood']}%\n"
             f"👕 Надето: {style_info}\n\n"
             f"💰 Пыль: {u_data['spendable_dust']} ед."
         )
+        
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         kb.add(
             tele_types.InlineKeyboardButton("🍖 Кормить (-5 💰)", callback_data="dog_feed"),
             tele_types.InlineKeyboardButton("💤 Спать (+40 🔋)", callback_data="dog_sleep"),
             tele_types.InlineKeyboardButton("🎾 Играть (-5 💰)", callback_data="dog_play"),
-            tele_types.InlineKeyboardButton("🚀 Выгулять (-10 💰)", callback_data="dog_walk"), # 🆕
-            tele_types.InlineKeyboardButton("👕 Гардероб", callback_data="dog_wardrobe"), # 🆕
-            tele_types.InlineKeyboardButton("🛒 Магазин", callback_data="dog_shop") # 🆕
+            tele_types.InlineKeyboardButton("🚀 Выгулять (-10 💰)", callback_data="dog_walk"), 
+            tele_types.InlineKeyboardButton("👕 Гардероб", callback_data="dog_wardrobe"), 
+            tele_types.InlineKeyboardButton("🛒 Магазин", callback_data="dog_shop") 
         )
 
-    image_bytes = get_cascade_image(prompt, seed)
-    if image_bytes:
-        bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
-    else:
-        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации!_", parse_mode="Markdown", reply_markup=kb)
+        # 🟢 КНОПКА ПРОФЕССИИ, ЕСЛИ УРОВЕНЬ ПОЗВОЛЯЕТ
+        if dog['level'] >= 10 and current_prof == 'Кадет':
+            kb.row(tele_types.InlineKeyboardButton(text="🎓 Выбрать специализацию", callback_data="dog_choose_prof"))
+  
+        image_bytes = get_cascade_image(prompt, seed)
+        if image_bytes:
+            bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
+        else:
+            bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации!_", parse_mode="Markdown", reply_markup=kb)
 
 def handle_dog_callback(bot, call):
     user_id = call.from_user.id
