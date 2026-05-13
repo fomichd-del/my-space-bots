@@ -21,7 +21,7 @@ from database import (setup_eco_bay, setup_news_db, add_news, get_today_news,
                       add_xp, get_user_stats, get_rank_name, get_user_data, 
                       set_jackpot_claimed, spend_dust, check_and_update_streak, 
                       get_top_pilots, update_last_active, set_silence, get_users_for_ping,
-save_vision_context, get_vision_context, clear_vision_context, get_dog_data)
+save_vision_context, get_vision_context, clear_vision_context, get_dog_data, get_dog_profession, check_and_update_quiz, is_user_new)
 from vision_module import analyze_image
 from image_gen import generate_passport
 from game import menu, router
