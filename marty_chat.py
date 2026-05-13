@@ -366,64 +366,45 @@ def handle_voice(message):
     
     file_name = f"voice_{user_id}.ogg"
     try:
-        # 🟢 ЭТАП 1: Скачивание
+        # 🟢 1. Скачивание сигнала
         file_info = bot.get_file(message.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         with open(file_name, 'wb') as f:
             f.write(downloaded_file)
         
-        # 🟢 ЭТАП 2: Передача в ИИ
+        # 🟢 2. Обработка через каскад ключей
         for api_key in API_KEYS:
             client = genai.Client(api_key=api_key)
             try:
-                # Явно указываем mime_type для Telegram-голоса
                 uploaded_file = client.files.upload(path=file_name, config={'mime_type': 'audio/ogg'})
-                
                 prompt = "Это голосовое сообщение от твоего Командора. Расшифруй его дословно и ответь на него в своем стиле Марти-ученого."
                 
-                # Используем 1.5-flash, она лучше всего подходит для аудио
                 response = client.models.generate_content(
                     model='gemini-1.5-flash',
                     contents=[uploaded_file, prompt]
                 )
                 
                 if response.text:
-                    # 🟢 ЭТАП 3: Синхронизация с чатом
                     text_version = response.text
                     bot.reply_to(message, f"🎤 *Сигнал расшифрован:* \n\n_{text_version}_")
-                    
-                    # Подменяем текст сообщения и отправляем в общую логику (XP, память, ответ)
                     message.text = text_version
                     handle_text(message) 
-                    return # Выходим после успешного ответа
-                else:
-                    send_log(f"⚠️ Пустой ответ от ИИ на голос {user_name}")
-
+                    return # Успешный выход из функции
             except Exception as e:
-                send_log(f"❌ Сбой ключа Gemini в аудио-модуле: {e}")
-                continue # Пробуем следующий ключ
-                
+                send_log(f"❌ Сбой ключа Gemini в аудио: {e}")
+                continue 
+
+    # 🟢 3. ОБРАБОТКА ОШИБОК (Строго после try!)
     except Exception as e:
         send_log(f"🚨 Критическая ошибка аудио-сенсора: {e}")
-        bot.reply_to(message, "📡 Командор, произошел разрыв связи при обработке звука. Прием.")
-    
-    finally:
-        # 🟢 ЭТАП 4: Очистка палубы
-        if os.path.exists(file_name):
-            try: os.remove(file_name)
-            except: pass
-                
-    except Exception as e:
-        # Сначала обрабатываем ошибку
-        send_log(f"Ошибка аудио-сенсора: {e}")
-        bot.reply_to(message, "📡 Помехи в радиоэфире, Командор! Не смог разобрать сигнал. Прием.")
+        bot.reply_to(message, "📡 Командор, разрыв связи при обработке звука. Прием.")
 
+    # 🟢 4. ОЧИСТКА ПАЛУБЫ (Всегда в самом конце и с маленькой буквы!)
     finally:
-        # И только в самом конце (с маленькой буквы!) чистим файлы
         if os.path.exists(file_name):
-            try: 
+            try:
                 os.remove(file_name)
-            except: 
+            except:
                 pass
 
 @bot.message_handler(func=lambda m: True)
