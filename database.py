@@ -53,7 +53,9 @@ def init_db():
             ("silence_until", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
             ("last_vision_context", "TEXT DEFAULT ''"),
             ("last_vision_time", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
-            ("dog_equipped", "TEXT DEFAULT ''") # 🆕 Для системы надевания вещей
+            ("dog_equipped", "TEXT DEFAULT ''"),
+            ("dog_profession", "TEXT DEFAULT 'Кадет'"), # 🆕 Добавлено для профессий
+            ("last_quiz_date", "TEXT DEFAULT ''")      # 🆕 Добавлено для викторины
         ]
         
         for col_name, col_type in new_columns:
@@ -539,7 +541,7 @@ def get_all_user_ids():
     return [r[0] for r in res]
 
 def get_dog_profession(user_id):
-    """Получает профессию питомца из профиля пилота"""
+    """Получает текущую профессию Марти из базы."""
     conn = get_connection()
     if not conn: return 'Кадет'
     try:
@@ -550,11 +552,12 @@ def get_dog_profession(user_id):
     except:
         return 'Кадет'
     finally:
-        cursor.close()
-        conn.close()
+        if conn:
+            cursor.close()
+            conn.close()
 
 def set_dog_profession(user_id, profession_name):
-    """Назначает профессию питомцу"""
+    """Записывает выбранную профессию в базу."""
     conn = get_connection()
     if not conn: return False
     try:
@@ -562,6 +565,46 @@ def set_dog_profession(user_id, profession_name):
         cursor.execute("UPDATE users SET dog_profession = %s WHERE user_id = %s", (profession_name, user_id))
         conn.commit()
         return True
+    except Exception as e:
+        print(f"Ошибка записи профессии: {e}")
+        return False
     finally:
-        cursor.close()
-        conn.close()
+        if conn:
+            cursor.close()
+            conn.close()
+
+def check_and_update_quiz(user_id, today_date):
+    """Проверяет, участвовал ли пилот в викторине сегодня."""
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT last_quiz_date FROM users WHERE user_id = %s", (user_id,))
+        result = cursor.fetchone()
+        
+        if result and result[0] == today_date:
+            return False 
+            
+        cursor.execute("UPDATE users SET last_quiz_date = %s WHERE user_id = %s", (today_date, user_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Ошибка викторины в БД: {e}")
+        return False
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
+
+def is_user_new(user_id):
+    """Проверяет, является ли пилот новым."""
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
+        return cursor.fetchone() is None
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
