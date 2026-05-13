@@ -376,7 +376,7 @@ def handle_voice(message):
         for api_key in API_KEYS:
             client = genai.Client(api_key=api_key)
             try:
-                uploaded_file = client.files.upload(path=file_name, config={'mime_type': 'audio/ogg'})
+                uploaded_file = client.files.upload(file=file_name, config={'mime_type': 'audio/ogg'})
                 prompt = "Это голосовое сообщение от твоего Командора. Расшифруй его дословно и ответь на него в своем стиле Марти-ученого."
                 
                 response = client.models.generate_content(
