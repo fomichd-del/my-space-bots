@@ -85,7 +85,7 @@ def get_marty_keyboard():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row(KeyboardButton("👤 Мой профиль"), KeyboardButton("❓ Инструкция"))
     markup.row(KeyboardButton("🎮 Игровой отсек"), KeyboardButton("🌿 Эко-отсек"))
-    markup.row(KeyboardButton("🐕 Каюта питомца"))
+    markup.row(KeyboardButton("🐕 Каюта питомца"), KeyboardButton("📻 Радиоперехват")) # 🟢 Добавлено
     return markup
 
 def check_actual_names():
@@ -226,6 +226,34 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
             except: continue
     return "📡 Командор, помехи на линии! Повторите запрос через минуту. Прием!"
 
+# --- РАДИОПЕРЕХВАТ (ВИКТОРИНА) ---
+SPACE_QUIZ = [
+    {"q": "Какая планета Солнечной системы вращается 'на боку'?", "options": ["Уран", "Венера", "Марс", "Нептун"], "correct": 0},
+    {"q": "Как называется самая яркая звезда в созвездии Большого Пса?", "options": ["Бетельгейзе", "Сириус", "Альтаир", "Вега"], "correct": 1},
+    {"q": "Какая температура в открытом космосе (реликтовое излучение)?", "options": ["0 К (-273°C)", "2.7 К (-270°C)", "-100°C", "Абсолютный ноль"], "correct": 1},
+    {"q": "Сколько длится один 'год' на Юпитере?", "options": ["12 земных лет", "5 земных лет", "24 земных года", "6 месяцев"], "correct": 0},
+    {"q": "Какое вещество защищает эмаль от космического кариеса?", "options": ["Фтор", "Гелий", "Углерод", "Неон"], "correct": 0}
+]
+
+def get_daily_quiz():
+    day_of_year = datetime.now().timetuple().tm_yday
+    question_idx = day_of_year % len(SPACE_QUIZ)
+    return SPACE_QUIZ[question_idx], question_idx
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('quiz_'))
+def handle_quiz_answer(call):
+    user_id, user_name = call.from_user.id, call.from_user.first_name
+    parts = call.data.split('_')
+    if len(parts) < 3: return
+    action, q_id, answer_idx = parts[0], int(parts[1]), int(parts[2])
+    question_data = SPACE_QUIZ[q_id]
+    
+    if answer_idx == question_data['correct']:
+        add_xp(user_id, 15, user_name)
+        bot.edit_message_text(f"✅ **ПРАВИЛЬНО!**\n\n_{question_data['q']}_\nВерный ответ: **{question_data['options'][answer_idx]}**\n\n🌟 Связь установлена! Начислено 15 Пыли.", call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+    else:
+        bot.edit_message_text(f"❌ **СИГНАЛ ПОТЕРЯН!**\n\nОшибочный ответ. Изучай архивы и возвращайся завтра!", call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+
 # --- РОУТЕРЫ СООБЩЕНИЙ ---
 @bot.message_handler(commands=['start', 'help'])
 def handle_start_help(message):
@@ -345,6 +373,20 @@ def handle_text(message, is_profile_call=False):
         eco_bay.send_eco_menu(bot, message.chat.id, user_id); return
     if text == "🐕 Каюта питомца":
         poodle_cabin.send_dog_menu(bot, message.chat.id, user_id); return
+    if text == "📻 Радиоперехват":
+        from database import check_and_update_quiz, get_ship_date
+        today = get_ship_date()
+        
+        if check_and_update_quiz(user_id, today):
+            quiz, q_idx = get_daily_quiz()
+            kb = tele_types.InlineKeyboardMarkup()
+            for i, option in enumerate(quiz['options']):
+                kb.add(tele_types.InlineKeyboardButton(text=option, callback_data=f"quiz_{q_idx}_{i}"))
+            
+            bot.reply_to(message, f"📻 **ПЕРЕХВАТ РАДИОСИГНАЛА**\n\nВнимание! Поступил зашифрованный вопрос:\n\n❓ *{quiz['q']}*", reply_markup=kb, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, "📡 Командор, на сегодня сигналов больше нет. Радары сканируют сектор, приходите завтра!")
+        return
     if text == "👤 Мой профиль" or is_profile_call:
         u = get_user_data(user_id); rank = get_rank_name(u['xp'])
         msg = f"👤 Пилот: `{user_name}`\n🎖 Ранг: `{rank}`\n💰 Пыль: `{u['spendable_dust']}`"
