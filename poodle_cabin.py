@@ -22,6 +22,36 @@ DOG_SHOP = {
     "radar_monocle": {"name": "Монокль-радар", "prompt": "wearing a high-tech glowing radar monocle", "price": 50},
     "alien_antenna": {"name": "Антенны пришельца", "prompt": "having funny green alien head antennas", "price": 15},
     "astro_boots": {"name": "Астро-ботинки", "prompt": "wearing miniature white moon boots", "price": 35}
+      # --- ЮВЕЛИРКА И ЦЕПОЧКИ ---
+    "heavy_gold_chain": {"name": "Золотая цепь", "prompt": "wearing a thick heavy gold rapper chain with a bone pendant", "price": 55},
+    "diamond_collar": {"name": "Бриллиантовый ошейник", "prompt": "wearing a sparkling luxury diamond-encrusted collar", "price": 90},
+    "star_pendant": {"name": "Кулон Полярная звезда", "prompt": "wearing a glowing blue star-shaped pendant on a silver chain", "price": 30},
+
+    # --- КОСМИЧЕСКОЕ СНАРЯЖЕНИЕ ---
+    "warp_jetpack": {"name": "Варп-ранец", "prompt": "having a small high-tech jetpack with blue plasma flames on the back", "price": 70},
+    "saturn_ring": {"name": "Кольцо Сатурна", "prompt": "having a holographic golden planetary ring glowing around the neck", "price": 45},
+    "plasma_cloak": {"name": "Плазменный плащ", "prompt": "wearing a translucent flowing cape made of blue nebula energy", "price": 65},
+    "ufo_hat": {"name": "Шапка-тарелка", "prompt": "wearing a tiny funny glowing UFO flying saucer as a hat", "price": 40},
+
+    # --- ГЕЙМЕРСКИЕ ПРИКОЛЫ (PS5 / VR) ---
+    "vr_visor_2": {"name": "Визор VR-Орион", "prompt": "wearing a miniature white PSVR2-style virtual reality headset", "price": 50},
+    "dual_aura": {"name": "Аура Контроллера", "prompt": "surrounded by a white and blue glowing aura like a DualSense", "price": 25},
+
+    # --- ПРОФЕССИОНАЛЬНЫЙ ЮМОР (СТОМАТОЛОГИЯ) ---
+    "brilliant_smile": {"name": "Ослепительная улыбка", "prompt": "showing a funny wide sparkling white smile with diamond glints", "price": 100},
+    "dentist_mirror": {"name": "Зеркало Космо-Врача", "prompt": "holding a small futuristic dental mirror in its mouth", "price": 15},
+
+    # --- ПРИКОЛЫ И КОСТЮМЫ ---
+    "detective_pipe": {"name": "Трубка Шерлока", "prompt": "holding a classic wooden detective pipe in its mouth", "price": 20},
+    "dragon_wings": {"name": "Крылья Дракона", "prompt": "having small scaly black dragon wings on the back", "price": 75},
+    "taco_suit": {"name": "Костюм Тако", "prompt": "wearing a hilarious soft taco shell costume around the body", "price": 35},
+    "thug_beanie": {"name": "Шапка Thug Life", "prompt": "wearing a black knitted beanie with 'ORION' text", "price": 15},
+    "cosmic_boots": {"name": "Луноходы", "prompt": "wearing four glowing neon blue protective space boots on paws", "price": 40},
+    "chef_hat": {"name": "Колпак Кока", "prompt": "wearing a tall white chef hat and a small red scarf", "price": 20},
+    "holographic_wings": {"name": "Крылья Ангела", "prompt": "having large glowing holographic white angel wings", "price": 85},
+    "monocle_tophat": {"name": "Джентльмен", "prompt": "wearing a small black top hat and a golden monocle over one eye", "price": 50},
+    "crown_of_light": {"name": "Легендарный Венец", "prompt": "wearing a majestic floating crown made of pure solar light", "price": 150}
+
 }
 
 def get_dog_prompt(dog, user_id):
