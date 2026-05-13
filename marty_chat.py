@@ -372,27 +372,41 @@ def handle_voice(message):
         with open(file_name, 'wb') as f:
             f.write(downloaded_file)
         
-        # 🟢 2. Обработка через каскад ключей
+        # 🟢 2. Обработка через каскад ключей и моделей
+        # Список моделей из вашего письма
+        MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
+        
+        success = False
         for api_key in API_KEYS:
+            if success: break
             client = genai.Client(api_key=api_key)
-            try:
-                uploaded_file = client.files.upload(file=file_name, config={'mime_type': 'audio/ogg'})
-                prompt = "Это голосовое сообщение от твоего Командора. Расшифруй его дословно и ответь на него в своем стиле Марти-ученого."
-                
-                response = client.models.generate_content(
-                    model='gemini-1.5-flash',
-                    contents=[uploaded_file, prompt]
-                )
-                
-                if response.text:
-                    text_version = response.text
-                    bot.reply_to(message, f"🎤 *Сигнал расшифрован:* \n\n_{text_version}_")
-                    message.text = text_version
-                    handle_text(message) 
-                    return # Успешный выход из функции
-            except Exception as e:
-                send_log(f"❌ Сбой ключа Gemini в аудио: {e}")
-                continue 
+            
+            for model_name in MODELS_TO_TRY:
+                try:
+                    # Загружаем файл (параметр file= для новых SDK)
+                    uploaded_file = client.files.upload(file=file_name, config={'mime_type': 'audio/ogg'})
+                    
+                    prompt = "Это голосовое сообщение от твоего Командора. Расшифруй его дословно и ответь на него в своем стиле Марти-ученого."
+                    
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=[uploaded_file, prompt]
+                    )
+                    
+                    if response.text:
+                        text_version = response.text
+                        bot.reply_to(message, f"🎤 *[{model_name}] Сигнал расшифрован:* \n\n_{text_version}_")
+                        
+                        message.text = text_version
+                        handle_text(message) 
+                        success = True
+                        break # Выходим из цикла моделей
+                except Exception as e:
+                    # Если модель не найдена (404), пробуем следующую из списка
+                    if "404" in str(e) or "not found" in str(e).lower():
+                        continue 
+                    send_log(f"❌ Сбой {model_name} на ключе: {e}")
+                    continue 
 
     # 🟢 3. ОБРАБОТКА ОШИБОК (Строго после try!)
     except Exception as e:
