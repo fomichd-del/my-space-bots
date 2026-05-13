@@ -156,8 +156,8 @@ def handle_dog_callback(bot, call):
         if dog['energy'] >= 100:
             bot.answer_callback_query(call.id, "Марти уже полон сил! ⚡", show_alert=True)
         else:
-            new_energy = min(100, dog['energy'] + energy_boost)
-            update_dog_stats(user_id, hunger=dog['hunger'], energy=new_energy, mood=dog['mood'], xp=dog['xp'], level=dog['level'])
+            dog['energy'] = min(100, dog['energy'] + energy_boost) # 🟢 Исправлено
+            update_dog_data(user_id, dog) # 🟢 Исправлено
             bot.answer_callback_query(call.id, f"Марти поспал в крио-капсуле (+{energy_boost} Энергии)! 💤")
             send_dog_menu(bot, chat_id, user_id, message_id=call.message.message_id)
 
@@ -175,6 +175,27 @@ def handle_dog_callback(bot, call):
             bonus = f" Найдено {res} XP!" if isinstance(res, int) else ""
             bot.answer_callback_query(call.id, f"🚀 Прогулка завершена! Счастье и Энергия в норме.{bonus}", show_alert=True)
 
+    elif action == "choose_prof":
+        kb = tele_types.InlineKeyboardMarkup()
+        kb.row(tele_types.InlineKeyboardButton(text="👨‍⚕️ Космо-Медик", callback_data="dog_setprof_medic"))
+        kb.row(tele_types.InlineKeyboardButton(text="🔧 Бортинженер", callback_data="dog_setprof_engineer"))
+        kb.row(tele_types.InlineKeyboardButton(text="🔭 Астронавигатор", callback_data="dog_setprof_navigator"))
+        bot.edit_message_caption("🎓 **АКАДЕМИЯ: ВЫБОР ПУТИ**\n\nВыберите специализацию для Марти:\n\n"
+                              "👨‍⚕️ **Космо-Медик** - эффективнее спит.\n"
+                              "🔧 **Бортинженер** - скидка 20% в магазине.\n"
+                              "🔭 **Астронавигатор** - приносит x2 Пыли за ум.", 
+                              call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return # Важно, чтобы не сработало общее обновление меню внизу
+
+    elif action.startswith("setprof_"):
+        prof_map = {"medic": "Космо-Медик 👨‍⚕️", "engineer": "Бортинженер 🔧", "navigator": "Астронавигатор 🔭"}
+        prof_id = action.split("_")[1]
+        chosen_prof = prof_map.get(prof_id, "Кадет")
+        
+        from database import set_dog_profession
+        set_dog_profession(user_id, chosen_prof)
+        bot.answer_callback_query(call.id, f"Выбрана профессия: {chosen_prof}!", show_alert=True)
+  
     elif action == "wardrobe": # 🆕 Гардероб
         text = "👕 **ГАРДЕРОБ МАРТИ**\n\nЗдесь можно надеть или снять купленные вещи:"
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
