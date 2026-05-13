@@ -3,6 +3,11 @@ import os
 import telebot
 from datetime import datetime, timedelta
 
+# --- ДОБАВЛЕННАЯ ФУНКЦИЯ ДЛЯ СИНХРОНИЗАЦИИ ВРЕМЕНИ ---
+def get_ship_date():
+    """Возвращает текущую дату для Чернигова (UTC+3)"""
+    return (datetime.now() + timedelta(hours=3)).strftime("%Y-%m-%d")
+
 TOKEN = os.getenv('MARTY_BOT_TOKEN')
 bot_log = telebot.TeleBot(TOKEN)
 LOG_CHAT_ID = "-1003756164148"
