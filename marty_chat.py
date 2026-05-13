@@ -414,8 +414,15 @@ def handle_text(message, is_profile_call=False):
         
         final_resp = re.sub(r'\[MEMORY:\s*.*?\]', '', resp).strip()
         if "***НАГРАДА ЗА УМ***" in final_resp:
-            add_xp(user_id, 1, user_name)
-            final_resp = final_resp.replace("***НАГРАДА ЗА УМ***", "\n🌟 *+1 Пыль!*")
+            from database import get_dog_profession
+            prof = get_dog_profession(user_id)
+            
+            # Астронавигаторы получают удвоенную награду!
+            reward = 2 if "Навигатор" in prof else 1
+            add_xp(user_id, reward, user_name)
+            
+            final_resp = final_resp.replace("***НАГРАДА ЗА УМ***", f"\n🌟 *+{reward} Пыли!*")
+            
         bot.reply_to(message, final_resp, parse_mode="Markdown")
 
 # --- АВТОНОМНЫЕ ПРОЦЕССЫ ---
