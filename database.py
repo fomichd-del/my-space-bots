@@ -1,6 +1,7 @@
 import psycopg2
 import os
 import telebot
+import random
 from datetime import datetime, timedelta
 
 # --- ДОБАВЛЕННАЯ ФУНКЦИЯ ДЛЯ СИНХРОНИЗАЦИИ ВРЕМЕНИ ---
@@ -40,7 +41,7 @@ def init_db():
             )
         ''')
         
-        # 🟢 ДОБАВЛЕНЫ КОЛОНКИ: last_interact и silence_until + ПАМЯТЬ ЗРЕНИЯ
+        # Полный список колонок, включая новые для гардероба
         new_columns = [
             ("spendable_dust", "INTEGER DEFAULT 0"),
             ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"),
@@ -50,9 +51,9 @@ def init_db():
             ("game_timer_end", "TIMESTAMP"),
             ("last_interact", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
             ("silence_until", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
-            # 👇 НОВЫЕ КОЛОНКИ ДЛЯ ПАМЯТИ МАРТИ 👇
             ("last_vision_context", "TEXT DEFAULT ''"),
-            ("last_vision_time", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP")
+            ("last_vision_time", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
+            ("dog_equipped", "TEXT DEFAULT ''") # 🆕 Для системы надевания вещей
         ]
         
         for col_name, col_type in new_columns:
@@ -66,7 +67,7 @@ def init_db():
                 END $$;
             ''')
         conn.commit()
-        print("📡 База данных синхронизирована (добавлены системы активности).")
+        print("📡 База данных полностью синхронизирована.")
     except Exception as e:
         send_log(f"Ошибка инициализации БД: {e}")
     finally:
@@ -76,7 +77,6 @@ def init_db():
 # --- КРАТКОСРОЧНАЯ ПАМЯТЬ ЗРЕНИЯ ---
 
 def save_vision_context(user_id, context_text):
-    """Записывает результат анализа фото в память Марти"""
     conn = get_connection()
     if not conn: return
     try:
@@ -94,12 +94,10 @@ def save_vision_context(user_id, context_text):
         conn.close()
 
 def get_vision_context(user_id):
-    """Извлекает последнее увиденное, если оно было не дольше 30 минут назад"""
     conn = get_connection()
     if not conn: return None
     try:
         cursor = conn.cursor()
-        # Вытаскиваем память, только если она "свежая" (меньше 30 минут)
         cursor.execute('''
             SELECT last_vision_context 
             FROM users 
@@ -117,7 +115,6 @@ def get_vision_context(user_id):
         conn.close()
 
 def clear_vision_context(user_id):
-    """Очищает память (полезно, если пилот хочет сменить тему)"""
     conn = get_connection()
     if not conn: return
     try:
@@ -131,7 +128,6 @@ def clear_vision_context(user_id):
 # --- ФУНКЦИИ АКТИВНОСТИ ПИЛОТОВ ---
 
 def update_last_active(user_id):
-    """Фиксирует время последнего сообщения от пользователя"""
     conn = get_connection()
     if not conn: return
     try:
@@ -143,7 +139,6 @@ def update_last_active(user_id):
         conn.close()
 
 def set_silence(user_id, hours=12):
-    """Ставит режим 'Не беспокоить' на указанное время"""
     conn = get_connection()
     if not conn: return
     try:
@@ -156,7 +151,6 @@ def set_silence(user_id, hours=12):
         conn.close()
 
 def get_users_for_ping():
-    """Находит тех, кто был активен недавно или 3 дня назад, и у кого нет режима тишины"""
     conn = get_connection()
     if not conn: return []
     try:
@@ -252,14 +246,14 @@ def check_and_update_streak(user_id):
     conn = get_connection()
     if not conn: return 0
     try:
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        current_date = get_ship_date()
         cursor = conn.cursor()
         cursor.execute('SELECT last_active_date, streak_days FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
         if not res: return 0
         last_date, streak = res
         if last_date == current_date: return streak
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (datetime.now() + timedelta(hours=3) - timedelta(days=1)).strftime("%Y-%m-%d")
         new_streak = streak + 1 if last_date == yesterday else 1
         cursor.execute('UPDATE users SET last_active_date = %s, streak_days = %s WHERE user_id = %s', (current_date, new_streak, user_id))
         conn.commit()
@@ -426,21 +420,22 @@ def get_all_users_with_pets():
     conn.close()
     return res
 
-# --- ПУДЕЛЬ ---
+# --- ПУДЕЛЬ (ГАРДЕРОБ И ВЫГУЛ) ---
 
 def get_dog_data(user_id):
     conn = get_connection()
     if not conn: return None
     cursor = conn.cursor()
     cursor.execute("""SELECT dog_level, dog_hunger, dog_energy, dog_mood, dog_items, 
-                      dog_xp, dog_date, dog_status FROM users WHERE user_id = %s""", (user_id,))
+                      dog_xp, dog_date, dog_status, dog_equipped FROM users WHERE user_id = %s""", (user_id,))
     res = cursor.fetchone()
     conn.close()
     if res:
         return {
             "level": res[0], "hunger": res[1], "energy": res[2], "mood": res[3],
             "items": res[4].split(",") if res[4] else [],
-            "xp": res[5], "date": res[6], "status": res[7]
+            "xp": res[5], "date": res[6], "status": res[7],
+            "equipped": res[8].split(",") if res[8] else [] # Надетые вещи
         }
     return None
 
@@ -450,12 +445,46 @@ def update_dog_data(user_id, d):
     cursor = conn.cursor()
     h, e, m = min(100, max(0, d['hunger'])), min(100, max(0, d['energy'])), min(100, max(0, d['mood']))
     items_str = ",".join([i for i in d['items'] if i.strip()])
+    equipped_str = ",".join([i for i in d.get('equipped', []) if i.strip()])
     cursor.execute("""
         UPDATE users SET dog_level=%s, dog_hunger=%s, dog_energy=%s, dog_mood=%s, 
-        dog_items=%s, dog_xp=%s, dog_date=%s, dog_status=%s WHERE user_id=%s
-    """, (d['level'], h, e, m, items_str, d['xp'], d['date'], d['status'], user_id))
+        dog_items=%s, dog_xp=%s, dog_date=%s, dog_status=%s, dog_equipped=%s WHERE user_id=%s
+    """, (d['level'], h, e, m, items_str, d['xp'], d['date'], d['status'], equipped_str, user_id))
     conn.commit()
     conn.close()
+
+def equip_dog_item(user_id, item_name):
+    """Надеть вещь на Марти"""
+    d = get_dog_data(user_id)
+    if not d or item_name not in d['items']: return False
+    if item_name not in d['equipped']:
+        d['equipped'].append(item_name)
+        update_dog_data(user_id, d)
+        return True
+    return False
+
+def unequip_dog_item(user_id, item_name):
+    """Снять вещь с Марти"""
+    d = get_dog_data(user_id)
+    if not d or item_name not in d['equipped']: return False
+    d['equipped'].remove(item_name)
+    update_dog_data(user_id, d)
+    return True
+
+def process_dog_walk(user_id):
+    """Выгулять Марти за 10 пыли"""
+    if not spend_dust(user_id, 10): return "low_dust"
+    d = get_dog_data(user_id)
+    if not d: return "error"
+    d['mood'] = 100
+    d['energy'] = min(100, d['energy'] + 30)
+    bonus_xp = 0
+    if random.random() < 0.2: # 20% шанс найти бонус
+        bonus_xp = random.randint(5, 15)
+        d['xp'] += bonus_xp
+        add_xp(user_id, bonus_xp)
+    update_dog_data(user_id, d)
+    return bonus_xp if bonus_xp > 0 else "success"
 
 # --- НОВОСТИ ---
 
