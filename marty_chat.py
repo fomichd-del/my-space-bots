@@ -359,6 +359,52 @@ def handle_channel_post(message):
     except Exception as e:
         send_log(f"Сбой канала: {e}")
 
+@bot.message_handler(content_types=['voice'])
+def handle_voice(message):
+    user_id, user_name = message.from_user.id, message.from_user.first_name
+    bot.send_chat_action(message.chat.id, 'record_audio') # Марти делает вид, что слушает
+    
+    try:
+        # 1. Скачиваем голосовое сообщение
+        file_info = bot.get_file(message.voice.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        # Сохраняем временно на диск
+        file_name = f"voice_{user_id}.ogg"
+        with open(file_name, 'wb') as f:
+            f.write(downloaded_file)
+
+        # 2. Отправляем в Gemini на расшифровку и ответ
+        # Мы используем ту же логику, что и для фото, но для аудио
+        for api_key in API_KEYS:
+            client = genai.Client(api_key=api_key)
+            try:
+                # Загружаем файл в Google File API
+                uploaded_file = client.files.upload(path=file_name)
+                
+                # Формируем запрос
+                prompt = "Это голосовое сообщение от твоего Командора. Расшифруй его и ответь в своем стиле Марти-ученого."
+                response = client.models.generate_content(
+                    model='gemini-1.5-flash', # Flash отлично справляется с аудио
+                    contents=[uploaded_file, prompt]
+                )
+                
+                if response.text:
+                    # Передаем текст в наш обычный обработчик, чтобы сработала логика XP и памяти
+                    message.text = response.text
+                    bot.reply_to(message, f"🎤 *Расшифровка:* _{response.text}_")
+                    handle_text(message) # Запускаем основной интеллект
+                    break
+            except Exception as e:
+                continue
+            finally:
+                # Удаляем временный файл
+                if os.path.exists(file_name): os.remove(file_name)
+                
+    except Exception as e:
+        send_log(f"Ошибка аудио-сенсора: {e}")
+        bot.reply_to(message, "📡 Помехи в радиоэфире, Командор! Не смог разобрать сигнал. Прием.")
+
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
     # 1. СРАЗУ ГАСИМ СИСТЕМНЫЕ АККАУНТЫ
