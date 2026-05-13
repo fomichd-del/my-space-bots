@@ -537,3 +537,31 @@ def get_all_user_ids():
     res = cursor.fetchall()
     conn.close()
     return [r[0] for r in res]
+
+def get_dog_profession(user_id):
+    """Получает профессию питомца из профиля пилота"""
+    conn = get_connection()
+    if not conn: return 'Кадет'
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT dog_profession FROM users WHERE user_id = %s", (user_id,))
+        result = cursor.fetchone()
+        return result[0] if result and result[0] else 'Кадет'
+    except:
+        return 'Кадет'
+    finally:
+        cursor.close()
+        conn.close()
+
+def set_dog_profession(user_id, profession_name):
+    """Назначает профессию питомцу"""
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET dog_profession = %s WHERE user_id = %s", (profession_name, user_id))
+        conn.commit()
+        return True
+    finally:
+        cursor.close()
+        conn.close()
