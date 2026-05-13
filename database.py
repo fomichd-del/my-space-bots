@@ -191,6 +191,19 @@ def add_xp(user_id, amount, username="Пилот"):
         cursor.close()
         conn.close()
 
+def is_user_new(user_id):
+    """Проверяет, есть ли пилот в базе данных (True - если новый, False - если уже был)"""
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
+        # Если ничего не нашли, значит пилот новый (вернут True)
+        return cursor.fetchone() is None
+    finally:
+        cursor.close()
+        conn.close()
+
 def get_user_stats(user_id):
     conn = get_connection()
     if not conn: return 0
