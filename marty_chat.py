@@ -414,8 +414,17 @@ def handle_voice(message):
             except: pass
                 
     except Exception as e:
+        # Сначала обрабатываем ошибку
         send_log(f"Ошибка аудио-сенсора: {e}")
         bot.reply_to(message, "📡 Помехи в радиоэфире, Командор! Не смог разобрать сигнал. Прием.")
+
+    finally:
+        # И только в самом конце (с маленькой буквы!) чистим файлы
+        if os.path.exists(file_name):
+            try: 
+                os.remove(file_name)
+            except: 
+                pass
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
