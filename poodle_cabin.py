@@ -147,8 +147,19 @@ def handle_dog_callback(bot, call):
         else: bot.answer_callback_query(call.id, "❌ Нужно 5 пыли!")
 
     elif action == "sleep":
-        dog['energy'] = 100; update_dog_data(user_id, dog)
-        bot.answer_callback_query(call.id, "💤 Пес спит в капсуле...")
+        from database import get_dog_profession
+        prof = get_dog_profession(user_id)
+        
+        # Медики спят эффективнее!
+        energy_boost = 60 if "Медик" in prof else 40
+        
+        if dog['energy'] >= 100:
+            bot.answer_callback_query(call.id, "Марти уже полон сил! ⚡", show_alert=True)
+        else:
+            new_energy = min(100, dog['energy'] + energy_boost)
+            update_dog_stats(user_id, hunger=dog['hunger'], energy=new_energy, mood=dog['mood'], xp=dog['xp'], level=dog['level'])
+            bot.answer_callback_query(call.id, f"Марти поспал в крио-капсуле (+{energy_boost} Энергии)! 💤")
+            send_dog_menu(bot, chat_id, user_id, message_id=call.message.message_id)
 
     elif action == "play":
         if spend_dust(user_id, 5):
@@ -187,21 +198,51 @@ def handle_dog_callback(bot, call):
         return
 
     elif action == "shop":
+        # 🟢 Достаем профессию, чтобы показать скидки прямо на витрине
+        from database import get_dog_profession
+        prof = get_dog_profession(user_id)
+        
         text = "🛒 **МАГАЗИН АКАДЕМИИ**\n\nНовые вещи появятся в гардеробе!"
+        if "Инженер" in prof:
+            text += "\n🛠 *Активирована скидка Бортинженера: -20%!*"
+
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         for k, v in DOG_SHOP.items():
             if k not in dog['items']:
-                kb.add(tele_types.InlineKeyboardButton(f"{v['name']} ({v['price']}💰)", callback_data=f"dog_buy_{k}"))
+                # Считаем цену со скидкой для кнопок
+                price = v['price']
+                if "Инженер" in prof:
+                    price = int(price * 0.8)
+                
+                kb.add(tele_types.InlineKeyboardButton(f"{v['name']} ({price}💰)", callback_data=f"dog_buy_{k}"))
+        
         kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
-        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb)
+        # Добавил parse_mode="Markdown", чтобы текст скидки был красивым курсивом
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         return
 
     elif action.startswith("buy_"):
         item = action.replace("buy_", "")
-        if spend_dust(user_id, DOG_SHOP[item]['price']):
-            dog['items'].append(item); update_dog_data(user_id, dog)
-            bot.answer_callback_query(call.id, f"🎉 Куплено: {DOG_SHOP[item]['name']}!")
-        else: bot.answer_callback_query(call.id, "❌ Мало пыли!")
+        
+        # 🟢 Снова достаем профессию для правильного списания Пыли
+        from database import get_dog_profession
+        prof = get_dog_profession(user_id)
+        
+        price = DOG_SHOP[item]['price']
+        if "Инженер" in prof:
+            price = int(price * 0.8) # Применяем скидку 20%
+
+        if spend_dust(user_id, price):
+            dog['items'].append(item)
+            update_dog_data(user_id, dog)
+            bot.answer_callback_query(call.id, f"🎉 Куплено: {DOG_SHOP[item]['name']} (за {price} 💰)!")
+            
+            # Возвращаем в магазин после покупки, чтобы кнопка купленной вещи пропала
+            kb = tele_types.InlineKeyboardMarkup(row_width=2)
+            kb.add(tele_types.InlineKeyboardButton("🔙 В каюту", callback_data="dog_back"))
+            bot.edit_message_caption("✅ Покупка отправлена в Гардероб!", call.message.chat.id, call.message.message_id, reply_markup=kb)
+        else: 
+            bot.answer_callback_query(call.id, f"❌ Мало пыли! Нужно {price} 💰", show_alert=True)
 
     elif action == "resurrect":
         if spend_dust(user_id, 100):
