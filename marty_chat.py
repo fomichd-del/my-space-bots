@@ -352,7 +352,8 @@ def handle_text(message, is_profile_call=False):
     if text == "❓ Инструкция":
         send_welcome_instruction(message.chat.id, user_id, user_name); return
 
-        clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
+    # 🟢 ИСПРАВЛЕН ОТСТУП: Теперь переменная находится на одном уровне с основным кодом
+    clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
 
     # 🟢 3. СИСТЕМА ПАСХАЛОК (Скрытые достижения)
     lower_text = clean_text.lower()
