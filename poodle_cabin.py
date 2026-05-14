@@ -159,6 +159,7 @@ def handle_dog_callback(bot, call):
             dog['energy'] = min(100, dog['energy'] + energy_boost) # 🟢 Исправлено
             update_dog_data(user_id, dog) # 🟢 Исправлено
             bot.answer_callback_query(call.id, f"Марти поспал в крио-капсуле (+{energy_boost} Энергии)! 💤")
+            chat_id = call.message.chat.id
             send_dog_menu(bot, chat_id, user_id, message_id=call.message.message_id)
 
     elif action == "play":
