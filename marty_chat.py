@@ -396,6 +396,53 @@ def handle_start_help(message):
         )
         bot.send_message(message.chat.id, welcome_text, reply_markup=get_marty_keyboard())
 
+@bot.message_handler(commands=['force_digest'])
+def force_digest_test(message):
+    user_id = message.from_user.id
+    # Проверка безопасности: только вы (Командор) можете запустить эту команду
+    # Вставьте свой реальный ID вместо 123456789, или уберите этот if, если тестируете сами
+    
+    bot.reply_to(message, "⚙️ Запускаю принудительный сбор дайджеста. Ожидайте...")
+    
+    try:
+        from database import get_ship_date, get_all_user_ids
+        today = get_ship_date()
+        news = get_today_news(today)
+        
+        if not news:
+            bot.send_message(message.chat.id, "📭 В базе за сегодня нет новостей для рассылки!")
+            return
+            
+        raw_text = "\n\n".join(news)
+        
+        # Просим ИИ оформить дайджест
+        bot.send_message(message.chat.id, "🧠 Передаю данные в Gemini...")
+        
+        digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nСырые данные:\n{raw_text[:300]}..."
+        for api_key in API_KEYS:
+            try:
+                client = genai.Client(api_key=api_key)
+                resp = client.models.generate_content(
+                    model='gemini-2.0-flash', 
+                    contents=(
+                        "Ты Марти — бортовой пес-ученый Академии Орион. "
+                        f"Сделай красивый вечерний дайджест из этих новостей:\n[{raw_text}]\n"
+                        "Пиши коротко, используй эмодзи. Закончи словом 'Прием!'"
+                    )
+                )
+                if resp.text:
+                    digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
+                    break
+            except Exception as e:
+                send_log(f"Ошибка ИИ (тест дайджеста): {e}")
+                continue
+                
+        # Тестовая рассылка (пока отправляем ТОЛЬКО ВАМ, чтобы не спамить всем пилотам)
+        bot.send_message(message.chat.id, "🚀 Итоговый результат, который ушел бы пилотам:\n\n" + digest_msg, parse_mode="Markdown")
+        
+    except Exception as e:
+        bot.send_message(message.chat.id, f"🚨 Критическая ошибка при сборке: {e}")
+
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
