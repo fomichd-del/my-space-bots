@@ -361,71 +361,55 @@ def handle_channel_post(message):
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
+    import os
     user_id = message.from_user.id
-    # Статус «записывает голос» в Telegram (создает эффект присутствия)
     bot.send_chat_action(message.chat.id, 'record_audio')
     
     file_name = f"voice_{user_id}.ogg"
+    
+    # Вспомогательная функция для уборки, чтобы не писать `finally`
+    def cleanup():
+        if os.path.exists(file_name):
+            try: os.remove(file_name)
+            except: pass
+
     try:
-        # 1. Скачивание
+        # Скачиваем файл
         file_info = bot.get_file(message.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         with open(file_name, 'wb') as f:
             f.write(downloaded_file)
         
-        # Список надежных моделей
         MODELS_TO_TRY = ['gemini-3.1-flash-lite-preview', 'gemini-2.0-flash', 'gemini-1.5-flash']
-        
         success = False
+        
         for api_key in API_KEYS:
             if success: break
             client = genai.Client(api_key=api_key)
-            
             for model_name in MODELS_TO_TRY:
                 try:
                     uploaded_file = client.files.upload(file=file_name, config={'mime_type': 'audio/ogg'})
-                    
-                    # СТРОГИЙ ПРОМПТ: только перевод, никакой самодеятельности
                     prompt = "Переведи это аудио в текст дословно. Не отвечай на него, не комментируй. Только текст расшифровки."
-                    
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=[uploaded_file, prompt]
-                    )
+                    response = client.models.generate_content(model=model_name, contents=[uploaded_file, prompt])
                     
                     if response.text:
-                        # Подменяем текст сообщения и уходим в основной мозг бота
                         message.text = response.text
-                        handle_text(message) # Здесь Марти ответит ОДИН раз в своем стиле
+                        cleanup() # Уборка при успехе
+                        handle_text(message) 
                         success = True
                         break 
                 except Exception as e:
-                    if "404" in str(e): continue
-                    send_log(f"❌ Сбой модели {model_name}: {e}")
-                    continue
+                    continue # Пробуем следующую модель
                     
+        # Если ни один ключ/модель не сработали
+        if not success:
+            bot.reply_to(message, "📡 Помехи в канале связи. ИИ не смог распознать голос.")
+            cleanup() # Уборка при провале ИИ
+            
     except Exception as e:
         send_log(f"🚨 Критическая ошибка аудио: {e}")
-        bot.reply_to(message, "📡 Командор, помехи в канале связи. Не смог разобрать аудио-сигнал.")
-    
-    finally:
-        # Уборка палубы (важно для бесплатного тарифа Render)
-        if os.path.exists(file_name):
-            try: os.remove(file_name)
-            except: pass
-
-    # 🟢 3. ОБРАБОТКА ОШИБОК (Строго после try!)
-    except Exception as e:
-        send_log(f"🚨 Критическая ошибка аудио-сенсора: {e}")
-        bot.reply_to(message, "📡 Командор, разрыв связи при обработке звука. Прием.")
-
-    # 🟢 4. ОЧИСТКА ПАЛУБЫ (Всегда в самом конце и с маленькой буквы!)
-    finally:
-        if os.path.exists(file_name):
-            try:
-                os.remove(file_name)
-            except:
-                pass
+        bot.reply_to(message, "📡 Системный сбой при записи аудио-сигнала.")
+        cleanup() # Уборка при критической ошибке
 
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
