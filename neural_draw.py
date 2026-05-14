@@ -15,16 +15,29 @@ API_KEYS = [k for k in API_KEYS if k]
 def get_english_prompt(russian_text):
     system_instruction = "Translate to English for image generation. Output ONLY high-quality, descriptive keywords. Kid-friendly."
     user_prompt = f"Describe object: {russian_text}"
+    
+    # 🟢 НАШ АРСЕНАЛ МОДЕЛЕЙ (Каскад)
+    MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
+    
     for key in API_KEYS:
         try:
             client = genai.Client(api_key=key)
-            resp = client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=user_prompt,
-                config=types.GenerateContentConfig(system_instruction=system_instruction)
-            )
-            if resp.text: return resp.text.strip().replace("`", "")
-        except: continue
+            # Перебираем модели по очереди для каждого ключа
+            for model_name in MODELS_TO_TRY:
+                try:
+                    resp = client.models.generate_content(
+                        model=model_name,
+                        contents=user_prompt,
+                        config=types.GenerateContentConfig(system_instruction=system_instruction)
+                    )
+                    if resp.text: 
+                        return resp.text.strip().replace("`", "")
+                except: 
+                    continue # Модель устала? Берем следующую!
+        except: 
+            continue # Ключ не работает? Берем следующий!
+            
+    # Если ВООБЩЕ ВСЕ Gemini на всех ключах упали, в бой вступает резервный GROQ
     if GROQ_API_KEY:
         try:
             headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
@@ -32,7 +45,8 @@ def get_english_prompt(russian_text):
             res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=data, timeout=10)
             if res.status_code == 200: return res.json()["choices"][0]["message"]["content"].strip()
         except: pass
-    return russian_text
+        
+    return russian_text # Если упало абсолютно всё, возвращаем русский текст
 
 def get_cascade_image(prompt, seed):
     """
