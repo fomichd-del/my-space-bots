@@ -61,6 +61,62 @@ def eco_engine_handler(call):
 def dog_engine_handler(call):
     poodle_cabin.handle_dog_callback(bot, call)
 
+@bot.callback_query_handler(func=lambda call: call.data == "show_top_pilots")
+def handle_top_pilots(call):
+    # Снимаем "часики" загрузки на кнопке
+    bot.answer_callback_query(call.id)
+    
+    try:
+        from database import get_all_user_ids, get_user_data, get_rank_name
+        all_ids = get_all_user_ids()
+        pilots_data = []
+        
+        # 🟢 ФИЛЬТР: Исключаем ботов и системные аккаунты
+        bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group', 'Channel']
+        
+        for uid in all_ids:
+            try:
+                u = get_user_data(uid)
+                name = u.get('name', 'Неизвестный')
+                
+                # Если имя в черном списке или пустое — пропускаем
+                if name in bad_names or not name:
+                    continue
+                    
+                xp = u.get('xp', 0)
+                dust = u.get('spendable_dust', 0)
+                pilots_data.append({'name': name, 'xp': xp, 'dust': dust})
+            except:
+                continue
+                
+        # Сортируем пилотов по количеству опыта (от большего к меньшему)
+        pilots_data.sort(key=lambda x: x['xp'], reverse=True)
+        top_10 = pilots_data[:10] # Берем только 10 лучших
+        
+        if not top_10:
+            bot.send_message(call.message.chat.id, "🏆 **РЕЙТИНГ АКАДЕМИИ**\n\nСписок пока пуст.", parse_mode="Markdown")
+            return
+            
+        # 🟢 КРАСИВОЕ ОФОРМЛЕНИЕ
+        text = "🏆 **ЭЛИТА АКАДЕМИИ ОРИОН** 🏆\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+        medals = ["🥇", "🥈", "🥉"]
+        
+        for i, p in enumerate(top_10):
+            # Тройка лидеров получает медали, остальные — красивые номера
+            medal = medals[i] if i < 3 else f"*{i+1}.*"
+            rank = get_rank_name(p['xp'])
+            
+            text += f"{medal} **{p['name']}**\n"
+            text += f"   🎖 {rank}  |  🧬 `{p['xp']} XP`  |  💰 `{p['dust']} Пыли`\n\n"
+            
+        text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n🚀 *Развивайся, чтобы стать первым!*"
+        
+        bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        send_log(f"Ошибка формирования рейтинга: {e}")
+        bot.send_message(call.message.chat.id, "📡 Помехи связи. Не удалось загрузить таблицу лидеров.")
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith('game'))
 def game_engine(call):
     if call.data == "game_back_to_profile":
@@ -479,7 +535,7 @@ def handle_text(message, is_profile_call=False):
         eco_bay.send_eco_menu(bot, message.chat.id, user_id); return
     if text == "🐕 Каюта питомца":
         poodle_cabin.send_dog_menu(bot, message.chat.id, user_id); return
-    if text == "📻 Радиоперехват":
+        if text == "📻 Радиоперехват":
         from database import check_and_update_quiz, get_ship_date
         today = get_ship_date()
         
@@ -493,12 +549,23 @@ def handle_text(message, is_profile_call=False):
         else:
             bot.reply_to(message, "📡 Командор, на сегодня сигналов больше нет. Радары сканируют сектор, приходите завтра!")
         return
+
+    # 🟢 ИСПРАВЛЕННЫЙ БЛОК ПРОФИЛЯ (С правильными отступами)
     if text == "👤 Мой профиль" or is_profile_call:
-        u = get_user_data(user_id); rank = get_rank_name(u['xp'])
-        msg = f"👤 Пилот: `{user_name}`\n🎖 Ранг: `{rank}`\n💰 Пыль: `{u['spendable_dust']}`"
-        bot.reply_to(message, msg, parse_mode="Markdown"); return
+        u = get_user_data(user_id)
+        rank = get_rank_name(u['xp'])
+        msg = f"👤 Пилот: `{user_name}`\n🎖 Ранг: `{rank}`\n💰 Пыль: `{u.get('spendable_dust', 0)}`"
+        
+        # Кнопка рейтинга
+        kb = tele_types.InlineKeyboardMarkup()
+        kb.add(tele_types.InlineKeyboardButton(text="🏆 Рейтинг Академии", callback_data="show_top_pilots"))
+        
+        bot.reply_to(message, msg, parse_mode="Markdown", reply_markup=kb)
+        return
+
     if text == "❓ Инструкция":
-        send_welcome_instruction(message.chat.id, user_id, user_name); return
+        send_welcome_instruction(message.chat.id, user_id, user_name)
+        return
 
     # 🟢 ИСПРАВЛЕН ОТСТУП: Теперь переменная находится на одном уровне с основным кодом
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
