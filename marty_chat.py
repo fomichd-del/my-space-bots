@@ -97,19 +97,23 @@ def handle_top_pilots(call):
             bot.send_message(call.message.chat.id, "🏆 **РЕЙТИНГ АКАДЕМИИ**\n\nСписок пока пуст.", parse_mode="Markdown")
             return
             
-        # 🟢 КРАСИВОЕ ОФОРМЛЕНИЕ
-        text = "🏆 **ЭЛИТА АКАДЕМИИ ОРИОН** 🏆\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+                # 🟢 НОВЫЙ ЛАКОНИЧНЫЙ ДИЗАЙН
+        text = "🏆 **ТОП-10 ПИЛОТОВ ОРИОНА**\n"
+        text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+        
         medals = ["🥇", "🥈", "🥉"]
         
         for i, p in enumerate(top_10):
-            # Тройка лидеров получает медали, остальные — красивые номера
-            medal = medals[i] if i < 3 else f"*{i+1}.*"
+            medal = medals[i] if i < 3 else f"`{i+1}.`"
             rank = get_rank_name(p['xp'])
             
-            text += f"{medal} **{p['name']}**\n"
-            text += f"   🎖 {rank}  |  🧬 `{p['xp']} XP`  |  💰 `{p['dust']} Пыли`\n\n"
+            # Одна строка: Медаль + Имя + Опыт
+            text += f"{medal} **{p['name']}** •  `{p['xp']} XP`\n"
+            # Вторая строка: Звание и Пыль (через небольшую черту)
+            text += f"╰ _{rank}_  •  💰 `{p['dust']}`\n\n"
             
-        text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n🚀 *Развивайся, чтобы стать первым!*"
+        text += "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+        text += "🚀 *Стань легендой Академии!*"
         
         bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
         
