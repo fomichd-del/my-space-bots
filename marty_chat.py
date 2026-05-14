@@ -718,17 +718,14 @@ def run_daily_digest_loop(bot_instance):
             from database import get_ship_date
             today = get_ship_date()
             
-            # 🟢 ИСПРАВЛЕНИЕ ВРЕМЕНИ: Сервер Render работает по UTC.
-            # 15:00 UTC — это ровно 18:00 по Киевскому времени (EEST).
+            # Сервер Render работает по UTC. 15:00 UTC — это 18:00 по Киеву.
             current_time_utc = datetime.utcnow().strftime("%H:%M")
             
             if "15:00" <= current_time_utc <= "15:15" and last_sent_date != today:
                 news = get_today_news(today)
                 if news:
-                    # Собираем все новости дня в один сырой текст
                     raw_text = "\n\n".join(news)
                     
-                    # 🟢 МАГИЯ ИИ: Просим Gemini оформить это красиво
                     prompt = (
                         "Ты Марти — бортовой пес-ученый Академии Орион. "
                         "Вот сырые данные постов, которые вышли сегодня в главном канале:\n"
@@ -739,29 +736,34 @@ def run_daily_digest_loop(bot_instance):
                         "Обязательно закончи словом 'Прием!'"
                     )
                     
-                    # Резервный текст, если ИИ не ответит
-                    digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, новости получены, но модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
+                    # Резервный текст (План Б)
+                    digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
                     
-                    # Отправляем в Gemini
+                    success = False
                     for api_key in API_KEYS:
-                        try:
-                            client = genai.Client(api_key=api_key)
-                            resp = client.models.generate_content(
-                                model='gemini-2.0-flash', 
-                                contents=prompt
-                            )
-                            if resp.text:
-                                digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
-                                break # Успех, выходим из цикла ключей
-                        except Exception as e:
-                            send_log(f"Ошибка ИИ при создании дайджеста: {e}")
-                            continue
-                            
-                    # Рассылаем готовый красивый текст всем пилотам
+                        if success: break
+                        client = genai.Client(api_key=api_key)
+                        
+                        # 🟢 КАСКАД МОДЕЛЕЙ: Защита от исчерпания лимитов (Ошибка 429)
+                        for model_name in MODEL_CASCADE:
+                            try:
+                                resp = client.models.generate_content(
+                                    model=model_name, 
+                                    contents=prompt
+                                )
+                                if resp.text:
+                                    digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
+                                    success = True
+                                    break # Успех! Выходим из цикла моделей
+                            except Exception as e:
+                                send_log(f"Ошибка ИИ в авто-дайджесте ({model_name}): {e}")
+                                continue # Эта модель устала, пробуем следующую!
+                                
+                    # Рассылка всем пилотам
                     for uid in get_all_user_ids():
                         try:
                             bot_instance.send_message(uid, digest_msg, parse_mode="Markdown")
-                            time.sleep(0.05) # Защита от спам-блока Telegram
+                            time.sleep(0.05) # Защита от спам-фильтра
                         except:
                             pass
                             
