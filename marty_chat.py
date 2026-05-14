@@ -588,44 +588,95 @@ def orion_uplink():
     return jsonify({"status": "error"}), 400
 
 def run_daily_digest_loop(bot_instance):
-    """Вечерний дайджест в 18:00"""
+    """Вечерний дайджест в 18:00 по местному времени (15:00 UTC)"""
     def loop():
         last_sent_date = ""
         while True:
             from database import get_ship_date
             today = get_ship_date()
-            # Учитывай, что на Render время UTC. 18:00 EEST — это 15:00 UTC
-            if "18:00" <= datetime.now().strftime("%H:%M") <= "18:15" and last_sent_date != today:
+            
+            # 🟢 ИСПРАВЛЕНИЕ ВРЕМЕНИ: Сервер Render работает по UTC.
+            # 15:00 UTC — это ровно 18:00 по Киевскому времени (EEST).
+            current_time_utc = datetime.utcnow().strftime("%H:%M")
+            
+            if "15:00" <= current_time_utc <= "15:15" and last_sent_date != today:
                 news = get_today_news(today)
                 if news:
-                    # 🟢 ИСПРАВЛЕНО: Правильные отступы и сборка всех новостей
-                    combined_text = "\n• ".join(news)
-                    if len(combined_text) > 500:
-                        combined_text = combined_text[:500] + "..."
-                        
-                    msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n• {combined_text}\n\n🚀 Обсудим? Прием!"
+                    # Собираем все новости дня в один сырой текст
+                    raw_text = "\n\n".join(news)
                     
+                    # 🟢 МАГИЯ ИИ: Просим Gemini оформить это красиво
+                    prompt = (
+                        "Ты Марти — бортовой пес-ученый Академии Орион. "
+                        "Вот сырые данные постов, которые вышли сегодня в главном канале:\n"
+                        f"[{raw_text}]\n\n"
+                        "Твоя задача: напиши из этого ОДИН красивый, короткий и захватывающий "
+                        "вечерний дайджест. Выдели главное. Не выдумывай факты, используй только то, что в скобках. "
+                        "Используй эмодзи. Пиши в своем теплом стиле наставника. "
+                        "Обязательно закончи словом 'Прием!'"
+                    )
+                    
+                    # Резервный текст, если ИИ не ответит
+                    digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, новости получены, но модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
+                    
+                    # Отправляем в Gemini
+                    for api_key in API_KEYS:
+                        try:
+                            client = genai.Client(api_key=api_key)
+                            resp = client.models.generate_content(
+                                model='gemini-2.0-flash', 
+                                contents=prompt
+                            )
+                            if resp.text:
+                                digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
+                                break # Успех, выходим из цикла ключей
+                        except Exception as e:
+                            send_log(f"Ошибка ИИ при создании дайджеста: {e}")
+                            continue
+                            
+                    # Рассылаем готовый красивый текст всем пилотам
                     for uid in get_all_user_ids():
                         try:
-                            bot_instance.send_message(uid, msg, parse_mode="Markdown")
-                            time.sleep(0.05) # Защита от спам-фильтра Telegram
+                            bot_instance.send_message(uid, digest_msg, parse_mode="Markdown")
+                            time.sleep(0.05) # Защита от спам-блока Telegram
                         except:
                             pass
+                            
                 last_sent_date = today
             time.sleep(60)
     Thread(target=loop, daemon=True).start()
 
 def run_proactive_marty(bot_instance):
     def loop():
+        # Даем боту 2 минуты на спокойную загрузку после деплоя
+        time.sleep(120) 
+        
         while True:
-            time.sleep(21600)
-            for uid in get_users_for_ping():
-                try:
-                    u = get_user_data(uid)
-                    msg = get_marty_response(uid, u['name'], "Коротко напомни о себе.", "Пилот", 0)
-                    bot_instance.send_message(uid, re.sub(r'\[MEMORY:.*?\]', '', msg).strip())
-                    set_silence(uid, hours=24)
-                except: continue
+            try:
+                users = get_users_for_ping()
+                for uid in users:
+                    try:
+                        u = get_user_data(uid)
+                        # Более живой и естественный промпт для напоминания
+                        prompt = "Пилот давно не выходил на связь. Коротко и по-доброму напомни о себе в стиле Марти, спроси как дела или предложи заглянуть в Академию. Не более 2 предложений."
+                        
+                        # Передаем реальный баланс пыли, а не 0
+                        msg = get_marty_response(uid, u['name'], prompt, get_rank_name(u['xp']), u.get('spendable_dust', 0))
+                        
+                        clean_msg = re.sub(r'\[MEMORY:.*?\]', '', msg).strip()
+                        bot_instance.send_message(uid, clean_msg, parse_mode="Markdown")
+                        
+                        # Устанавливаем тишину на 24 часа для этого пользователя
+                        set_silence(uid, hours=24)
+                    except Exception as e:
+                        send_log(f"❌ Ошибка отправки напоминания пилоту {uid}: {e}")
+                        continue
+            except Exception as e:
+                send_log(f"🚨 Сбой в главном цикле проактивности: {e}")
+            
+            # Проверяем базу каждые 3 часа (10800 секунд), а не раз в 6 часов!
+            time.sleep(10800)
+            
     Thread(target=loop, daemon=True).start()
 
 def start_marty_autonomous():
