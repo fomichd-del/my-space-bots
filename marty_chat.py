@@ -72,7 +72,7 @@ def handle_top_pilots(call):
         pilots_data = []
         
         # 🟢 ФИЛЬТР: Исключаем ботов и системные аккаунты
-        bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group', 'Channel']
+        bad_names = ['Марти Ученный', 'GroupAnonymousBot', 'Telegram', 'Group', 'Channel']
         
         for uid in all_ids:
             try:
@@ -108,7 +108,7 @@ def handle_top_pilots(call):
             rank = get_rank_name(p['xp'])
             
             # Одна строка: Медаль + Имя + Опыт
-            text += f"{medal} **{p['name']}** •  `{p['xp']} XP`\n"
+            text += f"{medal} *{p['name']}* •  `*{p['xp']}* XP`\n"
             # Вторая строка: Звание и Пыль (через небольшую черту)
             text += f"╰ _{rank}_  •  💰 `{p['dust']}`\n\n"
             
