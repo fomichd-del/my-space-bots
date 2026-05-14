@@ -399,13 +399,10 @@ def handle_start_help(message):
 @bot.message_handler(commands=['force_digest'])
 def force_digest_test(message):
     user_id = message.from_user.id
-    # Проверка безопасности: только вы (Командор) можете запустить эту команду
-    # Вставьте свой реальный ID вместо 123456789, или уберите этот if, если тестируете сами
-    
     bot.reply_to(message, "⚙️ Запускаю принудительный сбор дайджеста. Ожидайте...")
     
     try:
-        from database import get_ship_date, get_all_user_ids
+        from database import get_ship_date, get_today_news
         today = get_ship_date()
         news = get_today_news(today)
         
@@ -414,31 +411,39 @@ def force_digest_test(message):
             return
             
         raw_text = "\n\n".join(news)
+        bot.send_message(message.chat.id, "🧠 Передаю данные в нейросеть (Каскадный режим)...")
         
-        # Просим ИИ оформить дайджест
-        bot.send_message(message.chat.id, "🧠 Передаю данные в Gemini...")
+        # Резервный текст на случай полного отказа
+        digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки перегружен! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
         
-        digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nСырые данные:\n{raw_text[:300]}..."
+        MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
+        success = False
+        
         for api_key in API_KEYS:
-            try:
-                client = genai.Client(api_key=api_key)
-                resp = client.models.generate_content(
-                    model='gemini-2.0-flash', 
-                    contents=(
-                        "Ты Марти — бортовой пес-ученый Академии Орион. "
-                        f"Сделай красивый вечерний дайджест из этих новостей:\n[{raw_text}]\n"
-                        "Пиши коротко, используй эмодзи. Закончи словом 'Прием!'"
+            if success: break
+            client = genai.Client(api_key=api_key)
+            
+            # 🟢 Тот самый КАСКАД, который спасет от ошибки 429
+            for model_name in MODELS_TO_TRY:
+                try:
+                    resp = client.models.generate_content(
+                        model=model_name, 
+                        contents=(
+                            "Ты Марти — бортовой пес-ученый Академии Орион. "
+                            f"Сделай красивый вечерний дайджест из этих новостей:\n[{raw_text}]\n"
+                            "Пиши очень коротко и увлекательно, используй эмодзи. Закончи словом 'Прием!'"
+                        )
                     )
-                )
-                if resp.text:
-                    digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
-                    break
-            except Exception as e:
-                send_log(f"Ошибка ИИ (тест дайджеста): {e}")
-                continue
-                
-        # Тестовая рассылка (пока отправляем ТОЛЬКО ВАМ, чтобы не спамить всем пилотам)
-        bot.send_message(message.chat.id, "🚀 Итоговый результат, который ушел бы пилотам:\n\n" + digest_msg, parse_mode="Markdown")
+                    if resp.text:
+                        digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
+                        success = True
+                        break 
+                except Exception as e:
+                    # Теперь лог покажет, какая именно модель упала
+                    send_log(f"Ошибка дайджеста ({model_name}): {e}")
+                    continue 
+                    
+        bot.send_message(message.chat.id, "🚀 Итоговый результат:\n\n" + digest_msg, parse_mode="Markdown")
         
     except Exception as e:
         bot.send_message(message.chat.id, f"🚨 Критическая ошибка при сборке: {e}")
