@@ -526,16 +526,21 @@ def handle_text(message, is_profile_call=False):
         except: pass
         return
 
-    # МЕНЮ
+        # МЕНЮ
     if text == "🎮 Игровой отсек":
         report, kb = menu.get_main_games_menu()
         bot.reply_to(message, report, reply_markup=kb, parse_mode="Markdown")
         return
+        
     if text == "🌿 Эко-отсек":
-        eco_bay.send_eco_menu(bot, message.chat.id, user_id); return
+        eco_bay.send_eco_menu(bot, message.chat.id, user_id)
+        return
+        
     if text == "🐕 Каюта питомца":
-        poodle_cabin.send_dog_menu(bot, message.chat.id, user_id); return
-        if text == "📻 Радиоперехват":
+        poodle_cabin.send_dog_menu(bot, message.chat.id, user_id)
+        return
+        
+    if text == "📻 Радиоперехват":
         from database import check_and_update_quiz, get_ship_date
         today = get_ship_date()
         
@@ -550,7 +555,6 @@ def handle_text(message, is_profile_call=False):
             bot.reply_to(message, "📡 Командор, на сегодня сигналов больше нет. Радары сканируют сектор, приходите завтра!")
         return
 
-    # 🟢 ИСПРАВЛЕННЫЙ БЛОК ПРОФИЛЯ (С правильными отступами)
     if text == "👤 Мой профиль" or is_profile_call:
         u = get_user_data(user_id)
         rank = get_rank_name(u['xp'])
@@ -566,6 +570,7 @@ def handle_text(message, is_profile_call=False):
     if text == "❓ Инструкция":
         send_welcome_instruction(message.chat.id, user_id, user_name)
         return
+
 
     # 🟢 ИСПРАВЛЕН ОТСТУП: Теперь переменная находится на одном уровне с основным кодом
     clean_text = re.sub(r'^марти[,.\s]*', '', text, flags=re.IGNORECASE).strip()
