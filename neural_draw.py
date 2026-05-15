@@ -1,6 +1,7 @@
 import requests
 import urllib.parse
 import os
+import sys
 import time
 import base64  # 🟢 НОВЫЙ ИМПОРТ ДЛЯ РАСШИФРОВКИ КАРТИНОК
 from google import genai
@@ -48,14 +49,16 @@ def get_english_prompt(russian_text):
     return russian_text # Если упало абсолютно всё, возвращаем русский текст
 
 def get_cascade_image(prompt, seed):
-    """
-    Каскад с элитным заводом Together AI во главе
-    """
-    print(f"🎨 Запуск генерации. Промпт: {prompt[:50]}...")
+    # Принудительно выводим в консоль, чтобы Render показал это сразу
+    print(f"🎨 НАЧАЛО ГЕНЕРАЦИИ. Промпт: {prompt}", flush=True)
 
-    # 🥇 1. ЭЛИТНЫЙ ЗАВОД: Together AI (FLUX) - Самый быстрый и надежный
+    if not prompt or len(prompt) < 2:
+        print("❌ ОШИБКА: Пустой промпт!", flush=True)
+        return None
+
+    # 🥇 1. Together AI (FLUX)
     if TOGETHER_API_KEY:
-        print("🛰 Запрос к премиум-серверу Together AI...")
+        print("🛰 Запрос к Together AI...", flush=True)
         headers = {
             "Authorization": f"Bearer {TOGETHER_API_KEY}",
             "Content-Type": "application/json"
@@ -65,37 +68,39 @@ def get_cascade_image(prompt, seed):
             "prompt": prompt,
             "width": 1024,
             "height": 1024,
-            "steps": 4, # FLUX Schnell работает идеально за 4 шага
+            "steps": 4, 
             "n": 1,
-            "response_format": "b64_json" # Просим вернуть картинку кодом
+            "response_format": "b64_json" 
         }
         try:
-            res = requests.post("https://api.together.xyz/v1/images/generations", headers=headers, json=data, timeout=30)
+            # Увеличим таймаут для надежности
+            res = requests.post("https://api.together.xyz/v1/images/generations", headers=headers, json=data, timeout=40)
             if res.status_code == 200:
-                print("✅ Успех: Together AI сгенерировал изображение!")
+                print("✅ Together AI: УСПЕХ!", flush=True)
                 b64_img = res.json()["data"][0]["b64_json"]
-                return base64.b64decode(b64_img) # Расшифровываем в картинку
+                return base64.b64decode(b64_img)
             else:
-                print(f"⚠️ Сбой Together AI. Код: {res.status_code}. Ошибка: {res.text[:100]}")
+                # ВЫВОДИМ ТОЧНУЮ ОШИБКУ СЕРВЕРА
+                print(f"⚠️ Together AI ОТКАЗ: {res.status_code} - {res.text}", flush=True)
         except Exception as e:
-            print(f"⚠️ Ошибка связи с Together AI: {e}")
-    else:
-        print("🚨 TOGETHER_API_KEY не найден в системе!")
+            print(f"⚠️ Ошибка связи с Together: {e}", flush=True)
 
-    # 🥈 2. БЕСПЛАТНЫЙ ЗАВОД: FLUX (Pollinations) - Стелс-режим
-    stealth_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-    }
+    # 🥈 2. Fallback: Pollinations (FLUX)
+    print("🔄 Пробую Pollinations FLUX...", flush=True)
     try:
-        url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&nologo=true&seed={seed}&model=flux"
-        res = requests.get(url, headers=stealth_headers, timeout=25)
-        if res.status_code == 200 and 'image' in res.headers.get('Content-Type', ''):
-            print("✅ Успех: Модель FLUX (Pollinations)")
+        # Убираем nologo=true (иногда из-за него 403 ошибка)
+        url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&seed={seed}&model=flux"
+        res = requests.get(url, timeout=30)
+        if res.status_code == 200:
+            print("✅ Pollinations FLUX: УСПЕХ!", flush=True)
             return res.content
         else:
-            print(f"⚠️ Pollinations FLUX сбой. Код: {res.status_code}")
+            print(f"⚠️ Pollinations сбой: {res.status_code}", flush=True)
     except Exception as e:
-        print(f"⚠️ Ошибка Pollinations FLUX: {e}")
+        print(f"⚠️ Ошибка Pollinations: {e}", flush=True)
+
+    print("❌ ПОЛНЫЙ КРАХ всех систем визуализации.", flush=True)
+    return None
 
     # 🥉 3. БЕСПЛАТНЫЙ ЗАВОД: TURBO (Pollinations)
     try:
