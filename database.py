@@ -32,6 +32,7 @@ def init_db():
     if not conn: return
     try:
         cursor = conn.cursor()
+        # 1. Создаем таблицу пользователей
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -41,7 +42,7 @@ def init_db():
             )
         ''')
         
-        # Полный список колонок, включая новые для гардероба
+        # 2. Добавляем все нужные колонки (ваш существующий цикл)
         new_columns = [
             ("spendable_dust", "INTEGER DEFAULT 0"),
             ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"),
@@ -54,8 +55,8 @@ def init_db():
             ("last_vision_context", "TEXT DEFAULT ''"),
             ("last_vision_time", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
             ("dog_equipped", "TEXT DEFAULT ''"),
-            ("dog_profession", "TEXT DEFAULT 'Кадет'"), # 🆕 Добавлено для профессий
-            ("last_quiz_date", "TEXT DEFAULT ''")      # 🆕 Добавлено для викторины
+            ("dog_profession", "TEXT DEFAULT 'Кадет'"),
+            ("last_quiz_date", "TEXT DEFAULT ''")
         ]
         
         for col_name, col_type in new_columns:
@@ -68,8 +69,16 @@ def init_db():
                     END IF; 
                 END $$;
             ''')
+        
         conn.commit()
-        print("📡 База данных полностью синхронизирована.")
+        print("📡 Таблица пользователей синхронизирована.")
+        
+        # --- ВОТ ТА САМАЯ МЕЛКАЯ ПРАВКА ---
+        # Теперь прямо отсюда вызываем создание таблицы новостей и эко-отсека
+        setup_news_db()
+        setup_eco_bay()
+        # ----------------------------------
+
     except Exception as e:
         send_log(f"Ошибка инициализации БД: {e}")
     finally:
@@ -501,35 +510,64 @@ def process_dog_walk(user_id):
     update_dog_data(user_id, d)
     return bonus_xp if bonus_xp > 0 else "success"
 
-# --- НОВОСТИ ---
+# --- НОВОСТИ (УЛУЧШЕННЫЙ ОТСЕК) ---
 
 def setup_news_db():
     conn = get_connection()
     if not conn: return
-    cursor = conn.cursor()
     try:
-        cursor.execute("CREATE TABLE IF NOT EXISTS channel_news (date TEXT, content TEXT);")
+        cursor = conn.cursor()
+        # Добавляем UNIQUE на content, чтобы одна и та же новость не дублировалась
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS channel_news (
+                id SERIAL PRIMARY KEY,
+                date TEXT, 
+                content TEXT UNIQUE
+            );
+        ''')
         conn.commit()
+    except Exception as e:
+        send_log(f"Ошибка создания таблицы новостей: {e}")
     finally:
         cursor.close()
         conn.close()
 
 def add_news(date, text):
+    """Сохраняет новость. Если такая уже есть — просто игнорирует (благодаря ON CONFLICT)"""
     conn = get_connection()
     if not conn: return
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO channel_news (date, content) VALUES (%s, %s)", (date, text))
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO channel_news (date, content) 
+            VALUES (%s, %s)
+            ON CONFLICT (content) DO NOTHING
+        ''', (date, text))
+        conn.commit()
+    except Exception as e:
+        send_log(f"Ошибка записи новости: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
 def get_today_news(date):
+    """Возвращает список уникальных новостей за указанную дату"""
     conn = get_connection()
     if not conn: return []
-    cursor = conn.cursor()
-    cursor.execute("SELECT content FROM channel_news WHERE date = %s", (date,))
-    res = cursor.fetchall()
-    conn.close()
-    return [r[0] for r in res]
+    try:
+        cursor = conn.cursor()
+        # Используем DISTINCT для страховки от дублей
+        cursor.execute("SELECT DISTINCT content FROM channel_news WHERE date = %s", (date,))
+        res = cursor.fetchall()
+        return [r[0] for r in res] # Возвращаем результат здесь
+    except Exception as e:
+        send_log(f"Ошибка чтения новостей: {e}")
+        return []
+    finally:
+        # Ресурсы всегда закрываются после return в блоке try
+        if conn:
+            cursor.close()
+            conn.close()
 
 def get_all_user_ids():
     conn = get_connection()
@@ -608,3 +646,9 @@ def is_user_new(user_id):
         if conn:
             cursor.close()
             conn.close()
+
+if __name__ == "__main__":
+    # Эта команда запустится только если вы запустите сам файл database.py
+    # Она создаст все таблицы и колонки, если их еще нет.
+    init_db() 
+    print("✅ Все системы базы данных инициализированы!")
