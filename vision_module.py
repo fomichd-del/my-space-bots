@@ -86,7 +86,7 @@ def analyze_image(image_data, user_context="", user_query="", keys=[], task_mode
         except Exception as e:
             send_log(f"Сбой Groq Vision: {e}")
 
-    # 2️⃣ GEMINI
+    # 2️⃣ GEMINI (Новая Горизонтальная Матрица)
     active_keys = keys if keys else [os.getenv('GEMINI_API_KEY')]
     active_keys = [k for k in active_keys if k]
 
@@ -96,10 +96,11 @@ def analyze_image(image_data, user_context="", user_query="", keys=[], task_mode
 
     last_error = "Нет ответа от моделей"
 
-    for i, api_key in enumerate(active_keys):
-        try:
-            client_gen = genai.Client(api_key=api_key)
-            for model_name in VISION_MODELS:
+    # 🟢 ГЕНИАЛЬНАЯ ПРАВКА КОМАНДОРА: Сначала берем умную модель, и ищем для нее свободный ключ!
+    for model_name in VISION_MODELS:
+        for i, api_key in enumerate(active_keys):
+            try:
+                client_gen = genai.Client(api_key=api_key)
                 try:
                     response = client_gen.models.generate_content(
                         model=model_name,
@@ -116,16 +117,16 @@ def analyze_image(image_data, user_context="", user_query="", keys=[], task_mode
                     if response.text:
                         return response.text
                 except Exception as e:
-                    last_error = f"Ключ {i+1}, {model_name}: {str(e)}"
+                    last_error = f"Модель {model_name}, Ключ {i+1}: {str(e)}"
                     if "429" in str(e): 
-                        # Теперь мы будем видеть перегрузки, но коротко!
-                        send_log(f"⚠️ Лимит (429): Ключ {i+1} -> {model_name} перегрет.")
+                        # Тихо пишем в консоль сервера, без спама в Телеграм
+                        print(f"⚠️ Лимит (429): {model_name} на Ключе {i+1} перегрет.")
                         continue 
-                    send_log(f"Технический сбой сканера: {last_error}")
+                    print(f"Технический сбой сканера: {last_error}")
                     continue
-        except Exception as e:
-            send_log(f"Ошибка инициализации клиента на ключе {i+1}: {e}")
-            continue
+            except Exception as e:
+                print(f"Ошибка инициализации клиента на ключе {i+1}: {e}")
+                continue
             
     # 3️⃣ POLLINATIONS
     if image_url:
