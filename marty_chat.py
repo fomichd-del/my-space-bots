@@ -534,9 +534,13 @@ def handle_channel_post(message):
     try:
         if str(message.chat.id) == str(CHANNEL_ID) and (message.text or message.caption):
             from database import get_ship_date
-            add_news(get_ship_date(), message.text or message.caption)
+            # Формируем текст новости сразу со ссылкой в скрытом виде
+            news_link = f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}/{message.message_id}"
+            news_entry = f"{message.text or message.caption} |LINK| {news_link}"
+            
+            add_news(get_ship_date(), news_entry)
     except Exception as e:
-        send_log(f"Сбой канала: {e}")
+        send_log(f"Сбой записи новости: {e}")
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
@@ -786,32 +790,32 @@ def orion_uplink():
     return jsonify({"status": "error"}), 400
 
 def run_daily_digest_loop(bot_instance):
-    """Вечерний дайджест в 18:00 по местному времени (15:00 UTC)"""
     def loop():
         last_sent_date = ""
         while True:
-            from database import get_ship_date
-            today = get_ship_date()
-            
-            # Сервер Render работает по UTC. 15:00 UTC — это 18:00 по Киеву.
+            # 📅 Высчитываем ВЧЕРАШНЮЮ дату
+            yesterday_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
             current_time_utc = datetime.utcnow().strftime("%H:%M")
             
-            if "15:00" <= current_time_utc <= "15:15" and last_sent_date != today:
-                news = get_today_news(today)
+            # Отправка в 09:00 утра (по Киеву), чтобы пилоты читали за завтраком
+            if "06:00" <= current_time_utc <= "06:15" and last_sent_date != yesterday_date:
+                news = get_today_news(yesterday_date) # Берем новости за вчера
+                
                 if news:
                     raw_text = "\n\n".join(news)
                     
-                    contents=(
-                            "Ты Марти — бортовой пес-ученый Академии Орион. "
-                            f"Сделай вечерний дайджест из этих сырых новостей:\n[{raw_text}]\n\n"
-                            "КРИТИЧЕСКИЕ ПРАВИЛА:\n"
-                            "1. Упомяни КАЖДУЮ новость.\n"
-                            "2. ЖЕСТКОЕ СЖАТИЕ: Сократи каждую новость до 1-2 очень коротких предложений. Выдай только самую суть.\n"
-                            "3. НЕ копируй длинные куски текста, пересказывай своими словами.\n"
-                            "4. Оформи в виде маркированного списка с эмодзи.\n"
-                            "5. Весь дайджест должен быть коротким, чтобы легко читался на экране телефона.\n"
-                            "Напиши в своем теплом стиле и обязательно закончи словом 'Прием!'"
-                        )
+                    prompt = (
+                        "Ты Марти — веселый пес-ученый. Сделай ироничный и краткий дайджест событий ЗА ВЧЕРА.\n"
+                        f"СЫРЫЕ ДАННЫЕ:\n{raw_text}\n\n"
+                        "ИНСТРУКЦИЯ ПО ОФОРМЛЕНИЮ:\n"
+                        "1. Тон: Юмор, научный энтузиазм, собачьи метафоры. 🐕\n"
+                        "2. Ссылки: В каждой новости есть кусок '|LINK| ссылка'. Сделай ГЛАВНОЕ СЛОВО новости ссылкой на этот адрес.\n"
+                        "Пример: [Аномалия в системе](ссылка).\n"
+                        "3. Разделители: Отделяй новости строчкой '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯'.\n"
+                        "4. Краткость: 1-2 искрометных предложения на новость.\n"
+                        "5. Используй эмодзи, но стильно.\n"
+                        "Закончи фразой: 'Вчерашний день в архивах! Прием!'"
+                    )
                     
                     # Резервный текст (План Б)
                     digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
