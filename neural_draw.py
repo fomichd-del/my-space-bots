@@ -16,26 +16,25 @@ def get_english_prompt(russian_text):
     system_instruction = "Translate to English for image generation. Output ONLY high-quality, descriptive keywords. Kid-friendly."
     user_prompt = f"Describe object: {russian_text}"
     
-    # 🟢 НАШ АРСЕНАЛ МОДЕЛЕЙ (Каскад)
-    MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite-preview']
+    # 🟢 НАШ АРСЕНАЛ МОДЕЛЕЙ (Убрали 1.5-flash)
+    MODELS_TO_TRY = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-lite-latest']
     
-    for key in API_KEYS:
-        try:
-            client = genai.Client(api_key=key)
-            # Перебираем модели по очереди для каждого ключа
-            for model_name in MODELS_TO_TRY:
-                try:
-                    resp = client.models.generate_content(
-                        model=model_name,
-                        contents=user_prompt,
-                        config=types.GenerateContentConfig(system_instruction=system_instruction)
-                    )
-                    if resp.text: 
-                        return resp.text.strip().replace("`", "")
-                except: 
-                    continue # Модель устала? Берем следующую!
-        except: 
-            continue # Ключ не работает? Берем следующий!
+    # 🟢 ГОРИЗОНТАЛЬНАЯ МАТРИЦА: Сначала модель, потом ключи
+    for model_name in MODELS_TO_TRY:
+        for i, key in enumerate(API_KEYS):
+            try:
+                client = genai.Client(api_key=key)
+                resp = client.models.generate_content(
+                    model=model_name,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(system_instruction=system_instruction)
+                )
+                if resp.text: 
+                    return resp.text.strip().replace("`", "")
+            except Exception as e: 
+                if "429" in str(e):
+                    print(f"⚠️ Лимит (429): {model_name} на Ключе {i+1} перегрет (перевод).")
+                continue # Идем к следующему ключу/модели
             
     # Если ВООБЩЕ ВСЕ Gemini на всех ключах упали, в бой вступает резервный GROQ
     if GROQ_API_KEY:
