@@ -17,7 +17,7 @@ def get_english_prompt(russian_text):
     user_prompt = f"Describe object: {russian_text}"
     
     # 🟢 НАШ АРСЕНАЛ МОДЕЛЕЙ (Каскад)
-    MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
+    MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite-preview']
     
     for key in API_KEYS:
         try:
