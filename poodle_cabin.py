@@ -8,51 +8,51 @@ from neural_draw import get_cascade_image
 # 🛒 РАСШИРЕННЫЙ МАГАЗИН (15 ПРЕДМЕТОВ)
 DOG_SHOP = {
     # --- БАЗОВАЯ КОСМИЧЕСКАЯ ЭКИПИРОВКА ---
-    "space_helmet": {"name": "Стеклянный шлем", "prompt": "head completely enclosed inside a clear thick glass astronaut bubble helmet, glowing neon reflections on the glass visor", "price": 40},
-    "star_suit": {"name": "Скафандр", "prompt": "explicitly wearing a full-body thick silver sci-fi astronaut spacesuit, bulky futuristic armor panels completely covering the torso and legs", "price": 60},
-    "cool_glasses": {"name": "Кибер-очки", "prompt": "wearing thick neon futuristic cyberpunk sunglasses strapped tightly over the eyes, glowing lenses", "price": 30},
-    "bandana": {"name": "Бандана Орион", "prompt": "wearing a thick blue cloth bandana with white stars tied tightly around the neck, clearly visible fabric", "price": 20},
-    "laser_collar": {"name": "Лазерный ошейник", "prompt": "wearing a thick bright glowing neon laser collar tightly wrapped around the neck, radiating strong colorful light", "price": 25},
-    "pilot_cap": {"name": "Кепка пилота", "prompt": "physically wearing a vintage brown leather aviator pilot hat covering the head, strapped tightly under the chin", "price": 35},
-    "nebula_scarf": {"name": "Шарф Небула", "prompt": "wearing a thick, long, flowing cosmic purple scarf wrapped heavily around the neck and shoulders", "price": 15},
-    "cyber_paws": {"name": "Кибер-лапы", "prompt": "explicitly wearing heavy robotic high-tech metallic boots on all four paws, glowing mechanical joints clearly visible", "price": 45},
-    "galaxy_crown": {"name": "Корона Галактики", "prompt": "wearing a large highly detailed golden crown physically resting on top of the head, surrounded by floating glowing stars", "price": 80},
-    "steampunk_goggles": {"name": "Стимпанк-очки", "prompt": "wearing heavy brass vintage steampunk goggles strapped tightly over the eyes, thick leather straps", "price": 30},
-    "neon_harness": {"name": "Неоновая сбруя", "prompt": "explicitly wearing a thick bright neon green tactical military harness strapped tightly around the chest and torso", "price": 40},
-    "comet_bowtie": {"name": "Галстук-комета", "prompt": "wearing a large bright glowing cosmic bowtie attached firmly to the collar under the chin, radiating light", "price": 20},
-    "radar_monocle": {"name": "Монокль-радар", "prompt": "wearing a glowing high-tech cybernetic radar monocle physically attached over one eye", "price": 50},
-    "alien_antenna": {"name": "Антенны пришельца", "prompt": "wearing a thick headband with two glowing green alien antennas physically sitting on top of the head", "price": 15},
-    "astro_boots": {"name": "Астро-ботинки", "prompt": "explicitly wearing thick puffy white astronaut moon boots covering all four paws", "price": 35},
+    "space_helmet": {"name": "Стеклянный шлем", "prompt": "physically wearing a massive clear glass astronaut bubble helmet completely enclosing the dog's entire head, thick metal neck ring attached, bright neon visor reflections blocking the background", "price": 40},
+    "star_suit": {"name": "Скафандр", "prompt": "dog body is entirely and completely covered by a thick bulky silver sci-fi astronaut spacesuit armor, no fur visible on the body, only the dog's head is visible sticking out of the heavy suit", "price": 60},
+    "cool_glasses": {"name": "Кибер-очки", "prompt": "wearing prominent glowing neon cyberpunk sunglasses physically resting on the dog's snout, thick frames completely covering the eyes", "price": 30},
+    "bandana": {"name": "Бандана Орион", "prompt": "wearing a massive bright blue fabric bandana with white stars tightly tied around the neck, thick cloth clearly contrasting with the red fur", "price": 20},
+    "laser_collar": {"name": "Лазерный ошейник", "prompt": "wearing a blindingly bright thick glowing neon laser collar tightly strapped around the furry neck, casting colorful neon light onto the dog's chin", "price": 25},
+    "pilot_cap": {"name": "Кепка пилота", "prompt": "physically wearing a vintage brown leather aviator pilot hat tightly covering the dog's ears and forehead, thick leather straps buckled under the chin", "price": 35},
+    "nebula_scarf": {"name": "Шарф Небула", "prompt": "wrapped in a huge thick flowing cosmic purple fabric scarf circling the neck multiple times, long ends flying in the wind", "price": 15},
+    "cyber_paws": {"name": "Кибер-лапы", "prompt": "all four paws are completely covered by heavy metallic robotic high-tech mech boots, bright glowing joints, thick armor plates on legs", "price": 45},
+    "galaxy_crown": {"name": "Корона Галактики", "prompt": "wearing a massive heavy golden royal crown physically sitting firmly on top of the dog's head, embedded with glowing jewels, surrounded by floating stars", "price": 80},
+    "steampunk_goggles": {"name": "Стимпанк-очки", "prompt": "wearing thick heavy brass vintage steampunk goggles with thick leather straps buckled tightly around the dog's head, resting heavily above the eyes", "price": 30},
+    "neon_harness": {"name": "Неоновая сбруя", "prompt": "body tightly strapped in a thick bright neon green tactical military dog harness, heavy duty buckles and straps visibly sinking into the fur", "price": 40},
+    "comet_bowtie": {"name": "Галстук-комета", "prompt": "wearing an oversized incredibly bright glowing cosmic bowtie physically attached directly under the chin, radiating magical light", "price": 20},
+    "radar_monocle": {"name": "Монокль-радар", "prompt": "wearing a glowing high-tech cybernetic radar monocle physically clamped over the dog's right eye, green holographic data streaming from it", "price": 50},
+    "alien_antenna": {"name": "Антенны пришельца", "prompt": "physically wearing a thick black headband over the ears with two bouncy glowing green alien antennas sticking straight up from the head", "price": 15},
+    "astro_boots": {"name": "Астро-ботинки", "prompt": "all four paws shoved into incredibly thick puffy white astronaut moon boots, huge and clunky", "price": 35},
     
     # --- ЮВЕЛИРКА И ЦЕПОЧКИ ---
-    "heavy_gold_chain": {"name": "Золотая цепь", "prompt": "wearing an extremely thick, heavy, oversized gold rapper chain necklace physically hanging around the neck, large shiny gold bone pendant", "price": 55},
-    "diamond_collar": {"name": "Бриллиантовый ошейник", "prompt": "wearing a very thick, extremely shiny luxury diamond-encrusted collar wrapped tightly around the neck, sparkling heavily", "price": 90},
-    "star_pendant": {"name": "Кулон Полярная звезда", "prompt": "wearing a large glowing blue star-shaped pendant on a highly visible thick silver chain hanging around the neck", "price": 30},
+    "heavy_gold_chain": {"name": "Золотая цепь", "prompt": "wearing an absurdly thick heavy oversized gold rapper chain necklace hanging low around the neck, huge shiny gold bone pendant resting on the chest", "price": 55},
+    "diamond_collar": {"name": "Бриллиантовый ошейник", "prompt": "wearing an ultra-thick luxury collar completely encrusted in massive sparkling diamonds, tightly wrapped around the neck, intense light flares", "price": 90},
+    "star_pendant": {"name": "Кулон Полярная звезда", "prompt": "wearing a huge glowing blue star-shaped magical pendant hanging from a thick silver chain physically resting on the dog's chest", "price": 30},
 
     # --- КОСМИЧЕСКОЕ СНАРЯЖЕНИЕ ---
-    "warp_jetpack": {"name": "Варп-ранец", "prompt": "wearing a heavy metallic high-tech jetpack explicitly strapped to the back, bright blue plasma flames shooting out", "price": 70},
-    "saturn_ring": {"name": "Кольцо Сатурна", "prompt": "surrounded by a bright glowing holographic golden planetary ring physically rotating tightly around the neck area", "price": 45},
-    "plasma_cloak": {"name": "Плазменный плащ", "prompt": "wearing a large flowing cape made of bright blue glowing plasma and nebula energy explicitly tied around the neck and draping over the back", "price": 65},
-    "ufo_hat": {"name": "Шапка-тарелка", "prompt": "wearing a glowing silver UFO flying saucer model as a hat physically resting flat on top of the head", "price": 40},
+    "warp_jetpack": {"name": "Варп-ранец", "prompt": "carrying a massive heavy metallic sci-fi jetpack physically strapped to the dog's back with thick belts, bright blue plasma thrusters firing", "price": 70},
+    "saturn_ring": {"name": "Кольцо Сатурна", "prompt": "encircled by a physical bright glowing holographic golden planetary ring spinning tightly around the dog's neck, illuminating the fur", "price": 45},
+    "plasma_cloak": {"name": "Плазменный плащ", "prompt": "wearing a massive flowing superhero cape made of bright blue glowing plasma energy, tied tightly around the neck and draping over the whole back", "price": 65},
+    "ufo_hat": {"name": "Шапка-тарелка", "prompt": "physically wearing a glowing silver UFO flying saucer toy resting perfectly flat on top of the dog's head like a hat, beaming green light down", "price": 40},
 
     # --- ГЕЙМЕРСКИЕ ПРИКОЛЫ (PS5 / VR) ---
-    "vr_visor_2": {"name": "Визор VR-Орион", "prompt": "wearing a bulky white modern virtual reality VR headset strapped tightly covering the eyes and upper face", "price": 50},
-    "dual_aura": {"name": "Аура Контроллера", "prompt": "entire body engulfed in a bright glowing white and neon blue energy aura, intense magical light radiating from the fur", "price": 25},
+    "vr_visor_2": {"name": "Визор VR-Орион", "prompt": "physically wearing a bulky white modern virtual reality VR headset completely strapping over and hiding the dog's eyes and upper face", "price": 50},
+    "dual_aura": {"name": "Аура Контроллера", "prompt": "entire physical body completely engulfed in a blindingly bright glowing white and neon blue energy aura, intense magical light radiating directly from the fur", "price": 25},
 
     # --- ПРОФЕССИОНАЛЬНЫЙ ЮМОР (СТОМАТОЛОГИЯ) ---
-    "brilliant_smile": {"name": "Ослепительная улыбка", "prompt": "showing a very wide, exaggerated, extremely bright white human-like smile, sparkling teeth with bright diamond glints", "price": 100},
-    "dentist_mirror": {"name": "Зеркало Космо-Врача", "prompt": "explicitly holding a shiny metallic futuristic dental mirror tool firmly clamped in its teeth", "price": 15},
+    "brilliant_smile": {"name": "Ослепительная улыбка", "prompt": "dog face showing an impossibly wide exaggerated bright white human-like smile, huge sparkling teeth with intense diamond glints", "price": 100},
+    "dentist_mirror": {"name": "Зеркало Космо-Врача", "prompt": "physically holding a shiny metallic futuristic dental mirror tool firmly clamped sideways inside the dog's mouth between the teeth", "price": 15},
 
     # --- ПРИКОЛЫ И КОСТЮМЫ ---
-    "detective_pipe": {"name": "Трубка Шерлока", "prompt": "explicitly holding a classic wooden smoking detective pipe firmly clamped in its mouth", "price": 20},
-    "dragon_wings": {"name": "Крылья Дракона", "prompt": "with two large highly detailed scaly black dragon wings explicitly attached to and extending from the back", "price": 75},
-    "taco_suit": {"name": "Костюм Тако", "prompt": "explicitly wearing a full-body hilarious thick soft taco shell costume physically wrapping around the entire torso", "price": 35},
-    "thug_beanie": {"name": "Шапка Thug Life", "prompt": "physically wearing a thick black knitted winter beanie hat pulled down tight over the head, 'ORION' written on it", "price": 15},
-    "cosmic_boots": {"name": "Луноходы", "prompt": "explicitly wearing thick heavy protective glowing neon blue space boots covering all four paws", "price": 40},
-    "chef_hat": {"name": "Колпак Кока", "prompt": "physically wearing a very tall puffy white chef hat resting on the head, thick red scarf tied around the neck", "price": 20},
-    "holographic_wings": {"name": "Крылья Ангела", "prompt": "with two massive bright glowing semi-transparent holographic white angel wings explicitly attached to the back", "price": 85},
-    "monocle_tophat": {"name": "Джентльмен", "prompt": "physically wearing a tall formal black top hat on the head, shiny golden monocle physically covering one eye", "price": 50},
-    "crown_of_light": {"name": "Легендарный Венец", "prompt": "wearing a massive extremely bright glowing crown made of pure intense solar light hovering exactly above the head", "price": 150}
+    "detective_pipe": {"name": "Трубка Шерлока", "prompt": "physically holding a classic wooden smoking detective pipe firmly clamped inside the dog's mouth, smoke rising from the bowl", "price": 20},
+    "dragon_wings": {"name": "Крылья Дракона", "prompt": "having two massive highly detailed scaly black dragon wings physically growing out of the dog's back, fully spread open", "price": 75},
+    "taco_suit": {"name": "Костюм Тако", "prompt": "dog body entirely stuffed inside a hilarious oversized thick soft taco shell costume, physically wrapping around the dog's entire torso", "price": 35},
+    "thug_beanie": {"name": "Шапка Thug Life", "prompt": "physically wearing a thick black knitted winter beanie hat pulled down tight over the dog's head and ears, 'ORION' text embroidered on it", "price": 15},
+    "cosmic_boots": {"name": "Луноходы", "prompt": "all four paws completely covered by ridiculously thick heavy protective glowing neon blue space boots", "price": 40},
+    "chef_hat": {"name": "Колпак Кока", "prompt": "physically wearing a comically tall puffy white chef hat resting perfectly on the top of the dog's head, thick red scarf tied around the neck", "price": 20},
+    "holographic_wings": {"name": "Крылья Ангела", "prompt": "having two massive bright glowing semi-transparent holographic white angel wings physically attached to the dog's back", "price": 85},
+    "monocle_tophat": {"name": "Джентльмен", "prompt": "physically wearing a tall formal black top hat sitting perfectly on the dog's head, a shiny golden monocle physically covering one eye", "price": 50},
+    "crown_of_light": {"name": "Легендарный Венец", "prompt": "wearing a massive incredibly bright glowing crown made of pure intense solar light hovering exactly one inch above the dog's head", "price": 150}
 }
 
 def get_dog_prompt(dog, user_id):
