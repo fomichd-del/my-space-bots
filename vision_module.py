@@ -15,13 +15,13 @@ def send_log(error_text):
         bot_log.send_message(LOG_CHAT_ID, f"👁 **СБОЙ СИСТЕМЫ ЗРЕНИЯ:**\n`{error_text}`", parse_mode="Markdown")
     except: pass
 
-# 🟢 ЭЛИТНЫЙ КАСКАД ЗРЕНИЯ (Ум + Распознавание деталей)
+# 🟢 ЭЛИТНЫЙ КАСКАД ЗРЕНИЯ (Только актуальные)
 VISION_MODELS = [
-    'gemini-3-pro-image-preview',    # 🏆 Самый умный визуальный мозг в списке!
-    'gemini-3.1-pro-preview',         # Новейший интеллект
-    'gemini-2.0-flash',              # Скорость + отличное распознавание
-    'gemini-2.5-flash-image',        # Спецмодель для анализа фото
-    'gemini-1.5-flash'               # Безотказная классика
+    'gemini-3-pro-image-preview',    
+    'gemini-3.1-pro-preview',         
+    'gemini-2.0-flash',              
+    'gemini-2.5-flash-image',        
+    'gemini-flash-latest'  # 🟢 Заменили мертвый 1.5-flash
 ]
 
 def analyze_image(image_data, user_context="", user_query="", keys=[], task_mode='task'):
@@ -117,7 +117,10 @@ def analyze_image(image_data, user_context="", user_query="", keys=[], task_mode
                         return response.text
                 except Exception as e:
                     last_error = f"Ключ {i+1}, {model_name}: {str(e)}"
-                    if "429" in str(e): continue 
+                    if "429" in str(e): 
+                        # Теперь мы будем видеть перегрузки, но коротко!
+                        send_log(f"⚠️ Лимит (429): Ключ {i+1} -> {model_name} перегрет.")
+                        continue 
                     send_log(f"Технический сбой сканера: {last_error}")
                     continue
         except Exception as e:
