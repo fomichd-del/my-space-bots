@@ -284,14 +284,17 @@ def get_marty_response(user_id, user_name, clean_text, user_rank, wallet_balance
             if res.status_code == 200: return res.json()["choices"][0]["message"]["content"]
         except: pass
 
-    # 2. GEMINI
-    for api_key in API_KEYS:
-        client = genai.Client(api_key=api_key)
-        for model in MODEL_CASCADE:
+    # 2. GEMINI (Горизонтальная матрица)
+    for model in MODEL_CASCADE:
+        for i, api_key in enumerate(API_KEYS):
             try:
+                client = genai.Client(api_key=api_key)
                 resp = client.models.generate_content(model=model, contents=full_query, config=types.GenerateContentConfig(system_instruction=prompt))
                 if resp.text: return resp.text
-            except: continue
+            except Exception as e: 
+                if "429" in str(e):
+                    print(f"⚠️ Лимит (429): {model} на Ключе {i+1} перегрет (чат).")
+                continue
     return "📡 Командор, помехи на линии! Повторите запрос через минуту. Прием!"
 
 # --- РАДИОПЕРЕХВАТ (ВИКТОРИНА - 50 ВОПРОСОВ) ---
@@ -424,16 +427,15 @@ def force_digest_test(message):
         # Резервный текст на случай полного отказа
         digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки перегружен! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
         
-        MODELS_TO_TRY = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
+        # 🟢 ГОРИЗОНТАЛЬНЫЙ КАСКАД ДЛЯ ДАЙДЖЕСТА
+        MODELS_TO_TRY = ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite']
         success = False
         
-        for api_key in API_KEYS:
+        for model_name in MODELS_TO_TRY:
             if success: break
-            client = genai.Client(api_key=api_key)
-            
-            # 🟢 Тот самый КАСКАД, который спасет от ошибки 429
-            for model_name in MODELS_TO_TRY:
+            for i, api_key in enumerate(API_KEYS):
                 try:
+                    client = genai.Client(api_key=api_key)
                     resp = client.models.generate_content(
                         model=model_name, 
                         contents=(
@@ -453,9 +455,11 @@ def force_digest_test(message):
                         success = True
                         break 
                 except Exception as e:
-                    # Теперь лог покажет, какая именно модель упала
-                    send_log(f"Ошибка дайджеста ({model_name}): {e}")
-                    continue 
+                    if "429" in str(e):
+                        print(f"⚠️ Лимит (429): {model_name} на Ключе {i+1} перегрет (ручной дайджест).")
+                        continue 
+                    send_log(f"Ошибка ручного дайджеста ({model_name}): {e}")
+                    continue
                     
         bot.send_message(message.chat.id, "🚀 Итоговый результат:\n\n" + digest_msg, parse_mode="Markdown")
         
@@ -555,32 +559,29 @@ def handle_voice(message):
         with open(file_name, 'wb') as f:
             f.write(downloaded_file)
         
-        # 🟢 СПЕЦИАЛЬНЫЙ КАСКАД ДЛЯ АУДИО (Максимальная скорость)
-        MODELS_TO_TRY = [
-            'gemini-3.1-flash-lite',    # Новейший молниеносный сканер
-            'gemini-2.5-flash',         # Идеально для длинных аудио
-            'gemini-2.0-flash',         # Резервный канал
-            'gemini-flash-lite-latest'  # Если всё остальное рухнуло
-        ]
+        # 🟢 ГОРИЗОНТАЛЬНЫЙ КАСКАД ДЛЯ АУДИО (Максимальная скорость)
+        MODELS_TO_TRY = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-lite-latest']
         success = False
         
-        for api_key in API_KEYS:
+        for model_name in MODELS_TO_TRY:
             if success: break
-            client = genai.Client(api_key=api_key)
-            for model_name in MODELS_TO_TRY:
+            for i, api_key in enumerate(API_KEYS):
                 try:
+                    client = genai.Client(api_key=api_key)
                     uploaded_file = client.files.upload(file=file_name, config={'mime_type': 'audio/ogg'})
                     prompt = "Переведи это аудио в текст дословно. Не отвечай на него, не комментируй. Только текст расшифровки."
                     response = client.models.generate_content(model=model_name, contents=[uploaded_file, prompt])
                     
                     if response.text:
                         message.text = response.text
-                        cleanup() # Уборка при успехе
+                        cleanup() 
                         handle_text(message) 
                         success = True
                         break 
                 except Exception as e:
-                    continue # Пробуем следующую модель
+                    if "429" in str(e):
+                        print(f"⚠️ Лимит (429): {model_name} на Ключе {i+1} перегрет (аудио).")
+                    continue
                     
         # Если ни один ключ/модель не сработали
         if not success:
@@ -820,9 +821,13 @@ def run_daily_digest_loop(bot_instance):
                         if success: break
                         client = genai.Client(api_key=api_key)
                         
-                        # 🟢 КАСКАД МОДЕЛЕЙ: Защита от исчерпания лимитов (Ошибка 429)
-                        for model_name in MODEL_CASCADE:
+                        # 🟢 КАСКАД МОДЕЛЕЙ (ГОРИЗОНТАЛЬНЫЙ)
+                    success = False
+                    for model_name in MODEL_CASCADE:
+                        if success: break
+                        for i, api_key in enumerate(API_KEYS):
                             try:
+                                client = genai.Client(api_key=api_key)
                                 resp = client.models.generate_content(
                                     model=model_name, 
                                     contents=prompt
@@ -830,10 +835,13 @@ def run_daily_digest_loop(bot_instance):
                                 if resp.text:
                                     digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
                                     success = True
-                                    break # Успех! Выходим из цикла моделей
+                                    break 
                             except Exception as e:
+                                if "429" in str(e):
+                                    print(f"⚠️ Лимит (429): {model_name} на Ключе {i+1} перегрет (авто-дайджест).")
+                                    continue
                                 send_log(f"Ошибка ИИ в авто-дайджесте ({model_name}): {e}")
-                                continue # Эта модель устала, пробуем следующую!
+                                continue
                                 
                     # Рассылка всем пилотам
                     for uid in get_all_user_ids():
