@@ -410,7 +410,7 @@ def handle_start_help(message):
 @bot.message_handler(commands=['force_digest'])
 def force_digest_test(message):
     user_id = message.from_user.id
-    bot.reply_to(message, "⚙️ Запускаю принудительный сбор дайджеста. Ожидайте...")
+    bot.reply_to(message, "⚙️ Запускаю принудительный сбор дайджеста со ссылками...")
     
     try:
         from database import get_ship_date, get_today_news
@@ -418,16 +418,27 @@ def force_digest_test(message):
         news = get_today_news(today)
         
         if not news:
-            bot.send_message(message.chat.id, "📭 В базе за сегодня нет новостей для рассылки!")
+            bot.send_message(message.chat.id, "📭 В базе за сегодня нет новостей!")
             return
             
+        # Формируем список новостей, где ссылка явно отделена для ИИ
         raw_text = "\n\n".join(news)
-        bot.send_message(message.chat.id, "🧠 Передаю данные в нейросеть (Каскадный режим)...")
+        bot.send_message(message.chat.id, "🧠 Формирую кликабельную сводку...")
         
-        # Резервный текст на случай полного отказа
-        digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки перегружен! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
+        # Инструкция, заставляющая Марти делать ГИПЕРССЫЛКИ
+        prompt = (
+            "Ты Марти — бортовой пес-ученый. Сделай краткий дайджест.\n"
+            f"НОВОСТИ:\n{raw_text}\n\n"
+            "ПРАВИЛА:\n"
+            "1. В каждой новости есть маркер '|LINK|'. Сделай ГЛАВНОЕ СЛОВО новости ссылкой на этот адрес.\n"
+            "Пример: [Аномалия](ссылка) в системе Орион.\n"
+            "2. Используй формат Markdown: [текст](ссылка).\n"
+            "3. Оформи списком с эмодзи. Коротко, по 1 предложению на новость.\n"
+            "4. Закончи: 'Прием!'"
+        )
         
-        # 🟢 ГОРИЗОНТАЛЬНЫЙ КАСКАД ДЛЯ ДАЙДЖЕСТА
+        digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ (СЫРОЙ)**\n\n{raw_text[:300]}..."
+        
         MODELS_TO_TRY = ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite']
         success = False
         
@@ -436,35 +447,18 @@ def force_digest_test(message):
             for i, api_key in enumerate(API_KEYS):
                 try:
                     client = genai.Client(api_key=api_key)
-                    resp = client.models.generate_content(
-                        model=model_name, 
-                        contents=(
-                            "Ты Марти — бортовой пес-ученый Академии Орион. "
-                            f"Сделай вечерний дайджест из этих сырых новостей:\n[{raw_text}]\n\n"
-                            "КРИТИЧЕСКИЕ ПРАВИЛА:\n"
-                            "1. Упомяни КАЖДУЮ новость.\n"
-                            "2. ЖЕСТКОЕ СЖАТИЕ: Сократи каждую новость до 1-2 очень коротких предложений. Выдай только самую суть.\n"
-                            "3. НЕ копируй длинные куски текста, пересказывай своими словами.\n"
-                            "4. Оформи в виде маркированного списка с эмодзи.\n"
-                            "5. Весь дайджест должен быть коротким, чтобы легко читался на экране телефона.\n"
-                            "Напиши в своем теплом стиле и обязательно закончи словом 'Прием!'"
-                        )
-                    )
+                    resp = client.models.generate_content(model=model_name, contents=prompt)
                     if resp.text:
-                        digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
+                        digest_msg = f"✨ **АКТУАЛЬНАЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
                         success = True
                         break 
                 except Exception as e:
-                    if "429" in str(e):
-                        print(f"⚠️ Лимит (429): {model_name} на Ключе {i+1} перегрет (ручной дайджест).")
-                        continue 
-                    send_log(f"Ошибка ручного дайджеста ({model_name}): {e}")
                     continue
                     
-        bot.send_message(message.chat.id, "🚀 Итоговый результат:\n\n" + digest_msg, parse_mode="Markdown")
+        bot.send_message(message.chat.id, digest_msg, parse_mode="Markdown", disable_web_page_preview=True)
         
     except Exception as e:
-        bot.send_message(message.chat.id, f"🚨 Критическая ошибка при сборке: {e}")
+        bot.send_message(message.chat.id, f"🚨 Ошибка: {e}")
 
 @bot.message_handler(commands=['scan_models'])
 def scan_gemini_models(message):
@@ -533,11 +527,14 @@ def handle_photo(message):
 def handle_channel_post(message):
     try:
         if str(message.chat.id) == str(CHANNEL_ID) and (message.text or message.caption):
-            from database import get_ship_date
-            # Формируем текст новости сразу со ссылкой в скрытом виде
-            news_link = f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}/{message.message_id}"
-            news_entry = f"{message.text or message.caption} |LINK| {news_link}"
+            from database import get_ship_date, add_news
+            text = message.text or message.caption
+            # Чистим юзернейм от @ и формируем прямую ссылку на пост
+            clean_username = CHANNEL_USERNAME.replace('@', '')
+            news_link = f"https://t.me/{clean_username}/{message.message_id}"
             
+            # Сохраняем в базу формат: "Текст новости |LINK| ссылка"
+            news_entry = f"{text} |LINK| {news_link}"
             add_news(get_ship_date(), news_entry)
     except Exception as e:
         send_log(f"Сбой записи новости: {e}")
