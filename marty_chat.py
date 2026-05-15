@@ -494,12 +494,25 @@ def scan_gemini_models(message):
 def handle_photo(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
     bot.send_chat_action(message.chat.id, 'typing')
+    
+    # 🟢 ДЕТЕКТОР ЧАТА: Узнаем, куда прислали фото
+    # Если это личные сообщения — режим 'task' (задания и награды)
+    # Если это группа/комментарии — режим 'comment' (просто живое общение)
+    current_mode = 'comment' if message.chat.type in ['group', 'supergroup'] else 'task'
+    
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded_file = bot.download_file(file_info.file_path)
-        res = analyze_image(downloaded_file, user_query=message.caption or "", keys=API_KEYS)
+        
+        # Передаем режим в зрение!
+        res = analyze_image(downloaded_file, user_query=message.caption or "", keys=API_KEYS, task_mode=current_mode)
+        
         save_vision_context(user_id, f"Скан объекта: {res}")
-        if "звездн" in res.lower(): add_xp(user_id, 1, user_name)
+        
+        # Выдаем пыль только если это личные сообщения ('task')
+        if "звездн" in res.lower() and current_mode == 'task': 
+            add_xp(user_id, 1, user_name)
+            
         bot.reply_to(message, res)
     except Exception as e: 
         send_log(f"Ошибка фото: {e}")
