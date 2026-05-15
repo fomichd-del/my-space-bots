@@ -790,34 +790,34 @@ def run_daily_digest_loop(bot_instance):
     def loop():
         last_sent_date = ""
         while True:
-            # 📅 Высчитываем ВЧЕРАШНЮЮ дату
+            # 📅 Высчитываем ВЧЕРАШНЮЮ дату для поиска новостей
             yesterday_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
             current_time_utc = datetime.utcnow().strftime("%H:%M")
             
-            # Отправка в 09:00 утра (по Киеву), чтобы пилоты читали за завтраком
-            if "06:00" <= current_time_utc <= "06:15" and last_sent_date != yesterday_date:
-                news = get_today_news(yesterday_date) # Берем новости за вчера
+            # 15:00 UTC — это 18:00 по Киеву (Вечерний дайджест)
+            # Если хотите утренний (09:00), оставьте 06:00 UTC
+            if "15:00" <= current_time_utc <= "15:15" and last_sent_date != yesterday_date:
+                from database import get_today_news
+                news = get_today_news(yesterday_date) 
                 
                 if news:
                     raw_text = "\n\n".join(news)
                     
-                    prompt = (
+                    # 🤖 ИНСТРУКЦИЯ ДЛЯ МАРТИ
+                    digest_prompt = (
                         "Ты Марти — веселый пес-ученый. Сделай ироничный и краткий дайджест событий ЗА ВЧЕРА.\n"
                         f"СЫРЫЕ ДАННЫЕ:\n{raw_text}\n\n"
                         "ИНСТРУКЦИЯ ПО ОФОРМЛЕНИЮ:\n"
                         "1. Тон: Юмор, научный энтузиазм, собачьи метафоры. 🐕\n"
-                        "2. Ссылки: В каждой новости есть кусок '|LINK| ссылка'. Сделай ГЛАВНОЕ СЛОВО новости ссылкой на этот адрес.\n"
+                        "2. Ссылки: В каждой новости есть маркер '|LINK|'. Сделай ГЛАВНОЕ СЛОВО новости ссылкой на этот адрес.\n"
                         "Пример: [Аномалия в системе](ссылка).\n"
-                        "3. Разделители: Отделяй новости строчкой '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯'.\n"
-                        "4. Краткость: 1-2 искрометных предложения на новость.\n"
-                        "5. Используй эмодзи, но стильно.\n"
-                        "Закончи фразой: 'Вчерашний день в архивах! Прием!'"
+                        "3. Markdown: Используй [текст](ссылка).\n"
+                        "4. Разделители: Отделяй новости строчкой '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯'.\n"
+                        "5. Закончи: 'Прием!'"
                     )
                     
-                    # Резервный текст (План Б)
-                    digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
+                    digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}..."
                     
-                    # 🟢 КАСКАД МОДЕЛЕЙ (ГОРИЗОНТАЛЬНЫЙ)
                     success = False
                     for model_name in MODEL_CASCADE:
                         if success: break
@@ -826,28 +826,25 @@ def run_daily_digest_loop(bot_instance):
                                 client = genai.Client(api_key=api_key)
                                 resp = client.models.generate_content(
                                     model=model_name, 
-                                    contents=prompt
+                                    contents=digest_prompt # Исправлено имя переменной
                                 )
                                 if resp.text:
-                                    digest_msg = f"✨ **ВЕЧЕРНЯЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
+                                    digest_msg = f"✨ **СВОДКА АКАДЕМИИ ЗА ВЧЕРА** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
                                     success = True
                                     break 
                             except Exception as e:
-                                if "429" in str(e):
-                                    print(f"⚠️ Лимит (429): {model_name} на Ключе {i+1} перегрет (авто-дайджест).")
-                                    continue
-                                send_log(f"Ошибка ИИ в авто-дайджесте ({model_name}): {e}")
                                 continue
                     
                     # Рассылка всем пилотам
+                    from database import get_all_user_ids
                     for uid in get_all_user_ids():
                         try:
-                            bot_instance.send_message(uid, digest_msg, parse_mode="Markdown")
-                            time.sleep(0.05) # Защита от спам-фильтра
+                            bot_instance.send_message(uid, digest_msg, parse_mode="Markdown", disable_web_page_preview=True)
+                            time.sleep(0.05) 
                         except:
                             pass
                             
-                last_sent_date = today
+                    last_sent_date = yesterday_date # Исправлено (было today)
             time.sleep(60)
     Thread(target=loop, daemon=True).start()
 
