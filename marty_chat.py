@@ -891,7 +891,20 @@ def start_marty_autonomous():
             time.sleep(5)
 
 if __name__ == "__main__":
+    # 1. Запуск Flask-сервера (Веб-связь для Render)
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
-    setup_news_db(); setup_eco_bay(); check_actual_names()
-    run_daily_digest_loop(bot); run_proactive_marty(bot)
+    
+    # 2. ГЛУБОКАЯ ИНИЦИАЛИЗАЦИЯ БАЗЫ (Критически важно!)
+    # Импортируем и запускаем единый пульт управления базой
+    from database import init_db
+    init_db() 
+    
+    # 3. Техническая проверка моделей Gemini
+    check_actual_names()
+    
+    # 4. Запуск фоновых процессов (Дайджест и Марти-будильник)
+    run_daily_digest_loop(bot)
+    run_proactive_marty(bot)
+    
+    # 5. СТАРТ ОСНОВНЫХ СИСТЕМ (Поллинг бота)
     start_marty_autonomous()
