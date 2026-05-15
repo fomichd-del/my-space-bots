@@ -838,7 +838,7 @@ def run_daily_digest_loop(bot_instance):
                         for i, api_key in enumerate(API_KEYS):
                             try:
                                 client = genai.Client(api_key=api_key)
-                                resp = client.models.generate_content(model=model_name, contents=digest_prompt)
+                                resp = client.models.generate_content(model=model_name, contents=prompt)
                                 if resp.text:
                                     digest_msg = f"✨ **СВОДКА АКАДЕМИИ ЗА ВЧЕРА** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
                                     success = True
