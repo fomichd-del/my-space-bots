@@ -410,7 +410,7 @@ def handle_start_help(message):
 @bot.message_handler(commands=['force_digest'])
 def force_digest_test(message):
     user_id = message.from_user.id
-    bot.reply_to(message, "⚙️ Запускаю принудительный сбор дайджеста со ссылками...")
+    bot.reply_to(message, "⚙️ Запускаю калибровку нейросвязей... Формирую кликабельный дайджест.")
     
     try:
         from database import get_ship_date, get_today_news
@@ -418,47 +418,48 @@ def force_digest_test(message):
         news = get_today_news(today)
         
         if not news:
-            bot.send_message(message.chat.id, "📭 В базе за сегодня нет новостей!")
+            bot.send_message(message.chat.id, "📭 В архивах за сегодня пусто, Командор!")
             return
             
-        # Формируем список новостей, где ссылка явно отделена для ИИ
-        raw_text = "\n\n".join(news)
-        bot.send_message(message.chat.id, "🧠 Формирую кликабельную сводку...")
+        # Объединяем новости в один блок для передачи ИИ
+        raw_text = "\n".join(news)
         
-        # Инструкция, заставляющая Марти делать ГИПЕРССЫЛКИ
+        # ⚡️ УЛЬТРА-ЧЕТКИЙ ПРОМПТ ДЛЯ ИИ
         prompt = (
-            "Ты Марти — бортовой пес-ученый. Сделай краткий дайджест.\n"
-            f"НОВОСТИ:\n{raw_text}\n\n"
-            "ПРАВИЛА:\n"
-            "1. В каждой новости есть маркер '|LINK|'. Сделай ГЛАВНОЕ СЛОВО новости ссылкой на этот адрес.\n"
-            "Пример: [Аномалия](ссылка) в системе Орион.\n"
-            "2. Используй формат Markdown: [текст](ссылка).\n"
-            "3. Оформи списком с эмодзи. Коротко, по 1 предложению на новость.\n"
-            "4. Закончи: 'Прием!'"
+            "Ты — Марти, ученый пес-пудель. Сделай краткую сводку новостей.\n"
+            f"ВОТ ДАННЫЕ:\n{raw_text}\n\n"
+            "СТРОЖАЙШИЕ ПРАВИЛА ОФОРМЛЕНИЯ:\n"
+            "1. Каждая строка в данных выглядит так: 'Текст новости |LINK| https://t.me/...'\n"
+            "2. Ты ДОЛЖЕН превратить это в Markdown ссылку: [Краткая суть новости](ссылка из части |LINK|).\n"
+            "3. ЗАПРЕЩЕНО выводить ссылку текстом в скобках. Ссылка должна быть спрятана ВНУТРИ слов.\n"
+            "4. ЗАПРЕЩЕНО использовать сторонние ссылки. Используй ТОЛЬКО ту ссылку, которая идет после |LINK|.\n"
+            "5. Стиль: 1 предложение на новость + тематический эмодзи.\n"
+            "6. Тон: бодрый, космический. В конце напиши 'Прием!'"
         )
         
-        digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ (СЫРОЙ)**\n\n{raw_text[:300]}..."
+        digest_msg = "📡 Ошибка расшифровки сигнала. Попробуйте еще раз."
         
-        MODELS_TO_TRY = ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-3.1-flash-lite']
+        # Запускаем наш бронированный каскад
         success = False
-        
-        for model_name in MODELS_TO_TRY:
+        for model_name in MODEL_CASCADE:
             if success: break
             for i, api_key in enumerate(API_KEYS):
                 try:
                     client = genai.Client(api_key=api_key)
                     resp = client.models.generate_content(model=model_name, contents=prompt)
                     if resp.text:
+                        # Убираем возможные артефакты Markdown, которые иногда добавляет ИИ
                         digest_msg = f"✨ **АКТУАЛЬНАЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
                         success = True
                         break 
-                except Exception as e:
+                except:
                     continue
                     
+        # disable_web_page_preview=True — ОЧЕНЬ ВАЖНО, чтобы не было 20 окон предпросмотра
         bot.send_message(message.chat.id, digest_msg, parse_mode="Markdown", disable_web_page_preview=True)
         
     except Exception as e:
-        bot.send_message(message.chat.id, f"🚨 Ошибка: {e}")
+        bot.send_message(message.chat.id, f"🚨 Сбой систем: {e}")
 
 @bot.message_handler(commands=['scan_models'])
 def scan_gemini_models(message):
@@ -781,8 +782,12 @@ def h(): return "OK"
 def orion_uplink():
     data = request.json
     if data and 'text' in data:
-        from database import get_ship_date
-        add_news(get_ship_date(), data['text'])
+        from database import get_ship_date, add_news
+        # Если ссылка передана в JSON — берем её, если нет — даем ссылку на канал
+        url = data.get('url', f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")
+        news_entry = f"{data['text']} |LINK| {url}"
+        
+        add_news(get_ship_date(), news_entry)
         return jsonify({"status": "success"}), 200
     return jsonify({"status": "error"}), 400
 
@@ -803,37 +808,33 @@ def run_daily_digest_loop(bot_instance):
                 if news:
                     raw_text = "\n\n".join(news)
                     
-                    # 🤖 ИНСТРУКЦИЯ ДЛЯ МАРТИ
+                    # 🤖 УЛЬТРА-СТРОГАЯ ИНСТРУКЦИЯ ДЛЯ МАРТИ
                     digest_prompt = (
-                        "Ты Марти — веселый пес-ученый. Сделай ироничный и краткий дайджест событий ЗА ВЧЕРА.\n"
-                        f"СЫРЫЕ ДАННЫЕ:\n{raw_text}\n\n"
-                        "ИНСТРУКЦИЯ ПО ОФОРМЛЕНИЮ:\n"
-                        "1. Тон: Юмор, научный энтузиазм, собачьи метафоры. 🐕\n"
-                        "2. Ссылки: В каждой новости есть маркер '|LINK|'. Сделай ГЛАВНОЕ СЛОВО новости ссылкой на этот адрес.\n"
-                        "Пример: [Аномалия в системе](ссылка).\n"
-                        "3. Markdown: Используй [текст](ссылка).\n"
-                        "4. Разделители: Отделяй новости строчкой '⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯'.\n"
-                        "5. Закончи: 'Прием!'"
+                        "Ты — Марти, ученый пес-пудель Академии Орион. Сделай краткий дайджест событий ЗА ВЧЕРА.\n"
+                        f"ДАННЫЕ:\n{raw_text}\n\n"
+                        "СТРОЖАЙШИЕ ПРАВИЛА:\n"
+                        "1. Каждая строка содержит '|LINK|'. Сделай ГЛАВНОЕ СЛОВО новости ссылкой на этот адрес.\n"
+                        "2. Формат: [Краткая суть новости](ссылка из части |LINK|).\n"
+                        "3. ЗАПРЕЩЕНО использовать свои ссылки. Только те, что в данных.\n"
+                        "4. 1 новость = 1 короткое предложение. Используй эмодзи.\n"
+                        "5. Тон: бодрый. В конце: 'Вчерашний день в архивах! Прием!'"
                     )
                     
-                    digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}..."
+                    digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, связь нестабильна! Сырые данные:\n{raw_text[:300]}..."
                     
                     success = False
+                    # Используем каскад и матрицу ключей
                     for model_name in MODEL_CASCADE:
                         if success: break
                         for i, api_key in enumerate(API_KEYS):
                             try:
                                 client = genai.Client(api_key=api_key)
-                                resp = client.models.generate_content(
-                                    model=model_name, 
-                                    contents=digest_prompt # Исправлено имя переменной
-                                )
+                                resp = client.models.generate_content(model=model_name, contents=digest_prompt)
                                 if resp.text:
                                     digest_msg = f"✨ **СВОДКА АКАДЕМИИ ЗА ВЧЕРА** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
                                     success = True
                                     break 
-                            except Exception as e:
-                                continue
+                            except: continue
                     
                     # Рассылка всем пилотам
                     from database import get_all_user_ids
