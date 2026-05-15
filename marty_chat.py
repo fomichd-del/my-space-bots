@@ -72,7 +72,7 @@ def handle_top_pilots(call):
         pilots_data = []
         
         # 🟢 ФИЛЬТР: Исключаем ботов и системные аккаунты
-        bad_names = [['Марти ученный', 'Марти Ученый', 'Марти Ученный', 'GroupAnonymousBot', 'Telegram', 'Group', 'Channel']
+        bad_names = ['Марти ученный', 'Марти Ученый', 'Марти Ученный', 'GroupAnonymousBot', 'Telegram', 'Group', 'Channel']
         
         for uid in all_ids:
             try:
