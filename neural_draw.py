@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import base64
+import re
 from google import genai
 from google.genai import types
 
