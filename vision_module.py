@@ -15,11 +15,13 @@ def send_log(error_text):
         bot_log.send_message(LOG_CHAT_ID, f"👁 **СБОЙ СИСТЕМЫ ЗРЕНИЯ:**\n`{error_text}`", parse_mode="Markdown")
     except: pass
 
+# 🟢 ЭЛИТНЫЙ КАСКАД ЗРЕНИЯ (Ум + Распознавание деталей)
 VISION_MODELS = [
-    'gemini-2.0-flash', 
-    'gemini-2.5-flash',
-    'gemini-1.5-flash',
-    'gemini-3.1-flash-lite-preview'
+    'gemini-3-pro-image-preview',    # 🏆 Самый умный визуальный мозг в списке!
+    'gemini-3.1-pro-preview',         # Новейший интеллект
+    'gemini-2.0-flash',              # Скорость + отличное распознавание
+    'gemini-2.5-flash-image',        # Спецмодель для анализа фото
+    'gemini-1.5-flash'               # Безотказная классика
 ]
 
 def analyze_image(image_data, user_context="", user_query="", keys=[], task_mode='task'):
