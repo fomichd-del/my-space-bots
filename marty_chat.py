@@ -816,12 +816,7 @@ def run_daily_digest_loop(bot_instance):
                     # Резервный текст (План Б)
                     digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
                     
-                    success = False
-                    for api_key in API_KEYS:
-                        if success: break
-                        client = genai.Client(api_key=api_key)
-                        
-                        # 🟢 КАСКАД МОДЕЛЕЙ (ГОРИЗОНТАЛЬНЫЙ)
+                    # 🟢 КАСКАД МОДЕЛЕЙ (ГОРИЗОНТАЛЬНЫЙ)
                     success = False
                     for model_name in MODEL_CASCADE:
                         if success: break
@@ -842,7 +837,7 @@ def run_daily_digest_loop(bot_instance):
                                     continue
                                 send_log(f"Ошибка ИИ в авто-дайджесте ({model_name}): {e}")
                                 continue
-                                
+                    
                     # Рассылка всем пилотам
                     for uid in get_all_user_ids():
                         try:
