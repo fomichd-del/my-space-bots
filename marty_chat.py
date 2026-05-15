@@ -72,7 +72,7 @@ def handle_top_pilots(call):
         pilots_data = []
         
         # 🟢 ФИЛЬТР: Исключаем ботов и системные аккаунты
-        bad_names = ['Марти Ученный', 'GroupAnonymousBot', 'Telegram', 'Group', 'Channel']
+        bad_names = [['Марти ученный', 'Марти Ученый', 'Марти Ученный', 'GroupAnonymousBot', 'Telegram', 'Group', 'Channel']
         
         for uid in all_ids:
             try:
@@ -430,8 +430,14 @@ def force_digest_test(message):
                         model=model_name, 
                         contents=(
                             "Ты Марти — бортовой пес-ученый Академии Орион. "
-                            f"Сделай красивый вечерний дайджест из этих новостей:\n[{raw_text}]\n"
-                            "Пиши очень коротко и увлекательно, используй эмодзи. Закончи словом 'Прием!'"
+                            f"Сделай вечерний дайджест из этих сырых новостей:\n[{raw_text}]\n\n"
+                            "КРИТИЧЕСКИЕ ПРАВИЛА:\n"
+                            "1. Упомяни КАЖДУЮ новость.\n"
+                            "2. ЖЕСТКОЕ СЖАТИЕ: Сократи каждую новость до 1-2 очень коротких предложений. Выдай только самую суть.\n"
+                            "3. НЕ копируй длинные куски текста, пересказывай своими словами.\n"
+                            "4. Оформи в виде маркированного списка с эмодзи.\n"
+                            "5. Весь дайджест должен быть коротким, чтобы легко читался на экране телефона.\n"
+                            "Напиши в своем теплом стиле и обязательно закончи словом 'Прием!'"
                         )
                     )
                     if resp.text:
@@ -447,6 +453,42 @@ def force_digest_test(message):
         
     except Exception as e:
         bot.send_message(message.chat.id, f"🚨 Критическая ошибка при сборке: {e}")
+
+@bot.message_handler(commands=['scan_models'])
+def scan_gemini_models(message):
+    bot.reply_to(message, "⚙️ Запускаю глубокое сканирование доступных нейросетей Gemini. Ожидайте...")
+    
+    try:
+        if not API_KEYS:
+            bot.send_message(message.chat.id, "🚨 Ошибка: API ключи Gemini не найдены на борту!")
+            return
+            
+        # Берем первый рабочий ключ для проверки
+        client = genai.Client(api_key=API_KEYS[0])
+        
+        # Получаем все модели от Google и фильтруем только те, в названии которых есть 'gemini'
+        available_models = [m.name.replace('models/', '') for m in client.models.list() if "gemini" in m.name.lower()]
+        
+        if available_models:
+            # Формируем красивый список
+            models_text = "\n".join([f"• `{m}`" for m in available_models])
+            log_message = f"🛰 **РЕЗУЛЬТАТЫ РУЧНОГО СКАНЕРА ЧАСТОТ**\n\n✅ Доступные модели Gemini:\n{models_text}"
+            
+            # Отправляем полный отчет в технический лог-канал
+            send_log(log_message)
+            
+            # Дублируем вам в личные сообщения, чтобы не бегать в лог
+            bot.send_message(
+                message.chat.id, 
+                f"✅ Сканирование завершено! Отчет отправлен в лог-канал.\n\nВот актуальный арсенал:\n{models_text}\n\n*Если видите новые версии (например, 2.5 или 3.0), можете смело добавлять их в переменную `MODEL_CASCADE`!*", 
+                parse_mode="Markdown"
+            )
+        else:
+            bot.send_message(message.chat.id, "⚠️ Сканирование завершено, но модели Gemini не найдены. Возможен сбой на серверах Google.")
+            
+    except Exception as e:
+        bot.send_message(message.chat.id, f"🚨 Критическая ошибка при сканировании: {e}")
+        send_log(f"Ошибка ручного сканера моделей: {e}")
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
@@ -526,7 +568,7 @@ def handle_voice(message):
 @bot.message_handler(func=lambda m: True)
 def handle_text(message, is_profile_call=False):
     # 1. СРАЗУ ГАСИМ СИСТЕМНЫЕ АККАУНТЫ
-    bad_names = ['Марти ученный', 'GroupAnonymousBot', 'Telegram', 'Group']
+    bad_names = ['Марти ученный', 'Марти Ученый', 'Марти Ученный', 'GroupAnonymousBot', 'Telegram', 'Group', 'Channel']
     if message.from_user.is_bot or message.from_user.id in [777000, 1087968824] or message.from_user.first_name in bad_names:
         return
 
@@ -650,7 +692,7 @@ def handle_text(message, is_profile_call=False):
         return
 
     # Географическая пасхалка
-    if ("чернигов" in lower_text or "мариуполь" in lower_text) and "Пасхалка: Локация" not in user_memory:
+    if ("Даша" in lower_text or "мариуполь" in lower_text) and "Пасхалка: Локация" not in user_memory:
         update_personal_log(user_id, "Пасхалка: Локация")
         add_xp(user_id, 25, user_name)
         bot.reply_to(message, "🌍 **ЛОКАЦИЯ ПОДТВЕРЖДЕНА!**\nНавигационные системы синхронизированы с родными координатами. Орбита стабильна!\n🌟 *Начислено 25 Пыли!*")
@@ -731,15 +773,17 @@ def run_daily_digest_loop(bot_instance):
                 if news:
                     raw_text = "\n\n".join(news)
                     
-                    prompt = (
-                        "Ты Марти — бортовой пес-ученый Академии Орион. "
-                        "Вот сырые данные постов, которые вышли сегодня в главном канале:\n"
-                        f"[{raw_text}]\n\n"
-                        "Твоя задача: напиши из этого ОДИН красивый, короткий и захватывающий "
-                        "вечерний дайджест. Выдели главное. Не выдумывай факты, используй только то, что в скобках. "
-                        "Используй эмодзи. Пиши в своем теплом стиле наставника. "
-                        "Обязательно закончи словом 'Прием!'"
-                    )
+                    contents=(
+                            "Ты Марти — бортовой пес-ученый Академии Орион. "
+                            f"Сделай вечерний дайджест из этих сырых новостей:\n[{raw_text}]\n\n"
+                            "КРИТИЧЕСКИЕ ПРАВИЛА:\n"
+                            "1. Упомяни КАЖДУЮ новость.\n"
+                            "2. ЖЕСТКОЕ СЖАТИЕ: Сократи каждую новость до 1-2 очень коротких предложений. Выдай только самую суть.\n"
+                            "3. НЕ копируй длинные куски текста, пересказывай своими словами.\n"
+                            "4. Оформи в виде маркированного списка с эмодзи.\n"
+                            "5. Весь дайджест должен быть коротким, чтобы легко читался на экране телефона.\n"
+                            "Напиши в своем теплом стиле и обязательно закончи словом 'Прием!'"
+                        )
                     
                     # Резервный текст (План Б)
                     digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, модуль расшифровки занят! Вот сырые данные:\n{raw_text[:300]}...\n\n🚀 Обсудим? Прием!"
