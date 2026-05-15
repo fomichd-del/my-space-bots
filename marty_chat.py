@@ -135,7 +135,15 @@ def game_engine(call):
         router.route_game(bot, call)
 
 # --- БАЗОВЫЕ ФУНКЦИИ ---
-MODEL_CASCADE = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-3.1-flash-lite-preview']
+# 🟢 МАКСИМАЛЬНЫЙ КАСКАД АКАДЕМИИ (Ум + Надежность)
+MODEL_CASCADE = [
+    'gemini-3.1-pro-preview',   # Главный калибр (самый умный)
+    'gemini-2.5-pro',           # Надежный тяжеловес
+    'gemini-2.5-flash',         # Золотая середина
+    'gemini-2.0-flash',         # Проверенный боец
+    'gemini-3.1-flash-lite',    # Сверхбыстрый резерв
+    'gemini-flash-latest'       # Бессмертный запасной парашют
+]
 
 def send_log(text):
     try: bot.send_message(LOG_CHAT_ID, f"🚨 **LOG:** `{text}`", parse_mode="Markdown")
@@ -547,7 +555,13 @@ def handle_voice(message):
         with open(file_name, 'wb') as f:
             f.write(downloaded_file)
         
-        MODELS_TO_TRY = ['gemini-3.1-flash-lite-preview', 'gemini-2.0-flash', 'gemini-1.5-flash']
+        # 🟢 СПЕЦИАЛЬНЫЙ КАСКАД ДЛЯ АУДИО (Максимальная скорость)
+        MODELS_TO_TRY = [
+            'gemini-3.1-flash-lite',    # Новейший молниеносный сканер
+            'gemini-2.5-flash',         # Идеально для длинных аудио
+            'gemini-2.0-flash',         # Резервный канал
+            'gemini-flash-lite-latest'  # Если всё остальное рухнуло
+        ]
         success = False
         
         for api_key in API_KEYS:
