@@ -57,14 +57,35 @@ def get_cascade_image(prompt, seed):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     }
 
-    # 🚀 1. СВЕРХСВЕТОВОЙ ЗАВОД: Модели Gemini Image (Бесплатно, 3 ключа)
+    # 🥇 1. ОСНОВНОЙ ЗАВОД: Together AI (FLUX.1-schnell) - Идеально держит SEED
+    if TOGETHER_API_KEY:
+        print("🛰 Запрос к Together AI...", flush=True)
+        headers = {"Authorization": f"Bearer {TOGETHER_API_KEY}", "Content-Type": "application/json"}
+        data = {
+            "model": "black-forest-labs/FLUX.1-schnell",
+            "prompt": prompt,
+            "width": 1024, "height": 1024, "steps": 4, "n": 1,
+            "seed": seed,
+            "response_format": "b64_json"
+        }
+        try:
+            res = requests.post("https://api.together.xyz/v1/images/generations", headers=headers, json=data, timeout=30)
+            if res.status_code == 200:
+                print("✅ Together AI: УСПЕХ!", flush=True)
+                return base64.b64decode(res.json()["data"][0]["b64_json"])
+            else:
+                print(f"⚠️ Together AI ОТКАЗ: {res.status_code}", flush=True)
+        except Exception as e:
+            print(f"⚠️ Together AI ОШИБКА: {e}", flush=True)
+
+    # 🚀 2. ЭЛИТНЫЙ РЕЗЕРВ: Модели Gemini Image (Бесплатно, 3 ключа)
     GEMINI_IMAGE_MODELS = [
         'gemini-3.1-flash-image-preview',
         'gemini-3-pro-image-preview',
         'gemini-2.5-flash-image'
     ]
     
-    print("🛰 Запрос к матрице Gemini Image...", flush=True)
+    print("🔄 Переход к матрице Gemini Image...", flush=True)
     for img_model in GEMINI_IMAGE_MODELS:
         for i, key in enumerate(API_KEYS):
             try:
@@ -85,27 +106,6 @@ def get_cascade_image(prompt, seed):
                 # Если лимит исчерпан или модель недоступна - ИИ просто тихо перейдет к следующему ключу
                 print(f"⚠️ Gemini Image ({img_model}) Ключ {i+1} СБОЙ: {e}", flush=True)
                 continue
-
-    # 🥇 2. Together AI (FLUX.1-schnell) - Элитный резерв (если есть баланс)
-    if TOGETHER_API_KEY:
-        print("🔄 Переход к Together AI...", flush=True)
-        headers = {"Authorization": f"Bearer {TOGETHER_API_KEY}", "Content-Type": "application/json"}
-        data = {
-            "model": "black-forest-labs/FLUX.1-schnell",
-            "prompt": prompt,
-            "width": 1024, "height": 1024, "steps": 4, "n": 1,
-            "seed": seed,
-            "response_format": "b64_json"
-        }
-        try:
-            res = requests.post("https://api.together.xyz/v1/images/generations", headers=headers, json=data, timeout=30)
-            if res.status_code == 200:
-                print("✅ Together AI: УСПЕХ!", flush=True)
-                return base64.b64decode(res.json()["data"][0]["b64_json"])
-            else:
-                print(f"⚠️ Together AI ОТКАЗ: {res.status_code}", flush=True)
-        except Exception as e:
-            print(f"⚠️ Together AI ОШИБКА: {e}", flush=True)
 
     # 🥈 3. Pollinations FLUX - Бесплатный резерв №1
     print("🔄 Переход к Pollinations FLUX...", flush=True)
