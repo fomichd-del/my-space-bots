@@ -103,19 +103,18 @@ def send_eco_menu(bot, chat_id, user_id):
             if pet['count'] == 1: kb.add(tele_types.InlineKeyboardButton("➕ Найти пару (-200 💰)", callback_data="eco_addpet"))
             elif pet['count'] == 2: kb.add(tele_types.InlineKeyboardButton("🥚 Создать семью (-300 💰)", callback_data="eco_addpet"))
 
-    # 🟢 КВАНТОВЫЙ КЭШ ДЛЯ УЛИТКИ
-    if prompt in ECO_IMAGE_CACHE:
-        # Берем готовую картинку из Telegram (Мгновенно, Бесплатно)
-        bot.send_photo(chat_id, photo=ECO_IMAGE_CACHE[prompt], caption=text, parse_mode="Markdown", reply_markup=kb)
+    # 🟢 КВАНТОВЫЙ КЭШ: ГЕНЕТИЧЕСКАЯ ПРИВЯЗКА К ПИЛОТУ
+    cache_key = f"{user_id}_{prompt}"
+    
+    if cache_key in ECO_IMAGE_CACHE:
+        bot.send_photo(chat_id, photo=ECO_IMAGE_CACHE[cache_key], caption=text, parse_mode="Markdown", reply_markup=kb)
     else:
-        # Генерируем заново через каскад (Платно, 2-3 секунды)
         bot.send_chat_action(chat_id, 'upload_photo')
         image_bytes = get_cascade_image(prompt, seed)
         
         if image_bytes:
             msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
-            # Запоминаем код новой картинки
-            ECO_IMAGE_CACHE[prompt] = msg.photo[-1].file_id
+            ECO_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
         else:
             bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации! Все резервные нейросети перегружены._", parse_mode="Markdown", reply_markup=kb)
 
