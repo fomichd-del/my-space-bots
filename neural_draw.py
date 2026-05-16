@@ -94,6 +94,7 @@ def get_cascade_image(prompt, seed):
             "model": "black-forest-labs/FLUX.1-schnell",
             "prompt": prompt,
             "width": 1024, "height": 1024, "steps": 4, "n": 1,
+            "seed": seed,
             "response_format": "b64_json"
         }
         try:
