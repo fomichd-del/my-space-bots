@@ -14,7 +14,7 @@ def get_main_games_menu():
         tele_types.InlineKeyboardButton("🚀 Дневник юного космонавта", callback_data="game_select_diary"),
         
         # Кнопка НОВОЙ игры
-        tele_types.InlineKeyboardButton("☢️ Протокол: Чистое Небо (NEW)", callback_data="apoc_start"),
+        tele_types.InlineKeyboardButton("☢️ Протокол: Чистое Небо (NEW)", callback_data="apoc_menu"),
         
         tele_types.InlineKeyboardButton("🏆 Рейтинг пилотов", callback_data="game_instruction_fix")
     )
@@ -61,6 +61,6 @@ def get_apoc_chapters_menu():
     kb.add(
         tele_types.InlineKeyboardButton("🌑 Глава 1: Радиомолчание", callback_data="apoc_n1_start"),
         tele_types.InlineKeyboardButton("🌫 Глава 2: Кислотные болота [В РАЗРАБОТКЕ]", callback_data="apoc_soon"),
-        tele_types.InlineKeyboardButton("⬅️ Назад в Игровой отсек", callback_data="hub_main_menu")
+        tele_types.InlineKeyboardButton("⬅️ Назад в Игровой отсек", callback_data="game_main_menu")
     )
     return report, kb
