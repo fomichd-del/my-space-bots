@@ -8,11 +8,35 @@ from neural_draw import get_cascade_image
 # 🟢 КВАНТОВЫЙ КЭШ ДЛЯ ЭКО-ОТСЕКА
 ECO_IMAGE_CACHE = {}
 
+# 🛒 ГИПЕР-РАСШИРЕННЫЙ МАГАЗИН ЭКО-ОТСЕКА (ТЕПЕРЬ 19 ПРЕДМЕТОВ!)
 SHOP_ITEMS = {
     "natural_pebbles": {"name": "Речные камешки", "prompt": "small smooth river pebbles on the bottom", "price": 10},
     "castle_ruin": {"name": "Руины замка", "prompt": "ancient miniature castle ruin decoration", "price": 25},
     "dark_driftwood": {"name": "Темная коряга", "prompt": "natural looking piece of dark driftwood", "price": 15},
-    "live_plants": {"name": "Живые растения", "prompt": "vibrant natural freshwater aquatic plants (Java moss, Anubias)", "price": 20}
+    "live_plants": {"name": "Живые растения", "prompt": "vibrant natural freshwater aquatic plants (Java moss, Anubias)", "price": 20},
+
+    # --- 🆕🔥 НОВЫЕ ПОСТУПЛЕНИЯ (15 ПРЕДМЕТОВ) 🔥🆕 ---
+    
+    # --- ТЕХНОГЕННЫЙ КОСМОС ---
+    "crash_pod": {"name": "Разбитая капсула", "prompt": "a miniature, crashed sci-fi escape pod decoration with broken glass, rust, and glowing blue plasma leaks, half-buried in the sand", "price": 35},
+    "alien_egg": {"name": "Яйцо Чужого", "prompt": "a cluster of several realistic, dark, leathery alien egg decorations with physical textures, nestled among the plants", "price": 40},
+    "warp_core_fragment": {"name": "Осколок ядра", "prompt": "a glowing, semi-transparent purple warp core fragment decoration that pulses with light and is surrounded by floating bubbles", "price": 50},
+    "cybernetic_root": {"name": "Кибер-корень", "prompt": "a physical, dark driftwood branch integrated with complex metallic wires, glowing green data ports, and circuit board patterns", "price": 45},
+    "ufo_saucer": {"name": "Тарелка на дне", "prompt": "a miniature, corroded silver UFO flying saucer toy decoration, made of scratched metal and half-buried in the pebbles", "price": 30},
+
+    # --- АНТИЧНАЯ ЭКЗОТИКА ---
+    "atlantis_column": {"name": "Колонна Атлантиды", "prompt": "a broken, ancient marble column decoration with intricate, weathered aquatic carving, covered in moss and barnacles", "price": 30},
+    "treasure_chest": {"name": "Сундук мертвеца", "prompt": "a miniature wooden treasure chest decoration with rusty gold hinges, open to reveal physical glowing gold coins and jewels", "price": 25},
+    "ancient_temple_gate": {"name": "Врата храма", "prompt": "a weathered, miniature ancient sandstone temple gate decoration, complete with micro-inscriptions and small statues, surrounded by plants", "price": 45},
+    "sunken_galley": {"name": "Затонувшая галера", "prompt": "the decaying, barnacle-covered hull decoration of an ancient miniature Roman galley ship, complete with weathered oars", "price": 40},
+
+    # --- ПРИКОЛЫ И УНИКАЛЬНЫЕ ОБЪЕКТЫ ---
+    "bobbing_helmet": {"name": "Шлем водолаза", "prompt": "a miniature, antique brass and copper deep-sea diving helmet decoration, with realistic glass windows, resting heavily on the pebbles", "price": 20},
+    "skeleton_pilot": {"name": "Скелет пилота", "prompt": "a highly detailed, miniature human skeleton decoration in a weathered, bulky sci-fi spacesuit, sitting at a broken control console", "price": 55},
+    "rubber_duck": {"name": "Космо-Уточка", "prompt": "a physical, yellow rubber duck toy decoration, modified with a realistic miniature spacesuit helmet and a glowing antenna, floating in the water", "price": 15},
+    "miniature_dentist_chair": {"name": "Кресло Космо-Врача", "prompt": "a terrifyingly detailed, miniature futuristic metal dentist chair decoration with tiny adjustable tools and light, half-hidden among the Java moss", "price": 40},
+    "comet_fragment": {"name": "Осколок кометы", "prompt": "a complex, dark obsidian rock formation decoration, integrated with glowing blue crystals and radiating soft light trails and dust, surrounded by rising bubbles", "price": 60},
+    "black_hole_singularity": {"name": "Сингулярность", "prompt": "a stabilized, incredible miniature black hole singularity decoration, surrounded by an event horizon accretion disk made of swirling orange and blue light, pulsing softly", "price": 95}
 }
 
 sent_reminders = {}
