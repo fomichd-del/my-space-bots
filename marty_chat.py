@@ -801,12 +801,10 @@ def run_daily_digest_loop(bot_instance):
     def loop():
         last_sent_date = ""
         while True:
-            # 📅 Высчитываем ВЧЕРАШНЮЮ дату для поиска новостей
             yesterday_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
             current_time_utc = datetime.utcnow().strftime("%H:%M")
             
-            # 15:00 UTC — это 18:00 по Киеву (Вечерний дайджест)
-            # Если хотите утренний (09:00), оставьте 06:00 UTC
+            # 15:00 UTC (18:00 по Киеву)
             if "15:00" <= current_time_utc <= "15:15" and last_sent_date != yesterday_date:
                 from database import get_today_news
                 news = get_today_news(yesterday_date) 
@@ -829,13 +827,12 @@ def run_daily_digest_loop(bot_instance):
                         "СТИЛЬ: Ученый, напарник, эксперт. В начале напиши '✨ АКТУАЛЬНАЯ СВОДКА АКАДЕМИИ ✨', в конце — 'Прием!'"
                     )
                     
-                    digest_msg = f"✨ **БОРТОВОЙ ДАЙДЖЕСТ**\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\nКомандор, связь нестабильна! Сырые данные:\n{raw_text[:300]}..."
-                    
+                    digest_msg = "📡 Ошибка дешифровки данных."
                     success = False
-                    # Используем каскад и матрицу ключей
+                    
                     for model_name in MODEL_CASCADE:
                         if success: break
-                        for i, api_key in enumerate(API_KEYS):
+                        for api_key in API_KEYS:
                             try:
                                 client = genai.Client(api_key=api_key)
                                 resp = client.models.generate_content(model=model_name, contents=prompt)
@@ -845,16 +842,13 @@ def run_daily_digest_loop(bot_instance):
                                     break 
                             except: continue
                     
-                    # Рассылка всем пилотам
-                    from database import get_all_user_ids
                     for uid in get_all_user_ids():
                         try:
                             bot_instance.send_message(uid, digest_msg, parse_mode="Markdown", disable_web_page_preview=True)
                             time.sleep(0.05) 
-                        except:
-                            pass
+                        except: pass
                             
-                    last_sent_date = yesterday_date # Исправлено (было today)
+                    last_sent_date = yesterday_date
             time.sleep(60)
     Thread(target=loop, daemon=True).start()
 
