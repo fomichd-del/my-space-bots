@@ -413,6 +413,7 @@ def force_digest_test(message):
     bot.reply_to(message, "⚙️ Калибровка линз... Извлекаю новости из архивов Академии.")
     
     try:
+        try:
         from database import get_ship_date, get_today_news
         today = get_ship_date()
         news = get_today_news(today)
@@ -421,26 +422,31 @@ def force_digest_test(message):
             bot.send_message(message.chat.id, "📭 В архивах за сегодня пусто, Командор!")
             return
             
-        raw_text = "\n".join(news)
-        
-                # ⚡️ ПРОТОКОЛ "СИНГУЛЯРНОСТЬ v4.0" (ОБЪЕДИНЕННЫЙ)
+        # 🟢 ИНЖЕНЕРНЫЙ ПЕРЕХВАТ ССЫЛОК (PYTHON ДЕЛАЕТ ВСЮ РАБОТУ)
+        ai_input = ""
+        links_db = {}
+        for i, n in enumerate(news):
+            parts = n.split('|LINK|')
+            text_part = parts[0].strip()
+            link_part = parts[1].strip() if len(parts) > 1 else ""
+            # Даем ИИ только текст и порядковый номер ID
+            ai_input += f"ID_{i}: {text_part[:300]}\n"
+            # Ссылку прячем в надежный сейф Python
+            links_db[f"ID_{i}"] = link_part
+            
         prompt = (
-            "Ты — Марти, главный научный сотрудник Академии Орион (пес-пудель). "
-            "Твоя задача: провести дешифровку новостей и сформировать лаконичный отчет.\n\n"
-            f"ВХОДНЫЕ ДАННЫЕ (АРХИВ):\n{raw_text}\n\n"
-            "СТРОЖАЙШИЕ ПРАВИЛА ОФОРМЛЕНИЯ:\n"
-            "1. ПАРИТЕТ ДАННЫХ: Одна входная новость (разделитель |LINK|) = одна строка в отчете. Ничего не объединять и не пропускать.\n"
-            "2. СТРУКТУРА: [Тематический Эмодзи] [Суть новости] [➡](ССЫЛКА_ИЗ_ДАННЫХ).\n"
-            "3. ССЫЛКИ: Гиперссылкой должен быть ТОЛЬКО символ ' ➡ '. Текст новости и эмодзи должны быть обычным текстом.\n"
-            "4. ЛАКОНИЧНОСТЬ: Описание новости — строго 10-15 слов. Убирай лишние приветствия и вводные слова в каждой строке.\n"
-            "5. КАЧЕСТВО ТЕКСТА: Действуй как научный редактор. Используй профессиональную терминологию (орбита, телеметрия, аномалия, протокол), но делай текст бодрым и вдохновляющим.\n"
-            "6. ЗАПРЕТ: Не используй сторонние ссылки или названия чужих ботов. Только URL из поля |LINK|.\n\n"
-            "СТИЛЬ: Ученый, напарник, эксперт. В начале напиши '✨ АКТУАЛЬНАЯ СВОДКА АКАДЕМИИ ✨', в конце — 'Прием!'"
+            "Ты — Марти, научный пес. Сделай краткую выжимку новостей.\n"
+            f"ДАННЫЕ:\n{ai_input}\n\n"
+            "ПРАВИЛА:\n"
+            "1. Каждая новость — это 1 лаконичная строка (10-15 слов).\n"
+            "2. В начале строки должен быть эмодзи и номер ID. Пример: 'ID_0: 🪐 Открыта новая туманность.'\n"
+            "3. НЕ пиши никаких ссылок или стрелочек. Только текст.\n"
+            "4. Сохраняй научный и бодрый тон."
         )
         
         digest_msg = "📡 Ошибка дешифровки. Сигнал слишком зашумлен."
-        
         success = False
+        
         for model_name in MODEL_CASCADE:
             if success: break
             for i, api_key in enumerate(API_KEYS):
@@ -448,9 +454,29 @@ def force_digest_test(message):
                     client = genai.Client(api_key=api_key)
                     resp = client.models.generate_content(model=model_name, contents=prompt)
                     if resp.text:
-                        digest_msg = f"✨ **АКТУАЛЬНАЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
-                        success = True
-                        break 
+                        # 🟢 СБОРКА: ПИТОН ПРИКРЕПЛЯЕТ ССЫЛКИ НАМЕРТВО
+                        final_lines = ["✨ **АКТУАЛЬНАЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"]
+                        for line in resp.text.split('\n'):
+                            line = line.strip()
+                            if not line: continue
+                            
+                            # Находим ID в ответе ИИ и достаем правильную ссылку из сейфа
+                            match = re.search(r'(ID_\d+):\s*(.*)', line)
+                            if match:
+                                news_id = match.group(1)
+                                content = match.group(2)
+                                url = links_db.get(news_id, "")
+                                if url:
+                                    # Железно приклеиваем Markdown
+                                    final_lines.append(f"{content} [➡]({url})")
+                                else:
+                                    final_lines.append(content)
+                                    
+                        if len(final_lines) > 1:
+                            final_lines.append("\nПрием!")
+                            digest_msg = "\n".join(final_lines)
+                            success = True
+                            break 
                 except: continue
                     
         bot.send_message(message.chat.id, digest_msg, parse_mode="Markdown", disable_web_page_preview=True)
@@ -809,22 +835,25 @@ def run_daily_digest_loop(bot_instance):
                 from database import get_today_news
                 news = get_today_news(yesterday_date) 
                 
-                if news:
-                    raw_text = "\n\n".join(news)
-                    
-                    # ⚡️ ПРОТОКОЛ "СИНГУЛЯРНОСТЬ v4.0" (ОБЪЕДИНЕННЫЙ)
+                                if news:
+                    # 🟢 ИНЖЕНЕРНЫЙ ПЕРЕХВАТ ССЫЛОК (PYTHON)
+                    ai_input = ""
+                    links_db = {}
+                    for i, n in enumerate(news):
+                        parts = n.split('|LINK|')
+                        text_part = parts[0].strip()
+                        link_part = parts[1].strip() if len(parts) > 1 else ""
+                        ai_input += f"ID_{i}: {text_part[:300]}\n"
+                        links_db[f"ID_{i}"] = link_part
+                        
                     prompt = (
-                        "Ты — Марти, главный научный сотрудник Академии Орион (пес-пудель). "
-                        "Твоя задача: провести дешифровку новостей и сформировать лаконичный отчет.\n\n"
-                        f"ВХОДНЫЕ ДАННЫЕ (АРХИВ):\n{raw_text}\n\n"
-                        "СТРОЖАЙШИЕ ПРАВИЛА ОФОРМЛЕНИЯ:\n"
-                        "1. ПАРИТЕТ ДАННЫХ: Одна входная новость (разделитель |LINK|) = одна строка в отчете. Ничего не объединять и не пропускать.\n"
-                        "2. СТРУКТУРА: [Тематический Эмодзи] [Суть новости] [➡](ССЫЛКА_ИЗ_ДАННЫХ).\n"
-                        "3. ССЫЛКИ: Гиперссылкой должен быть ТОЛЬКО символ ' ➡ '. Текст новости и эмодзи должны быть обычным текстом.\n"
-                        "4. ЛАКОНИЧНОСТЬ: Описание новости — строго 10-15 слов. Убирай лишние приветствия и вводные слова в каждой строке.\n"
-                        "5. КАЧЕСТВО ТЕКСТА: Действуй как научный редактор. Используй профессиональную терминологию (орбита, телеметрия, аномалия, протокол), но делай текст бодрым и вдохновляющим.\n"
-                        "6. ЗАПРЕТ: Не используй сторонние ссылки или названия чужих ботов. Только URL из поля |LINK|.\n\n"
-                        "СТИЛЬ: Ученый, напарник, эксперт. В начале напиши '✨ АКТУАЛЬНАЯ СВОДКА АКАДЕМИИ ✨', в конце — 'Прием!'"
+                        "Ты — Марти, научный пес. Сделай краткую выжимку новостей.\n"
+                        f"ДАННЫЕ:\n{ai_input}\n\n"
+                        "ПРАВИЛА:\n"
+                        "1. Каждая новость — это 1 лаконичная строка (10-15 слов).\n"
+                        "2. В начале строки должен быть эмодзи и номер ID. Пример: 'ID_0: 🪐 Открыта новая туманность.'\n"
+                        "3. НЕ пиши никаких ссылок или стрелочек. Только текст.\n"
+                        "4. Сохраняй научный и бодрый тон."
                     )
                     
                     digest_msg = "📡 Ошибка дешифровки данных."
@@ -837,9 +866,27 @@ def run_daily_digest_loop(bot_instance):
                                 client = genai.Client(api_key=api_key)
                                 resp = client.models.generate_content(model=model_name, contents=prompt)
                                 if resp.text:
-                                    digest_msg = f"✨ **СВОДКА АКАДЕМИИ ЗА ВЧЕРА** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n{resp.text}"
-                                    success = True
-                                    break 
+                                    # 🟢 СБОРКА: ПИТОН ПРИКРЕПЛЯЕТ ССЫЛКИ НАМЕРТВО
+                                    final_lines = ["✨ **СВОДКА АКАДЕМИИ ЗА ВЧЕРА** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"]
+                                    for line in resp.text.split('\n'):
+                                        line = line.strip()
+                                        if not line: continue
+                                        
+                                        match = re.search(r'(ID_\d+):\s*(.*)', line)
+                                        if match:
+                                            news_id = match.group(1)
+                                            content = match.group(2)
+                                            url = links_db.get(news_id, "")
+                                            if url:
+                                                final_lines.append(f"{content} [➡]({url})")
+                                            else:
+                                                final_lines.append(content)
+                                                
+                                    if len(final_lines) > 1:
+                                        final_lines.append("\nПрием!")
+                                        digest_msg = "\n".join(final_lines)
+                                        success = True
+                                        break 
                             except: continue
                     
                     for uid in get_all_user_ids():
