@@ -411,9 +411,9 @@ def handle_start_help(message):
 def force_digest_test(message):
     bot.reply_to(message, "⚙️ Калибровка линз... Извлекаю новости из архивов Академии.")
     
-    try:
+        try:
         from database import get_ship_date, get_today_news
-        import re # Убеждаемся, что парсер работает
+        import re
         today = get_ship_date()
         news = get_today_news(today)
         
@@ -421,25 +421,27 @@ def force_digest_test(message):
             bot.send_message(message.chat.id, "📭 В архивах за сегодня пусто, Командор!")
             return
             
-        # 🟢 ИНЖЕНЕРНЫЙ ПЕРЕХВАТ ССЫЛОК (PYTHON)
+        # 🟢 ИНЖЕНЕРНЫЙ ПЕРЕХВАТ 2.0 (ЧЕРЕЗ НУМЕРАЦИЮ)
         ai_input = ""
-        links_db = {}
+        links_list = []
         for i, n in enumerate(news):
             parts = n.split('|LINK|')
             text_part = parts[0].strip()
             link_part = parts[1].strip() if len(parts) > 1 else ""
-            ai_input += f"ID_{i}: {text_part[:300]}\n"
-            links_db[f"ID_{i}"] = link_part
+            
+            # Даем ИИ строгий нумерованный список
+            ai_input += f"{i+1}. {text_part[:300]}\n"
+            links_list.append(link_part) # Запоминаем ссылки по порядку
             
         prompt = (
-            "Ты — Марти, научный пес. Сделай выжимку новостей.\n"
+            "Ты — Марти, бортовой пес. Сделай выжимку этих новостей.\n"
             f"ДАННЫЕ:\n{ai_input}\n\n"
-            "СТРОЖАЙШЕЕ ПРАВИЛО:\n"
-            "Обязательно сохраняй номер ID_ в начале каждой строки! Не удаляй его!\n"
-            "Пример твоего ответа:\n"
-            "ID_0: 🪐 Открыта новая туманность.\n"
-            "ID_1: 🚀 Запуск ракеты прошел успешно.\n"
-            "Никаких ссылок и стрелочек не ставь. Только ID, эмодзи и текст (10-15 слов)."
+            "ПРАВИЛО:\n"
+            "Верни СТРОГО нумерованный список. Номера должны совпадать.\n"
+            "Пример:\n"
+            "1. 🪐 Открыта новая туманность.\n"
+            "2. 🚀 Запуск прошел успешно.\n"
+            "Обязательно 10-15 слов на строку. Никаких ссылок и стрелочек, только текст!"
         )
         
         digest_msg = "📡 Ошибка дешифровки. Сигнал слишком зашумлен."
@@ -452,24 +454,32 @@ def force_digest_test(message):
                     client = genai.Client(api_key=api_key)
                     resp = client.models.generate_content(model=model_name, contents=prompt)
                     if resp.text:
-                        # 🟢 СБОРКА: ПИТОН ПРИКРЕПЛЯЕТ ССЫЛКИ НАМЕРТВО
+                        # 🟢 СБОРКА: ЗАМЕНЯЕМ ЦИФРЫ НА ССЫЛКИ
                         final_lines = ["✨ **АКТУАЛЬНАЯ СВОДКА АКАДЕМИИ** ✨\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"]
+                        
                         for line in resp.text.split('\n'):
                             line = line.strip()
                             if not line: continue
                             
-                            # Ищем ID_ в строке
-                            match = re.search(r'(ID_\d+):?\s*(.*)', line)
+                            # Ищем цифру в начале: "1. 🪐 Текст" или "1) 🪐 Текст"
+                            match = re.search(r'^(\d+)[.)]?\s*(.*)', line)
+                            
                             if match:
-                                news_id = match.group(1)
-                                content = match.group(2)
-                                url = links_db.get(news_id, "")
-                                if url:
-                                    final_lines.append(f"{content} [➡]({url})")
+                                idx = int(match.group(1)) - 1 # Индекс в нашем списке ссылок
+                                content = match.group(2) # Сам текст с эмодзи
+                                
+                                if 0 <= idx < len(links_list):
+                                    url = links_list[idx]
+                                    if url:
+                                        # Приклеиваем стрелочку!
+                                        final_lines.append(f"{content} [➡]({url})")
+                                    else:
+                                        final_lines.append(content)
                                 else:
                                     final_lines.append(content)
-                            else:
-                                # Если ИИ забыл написать ID, просто выдаем текст
+                                    
+                            # Пропускаем лишние слова ИИ вроде "Вот ваш список:"
+                            elif not any(word in line.lower() for word in ['вот', 'список', 'сводка', 'прием']):
                                 final_lines.append(line)
                                 
                         if len(final_lines) > 1:
