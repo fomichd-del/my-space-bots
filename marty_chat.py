@@ -834,7 +834,7 @@ def run_daily_digest_loop(bot_instance):
                 from database import get_today_news
                 news = get_today_news(yesterday_date) 
                 
-                                if news:
+                if news:
                     # 🟢 ИНЖЕНЕРНЫЙ ПЕРЕХВАТ ССЫЛОК (PYTHON)
                     ai_input = ""
                     links_db = {}
