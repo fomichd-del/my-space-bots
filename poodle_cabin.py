@@ -75,7 +75,6 @@ def get_dog_prompt(dog, user_id):
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
 
     # 1. Световой модуль (Локальное время Чернигова)
-    # Используем текущий час для настройки освещения
     hour = datetime.now().hour
     if 6 <= hour < 11: light = "soft morning sunrise light through the window, cool blue and orange tones"
     elif 11 <= hour < 18: light = "bright direct midday sunlight, high contrast, crisp shadows"
@@ -97,29 +96,26 @@ def get_dog_prompt(dog, user_id):
         wear = "pristine polished chrome surfaces, sterile clean environment, high-tech gloss"
 
     # 4. Генетическое наследие (Шанс 10% увидеть улитку)
-    # Если у пользователя есть улитка, она может появиться в каюте пуделя
     import random
     crossover = ""
     if random.random() < 0.10:
         crossover = "a small realistic garden snail is slowly crawling on the window glass,"
 
-    base = f"macro photography of a realistic living fluffy random-colored toy poodle dog, {light}, {dust_visual}, {wear}, {crossover} in a high-tech cozy spaceship cabin, 4k, cinematic lighting"
-  
-    # 🧬 ГЕНЕТИЧЕСКАЯ МОДИФИКАЦИЯ: Убрали 'apricot', добавили 'living' и 'random-colored'
-    base = "macro photography of a realistic living fluffy random-colored toy poodle dog, in a high-tech cozy spaceship cabin with a window showing stars, 4k, cinematic lighting"
+    # 🧬 ИТОГОВЫЙ ДИНАМИЧЕСКИЙ БАЗОВЫЙ ПРОМПТ (Теперь без перезаписи!)
+    base = f"macro photography of a realistic living fluffy random-colored toy poodle dog, {light}, {dust_visual}, {wear}, {crossover} in a high-tech cozy spaceship cabin with a window showing stars, 4k, cinematic lighting"
     
+    # Эволюция
     if dog['level'] < 5: evo = "a tiny cute puppy poodle, sleeping on a soft pillow"
     elif dog['level'] < 12: evo = "an active adolescent poodle, sitting alert and happy"
     else: evo = "a wise adult poodle, sitting at a control panel like a co-pilot"
 
+    # Состояние
     if dog['energy'] < 30: state = "tired look, dim lighting, dog is resting"
     else: state = "happy expression, bright warm lighting, sparkling eyes"
 
-    # 👕 ТЕПЕРЬ ПРОМПТ ЗАВИСИТ ТОЛЬКО ОТ НАДЕТЫХ ВЕЩЕЙ
+    # Одежда
     equipped_items = dog.get('equipped', [])
     clothes = [DOG_SHOP[k]["prompt"] for k in equipped_items if k in DOG_SHOP]
-    
-    # 🧬 Акцент на реализм живой шерсти
     style_prompt = ", ".join(clothes) if clothes else "natural living fluffy fur texture"
 
     full_prompt = f"{base}, {evo}, {state}, {style_prompt}, photorealistic"
