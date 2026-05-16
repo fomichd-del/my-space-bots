@@ -62,7 +62,8 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
     
-    base = "macro photography of a realistic fluffy apricot toy poodle dog, in a high-tech cozy spaceship cabin with a window showing stars, 4k, cinematic lighting"
+    # 🧬 ГЕНЕТИЧЕСКАЯ МОДИФИКАЦИЯ: Убрали 'apricot', добавили 'living' и 'random-colored'
+    base = "macro photography of a realistic living fluffy random-colored toy poodle dog, in a high-tech cozy spaceship cabin with a window showing stars, 4k, cinematic lighting"
     
     if dog['level'] < 5: evo = "a tiny cute puppy poodle, sleeping on a soft pillow"
     elif dog['level'] < 12: evo = "an active adolescent poodle, sitting alert and happy"
@@ -71,10 +72,12 @@ def get_dog_prompt(dog, user_id):
     if dog['energy'] < 30: state = "tired look, dim lighting, dog is resting"
     else: state = "happy expression, bright warm lighting, sparkling eyes"
 
-    # 👕 ТЕПЕРЬ ПРОМПТ ЗАВИСИТ ТОЛЬКО ОТ НАДЕТЫХ ВЕЩЕЙ (EQUIPPED)
+    # 👕 ТЕПЕРЬ ПРОМПТ ЗАВИСИТ ТОЛЬКО ОТ НАДЕТЫХ ВЕЩЕЙ
     equipped_items = dog.get('equipped', [])
     clothes = [DOG_SHOP[k]["prompt"] for k in equipped_items if k in DOG_SHOP]
-    style_prompt = ", ".join(clothes) if clothes else "natural fluffy fur"
+    
+    # 🧬 Акцент на реализм живой шерсти
+    style_prompt = ", ".join(clothes) if clothes else "natural living fluffy fur texture"
 
     full_prompt = f"{base}, {evo}, {state}, {style_prompt}, photorealistic"
     return full_prompt, user_id
