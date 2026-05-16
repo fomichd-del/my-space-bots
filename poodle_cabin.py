@@ -73,7 +73,38 @@ DOG_SHOP = {
 def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
-    
+
+    # 1. Световой модуль (Локальное время Чернигова)
+    # Используем текущий час для настройки освещения
+    hour = datetime.now().hour
+    if 6 <= hour < 11: light = "soft morning sunrise light through the window, cool blue and orange tones"
+    elif 11 <= hour < 18: light = "bright direct midday sunlight, high contrast, crisp shadows"
+    elif 18 <= hour < 22: light = "warm golden hour sunset glow, long soft shadows, cozy atmosphere"
+    else: light = "deep blue night atmosphere, dim interior lighting, glowing neon control panels"
+
+    # 2. Визуализация богатства (Пыль на столе)
+    u_data = get_user_data(user_id)
+    dust = u_data['spendable_dust']
+    if dust < 50: dust_visual = "an empty clean metallic desk near the dog"
+    elif dust < 200: dust_visual = "a small glowing pile of blue stardust on the desk"
+    elif dust < 1000: dust_visual = "a large heap of shimmering cosmic dust on the table"
+    else: dust_visual = "a massive overflowing treasure chest filled with glowing stardust on the desk"
+
+    # 3. Износ оборудования (Чистота)
+    if dog.get('clean', 100) < 40:
+        wear = "grimy metallic surfaces, faint oil stains on the walls, dusty floor, worn-out equipment"
+    else:
+        wear = "pristine polished chrome surfaces, sterile clean environment, high-tech gloss"
+
+    # 4. Генетическое наследие (Шанс 10% увидеть улитку)
+    # Если у пользователя есть улитка, она может появиться в каюте пуделя
+    import random
+    crossover = ""
+    if random.random() < 0.10:
+        crossover = "a small realistic garden snail is slowly crawling on the window glass,"
+
+    base = f"macro photography of a realistic living fluffy random-colored toy poodle dog, {light}, {dust_visual}, {wear}, {crossover} in a high-tech cozy spaceship cabin, 4k, cinematic lighting"
+  
     # 🧬 ГЕНЕТИЧЕСКАЯ МОДИФИКАЦИЯ: Убрали 'apricot', добавили 'living' и 'random-colored'
     base = "macro photography of a realistic living fluffy random-colored toy poodle dog, in a high-tech cozy spaceship cabin with a window showing stars, 4k, cinematic lighting"
     
