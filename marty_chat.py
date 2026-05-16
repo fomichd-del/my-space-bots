@@ -411,7 +411,7 @@ def handle_start_help(message):
 def force_digest_test(message):
     bot.reply_to(message, "⚙️ Калибровка линз... Извлекаю новости из архивов Академии.")
     
-        try:
+    try:
         from database import get_ship_date, get_today_news
         import re
         today = get_ship_date()
