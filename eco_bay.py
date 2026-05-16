@@ -22,28 +22,32 @@ def get_dynamic_prompt(pet, user_id):
         prompt = "macro photography of an empty dirty glass terrarium, broken glass, dried grey moss, murky water, gloomy dim lighting, depressing realistic look, no life, photorealistic"
         return prompt, user_id
 
-    base = "macro photography of a realistic freshwater aquarium tank, 4k, natural realistic photographic style, cinematic lighting"
-    shells_style = "natural realistic brown and beige shells with intricate dark stripes"
+    # 🧬 ГЕНЕТИЧЕСКАЯ МОДИФИКАЦИЯ: Убрали фиксированный коричневый цвет
+    base = "macro photography of a realistic freshwater aquarium tank, 4k, natural realistic living photographic style, cinematic lighting"
+    shells_style = "natural unique complex random-colored shell with highly detailed organic texture and patterns"
     
     if pet['count'] == 1:
-        if pet['level'] < 3: evo_details = "tiny newborn size,semi-translucent shell"
-        elif pet['level'] < 7: evo_details = "growing adolescent size,clear spiral shell"
-        elif pet['level'] < 11: evo_details = "large adult size,detailed patterns"
-        elif pet['level'] < 14: evo_details = "mature old size,massive heavy shell"
+        if pet['level'] < 3: evo_details = "tiny newborn size, semi-translucent shell"
+        elif pet['level'] < 7: evo_details = "growing adolescent size, clear spiral shell"
+        elif pet['level'] < 11: evo_details = "large adult size, detailed patterns"
+        elif pet['level'] < 14: evo_details = "mature old size, massive heavy shell"
         else: evo_details = "colossal ancient matriarch size, incredibly complex shell"
-        snails_prompt = f"exactly one realistic garden snail (Cornu aspersum), {evo_details}, {shells_style}"
+        
+        # 🧬 Добавлено 'living' для реализма
+        snails_prompt = f"exactly one realistic living garden snail (Cornu aspersum), {evo_details}, {shells_style}"
+        
         if pet['clean'] < 30: state_modifier = "murky green dirty water, messy environment"
         elif pet['happiness'] < 30: state_modifier = "snail hiding inside shell, lonely atmosphere"
         else: state_modifier = "crystal clear water, vibrant active snail, floating bubbles"
 
     elif pet['count'] == 2:
-        snails_prompt = f"exactly two realistic garden snails (Cornu aspersum) interacting, both with {shells_style}"
+        snails_prompt = f"exactly two realistic living garden snails (Cornu aspersum) interacting, both with {shells_style}"
         if pet['clean'] < 30: state_modifier = "murky green dirty water, messy environment"
         elif pet['happiness'] < 30: state_modifier = "snails hiding inside shells, lonely atmosphere"
         else: state_modifier = "crystal clear water, vibrant active snails, floating bubbles"
 
     else:
-        snails_prompt = f"a diverse family of realistic garden snails (Cornu aspersum) (multiple individuals of different sizes), {shells_style}"
+        snails_prompt = f"a diverse family of realistic living garden snails (Cornu aspersum) (multiple individuals of different sizes), {shells_style}"
         if pet['clean'] < 30: state_modifier = "murky green dirty water, messy environment"
         else: state_modifier = "crystal clear water, vibrant active snails, floating bubbles"
 
@@ -53,7 +57,7 @@ def get_dynamic_prompt(pet, user_id):
     full_prompt = f"{base}, {snails_prompt}, {state_modifier}, {decor_prompt}, photorealistic"
     seed = user_id
     
-    return full_prompt, seed 
+    return full_prompt, seed
 
 def check_daily_decay(pet):
     today = datetime.now().strftime("%Y-%m-%d")
