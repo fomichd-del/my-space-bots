@@ -129,21 +129,18 @@ def send_dog_menu(bot, chat_id, user_id):
         if dog['level'] >= 10 and current_prof == 'Кадет':
             kb.row(tele_types.InlineKeyboardButton(text="🎓 Выбрать специализацию", callback_data="dog_choose_prof"))
   
-        # 🟢 КВАНТОВЫЙ КЭШ В ДЕЙСТВИИ
-        if prompt in CABIN_IMAGE_CACHE:
-            # Если такой промпт уже рисовали — берем код из сейфа (Бесплатно, 0.1 сек)
-            bot.send_photo(chat_id, photo=CABIN_IMAGE_CACHE[prompt], caption=text, parse_mode="Markdown", reply_markup=kb)
+        # 🟢 КВАНТОВЫЙ КЭШ: ГЕНЕТИЧЕСКАЯ ПРИВЯЗКА К ПИЛОТУ
+        cache_key = f"{user_id}_{prompt}"
+        
+        if cache_key in CABIN_IMAGE_CACHE:
+            bot.send_photo(chat_id, photo=CABIN_IMAGE_CACHE[cache_key], caption=text, parse_mode="Markdown", reply_markup=kb)
         else:
-            # Если промпт новый — платим Together AI и ждем пару секунд
             bot.send_chat_action(chat_id, 'upload_photo')
             image_bytes = get_cascade_image(prompt, seed)
             
             if image_bytes:
-                # Отправляем фото и забираем его уникальный file_id от Телеграма
                 msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
-                
-                # Сохраняем в кэш навсегда!
-                CABIN_IMAGE_CACHE[prompt] = msg.photo[-1].file_id
+                CABIN_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
             else:
                 bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации!_", parse_mode="Markdown", reply_markup=kb)
 
@@ -172,7 +169,6 @@ def handle_dog_callback(bot, call):
             dog['energy'] = min(100, dog['energy'] + energy_boost) 
             update_dog_data(user_id, dog) 
             bot.answer_callback_query(call.id, f"Марти поспал в крио-капсуле (+{energy_boost} Энергии)! 💤")
-            # 🟢 Двойной вызов send_dog_menu удален, меню обновится в самом низу кода!
 
     elif action == "play":
         if spend_dust(user_id, 5):
