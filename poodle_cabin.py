@@ -2,8 +2,11 @@ import time
 from datetime import datetime
 from telebot import types as tele_types
 from database import (get_dog_data, update_dog_data, spend_dust, get_user_data, 
-                      equip_dog_item, unequip_dog_item, process_dog_walk) # 🟢 Добавлены новые функции
+                      equip_dog_item, unequip_dog_item, process_dog_walk)
 from neural_draw import get_cascade_image 
+
+# 🟢 КВАНТОВЫЙ КЭШ (Сейф для бесплатных картинок)
+CABIN_IMAGE_CACHE = {}
 
 # 🛒 РАСШИРЕННЫЙ МАГАЗИН (15 ПРЕДМЕТОВ)
 DOG_SHOP = {
@@ -104,7 +107,6 @@ def send_dog_menu(bot, chat_id, user_id):
         from database import get_dog_profession
         current_prof = get_dog_profession(user_id)
         
-        # 🟢 ИСПРАВЛЕНИЕ: Добавили {current_prof} в заголовок!
         text = (
             f"🐕 **КАЮТА ПИТОМЦА ({current_prof})**\n\n"
             f"Уровень: {dog['level']} | Опыт: {dog['xp']}/15\n"
@@ -124,15 +126,26 @@ def send_dog_menu(bot, chat_id, user_id):
             tele_types.InlineKeyboardButton("🛒 Магазин", callback_data="dog_shop") 
         )
 
-        # 🟢 КНОПКА ПРОФЕССИИ, ЕСЛИ УРОВЕНЬ ПОЗВОЛЯЕТ
         if dog['level'] >= 10 and current_prof == 'Кадет':
             kb.row(tele_types.InlineKeyboardButton(text="🎓 Выбрать специализацию", callback_data="dog_choose_prof"))
   
-        image_bytes = get_cascade_image(prompt, seed)
-        if image_bytes:
-            bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
+        # 🟢 КВАНТОВЫЙ КЭШ В ДЕЙСТВИИ
+        if prompt in CABIN_IMAGE_CACHE:
+            # Если такой промпт уже рисовали — берем код из сейфа (Бесплатно, 0.1 сек)
+            bot.send_photo(chat_id, photo=CABIN_IMAGE_CACHE[prompt], caption=text, parse_mode="Markdown", reply_markup=kb)
         else:
-            bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации!_", parse_mode="Markdown", reply_markup=kb)
+            # Если промпт новый — платим Together AI и ждем пару секунд
+            bot.send_chat_action(chat_id, 'upload_photo')
+            image_bytes = get_cascade_image(prompt, seed)
+            
+            if image_bytes:
+                # Отправляем фото и забираем его уникальный file_id от Телеграма
+                msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
+                
+                # Сохраняем в кэш навсегда!
+                CABIN_IMAGE_CACHE[prompt] = msg.photo[-1].file_id
+            else:
+                bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации!_", parse_mode="Markdown", reply_markup=kb)
 
 def handle_dog_callback(bot, call):
     user_id = call.from_user.id
@@ -151,17 +164,15 @@ def handle_dog_callback(bot, call):
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
         
-        # Медики спят эффективнее!
         energy_boost = 60 if "Медик" in prof else 40
         
         if dog['energy'] >= 100:
             bot.answer_callback_query(call.id, "Марти уже полон сил! ⚡", show_alert=True)
         else:
-            dog['energy'] = min(100, dog['energy'] + energy_boost) # 🟢 Исправлено
-            update_dog_data(user_id, dog) # 🟢 Исправлено
+            dog['energy'] = min(100, dog['energy'] + energy_boost) 
+            update_dog_data(user_id, dog) 
             bot.answer_callback_query(call.id, f"Марти поспал в крио-капсуле (+{energy_boost} Энергии)! 💤")
-            chat_id = call.message.chat.id
-            send_dog_menu(bot, chat_id, user_id, message_id=call.message.message_id)
+            # 🟢 Двойной вызов send_dog_menu удален, меню обновится в самом низу кода!
 
     elif action == "play":
         if spend_dust(user_id, 5):
@@ -169,7 +180,7 @@ def handle_dog_callback(bot, call):
             bot.answer_callback_query(call.id, "🎾 Грави-мяч — это весело!")
         else: bot.answer_callback_query(call.id, "❌ Нужно 5 пыли!")
 
-    elif action == "walk": # 🆕 Выгул
+    elif action == "walk":
         res = process_dog_walk(user_id)
         if res == "low_dust": bot.answer_callback_query(call.id, "❌ Нужно 10 пыли!")
         elif res == "error": bot.answer_callback_query(call.id, "❌ Ошибка систем.")
@@ -187,7 +198,7 @@ def handle_dog_callback(bot, call):
                               "🔧 **Бортинженер** - скидка 20% в магазине.\n"
                               "🔭 **Астронавигатор** - приносит x2 Пыли за ум.", 
                               call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        return # Важно, чтобы не сработало общее обновление меню внизу
+        return 
 
     elif action.startswith("setprof_"):
         prof_map = {"medic": "Космо-Медик 👨‍⚕️", "engineer": "Бортинженер 🔧", "navigator": "Астронавигатор 🔭"}
@@ -198,7 +209,7 @@ def handle_dog_callback(bot, call):
         set_dog_profession(user_id, chosen_prof)
         bot.answer_callback_query(call.id, f"Выбрана профессия: {chosen_prof}!", show_alert=True)
   
-    elif action == "wardrobe": # 🆕 Гардероб
+    elif action == "wardrobe":
         text = "👕 **ГАРДЕРОБ МАРТИ**\n\nЗдесь можно надеть или снять купленные вещи:"
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         for item_key in dog['items']:
@@ -210,18 +221,16 @@ def handle_dog_callback(bot, call):
         bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb)
         return
 
-    elif action.startswith("toggle_"): # 🆕 Переключатель
+    elif action.startswith("toggle_"):
         item = action.replace("toggle_", "")
         if item in dog.get('equipped', []): unequip_dog_item(user_id, item)
         else: equip_dog_item(user_id, item)
         bot.answer_callback_query(call.id, "Стиль обновлен!")
-        # Возвращаемся в гардероб для удобства
         call.data = "dog_wardrobe"
         handle_dog_callback(bot, call)
         return
 
     elif action == "shop":
-        # 🟢 Достаем профессию, чтобы показать скидки прямо на витрине
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
         
@@ -232,7 +241,6 @@ def handle_dog_callback(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         for k, v in DOG_SHOP.items():
             if k not in dog['items']:
-                # Считаем цену со скидкой для кнопок
                 price = v['price']
                 if "Инженер" in prof:
                     price = int(price * 0.8)
@@ -240,27 +248,24 @@ def handle_dog_callback(bot, call):
                 kb.add(tele_types.InlineKeyboardButton(f"{v['name']} ({price}💰)", callback_data=f"dog_buy_{k}"))
         
         kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
-        # Добавил parse_mode="Markdown", чтобы текст скидки был красивым курсивом
         bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         return
 
     elif action.startswith("buy_"):
         item = action.replace("buy_", "")
         
-        # 🟢 Снова достаем профессию для правильного списания Пыли
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
         
         price = DOG_SHOP[item]['price']
         if "Инженер" in prof:
-            price = int(price * 0.8) # Применяем скидку 20%
+            price = int(price * 0.8) 
 
         if spend_dust(user_id, price):
             dog['items'].append(item)
             update_dog_data(user_id, dog)
             bot.answer_callback_query(call.id, f"🎉 Куплено: {DOG_SHOP[item]['name']} (за {price} 💰)!")
             
-            # Возвращаем в магазин после покупки, чтобы кнопка купленной вещи пропала
             kb = tele_types.InlineKeyboardMarkup(row_width=2)
             kb.add(tele_types.InlineKeyboardButton("🔙 В каюту", callback_data="dog_back"))
             bot.edit_message_caption("✅ Покупка отправлена в Гардероб!", call.message.chat.id, call.message.message_id, reply_markup=kb)
