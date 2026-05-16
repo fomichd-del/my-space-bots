@@ -1,6 +1,6 @@
 from telebot import types as tele_types
 
-# 1. ГЛАВНОЕ МЕНЮ ИГР (Центральный хаб)
+# --- [ 1. ГЛАВНОЕ МЕНЮ ИГР (Центральный хаб) ] ---
 def get_main_games_menu():
     report = (
         "🌌 **ИГРОВОЙ ОТСЕК АКАДЕМИИ ОРИОН** 🌌\n"
@@ -10,17 +10,18 @@ def get_main_games_menu():
     )
     kb = tele_types.InlineKeyboardMarkup(row_width=1)
     kb.add(
-        # Кнопка старой игры
+        # Кнопка ПЕРВОЙ игры
         tele_types.InlineKeyboardButton("🚀 Дневник юного космонавта", callback_data="game_select_diary"),
         
-        # Кнопка НОВОЙ игры
+        # Кнопка ВТОРОЙ игры (направляет в меню глав)
         tele_types.InlineKeyboardButton("☢️ Протокол: Чистое Небо (NEW)", callback_data="apoc_menu"),
         
+        # Рейтинг
         tele_types.InlineKeyboardButton("🏆 Рейтинг пилотов", callback_data="game_instruction_fix")
     )
     return report, kb
 
-# 2. МЕНЮ ГЛАВ (Описание и дорожная карта)
+# --- [ 2. МЕНЮ ГЛАВ: ДНЕВНИК ЮНОГО КОСМОНАВТА ] ---
 def get_diary_chapters_menu():
     report = (
         "🚀 **ДНЕВНИК ЮНОГО КОСМОНАВТА**\n"
@@ -34,16 +35,15 @@ def get_diary_chapters_menu():
         tele_types.InlineKeyboardButton("✅ Глава 1: Протокол 'Эхо'", callback_data="game_start"),
         tele_types.InlineKeyboardButton("🪐 Глава 2: Тень Земли", callback_data="game2_start"),
         tele_types.InlineKeyboardButton("📡 Глава 3: Сигнал из пустоты", callback_data="game3_start"),
-        
-        # 🟢 ИСПРАВЛЕНО ЗДЕСЬ: Убрали СКОРО и поменяли callback_data
         tele_types.InlineKeyboardButton("☣️ Глава 4: Объект 'Зеро'", callback_data="game4_start"),
         tele_types.InlineKeyboardButton("🌌 Глава 5: Последний рубеж", callback_data="game5_start"),
         
+        # Универсальная кнопка возврата в Хаб
         tele_types.InlineKeyboardButton("⬅️ Назад в Игровой отсек", callback_data="game_main_menu")
     )
     return report, kb
 
-# --- [ 2. МЕНЮ ГЛАВ: ПРОТОКОЛ ЧИСТОЕ НЕБО ] ---
+# --- [ 3. МЕНЮ ГЛАВ: ПРОТОКОЛ ЧИСТОЕ НЕБО ] ---
 def get_apoc_chapters_menu():
     report = (
         "☢️ **СИМУЛЯЦИЯ: ПРОТОКОЛ «ЧИСТОЕ НЕБО»**\n"
@@ -61,6 +61,8 @@ def get_apoc_chapters_menu():
     kb.add(
         tele_types.InlineKeyboardButton("🌑 Глава 1: Радиомолчание", callback_data="apoc_n1_start"),
         tele_types.InlineKeyboardButton("🌫 Глава 2: Кислотные болота [В РАЗРАБОТКЕ]", callback_data="apoc_soon"),
+        
+        # Универсальная кнопка возврата в Хаб (исправлена связь)
         tele_types.InlineKeyboardButton("⬅️ Назад в Игровой отсек", callback_data="game_main_menu")
     )
     return report, kb
