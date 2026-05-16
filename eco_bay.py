@@ -3,7 +3,10 @@ from datetime import datetime
 from threading import Thread
 from telebot import types as tele_types
 from database import get_pet_data, update_pet_data, spend_dust, get_user_data, get_all_users_with_pets
-from neural_draw import get_cascade_image # 🟢 Подключаем наш новый каскадный модуль
+from neural_draw import get_cascade_image 
+
+# 🟢 КВАНТОВЫЙ КЭШ ДЛЯ ЭКО-ОТСЕКА
+ECO_IMAGE_CACHE = {}
 
 SHOP_ITEMS = {
     "natural_pebbles": {"name": "Речные камешки", "prompt": "small smooth river pebbles on the bottom", "price": 10},
@@ -50,7 +53,7 @@ def get_dynamic_prompt(pet, user_id):
     full_prompt = f"{base}, {snails_prompt}, {state_modifier}, {decor_prompt}, photorealistic"
     seed = user_id
     
-    return full_prompt, seed # Возвращаем текст промпта и зерно, а не готовую ссылку
+    return full_prompt, seed 
 
 def check_daily_decay(pet):
     today = datetime.now().strftime("%Y-%m-%d")
@@ -100,13 +103,21 @@ def send_eco_menu(bot, chat_id, user_id):
             if pet['count'] == 1: kb.add(tele_types.InlineKeyboardButton("➕ Найти пару (-200 💰)", callback_data="eco_addpet"))
             elif pet['count'] == 2: kb.add(tele_types.InlineKeyboardButton("🥚 Создать семью (-300 💰)", callback_data="eco_addpet"))
 
-    # 🟢 ВЫЗЫВАЕМ КАСКАДНЫЙ ГЕНЕРАТОР
-    image_bytes = get_cascade_image(prompt, seed)
-    
-    if image_bytes:
-        bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
+    # 🟢 КВАНТОВЫЙ КЭШ ДЛЯ УЛИТКИ
+    if prompt in ECO_IMAGE_CACHE:
+        # Берем готовую картинку из Telegram (Мгновенно, Бесплатно)
+        bot.send_photo(chat_id, photo=ECO_IMAGE_CACHE[prompt], caption=text, parse_mode="Markdown", reply_markup=kb)
     else:
-        bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации! Все резервные нейросети перегружены._", parse_mode="Markdown", reply_markup=kb)
+        # Генерируем заново через каскад (Платно, 2-3 секунды)
+        bot.send_chat_action(chat_id, 'upload_photo')
+        image_bytes = get_cascade_image(prompt, seed)
+        
+        if image_bytes:
+            msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
+            # Запоминаем код новой картинки
+            ECO_IMAGE_CACHE[prompt] = msg.photo[-1].file_id
+        else:
+            bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации! Все резервные нейросети перегружены._", parse_mode="Markdown", reply_markup=kb)
 
 def send_shop_menu(bot, chat_id, user_id, message_id):
     pet = get_pet_data(user_id)
