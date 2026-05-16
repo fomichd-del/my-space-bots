@@ -22,7 +22,8 @@ def get_english_prompt(russian_text):
     system_instruction = "Translate to English for image generation. Output ONLY high-quality, descriptive keywords. Kid-friendly. No verbs like 'Draw' or 'Create'."
     user_prompt = f"Describe object: {clean}"
     
-    MODELS_TO_TRY = ['gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-lite-latest']
+    # 🟢 Обновленный арсенал переводчиков (самые быстрые и умные из вашего скана)
+    MODELS_TO_TRY = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash']
     
     for model_name in MODELS_TO_TRY:
         for i, key in enumerate(API_KEYS):
@@ -48,15 +49,46 @@ def get_english_prompt(russian_text):
     return clean
 
 def get_cascade_image(prompt, seed):
-    print(f"🎨 НАЧАЛО ГЕНЕРАЦИИ. Промпт: {prompt}", flush=True)
+    # Сокращаем промпт в логах, чтобы не засорять консоль
+    short_prompt = prompt[:100] + "..." if len(prompt) > 100 else prompt
+    print(f"🎨 НАЧАЛО ГЕНЕРАЦИИ. Промпт: {short_prompt}", flush=True)
     
     stealth_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     }
 
-    # 🥇 1. Together AI (FLUX.1-schnell)
+    # 🚀 1. СВЕРХСВЕТОВОЙ ЗАВОД: Модели Gemini Image (Бесплатно, 3 ключа)
+    GEMINI_IMAGE_MODELS = [
+        'gemini-3.1-flash-image-preview',
+        'gemini-3-pro-image-preview',
+        'gemini-2.5-flash-image'
+    ]
+    
+    print("🛰 Запрос к матрице Gemini Image...", flush=True)
+    for img_model in GEMINI_IMAGE_MODELS:
+        for i, key in enumerate(API_KEYS):
+            try:
+                client = genai.Client(api_key=key)
+                result = client.models.generate_images(
+                    model=img_model,
+                    prompt=prompt,
+                    config=types.GenerateImagesConfig(
+                        number_of_images=1,
+                        aspect_ratio="1:1"
+                    )
+                )
+                if result.generated_images:
+                    print(f"✅ Gemini Image ({img_model}) Ключ {i+1}: УСПЕХ!", flush=True)
+                    # Извлекаем байты картинки из ответа Google
+                    return result.generated_images[0].image.image_bytes
+            except Exception as e:
+                # Если лимит исчерпан или модель недоступна - ИИ просто тихо перейдет к следующему ключу
+                print(f"⚠️ Gemini Image ({img_model}) Ключ {i+1} СБОЙ: {e}", flush=True)
+                continue
+
+    # 🥇 2. Together AI (FLUX.1-schnell) - Элитный резерв (если есть баланс)
     if TOGETHER_API_KEY:
-        print("🛰 Запрос к Together AI...", flush=True)
+        print("🔄 Переход к Together AI...", flush=True)
         headers = {"Authorization": f"Bearer {TOGETHER_API_KEY}", "Content-Type": "application/json"}
         data = {
             "model": "black-forest-labs/FLUX.1-schnell",
@@ -70,12 +102,12 @@ def get_cascade_image(prompt, seed):
                 print("✅ Together AI: УСПЕХ!", flush=True)
                 return base64.b64decode(res.json()["data"][0]["b64_json"])
             else:
-                print(f"⚠️ Together AI ОТКАЗ: {res.status_code} - {res.text[:100]}", flush=True)
+                print(f"⚠️ Together AI ОТКАЗ: {res.status_code}", flush=True)
         except Exception as e:
             print(f"⚠️ Together AI ОШИБКА: {e}", flush=True)
 
-    # 🥈 2. Pollinations FLUX
-    print("🔄 Пробую Pollinations FLUX...", flush=True)
+    # 🥈 3. Pollinations FLUX - Бесплатный резерв №1
+    print("🔄 Переход к Pollinations FLUX...", flush=True)
     try:
         url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&seed={seed}&model=flux&nologo=true"
         res = requests.get(url, headers=stealth_headers, timeout=25)
@@ -87,8 +119,8 @@ def get_cascade_image(prompt, seed):
     except Exception as e:
         print(f"⚠️ Pollinations FLUX ОШИБКА: {e}", flush=True)
 
-    # 🥉 3. Pollinations TURBO (Резервный резерв)
-    print("🔄 Пробую Pollinations TURBO...", flush=True)
+    # 🥉 4. Pollinations TURBO - Бесплатный резерв №2 (Последний рубеж)
+    print("🔄 Переход к Pollinations TURBO...", flush=True)
     try:
         url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=1024&height=1024&seed={seed}&model=turbo"
         res = requests.get(url, headers=stealth_headers, timeout=20)
