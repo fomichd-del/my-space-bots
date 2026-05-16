@@ -134,6 +134,16 @@ def game_engine(call):
     else:
         router.route_game(bot, call)
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith('apoc_'))
+def apoc_engine_handler(call):
+    # Снимаем "часики" загрузки с нажатой кнопки
+    try:
+        bot.answer_callback_query(call.id)
+    except:
+        pass
+    # Передаем сигнал в наш обновленный роутер
+    router.route_game(bot, call)
+
 # --- БАЗОВЫЕ ФУНКЦИИ ---
 # 🟢 МАКСИМАЛЬНЫЙ КАСКАД АКАДЕМИИ (Ум + Надежность)
 MODEL_CASCADE = [
