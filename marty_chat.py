@@ -409,11 +409,11 @@ def handle_start_help(message):
 
 @bot.message_handler(commands=['force_digest'])
 def force_digest_test(message):
-    user_id = message.from_user.id
     bot.reply_to(message, "⚙️ Калибровка линз... Извлекаю новости из архивов Академии.")
-  
+    
     try:
         from database import get_ship_date, get_today_news
+        import re # Убеждаемся, что парсер работает
         today = get_ship_date()
         news = get_today_news(today)
         
@@ -421,26 +421,25 @@ def force_digest_test(message):
             bot.send_message(message.chat.id, "📭 В архивах за сегодня пусто, Командор!")
             return
             
-        # 🟢 ИНЖЕНЕРНЫЙ ПЕРЕХВАТ ССЫЛОК (PYTHON ДЕЛАЕТ ВСЮ РАБОТУ)
+        # 🟢 ИНЖЕНЕРНЫЙ ПЕРЕХВАТ ССЫЛОК (PYTHON)
         ai_input = ""
         links_db = {}
         for i, n in enumerate(news):
             parts = n.split('|LINK|')
             text_part = parts[0].strip()
             link_part = parts[1].strip() if len(parts) > 1 else ""
-            # Даем ИИ только текст и порядковый номер ID
             ai_input += f"ID_{i}: {text_part[:300]}\n"
-            # Ссылку прячем в надежный сейф Python
             links_db[f"ID_{i}"] = link_part
             
         prompt = (
-            "Ты — Марти, научный пес. Сделай краткую выжимку новостей.\n"
+            "Ты — Марти, научный пес. Сделай выжимку новостей.\n"
             f"ДАННЫЕ:\n{ai_input}\n\n"
-            "ПРАВИЛА:\n"
-            "1. Каждая новость — это 1 лаконичная строка (10-15 слов).\n"
-            "2. В начале строки должен быть эмодзи и номер ID. Пример: 'ID_0: 🪐 Открыта новая туманность.'\n"
-            "3. НЕ пиши никаких ссылок или стрелочек. Только текст.\n"
-            "4. Сохраняй научный и бодрый тон."
+            "СТРОЖАЙШЕЕ ПРАВИЛО:\n"
+            "Обязательно сохраняй номер ID_ в начале каждой строки! Не удаляй его!\n"
+            "Пример твоего ответа:\n"
+            "ID_0: 🪐 Открыта новая туманность.\n"
+            "ID_1: 🚀 Запуск ракеты прошел успешно.\n"
+            "Никаких ссылок и стрелочек не ставь. Только ID, эмодзи и текст (10-15 слов)."
         )
         
         digest_msg = "📡 Ошибка дешифровки. Сигнал слишком зашумлен."
@@ -448,7 +447,7 @@ def force_digest_test(message):
         
         for model_name in MODEL_CASCADE:
             if success: break
-            for i, api_key in enumerate(API_KEYS):
+            for api_key in API_KEYS:
                 try:
                     client = genai.Client(api_key=api_key)
                     resp = client.models.generate_content(model=model_name, contents=prompt)
@@ -459,18 +458,20 @@ def force_digest_test(message):
                             line = line.strip()
                             if not line: continue
                             
-                            # Находим ID в ответе ИИ и достаем правильную ссылку из сейфа
-                            match = re.search(r'(ID_\d+):\s*(.*)', line)
+                            # Ищем ID_ в строке
+                            match = re.search(r'(ID_\d+):?\s*(.*)', line)
                             if match:
                                 news_id = match.group(1)
                                 content = match.group(2)
                                 url = links_db.get(news_id, "")
                                 if url:
-                                    # Железно приклеиваем Markdown
                                     final_lines.append(f"{content} [➡]({url})")
                                 else:
                                     final_lines.append(content)
-                                    
+                            else:
+                                # Если ИИ забыл написать ID, просто выдаем текст
+                                final_lines.append(line)
+                                
                         if len(final_lines) > 1:
                             final_lines.append("\nПрием!")
                             digest_msg = "\n".join(final_lines)
@@ -482,7 +483,7 @@ def force_digest_test(message):
         
     except Exception as e:
         bot.send_message(message.chat.id, f"🚨 Сбой систем: {e}")
-
+        
 @bot.message_handler(commands=['scan_models'])
 def scan_gemini_models(message):
     bot.reply_to(message, "⚙️ Запускаю глубокое сканирование доступных нейросетей Gemini. Ожидайте...")
