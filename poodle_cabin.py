@@ -111,8 +111,8 @@ def get_dog_prompt(dog, user_id):
     elif dust < 1000: dust_visual = "a large heap of shimmering cosmic dust on the table"
     else: dust_visual = "a massive overflowing treasure chest filled with glowing stardust on the desk"
 
-    # 3. Износ оборудования (Чистота)
-    if dog.get('clean', 100) < 40:
+    # 3. Износ оборудования (Чистота привязана к настроению и сытости)
+    if dog['mood'] < 40 or dog['hunger'] < 40:
         wear = "grimy metallic surfaces, faint oil stains on the walls, dusty floor, worn-out equipment"
     else:
         wear = "pristine polished chrome surfaces, sterile clean environment, high-tech gloss"
