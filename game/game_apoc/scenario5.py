@@ -7,13 +7,28 @@ def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
     current_node, timer_end = get_game_status(user_id)
-    if current_node is None: current_node = "apoc_s5_start"
+    
+    # Защита от пустой базы
+    if current_node is None: 
+        current_node = "apoc_start"
 
-    # --- [ СИСТЕМА ФЛАГОВ ГЛАВЫ 5 ] ---
-    saved_flags = ""
-    important_flags = ["_base_fortified", "_vlad_trained", "_tech_restored", "_satellite_link"]
-    for flag in important_flags:
-        if flag in current_node: saved_flags += flag
+    # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (ИСПРАВЛЕНИЕ ОШИБКИ) ] ---
+    if timer_end:
+        # Если БД вернула время как текст, аккуратно превращаем его в объект времени
+        if isinstance(timer_end, str):
+            try:
+                clean_time = timer_end.split('.')[0] # Отрезаем миллисекунды если есть
+                timer_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
+            except:
+                timer_end = None
+                
+        # Если время еще не вышло - блокируем и показываем алерт
+        if timer_end and datetime.now() < timer_end:
+            mins = int((timer_end - datetime.now()).total_seconds() // 60) + 1
+            bot.answer_callback_query(call.id, f"⌛️ Процесс идет... Осталось около {mins} мин. Марти: 'Терпение!'", show_alert=True)
+            return
+
+    # ВНИМАНИЕ: Блок saved_flags полностью удален, чтобы не стирать память!
 
     # --- [ ЭТАП 1: ПЕРВЫЙ РАССВЕТ ] ---
     if call.data == "apoc_s5_start":
