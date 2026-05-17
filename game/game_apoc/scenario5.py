@@ -558,7 +558,7 @@ def run_scenario(bot, call):
     elif call.data.startswith("apoc_s5_30"):
         # Определяем концовку на основе выбора
         ending = "Свободы" if "freedom" in call.data else "Порядка" if "order" in call.data else "Милосердия"
-        update_game_progress(user_id, f"apoc_game_complete_{ending}")
+        update_game_progress(user_id, current_node + f"_apoc_game_complete_{ending}")
         add_xp(user_id, 1000, username)
         
         text = (f"🏆 **ФИНАЛ: ПУТЬ {ending.upper()}**\n"
