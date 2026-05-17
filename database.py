@@ -241,6 +241,28 @@ def get_user_data(user_id):
         cursor.close()
         conn.close()
 
+def update_user_data(user_id, u_data):
+    """Сохраняет обновленные данные пользователя (опыт, пыль, стрик) обратно в базу"""
+    conn = get_connection()
+    if not conn: return
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE users 
+            SET xp = %s, 
+                spendable_dust = %s, 
+                jackpot_claimed = %s, 
+                streak_days = %s
+            WHERE user_id = %s
+        ''', (u_data['xp'], u_data['spendable_dust'], u_data['jackpot_claimed'], u_data['streak_days'], user_id))
+        conn.commit()
+    except Exception as e:
+        send_log(f"Ошибка сохранения данных пилота: {e}")
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
+
 def set_jackpot_claimed(user_id):
     conn = get_connection()
     if not conn: return
