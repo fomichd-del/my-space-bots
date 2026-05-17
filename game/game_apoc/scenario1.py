@@ -175,8 +175,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("⬅️ Назад к входу", callback_data="apoc_start")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "apoc_n1_main_hub" + saved_flags)
-
+        
 # --- [ ЭТАП 10-A: ВХОД В АРХИВ-X ] ---
     elif call.data == "apoc_n1_secret_entry":
         text = ("📉 **ЭТАП 10-A: ЛОГИЧЕСКИЙ ЗАМОК**\n\n"
