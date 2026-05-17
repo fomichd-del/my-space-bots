@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 from telebot import types as tele_types
 from database import (get_dog_data, update_dog_data, spend_dust, get_user_data, 
-                      equip_dog_item, unequip_dog_item, process_dog_walk)
+                      equip_dog_item, unequip_dog_item, process_dog_walk, update_user_data)
 from neural_draw import get_cascade_image 
 
 # 🟢 КВАНТОВЫЙ КЭШ (Сейф для бесплатных картинок)
@@ -47,6 +47,28 @@ DOG_SHOP = {
     "monocle_tophat": {"name": "Джентльмен", "prompt": "wearing a formal tall black felt top hat and a golden monocle physically covering the right eye, realistic victorian aesthetic", "price": 50},
     "crown_of_light": {"name": "Легендарный Венец", "prompt": "a massive crown made of pure intense white solar light is hovering exactly one inch above the head, casting strong realistic light rays onto the fur", "price": 150},
 
+    # --- 🌌 СЕКРЕТНЫЙ ЛУТ (ТОЛЬКО ИЗ ЭКСПЕДИЦИЙ) ---
+    "ancient_relic": {"name": "Древний артефакт", "prompt": "holding a glowing ancient alien artifact in its mouth, intense golden light reflecting on the snout", "price": 0},
+    "broken_android_ear": {"name": "Ухо андроида", "prompt": "wearing a realistic rusted android ear as a funny trophy attached to the collar", "price": 0},
+    "void_collar": {"name": "Ошейник Пустоты", "prompt": "wearing a collar made of pure black nothingness, distorting light and space around the neck", "price": 0},
+    "plasma_ball": {"name": "Плазменный мяч", "prompt": "playing with a floating glowing plasma ball that reflects in its eyes, electric sparks in fur", "price": 0},
+    "cyber_tail_ring": {"name": "Кольцо на хвост", "prompt": "a thick chrome robotic ring with blue LEDs physically attached to the base of the tail", "price": 0},
+    "starlight_medal": {"name": "Медаль Звезды", "prompt": "wearing a heavy star-shaped medal made of condensed starlight on a thick silver chain", "price": 0},
+    "holographic_map": {"name": "Голо-карта", "prompt": "a glowing 3D holographic star map is projected from a small device on the collar, floating in front of the dog", "price": 0},
+    "nebula_boots": {"name": "Туманные сапоги", "prompt": "wearing translucent boots filled with swirling colorful nebula gas and micro-stars", "price": 0},
+    "black_hole_pendant": {"name": "Кулон-Сингулярность", "prompt": "a tiny realistic black hole contained in a glass sphere hanging from the collar, sucking in light", "price": 0},
+    "golden_asteroid_bone": {"name": "Золотая кость", "prompt": "holding a shiny gold-veined asteroid fragment shaped like a bone firmly in its teeth", "price": 0},
+    "ion_cape": {"name": "Ионный плащ", "prompt": "wearing a flowing cape made of bright blue ion energy sparks, crackling with electricity", "price": 0},
+    "alien_translator": {"name": "Переводчик", "prompt": "a high-tech speech device attached to the neck with glowing blue alien runes and sensors", "price": 0},
+    "comet_tail_ribbon": {"name": "Лента кометы", "prompt": "a long glowing ribbon of comet dust and ice crystals is tied to the dog's tail", "price": 0},
+    "zero_g_harness": {"name": "Зеро-Г сбруя", "prompt": "wearing an advanced zero-gravity harness with small floating thrusters and metallic plates", "price": 0},
+    "meteorite_shades": {"name": "Метеоритные очки", "prompt": "wearing dark shades carved from a solid dark meteorite with tiny cosmic glints, reflecting the stars", "price": 0},
+    "pulsar_watch": {"name": "Пульсар-часы", "prompt": "a glowing futuristic watch with a spinning pulsar display attached to the front paw", "price": 0},
+    "energy_shield_orb": {"name": "Сфера-щит", "prompt": "the dog is surrounded by a faint semi-transparent blue energy shield sphere with hexagonal patterns", "price": 0},
+    "quantum_leash": {"name": "Квантовый поводок", "prompt": "a glowing purple quantum energy leash is floating magically next to the dog's collar", "price": 0},
+    "ruby_mars_stone": {"name": "Марсианский рубин", "prompt": "holding a bright red glowing Martian ruby stone firmly in its mouth, casting red light", "price": 0},
+    "cyberspace_aura": {"name": "Аура Матрицы", "prompt": "surrounded by falling green digital matrix code flowing through the fur like rain", "price": 0}
+  
     # --- 🆕🔥 НОВЫЕ ПОСТУПЛЕНИЯ 🔥🆕 ---
     "exosuit_armor": {"name": "Экзо-броня", "prompt": "wearing a complex matte-black tactical exosuit armor fitted to the dog's body, articulated plates, glowing blue energy cables and pistons, realistic combat-worn texture", "price": 110},
     "cyberpunk_jacket": {"name": "Куртка Найт-Сити", "prompt": "wearing an oversized black leather cyberpunk jacket with a high pop-up collar glowing neon-pink, physical wires and hardware integrated into the leather", "price": 95},
@@ -163,7 +185,7 @@ def send_dog_menu(bot, chat_id, user_id):
             tele_types.InlineKeyboardButton("🍖 Кормить (-5 💰)", callback_data="dog_feed"),
             tele_types.InlineKeyboardButton("💤 Спать (+40 🔋)", callback_data="dog_sleep"),
             tele_types.InlineKeyboardButton("🎾 Играть (-5 💰)", callback_data="dog_play"),
-            tele_types.InlineKeyboardButton("🚀 Выгулять (-10 💰)", callback_data="dog_walk"), 
+            tele_types.InlineKeyboardButton("🗺 Экспедиция", callback_data="dog_map"),
             tele_types.InlineKeyboardButton("👕 Гардероб", callback_data="dog_wardrobe"), 
             tele_types.InlineKeyboardButton("🛒 Магазин", callback_data="dog_shop") 
         )
@@ -199,6 +221,41 @@ def handle_dog_callback(bot, call):
             bot.answer_callback_query(call.id, "🍖 Вкусно! Сытость +30, Опыт +1")
         else: bot.answer_callback_query(call.id, "❌ Нужно 5 пыли!")
 
+    elif action == "map":
+        kb = tele_types.InlineKeyboardMarkup()
+        kb.row(tele_types.InlineKeyboardButton("🪨 Астероидный пояс (-50 🔋)", callback_data="dog_exp_belt"))
+        kb.row(tele_types.InlineKeyboardButton("🛰 Заброшенная станция (-30 🔋)", callback_data="dog_exp_station"))
+        kb.row(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
+        
+        bot.edit_message_caption("🗺 **ВЫБОР ЛОКАЦИИ ДЛЯ ЭКСПЕДИЦИИ**\n\n"
+                              "🪨 **Астероидный пояс**: Высокий риск, но можно найти залежи Пыли.\n"
+                              "🛰 **Заброшенная станция**: Шанс найти секретные артефакты и экипировку.", 
+                              call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return
+
+    elif action == "exp_station":
+        if dog['energy'] >= 30:
+            dog['energy'] -= 30
+            import random
+            # Шанс 30% найти секретный лут
+            if random.random() < 0.30:
+                # Берем список всех секретных предметов (цена которых 0)
+                secret_items = [k for k, v in DOG_SHOP.items() if v['price'] == 0]
+                found_item = random.choice(secret_items)
+                
+                if found_item not in dog['items']:
+                    dog['items'].append(found_item)
+                    msg = f"🛰 **УСПЕХ!** Марти нашел артефакт: *{DOG_SHOP[found_item]['name']}*! Проверьте гардероб."
+                else:
+                    msg = "🛰 Марти нашел обломки старого спутника, но ничего полезного."
+            else:
+                msg = "🛰 Экспедиция прошла спокойно, артефактов не обнаружено."
+            
+            update_dog_data(user_id, dog)
+            bot.answer_callback_query(call.id, msg, show_alert=True)
+        else:
+            bot.answer_callback_query(call.id, "❌ Недостаточно энергии для прыжка!", show_alert=True)
+  
     elif action == "sleep":
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
@@ -218,13 +275,28 @@ def handle_dog_callback(bot, call):
             bot.answer_callback_query(call.id, "🎾 Грави-мяч — это весело!")
         else: bot.answer_callback_query(call.id, "❌ Нужно 5 пыли!")
 
-    elif action == "walk":
-        res = process_dog_walk(user_id)
-        if res == "low_dust": bot.answer_callback_query(call.id, "❌ Нужно 10 пыли!")
-        elif res == "error": bot.answer_callback_query(call.id, "❌ Ошибка систем.")
+    elif action == "exp_belt":
+        if dog['energy'] >= 50:
+            dog['energy'] -= 50
+            import random
+            
+            # Шанс 60% найти от 50 до 150 Пыли
+            if random.random() < 0.60:
+                found_dust = random.randint(50, 150)
+                
+                # Зачисляем Пыль на баланс пилота
+                u_data = get_user_data(user_id)
+                u_data['spendable_dust'] += found_dust
+                update_user_data(user_id, u_data) 
+                
+                msg = f"🪨 УСПЕХ! Марти нашел богатое месторождение: +{found_dust} 💰 Пыли!"
+            else:
+                msg = "🪨 Пусто... Марти увернулся от метеорита и вернулся ни с чем."
+            
+            update_dog_data(user_id, dog)
+            bot.answer_callback_query(call.id, msg, show_alert=True)
         else:
-            bonus = f" Найдено {res} XP!" if isinstance(res, int) else ""
-            bot.answer_callback_query(call.id, f"🚀 Прогулка завершена! Счастье и Энергия в норме.{bonus}", show_alert=True)
+            bot.answer_callback_query(call.id, "❌ Для полета в пояс нужно 50 🔋 Энергии!", show_alert=True)
 
     elif action == "choose_prof":
         kb = tele_types.InlineKeyboardMarkup()
@@ -278,7 +350,8 @@ def handle_dog_callback(bot, call):
 
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         for k, v in DOG_SHOP.items():
-            if k not in dog['items']:
+            # 🟢 ДОБАВЛЕНА ПРОВЕРКА: v['price'] > 0 (Скрываем секретный лут с витрины)
+            if k not in dog['items'] and v['price'] > 0:
                 price = v['price']
                 if "Инженер" in prof:
                     price = int(price * 0.8)
