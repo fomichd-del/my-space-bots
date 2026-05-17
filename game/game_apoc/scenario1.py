@@ -479,6 +479,25 @@ def run_scenario(bot, call):
             update_game_progress(user_id, current_node + "_apoc_ch1_done_knowledge")
         bot.edit_message_text("🧠 **ФИНАЛ: ПУТЬ ЗНАНИЯ**...", call.message.chat.id, call.message.message_id)
 
+# --- [ ОБРАБОТКА ЭТАПА 17: ОТОГРЕВ РУКАМИ ] ---
+    elif call.data == "apoc_n1_melt_fail":
+        # Просто выводим уведомление, что это не работает
+        bot.answer_callback_query(call.id, "🥶 Руки примерзают к металлу! Марти: 'Док, не глупите, так мы только кожу оставим на двери. Нужен йод!'", show_alert=True)
+
+    # --- [ ОБРАБОТКА ЭТАПА 6: СКЛАД (ВСКРЫТИЕ) ] ---
+    elif call.data == "apoc_n1_res_1":
+        # Если мы сюда попали, значит таймер из начала файла (Step 1) уже пропустил нас
+        # (потому что время вышло или его не было)
+        if "_item_cloth" not in current_node:
+            update_game_progress(user_id, current_node + "_item_cloth")
+            add_xp(user_id, 3, username)
+            msg = "✅ **УСПЕХ: СКЛАД ОТКРЫТ**\n\nВы вскрыли ящик. Внутри оказался плотный брезент и пара старых фильтров. Это пригодится для костюма!"
+        else:
+            msg = "📦 Вы уже забрали всё ценное из этого ящика."
+            
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 К хабу", callback_data="apoc_n1_base_menu"))
+        bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
 # --- ФУНКЦИЯ КРАФТА (УСЛОЖНЕННАЯ) ---
 def handle_craft(bot, call):
     user_id = call.from_user.id
