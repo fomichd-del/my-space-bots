@@ -519,11 +519,11 @@ def run_scenario(bot, call):
 
     # --- [ БЛОК: ДЕТЕКТИВНЫЕ НАХОДКИ (Кнопки «Изучить») ] ---
     elif call.data == "apoc_s2_clue_fruit":
-        update_game_progress(user_id, current_node + "_clue_fruit")
+        update_game_progress(user_id, current_node + "_apoc_clue_fruit")
         bot.answer_callback_query(call.id, "🧬 АНАЛИЗ: Плод содержит ДНК, идентичную вашей на 99.8%. Марти: 'Это не дерево, это инкубатор!'", show_alert=True)
 
     elif call.data == "apoc_s2_clue_notes":
-        update_game_progress(user_id, current_node + "_clue_notes")
+        update_game_progress(user_id, current_node + "_apoc_clue_notes")
         bot.answer_callback_query(call.id, "📝 ЗАПИСЬ: 'Дмитрий, если читаешь это — Семя требует ключа'. Почерк деда... он знал, что вы придете'.", show_alert=True)
 
     elif call.data == "apoc_s2_clue_info":
