@@ -469,7 +469,6 @@ def run_scenario(bot, call):
     elif call.data == "apoc_n1_end_power":
         if "apoc_ch1_done" not in current_node:
             add_xp(user_id, 50, username)
-            # ВАЖНО: Добавляем флаг к текущему прогрессу (current_node + ...)
             update_game_progress(user_id, current_node + "_apoc_ch1_done_power")
         bot.edit_message_text("🦾 **ФИНАЛ: ПУТЬ СИЛЫ**...", call.message.chat.id, call.message.message_id)
 
