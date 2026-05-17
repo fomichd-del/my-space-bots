@@ -56,7 +56,7 @@ def get_apoc_chapters_menu():
     )
     kb = tele_types.InlineKeyboardMarkup(row_width=1)
     kb.add(
-        tele_types.InlineKeyboardButton("🌑 Глава 1: Радиомолчание", callback_data="apoc_s1_start"), # 🟢 ИСПРАВЛЕНО ЗДЕСЬ
+        tele_types.InlineKeyboardButton("🌑 Глава 1: Радиомолчание", callback_data="apoc_start"), # 🟢 ИСПРАВЛЕНО ЗДЕСЬ
         tele_types.InlineKeyboardButton("🌫 Глава 2: Кислотные болота", callback_data="apoc_s2_start"),
         tele_types.InlineKeyboardButton("🧬 Глава 3: Корни проблем", callback_data="apoc_s3_start"),
         tele_types.InlineKeyboardButton("🏢 Глава 4: Тень Академии", callback_data="apoc_s4_start"),
