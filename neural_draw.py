@@ -52,6 +52,15 @@ def get_cascade_image(prompt, seed):
     # Сокращаем промпт в логах, чтобы не засорять консоль
     short_prompt = prompt[:100] + "..." if len(prompt) > 100 else prompt
     print(f"🎨 НАЧАЛО ГЕНЕРАЦИИ. Промпт: {short_prompt}", flush=True)
+    # 🧬 ЛЕГЕНДАРНАЯ МУТАЦИЯ (Шанс 1%)
+    mutation = ""
+    if seed % 100 == 7:
+        print("✨ ОБНАРУЖЕНА ЛЕГЕНДАРНАЯ МУТАЦИЯ ДНК!", flush=True)
+        mutation = "the dog has incredible glowing iridescent fur that changes colors like a nebula, cosmic energy radiating from the coat,"
+    
+    # Добавляем мутацию в начало промпта
+    if mutation:
+        prompt = mutation + " " + prompt
     
     stealth_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
