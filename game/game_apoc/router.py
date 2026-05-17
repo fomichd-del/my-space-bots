@@ -10,15 +10,21 @@ def route_apoc(bot, call):
     if current_node is None:
         current_node = "apoc_start"
 
+    # --- 0. ПОДСТРАХОВКА МЕНЮ ГЛАВ ---
+    if data == "apoc_menu":
+        from .. import menu
+        report, kb = menu.get_apoc_chapters_menu()
+        bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return
+
     # --- 1. СТАРТОВЫЕ КНОПКИ (С БЛОКИРОВКОЙ) ---
     
-    # ГЛАВА 1 (Доступна всегда)
-    if data == "apoc_s1_start" or data == "apoc_n1_start":
+    # ГЛАВА 1 (Доступна всегда) -> 🟢 ИСПРАВЛЕНО: Добавлен перехват "apoc_start"
+    if data == "apoc_start" or data == "apoc_s1_start" or data == "apoc_n1_start":
         scenario1.run_scenario(bot, call)
         
     # ГЛАВА 2
     elif data == "apoc_s2_start":
-        # Проверяем, прошел ли игрок 1 главу (наличие флага apoc_ch1_done или нахождение в старших главах)
         if "apoc_ch1_done" in current_node or any(current_node.startswith(p) for p in ["apoc_s2", "apoc_s3", "apoc_s4", "apoc_s5"]):
             scenario2.run_scenario(bot, call)
         else:
@@ -44,7 +50,6 @@ def route_apoc(bot, call):
             scenario5.run_scenario(bot, call)
         else:
             bot.answer_callback_query(call.id, "🔒 Финал заблокирован. Пройдите Главу 4.", show_alert=True)
-
 
     # --- 2. ВНУТРЕННИЕ ШАГИ ИГРЫ (ОБРАБОТКА ЭТАПОВ) ---
     elif data.startswith("apoc_s5_"):
