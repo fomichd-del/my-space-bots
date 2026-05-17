@@ -104,15 +104,15 @@ def get_cascade_image(prompt, seed):
                     prompt=prompt,
                     config=types.GenerateImagesConfig(
                         number_of_images=1,
-                        aspect_ratio="1:1"
+                        aspect_ratio="1:1",
+                        # 🟢 ДОБАВЛЕН ГЕНЕТИЧЕСКИЙ КОД ДЛЯ GEMINI
+                        seed=int(seed) if str(seed).isdigit() else None
                     )
                 )
                 if result.generated_images:
                     print(f"✅ Gemini Image ({img_model}) Ключ {i+1}: УСПЕХ!", flush=True)
-                    # Извлекаем байты картинки из ответа Google
                     return result.generated_images[0].image.image_bytes
             except Exception as e:
-                # Если лимит исчерпан или модель недоступна - ИИ просто тихо перейдет к следующему ключу
                 print(f"⚠️ Gemini Image ({img_model}) Ключ {i+1} СБОЙ: {e}", flush=True)
                 continue
 
