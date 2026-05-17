@@ -466,16 +466,19 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # Результаты финала
+    # Результаты финала главы 1
     elif call.data == "apoc_n1_end_power":
-        add_xp(user_id, 50, username)
-        update_game_progress(user_id, "apoc_ch1_done_power" + saved_flags + "_ch1_claimed")
-        bot.edit_message_text("🦾 **ФИНАЛ: ПУТЬ СИЛЫ**\n\nВы разобрали андроида. Теперь ваш костюм — лучший в этих пустошах. Но тайна деда осталась нераскрытой.\n\n💰 +50 Пыли.", call.message.chat.id, call.message.message_id)
+        if "apoc_ch1_done" not in current_node:
+            add_xp(user_id, 50, username)
+            # ВАЖНО: Добавляем флаг к текущему прогрессу (current_node + ...)
+            update_game_progress(user_id, current_node + "_apoc_ch1_done_power")
+        bot.edit_message_text("🦾 **ФИНАЛ: ПУТЬ СИЛЫ**...", call.message.chat.id, call.message.message_id)
 
     elif call.data == "apoc_n1_end_knowledge":
-        add_xp(user_id, 100, username) # За сложный путь даем больше
-        update_game_progress(user_id, "apoc_ch1_done_knowledge" + saved_flags + "_ch1_claimed")
-        bot.edit_message_text("🧠 **ФИНАЛ: ПУТЬ ЗНАНИЯ**\n\nРобот передал вам зашифрованный архив 'Мариуполь-85'. Там координаты второго бункера. \n\n💰 +100 Пыли (Легендарное открытие).", call.message.chat.id, call.message.message_id)
+        if "apoc_ch1_done" not in current_node:
+            add_xp(user_id, 100, username) 
+            update_game_progress(user_id, current_node + "_apoc_ch1_done_knowledge")
+        bot.edit_message_text("🧠 **ФИНАЛ: ПУТЬ ЗНАНИЯ**...", call.message.chat.id, call.message.message_id)
 
 # --- ФУНКЦИЯ КРАФТА (УСЛОЖНЕННАЯ) ---
 def handle_craft(bot, call):
