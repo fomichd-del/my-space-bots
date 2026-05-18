@@ -57,6 +57,7 @@ def init_db():
             ("dog_equipped", "TEXT DEFAULT ''"),
             ("dog_profession", "TEXT DEFAULT 'Кадет'"),
             ("last_quiz_date", "TEXT DEFAULT ''")
+            ("dog_last_exp", "TEXT DEFAULT ''")
         ]
         
         for col_name, col_type in new_columns:
