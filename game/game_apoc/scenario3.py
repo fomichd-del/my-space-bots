@@ -544,23 +544,6 @@ def run_scenario(bot, call):
 
     elif call.data == "apoc_s3_clue_dna_bank":
         bot.answer_callback_query(call.id, "🦷 МАРКИРОВКА: 'Образец 1985-А. Генетическая память сохранена'. Это база данных целого поколения!", show_alert=True)
-
-# --- [ ПРОПУЩЕННЫЕ СЮЖЕТНЫЕ ДЕЙСТВИЯ (ОБЯЗАТЕЛЬНО) ] ---
-    elif call.data == "apoc_s3_analyze_port":
-        bot.answer_callback_query(call.id, "🔌 Марти: 'Док, порт защищен шифром деда. Прямой взлом не выйдет, резать провода было быстрее!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s3_elevator_start":
-        bot.answer_callback_query(call.id, "🚫 ЛИФТ ЗАБЛОКИРОВАН. Марти: 'Навигатор перерезал питание сверху! Только Бор, Док! Жгите замок!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s3_nav_talk":
-        bot.answer_callback_query(call.id, "🎭 Навигатор лишь ухмыляется: 'Слова — это шум. Ваша ДНК говорит громче'. Он готов к атаке!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s3_clue_dna_bank":
-        bot.answer_callback_query(call.id, "🦷 МАРКИРОВКА: 'Образец 1985-А. Генетическая память сохранена'. Это база данных целого поколения!", show_alert=True)
-        return
     
     # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ ] ---
     elif call.data == "apoc_s3_clue_track":
