@@ -267,13 +267,6 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔄 Вскрыть замок", callback_data="apoc_n1_res_1"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    elif call.data == "apoc_n1_res_1":
-        update_game_progress(user_id, current_node + "_item_cloth")
-        text = ("✅ **НАЙДЕНО: БРЕЗЕНТ**\n\n"
-                "Марти: 'Фу, ну и запах. Кажется, в этом брезенте спала семья мутировавших енотов. Но для костюма пойдет!'.")
-        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🔙 К хабу", callback_data="apoc_n1_base_menu"))
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-
     # --- [ ЭТАПЫ 16-30: ШАХТЫ, СТЕЛС И ФИНАЛ (Логика и Секреты) ] ---
     # (Здесь мы добавим встречу с роботом-охранником, загадку с вентиляцией и финал)
     
