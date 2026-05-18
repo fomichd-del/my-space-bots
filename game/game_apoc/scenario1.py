@@ -183,9 +183,12 @@ def run_scenario(bot, call):
         kb.add(
             tele_types.InlineKeyboardButton("🕳 Спуститься в секретный подвал", callback_data="apoc_n1_secret_entry"),
             tele_types.InlineKeyboardButton("🧵 Перейти к Верстаку (Крафт)", callback_data="apoc_n1_workbench"),
-            tele_types.InlineKeyboardButton("📦 Обыскать склад (Этап 1/3)", callback_data="apoc_n1_search_1"),
-            tele_types.InlineKeyboardButton("🔦 Обыскать лабораторию (Этап 2/3)", callback_data="apoc_n1_search_2"),
-            tele_types.InlineKeyboardButton("⬅️ Назад к входу", callback_data="apoc_start")
+            tele_types.InlineKeyboardButton("📦 Обыскать склад (Брезент)", callback_data="apoc_n1_search_1"),
+            # 🟢 ИСПРАВЛЕНИЕ 1: ДОБАВЛЕНА ПРОПУЩЕННАЯ КНОПКА
+            tele_types.InlineKeyboardButton("💊 Заглянуть в кладовую (Аптечка)", callback_data="apoc_n1_pantry"),
+            tele_types.InlineKeyboardButton("🔦 Обыскать лабораторию (Сюжет)", callback_data="apoc_n1_search_2"),
+            # 🟢 ИСПРАВЛЕНИЕ 2: ПРАВИЛЬНЫЙ ВЫХОД В ХАБ
+            tele_types.InlineKeyboardButton("⬅️ Выйти в меню симуляций", callback_data="game_main_menu")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         
