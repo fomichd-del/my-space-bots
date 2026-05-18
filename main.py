@@ -16,7 +16,7 @@ from database import init_db, add_xp, get_user_stats, get_rank_name, add_news
 from base_fact_star import CONSTELLATIONS
 # 🟢 ДОБАВЛЕНО: Пробуждаем Марти-Ученого из его файла
 from marty_chat import start_marty_autonomous 
-from game import menu, router, main_router
+from game import menu, router
 
 # --- [ КОНФИГУРАЦИЯ ПУТЕЙ ] ---
 TOKEN = os.getenv('TELEGRAM_TOKEN')
