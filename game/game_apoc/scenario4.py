@@ -641,7 +641,3 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s4_clue_stars":
         bot.answer_callback_query(call.id, "🛰 Спутники «Орион» в 1985-м были лишь проектом на бумаге. Но кто-то уже тогда рисовал их орбиты.", show_alert=True)
         return
-
-    # Если вдруг прилетит неизвестный callback
-    else:
-        bot.answer_callback_query(call.id, "⚠️ Ошибка связи: Архив искажает сигнал. Попробуйте еще раз.")
