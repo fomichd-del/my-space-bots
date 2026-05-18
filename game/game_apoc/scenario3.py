@@ -505,7 +505,7 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 3 ] ---
     elif call.data == "apoc_s3_30":
-        update_game_progress(user_id, "apoc_ch3_done" + saved_flags)
+        update_game_progress(user_id, current_node + "_apoc_ch3_done")
         add_xp(user_id, 200, username)
         text = (f"🏙 **ЭТАП 30: РАССВЕТ НАД РУИНАМИ**\n\n"
                 f"Лифт выбрасывает вас на крышу самого высокого здания на проспекте Мира. Вы стоите над Мариуполем, сжимая в руках "
