@@ -487,7 +487,7 @@ def run_scenario(bot, call):
 
    # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 2 ] ---
     elif call.data == "apoc_s2_30":
-        update_game_progress(user_id, "apoc_ch2_done" + saved_flags)
+        update_game_progress(user_id, current_node + "_apoc_ch2_done")
         add_xp(user_id, 150, username) # Награда за сложную главу
         text = (f"🏜 **ЭТАП 30: ГРАНИЦА МАРИУПОЛЯ**\n\n"
                 f"Вы выбираетесь из кислотного тумана. Сзади догорают руины ТЦ 'Зенит'. Впереди, за пеленой смога, "
