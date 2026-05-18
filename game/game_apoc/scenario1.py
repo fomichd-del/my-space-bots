@@ -268,6 +268,14 @@ def run_scenario(bot, call):
     
     # --- [ ЭТАПЫ 11-15: СЛОЖНЫЙ ПОИСК (Таймеры и Детектив) ] ---
     elif call.data == "apoc_n1_search_1":
+        # 🛡 ЗАЩИТА: Проверяем, не прошли ли мы уже этот этап?
+        if "_item_cloth" in current_node:
+            bot.answer_callback_query(call.id, "📦 Вы уже вскрыли этот замок и забрали брезент!", show_alert=True)
+            # Принудительно возвращаем игрока в меню базы
+            run_scenario(bot, type('obj', (object,), {'from_user': call.from_user, 'data': 'apoc_n1_base_menu', 'message': call.message, 'id': call.id}))
+            return
+
+        # Если не проходили — запускаем таймер как обычно
         set_game_timer(user_id, 15)
         text = ("📦 **СКЛАД: ТЯЖЕЛЫЙ ТРУД**\n\n"
                 "Вы начинаете разгребать завалы. Марти нашел коробку с надписью 'Хлам', но она заперта на магнитный замок.\n\n"
