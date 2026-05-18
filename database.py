@@ -56,7 +56,7 @@ def init_db():
             ("last_vision_time", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
             ("dog_equipped", "TEXT DEFAULT ''"),
             ("dog_profession", "TEXT DEFAULT 'Кадет'"),
-            ("last_quiz_date", "TEXT DEFAULT ''")
+            ("last_quiz_date", "TEXT DEFAULT ''"),
             ("dog_last_exp", "TEXT DEFAULT ''")
         ]
         
