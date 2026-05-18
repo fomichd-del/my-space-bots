@@ -239,22 +239,37 @@ def handle_dog_callback(bot, call):
         return
 
     elif action == "exp_station":
+        from database import get_ship_date
+        today = get_ship_date()
+        
+        # 🛡 ПРОВЕРКА НА ОГРАНИЧЕНИЕ ПО ВРЕМЕНИ (1 раз в день в любую экспедицию)
+        if dog.get('last_exp', '') == today:
+            bot.answer_callback_query(call.id, "🛰 Навигатор сообщает: Гипердвигатель на перезарядке. Доступен 1 полет в день!", show_alert=True)
+            return
+
         if dog['energy'] >= 30:
             dog['energy'] -= 30
+            dog['last_exp'] = today # Фиксируем полет
+            
             import random
-            # Шанс 30% найти секретный лут
-            if random.random() < 0.30:
-                # Берем список всех секретных предметов (цена которых 0)
+            from datetime import datetime
+            
+            # 🌟 Жесткая логика шансов (10% будни, 50% воскресенье)
+            is_sunday = (datetime.now().weekday() == 6)
+            drop_chance = 0.50 if is_sunday else 0.10
+            
+            if random.random() < drop_chance:
                 secret_items = [k for k, v in DOG_SHOP.items() if v['price'] == 0]
                 found_item = random.choice(secret_items)
                 
                 if found_item not in dog['items']:
                     dog['items'].append(found_item)
-                    msg = f"🛰 **УСПЕХ!** Марти нашел артефакт: *{DOG_SHOP[found_item]['name']}*! Проверьте гардероб."
+                    msg = f"🛰 **УСПЕХ!** Марти обыскал заброшенные палубы и нашел: *{DOG_SHOP[found_item]['name']}*! Проверьте гардероб."
+                    if is_sunday: msg = "✨ **ВОСКРЕСНЫЙ БУСТ!** " + msg
                 else:
                     msg = "🛰 Марти нашел обломки старого спутника, но ничего полезного."
             else:
-                msg = "🛰 Экспедиция прошла спокойно, артефактов не обнаружено."
+                msg = "🛰 Экспедиция завершена. Станция пуста, артефактов не обнаружено."
             
             update_dog_data(user_id, dog)
             bot.answer_callback_query(call.id, msg, show_alert=True)
@@ -281,20 +296,36 @@ def handle_dog_callback(bot, call):
         else: bot.answer_callback_query(call.id, "❌ Нужно 5 пыли!")
 
     elif action == "exp_belt":
+        from database import get_ship_date
+        today = get_ship_date()
+        
+        # 🛡 ПРОВЕРКА НА ОГРАНИЧЕНИЕ ПО ВРЕМЕНИ (Общий кулдаун с Заброшенной станцией)
+        if dog.get('last_exp', '') == today:
+            bot.answer_callback_query(call.id, "🪨 Сканеры перегружены. Доступен 1 полет в день!", show_alert=True)
+            return
+
         if dog['energy'] >= 50:
             dog['energy'] -= 50
-            import random
+            dog['last_exp'] = today # Фиксируем полет
             
-            # Шанс 60% найти от 50 до 150 Пыли
-            if random.random() < 0.60:
+            import random
+            from datetime import datetime
+            
+            # 🌟 Жесткая логика шансов (10% будни, 50% воскресенье)
+            is_sunday = (datetime.now().weekday() == 6)
+            drop_chance = 0.50 if is_sunday else 0.10
+            
+            if random.random() < drop_chance:
                 found_dust = random.randint(50, 150)
+                if is_sunday:
+                    found_dust = int(found_dust * 2) # Удваиваем пыль по воскресеньям
                 
-                # Зачисляем Пыль на баланс пилота
                 u_data = get_user_data(user_id)
                 u_data['spendable_dust'] += found_dust
                 update_user_data(user_id, u_data) 
                 
-                msg = f"🪨 УСПЕХ! Марти нашел богатое месторождение: +{found_dust} 💰 Пыли!"
+                msg = f"🪨 УСПЕХ! Марти пробурил астероид: +{found_dust} 💰 Пыли!"
+                if is_sunday: msg = "🔥 **ВОСКРЕСНЫЙ МЕГА-КРАШ!** " + msg
             else:
                 msg = "🪨 Пусто... Марти увернулся от метеорита и вернулся ни с чем."
             
