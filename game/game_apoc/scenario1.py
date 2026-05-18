@@ -248,18 +248,26 @@ def run_scenario(bot, call):
 
    # --- [ ПЕРЕХОД К ВЕРСТАКУ ] ---
     elif call.data == "apoc_n1_workbench":
-        # Проверяем, есть ли брезент для крафта костюма
-        if "_item_cloth" in current_node:
+        # 1. Проверяем, не сшит ли уже костюм
+        if "_suit_fixed" in current_node:
+            text = "🛠 **ВЕРСТАК**\n\nВаш защитный костюм готов и надет! Марти: 'Смотритесь отлично, Док! Радиация нам больше не страшна.'."
+            kb = tele_types.InlineKeyboardMarkup().add(
+                tele_types.InlineKeyboardButton("🔙 Вернуться в Хаб", callback_data="apoc_n1_base_menu")
+            )
+        # 2. Если костюма нет, проверяем наличие брезента для крафта
+        elif "_item_cloth" in current_node:
             text = "🛠 **ВЕРСТАК**\n\nУ вас есть брезент. Марти готов помочь сшить защитный костюм."
             kb = tele_types.InlineKeyboardMarkup().add(
                 tele_types.InlineKeyboardButton("⚒ Скрафтить Костюм", callback_data="apoc_n1_craft_suit"),
                 tele_types.InlineKeyboardButton("🔙 Назад", callback_data="apoc_n1_base_menu")
             )
+        # 3. Если вообще ничего нет
         else:
             text = "🛠 **ВЕРСТАК**\n\nЗдесь пока пусто. Марти: 'Док, нам нужен плотный материал, например, брезент со склада!'."
             kb = tele_types.InlineKeyboardMarkup().add(
                 tele_types.InlineKeyboardButton("🔙 Назад", callback_data="apoc_n1_base_menu")
             )
+            
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # Вызов функции крафта (которая у вас в самом низу файла)
@@ -551,4 +559,9 @@ def handle_craft(bot, call):
                f"{bonus_text}\n\n"
                f"Марти подбадривает: 'Док, еще немного, и вы будете выглядеть как настоящий герой пустошей!'.\n\n"
                f"Готовность через **{time_needed} минут**.")
-        bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+        
+        # 🟢 ИСПРАВЛЕНИЕ: Добавляем кнопку!
+        kb = tele_types.InlineKeyboardMarkup().add(
+            tele_types.InlineKeyboardButton("🔄 Проверить готовность", callback_data="apoc_n1_base_menu")
+        )
+        bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
