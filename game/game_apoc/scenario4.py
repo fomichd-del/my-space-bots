@@ -12,15 +12,6 @@ def run_scenario(bot, call):
     if current_node is None: 
         current_node = "apoc_start"
 
-    # 🟢 --- [ СИСТЕМА АВТО-ВОЗВРАТА (RESUME) ] --- 🟢
-    # Если игрок жмет "Начать главу", но он уже прошел пролог (взломал терминал)
-    if call.data == "apoc_start" or call.data == "apoc_s1_start":
-        if "_logic_pc_done" in current_node:
-            call.data = "apoc_n1_base_menu" # Подменяем нажатие: кидаем сразу в Хаб!
-            try: bot.answer_callback_query(call.id, "🔄 Загружено последнее сохранение")
-            except: pass
-    # ------------------------------------------------
-
     # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (БРОНЕБОЙНЫЙ) ] ---
     if timer_end:
         # Если база вернула время текстом, превращаем его в объект datetime
