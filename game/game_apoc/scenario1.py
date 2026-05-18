@@ -448,7 +448,7 @@ def run_scenario(bot, call):
                 "В руках у него странный прибор, подозрительно похожий на тот самый 'Сканер', который мы пытаемся собрать.")
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🧗 Выйти на крышу (Финал)", callback_data="apoc_n1_final_ascent"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-        update_game_progress(user_id, "apoc_n1_truth_found" + saved_flags)
+        update_game_progress(user_id, current_node + "_truth_found")
 
     # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ (Моральный выбор) ] ---
     elif call.data == "apoc_n1_final_ascent":
