@@ -12,23 +12,25 @@ def run_scenario(bot, call):
     if current_node is None: 
         current_node = "apoc_start"
 
-    # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (ИСПРАВЛЕНИЕ ОШИБКИ) ] ---
+    # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (БРОНЕБОЙНЫЙ) ] ---
     if timer_end:
-        # Если БД вернула время как текст, аккуратно превращаем его в объект времени
+        # Если база вернула время текстом, превращаем его в объект datetime
         if isinstance(timer_end, str):
             try:
-                clean_time = timer_end.split('.')[0] # Отрезаем миллисекунды если есть
+                # Очищаем строку от миллисекунд и лишних букв T (ISO формат)
+                clean_time = timer_end.split('.')[0].replace('T', ' ')
                 timer_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-            except:
+            except Exception as e:
+                # Если формат совсем дикий, выведем это в консоль (терминал), чтобы вы увидели!
+                print(f"🚨 ОШИБКА ТАЙМЕРА: {e} | То, что выдала база: {timer_end}")
                 timer_end = None
                 
-        # Если время еще не вышло - блокируем и показываем алерт
+        # Если время еще не вышло - блокируем и показываем окно
         if timer_end and datetime.now() < timer_end:
             mins = int((timer_end - datetime.now()).total_seconds() // 60) + 1
-            bot.answer_callback_query(call.id, f"⌛️ Процесс идет... Осталось около {mins} мин. Марти: 'Терпение!'", show_alert=True)
+            # Текст алерта сокращен, чтобы точно влезть в лимиты Telegram
+            bot.answer_callback_query(call.id, f"⌛️ Процесс идет... Осталось {mins} мин.", show_alert=True)
             return
-
-    # ВНИМАНИЕ: Блок saved_flags полностью удален, чтобы не стирать память!
 
     # --- [ ЭТАП 1: ГНИЛЫЕ ДЖУНГЛИ МАРИУПОЛЯ ] ---
     if call.data == "apoc_s3_start":
