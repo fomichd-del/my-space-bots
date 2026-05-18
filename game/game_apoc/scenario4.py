@@ -600,7 +600,7 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 4 ] ---
     elif call.data == "apoc_s4_30":
-        update_game_progress(user_id, "apoc_ch4_done" + saved_flags)
+        update_game_progress(user_id, current_node + "_apoc_ch4_done")
         add_xp(user_id, 250, username)
         text = (f"🌅 **ЭТАП 30: ЭХО ТИШИНЫ**\n\n"
                 f"Капсула мягко приземляется в парке у подножия Небоскреба. Вы выходите на траву, которая больше не "
