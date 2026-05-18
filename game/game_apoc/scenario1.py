@@ -48,7 +48,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("🔍 Осмотреть место происшествия", callback_data="apoc_n1_investigate"),
             tele_types.InlineKeyboardButton("🖥 Проверить терминал (Логика)", callback_data="apoc_n1_pc_check"),
-            tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="hub_main_menu")
+            tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
