@@ -232,6 +232,26 @@ def run_scenario(bot, call):
                 "🎁 **БОНУС:** Таймеры крафта сокращены на 5 минут!")
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🧗 Вернуться в хаб", callback_data="apoc_n1_base_menu"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+   # --- [ ПЕРЕХОД К ВЕРСТАКУ ] ---
+    elif call.data == "apoc_n1_workbench":
+        # Проверяем, есть ли брезент для крафта костюма
+        if "_item_cloth" in current_node:
+            text = "🛠 **ВЕРСТАК**\n\nУ вас есть брезент. Марти готов помочь сшить защитный костюм."
+            kb = tele_types.InlineKeyboardMarkup().add(
+                tele_types.InlineKeyboardButton("⚒ Скрафтить Костюм", callback_data="apoc_n1_craft_suit"),
+                tele_types.InlineKeyboardButton("🔙 Назад", callback_data="apoc_n1_base_menu")
+            )
+        else:
+            text = "🛠 **ВЕРСТАК**\n\nЗдесь пока пусто. Марти: 'Док, нам нужен плотный материал, например, брезент со склада!'."
+            kb = tele_types.InlineKeyboardMarkup().add(
+                tele_types.InlineKeyboardButton("🔙 Назад", callback_data="apoc_n1_base_menu")
+            )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # Вызов функции крафта (которая у вас в самом низу файла)
+    elif call.data == "apoc_n1_craft_suit":
+        handle_craft(bot, call)
     
     # --- [ ЭТАПЫ 11-15: СЛОЖНЫЙ ПОИСК (Таймеры и Детектив) ] ---
     elif call.data == "apoc_n1_search_1":
