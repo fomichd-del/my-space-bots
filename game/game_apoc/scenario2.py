@@ -17,20 +17,23 @@ def run_scenario(bot, call):
         # Если база вернула время текстом, превращаем его в объект datetime
         if isinstance(timer_end, str):
             try:
-                # Очищаем строку от миллисекунд и лишних букв T (ISO формат)
                 clean_time = timer_end.split('.')[0].replace('T', ' ')
                 timer_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-            except Exception as e:
-                # Если формат совсем дикий, выведем это в консоль (терминал), чтобы вы увидели!
-                print(f"🚨 ОШИБКА ТАЙМЕРА: {e} | То, что выдала база: {timer_end}")
+            except:
                 timer_end = None
                 
-        # Если время еще не вышло - блокируем и показываем окно
-        if timer_end and datetime.now() < timer_end:
-            mins = int((timer_end - datetime.now()).total_seconds() // 60) + 1
-            # Текст алерта сокращен, чтобы точно влезть в лимиты Telegram
-            bot.answer_callback_query(call.id, f"⌛️ Процесс идет... Осталось {mins} мин.", show_alert=True)
-            return
+        if timer_end:
+            # 🛡 ГЛАВНЫЙ ФИКС: Уравниваем форматы времени, удаляя часовые пояса
+            safe_timer_end = timer_end.replace(tzinfo=None)
+            safe_now = datetime.now().replace(tzinfo=None)
+            
+            if safe_now < safe_timer_end:
+                mins = int((safe_timer_end - safe_now).total_seconds() // 60) + 1
+                try:
+                    bot.answer_callback_query(call.id, f"⌛️ Ожидание... Осталось {mins} мин.", show_alert=True)
+                except Exception as alert_e:
+                    print(f"🚨 Ошибка Telegram Alert: {alert_e}")
+                return
 
     # --- [ ЭТАП 1: ПЕРВЫЙ ШАГ В ПУСТОШЬ ] ---
     if call.data == "apoc_s2_start":
