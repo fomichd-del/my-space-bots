@@ -379,14 +379,27 @@ def update_game_progress(user_id, node_id):
 def set_game_timer(user_id, minutes):
     conn = get_connection()
     if not conn: return
+    
+    cursor = None # Заранее создаем переменную, чтобы finally не ругался
     try:
-        finish_time = datetime.now() + timedelta(minutes=minutes)
+        # 🛡 БРОНЕЖИЛЕТ: Принудительно превращаем текст "15" в число 15
+        minutes_int = int(minutes) 
+        
+        finish_time = datetime.now() + timedelta(minutes=minutes_int)
         cursor = conn.cursor()
         cursor.execute('UPDATE users SET game_timer_end = %s WHERE user_id = %s', (finish_time, user_id))
         conn.commit()
+        
+    except Exception as e:
+        # Если что-то пойдет не так, мы это увидим, а бот не зависнет
+        send_log(f"Ошибка таймера: {e}")
+        print(f"🚨 ОШИБКА БД (таймер): {e}")
+        
     finally:
-        cursor.close()
-        conn.close()
+        if cursor: 
+            cursor.close()
+        if conn:
+            conn.close()
 
 def get_game_status(user_id):
     conn = get_connection()
