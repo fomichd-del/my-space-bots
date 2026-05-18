@@ -486,8 +486,9 @@ def get_dog_data(user_id):
     conn = get_connection()
     if not conn: return None
     cursor = conn.cursor()
+    # 🟢 Добавили dog_last_exp в SELECT
     cursor.execute("""SELECT dog_level, dog_hunger, dog_energy, dog_mood, dog_items, 
-                      dog_xp, dog_date, dog_status, dog_equipped FROM users WHERE user_id = %s""", (user_id,))
+                      dog_xp, dog_date, dog_status, dog_equipped, dog_last_exp FROM users WHERE user_id = %s""", (user_id,))
     res = cursor.fetchone()
     conn.close()
     if res:
@@ -495,8 +496,9 @@ def get_dog_data(user_id):
             "level": res[0], "hunger": res[1], "energy": res[2], "mood": res[3],
             "items": res[4].split(",") if res[4] else [],
             "xp": res[5], "date": res[6], "status": res[7],
-            "equipped": res[8].split(",") if res[8] else [] # Надетые вещи
-        }
+            "equipped": res[8].split(",") if res[8] else [],
+            "last_exp": res[9] if res[9] else "" # 🟢 Записываем в словарь
+        ]
     return None
 
 def update_dog_data(user_id, d):
@@ -506,10 +508,12 @@ def update_dog_data(user_id, d):
     h, e, m = min(100, max(0, d['hunger'])), min(100, max(0, d['energy'])), min(100, max(0, d['mood']))
     items_str = ",".join([i for i in d['items'] if i.strip()])
     equipped_str = ",".join([i for i in d.get('equipped', []) if i.strip()])
+    
+    # 🟢 Добавили dog_last_exp=%s в UPDATE
     cursor.execute("""
         UPDATE users SET dog_level=%s, dog_hunger=%s, dog_energy=%s, dog_mood=%s, 
-        dog_items=%s, dog_xp=%s, dog_date=%s, dog_status=%s, dog_equipped=%s WHERE user_id=%s
-    """, (d['level'], h, e, m, items_str, d['xp'], d['date'], d['status'], equipped_str, user_id))
+        dog_items=%s, dog_xp=%s, dog_date=%s, dog_status=%s, dog_equipped=%s, dog_last_exp=%s WHERE user_id=%s
+    """, (d['level'], h, e, m, items_str, d['xp'], d['date'], d['status'], equipped_str, d.get('last_exp', ''), user_id))
     conn.commit()
     conn.close()
 
