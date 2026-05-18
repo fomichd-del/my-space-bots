@@ -381,18 +381,44 @@ def set_game_timer(user_id, minutes):
     conn = get_connection()
     if not conn: return
     
-    cursor = None # Заранее создаем переменную, чтобы finally не ругался
+    cursor = None 
     try:
-        # 🛡 БРОНЕЖИЛЕТ: Принудительно превращаем текст "15" в число 15
         minutes_int = int(minutes) 
-        
-        finish_time = datetime.now() + timedelta(minutes=minutes_int)
+        now = datetime.now()
         cursor = conn.cursor()
+
+        # 🛡 --- УМНАЯ ЗАЩИТА ТАЙМЕРА (БЛОКИРОВКА АМНЕЗИИ) ---
+        # Проверяем, есть ли уже активный таймер у пилота
+        cursor.execute('SELECT game_timer_end FROM users WHERE user_id = %s', (user_id,))
+        res = cursor.fetchone()
+
+        if res and res[0]:
+            current_end = res[0]
+            
+            # Страховка, если база вдруг вернет время текстом
+            if isinstance(current_end, str):
+                try:
+                    clean_time = current_end.split('.')[0].replace('T', ' ')
+                    current_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
+                except:
+                    current_end = now # При ошибке считаем, что таймера нет
+
+            # Сравниваем (без часовых поясов, чтобы не было конфликтов)
+            safe_current_end = current_end.replace(tzinfo=None)
+            safe_now = now.replace(tzinfo=None)
+
+            # Если старый таймер еще тикает — ИГНОРИРУЕМ КОМАНДУ СБРОСА!
+            if safe_current_end > safe_now:
+                print(f"⏳ Таймер для {user_id} еще активен. Защита от сброса сработала.")
+                return # 🛑 ВЫХОДИМ ИЗ ФУНКЦИИ! База не перезаписывается.
+        # ----------------------------------------------------
+
+        # Если мы дошли сюда, значит таймера нет или он уже закончился. Ставим новый!
+        finish_time = now + timedelta(minutes=minutes_int)
         cursor.execute('UPDATE users SET game_timer_end = %s WHERE user_id = %s', (finish_time, user_id))
         conn.commit()
         
     except Exception as e:
-        # Если что-то пойдет не так, мы это увидим, а бот не зависнет
         send_log(f"Ошибка таймера: {e}")
         print(f"🚨 ОШИБКА БД (таймер): {e}")
         
@@ -498,7 +524,7 @@ def get_dog_data(user_id):
             "xp": res[5], "date": res[6], "status": res[7],
             "equipped": res[8].split(",") if res[8] else [],
             "last_exp": res[9] if res[9] else "" # 🟢 Записываем в словарь
-        ]
+        }
     return None
 
 def update_dog_data(user_id, d):
