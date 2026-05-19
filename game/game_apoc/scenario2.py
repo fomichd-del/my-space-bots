@@ -35,9 +35,9 @@ def run_scenario(bot, call):
                     print(f"🚨 Ошибка Telegram Alert: {alert_e}")
                 return
 
-    # --- [ ЭТАП 1: ПЕРВЫЙ ШАГ В ПУСТОШЬ ] ---
+    # --- [ ПЕРВЫЙ ШАГ В ПУСТОШЬ ] ---
     if call.data == "apoc_s2_start":
-        text = (f"🌫 **ЭТАП 1: КИСЛОТНЫЙ ТУМАН**\n"
+        text = (f"🌫 *КИСЛОТНЫЙ ТУМАН*\n"
                 f"──────────────────────────\n"
                 f"Гермодверь бункера за вашей спиной закрывается с тяжелым лязгом, отсекая уютный мир ламп и стопок старых журналов. "
                 f"Перед вами — то, что когда-то было пригородом. Теперь это каша из разложившегося бетона и ярко-желтых испарений. \n\n"
@@ -47,7 +47,7 @@ def run_scenario(bot, call):
                 f"там должен был остаться мобильный штаб'.\n\n"
                 f"В руках вы всё еще сжимаете тот странный пропуск. Ваше лицо на нем кажется немым укором из прошлого.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🧭 Свериться с картой (Этап 2)", callback_data="apoc_s2_2"),
+            tele_types.InlineKeyboardButton("🧭 Свериться с картой", callback_data="apoc_s2_2"),
             tele_types.InlineKeyboardButton("🐕 Попросить Марти просканировать местность", callback_data="apoc_s2_scan_start")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -63,13 +63,13 @@ def run_scenario(bot, call):
     
     # --- [ ЭТАП 2: ЗАГАДКА ОРИЕНТИРОВ ] ---
     elif call.data == "apoc_s2_2":
-        text = (f"📍 **ЭТАП 2: ПРИЗРАКИ УЛИЦ**\n\n"
+        text = (f"📍 *ПРИЗРАКИ УЛИЦ*\n\n"
                 f"Старый планшет едва светится. Вы пытаетесь сопоставить очертания руин с картой Мариуполя из архивов. "
                 f"Справа должен быть торговый центр, но на его месте — гигантская гора фиолетовых наростов, которые пульсируют в такт какому-то подземному ритму.\n\n"
                 f"Марти: 'Смотрите, Док! На дорожном указателе сохранились остатки надписи. Буква 'М' и цифра '85'. "
                 f"Это не случайность. Кто-то расставил эти метки уже после Сбоя. Похоже на навигацию для тех, кто знает код'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🔍 Изучить указатель поближе (Детектив)", callback_data="apoc_s2_3"),
+            tele_types.InlineKeyboardButton("🔍 Изучить указатель поближе", callback_data="apoc_s2_3"),
             tele_types.InlineKeyboardButton("🚶 Идти в сторону пульсации", callback_data="apoc_s2_4")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -78,24 +78,24 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s2_3":
         update_game_progress(user_id, current_node + "_clue_pollen")
         add_xp(user_id, 5, username)
-        text = (f"🧪 **ЭТАП 3: УЛИКА: НЕИЗВЕСТНАЯ ПЫЛЬЦА**\n\n"
+        text = (f"🧪 *НЕИЗВЕСТНАЯ ПЫЛЬЦА*\n\n"
                 f"Вы проводите перчаткой по указателю. На ней остается липкий налет, который начинает светиться слабым неоновым светом. \n\n"
                 f"Марти: 'Осторожно! Это высокоактивные споры. Мой модуль подсказывает, что они реагируют на человеческий эпителий. "
                 f"Если мы не соберем Био-анализатор, мы никогда не поймем, почему этот мох так 'радуется' вашему приближению. "
                 f"Я сохранил образец в своей камере хранения. Теперь у нас есть первый ингредиент для теста!'.")
-        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🚶 Двигаться дальше (Этап 4)", callback_data="apoc_s2_4"))
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🚶 Двигаться дальше", callback_data="apoc_s2_4"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 4: МОБИЛЬНАЯ ЛАБОРАТОРИЯ ] ---
     elif call.data == "apoc_s2_4":
-        text = (f"🚛 **ЭТАП 4: ЗАБРОШЕННЫЙ ТРЕЙЛЕР**\n\n"
+        text = (f"🚛 *ЗАБРОШЕННЫЙ ТРЕЙЛЕР*\n\n"
                 f"Сквозь туман проступают очертания грузовика с логотипом Академии Орион. Он перевернут, а его бока изъедены коррозией. "
                 f"Однако герметичный отсек выглядит целым. \n\n"
                 f"Марти: 'Это 'Био-Трейлер 7'. В таких машинах перевозили полевое оборудование для анализа мутаций. "
                 f"Если нам повезет, внутри мы найдем корпус для нашего будущего гаджета. Но дверь заперта на биометрический замок. "
                 f"Док, попробуйте приложить руку. У меня предчувствие, что система вас узнает... как и тот пропуск'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("✋ Приложить ладонь к замку (Риск)", callback_data="apoc_s2_5"),
+            tele_types.InlineKeyboardButton("✋ Приложить ладонь к замку", callback_data="apoc_s2_5"),
             tele_types.InlineKeyboardButton("🛠 Попробовать взломать через Марти", callback_data="apoc_s2_hack_fail")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -103,7 +103,7 @@ def run_scenario(bot, call):
     # --- [ ЭТАП 5: КОРПУС АНАЛИЗАТОРА ] ---
     elif call.data == "apoc_s2_5":
         update_game_progress(user_id, current_node + "_item_bio_frame")
-        text = (f"🔓 **ЭТАП 5: ДОСТУП ПОЛУЧЕН**\n\n"
+        text = (f"🔓 *ДОСТУП ПОЛУЧЕН*\n\n"
                 f"Замок пискнул и окрасился зеленым. С тихим шипением дверь трейлера отошла в сторону. "
                 f"Внутри царит стерильный порядок, который кажется чужим в этом хаосе. В центре на штативе закреплен прибор, "
                 f"напоминающий современный стоматологический сканер, но с более сложной оптикой.\n\n"
@@ -112,13 +112,13 @@ def run_scenario(bot, call):
                 f"Мы нашли корпус, но нам нужны реактивы, чтобы он ожил. Один в шкафу, другой — где-то в болотах'.\n\n"
                 f"**ВЫ ПОЛУЧИЛИ:** Основа Био-анализатора.")
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton("🧪 Обыскать шкафы (Этап 6)", callback_data="apoc_s2_6")
+            tele_types.InlineKeyboardButton("🧪 Обыскать шкафы", callback_data="apoc_s2_6")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
   # --- [ ЭТАП 6: ЛАБОРАТОРНЫЙ ШКАФ ] ---
     elif call.data == "apoc_s2_6":
-        text = (f"🧪 **ЭТАП 6: ЗАБЫТЫЕ РЕАКТИВЫ**\n\n"
+        text = (f"🧪 *ЗАБЫТЫЕ РЕАКТИВЫ*\n\n"
                 f"Вы открываете металлический шкаф. Внутри стройными рядами стоят колбы, многие из которых лопнули от времени, "
                 f"залив полки разноцветным осадком. Но в глубине, в свинцовом контейнере, вы находите запечатанный флакон с надписью 'Катализатор-D'.\n\n"
                 f"Марти подпрыгивает, пытаясь заглянуть на полку: 'Док, этот запах! Это же композит, который использовали для сверхпрочных пломб в ваше время. "
@@ -126,37 +126,37 @@ def run_scenario(bot, call):
                 f"Если мы добавим это в наш корпус, Био-анализатор сможет выдержать агрессивную среду болот. "
                 f"Но будьте осторожны: флакон под давлением. Нужно аккуратно стравить газ перед открытием'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("⚙️ Использовать стоматологический зажим (Логика)", callback_data="apoc_s2_7"),
-            tele_types.InlineKeyboardButton("👊 Просто вскрыть ножом (Риск)", callback_data="apoc_s2_reagent_fail")
+            tele_types.InlineKeyboardButton("⚙️ Использовать стоматологический зажим", callback_data="apoc_s2_7"),
+            tele_types.InlineKeyboardButton("👊 Просто вскрыть ножом", callback_data="apoc_s2_reagent_fail")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 7: МИНИ-ИГРА: СИНТЕЗ ] ---
     elif call.data == "apoc_s2_7":
         add_xp(user_id, 5, username)
-        text = (f"⚗️ **ЭТАП 7: ХИМИЧЕСКАЯ КАЛИБРОВКА**\n\n"
+        text = (f"⚗️ *ХИМИЧЕСКАЯ КАЛИБРОВКА*\n\n"
                 f"Вы аккуратно зажимаете клапан. Теперь нужно смешать найденную пыльцу из Этапа 3 с катализатором. "
                 f"На дисплее трейлера загорается инструкция: 'Для стабилизации органики выберите элемент с атомным весом 14.007'. \n\n"
                 f"Марти: 'Док, я помню это! Это основа атмосферы, которую мы сейчас вдыхаем с таким трудом. "
                 f"Выбирайте правильно, иначе вместо анализатора мы получим маленькую, но очень гордую дымовую шашку!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
-            tele_types.InlineKeyboardButton("🔘 Кислород (O)", callback_data="apoc_s2_synth_fail"),
-            tele_types.InlineKeyboardButton("🔘 Азот (N)", callback_data="apoc_s2_8"),
-            tele_types.InlineKeyboardButton("🔘 Углерод (C)", callback_data="apoc_s2_synth_fail")
+            tele_types.InlineKeyboardButton("🔘 Кислород", callback_data="apoc_s2_synth_fail"),
+            tele_types.InlineKeyboardButton("🔘 Азот", callback_data="apoc_s2_8"),
+            tele_types.InlineKeyboardButton("🔘 Углерод", callback_data="apoc_s2_synth_fail")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 8: ШОРОХ ЗА БОРТОМ ] ---
     elif call.data == "apoc_s2_8":
         update_game_progress(user_id, current_node + "_item_reagent")
-        text = (f"🦗 **ЭТАП 8: ГЛАЗА В ТУМАНЕ**\n\n"
+        text = (f"🦗 *ГЛАЗА В ТУМАНЕ*\n\n"
                 f"Смесь в колбе зашипела и окрасилась в глубокий индиго. Но внезапно корпус трейлера содрогнулся от сильного удара снаружи. "
                 f"Кто-то или что-то скребется по металлу длинными когтями.\n\n"
                 f"Марти мгновенно затихает, шерсть на его загривке встает дыбом. Он включает свой сканер на минимальную мощность и шепчет через модуль: "
                 f"'Док... там снаружи 'Прыгун'. Это мутировавшая амфибия, размером с хорошего дога. Они слепы, но реагируют на тепло "
                 f"вашей новой химической реакции. Если мы сейчас выйдем — станем десертом. Нужно либо затаиться, либо использовать звуковой модуль, чтобы увести его подальше'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🤫 Затаиться и ждать (Таймер)", callback_data="apoc_s2_9_wait"),
+            tele_types.InlineKeyboardButton("🤫 Затаиться и ждать", callback_data="apoc_s2_9_wait"),
             tele_types.InlineKeyboardButton("🔊 Модуль: Имитация ультразвука", callback_data="apoc_s2_9_sound")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -171,7 +171,7 @@ def run_scenario(bot, call):
         else:
             wait_text = "Звуковой импульс Марти сработал! Тварь с диким визгом бросилась в сторону болот, подальше от источника шума."
 
-        text = (f"🛠 **ЭТАП 9: ПОСЛЕДНИЕ ШТРИХИ**\n\n"
+        text = (f"🛠 *ПОСЛЕДНИЕ ШТРИХИ*\n\n"
                 f"{wait_text}\n\n"
                 f"Теперь у нас есть всё: корпус, мотор из подвала деда и стабилизированный реагент. Вы раскладываете детали на операционном столе трейлера. "
                 f"Это кропотливая работа — соединить технологию 1985 года с ИИ-модулями 2026-го.\n\n"
@@ -188,7 +188,7 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s2_craft_start":
         t = 10 if "_item_super_motor" in current_node else 20
         set_game_timer(user_id, t)
-        text = (f"⚒ **ИДЕТ СБОРКА АНАЛИЗАТОРА**\n\n"
+        text = (f"⚒ *ИДЕТ СБОРКА АНАЛИЗАТОРА*\n\n"
                 f"Марти аккуратно подает инструменты. Вы паяете контакты. Процесс займет **{t} минут**.")
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("🔄 Проверить готовность", callback_data="apoc_s2_craft_bio")
@@ -199,7 +199,7 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s2_craft_bio":
         update_game_progress(user_id, current_node + "_scanner_upgraded")
         add_xp(user_id, 15, username)
-        text = (f"📡 **ЭТАП 10: ОНО ЖИВОЕ!**\n\n"
+        text = (f"📡 *ОНО ЖИВОЕ!*\n\n"
                 f"Прибор в ваших руках издает мелодичный писк и проецирует в воздух голограмму. \n\n"
                 f"**МАРТИ:** 'Работает! Био-анализатор активен. Док, поднесите к нему тот старый пропуск... Быстрее!'.\n\n"
                 f"Вы подносите пластиковую карточку к лучу. Экран вспыхивает красным, а затем выдает текст: "
@@ -207,13 +207,13 @@ def run_scenario(bot, call):
                 f"Марти замирает: 'Создатель? Док... кажется, вы не просто стоматолог из прошлого. "
                 f"Вы тот, кто всё это начал. И анализатор поймал слабый сигнал ответа... прямо из центра болот'.")
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton("🧭 Идти на сигнал (Этап 11)", callback_data="apoc_s2_11")
+            tele_types.InlineKeyboardButton("🧭 Идти на сигнал", callback_data="apoc_s2_11")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
   # --- [ ЭТАП 11: ТРОПА ШЕПЧУЩИХ КОРНЕЙ ] ---
     elif call.data == "apoc_s2_11":
-        text = (f"🌿 **ЭТАП 11: ЖИВОЙ ЛАБИРИНТ**\n"
+        text = (f"🌿 *ЖИВОЙ ЛАБИРИНТ*\n"
                 f"──────────────────────────\n"
                 f"Вы покидаете трейлер и углубляетесь в заросли, где деревья больше напоминают переплетенные вены гигантского существа. "
                 f"Био-анализатор на вашем запястье пульсирует мягким голубым светом, указывая направление. \n\n"
@@ -229,7 +229,7 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 12: ЗАГАДКА ЧАСТОТ ] ---
     elif call.data == "apoc_s2_12":
-        text = (f"🎼 **ЭТАП 12: ГАРМОНИЯ РАСПАДА**\n\n"
+        text = (f"🎼 *ГАРМОНИЯ РАСПАДА*\n\n"
                 f"Вы выходите на поляну, полностью перекрытую стеной из фиолетового плюща. Анализатор пищит: 'Блокировка доступа. Требуется звуковой ключ'. \n\n"
                 f"Марти: 'Док, я понял! Плющ вибрирует. Это био-акустический замок. Чтобы он открылся, нам нужно подать резонансную частоту. "
                 f"В ваших старых записях была формула: «Частота покоя равна числу миллиметров в стандартном стоматологическом боре». \n\n"
@@ -245,7 +245,7 @@ def run_scenario(bot, call):
     # --- [ ЭТАП 13: ВИДЕНИЕ МАРИУПОЛЯ (Галлюцинация) ] ---
     elif call.data == "apoc_s2_13":
         add_xp(user_id, 10, username)
-        text = (f"🌀 **ЭТАП 13: ПРИЗРАК 1985 ГОДА**\n\n"
+        text = (f"🌀 *ПРИЗРАК 1985 ГОДА*\n\n"
                 f"Плющ дрожит и медленно сползает вниз, открывая проход. Но как только вы делаете шаг, воздух вокруг сгущается. "
                 f"Туман превращается в очертания домов... Вы видите улицу Мариуполя. Яркое солнце, старые автобусы, и... молодую женщину, "
                 f"которая катит коляску. Она оборачивается и улыбается прямо вам. В её руках — точно такой же Био-анализатор.\n\n"
@@ -257,28 +257,28 @@ def run_scenario(bot, call):
         if "_secret_found" in current_node: 
             kb.add(tele_types.InlineKeyboardButton("💉 Вколоть антисептик 'Орион'", callback_data="apoc_s2_14"))
         
-        kb.add(tele_types.InlineKeyboardButton("💥 Укусить себя за руку (Боль прояснит разум)", callback_data="apoc_s2_14"))
+        kb.add(tele_types.InlineKeyboardButton("💥 Укусить себя за руку", callback_data="apoc_s2_14"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 14: СТОЯНКА ТЕНИ ] ---
     elif call.data == "apoc_s2_14":
         update_game_progress(user_id, current_node + "_hallucination_cleared")
-        text = (f"⛺️ **ЭТАП 14: СЛЕДЫ КИБЕР-ПИЛИГРИМА**\n\n"
+        text = (f"⛺️ *СЛЕДЫ КИБЕР-ПИЛИГРИМА*\n\n"
                 f"Видение рассеивается. Вы стоите на небольшой сухой кочке посреди болота. Здесь кто-то был совсем недавно. "
                 f"Маленькая горелка всё еще теплая, а рядом лежит пустая банка из-под пайка Академии Орион. \n\n"
                 f"Марти: 'Смотрите, Док. На песке — отпечаток лапы. Но это не собака. Это протез. Высокотехнологичная кибер-лапа. "
                 f"И посмотрите на этот лоскут ткани... это кусок лабораторного халата вашего деда. Тот, кто здесь шел, "
                 f"носит вещи вашей семьи. Это либо безумный фанат, либо... нам нужно ускориться'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🔎 Изучить записи в блокноте (Детектив)", callback_data="apoc_s2_clue_notes"),
-            tele_types.InlineKeyboardButton("🚶 Идти дальше по следу (Этап 15)", callback_data="apoc_s2_15")
+            tele_types.InlineKeyboardButton("🔎 Изучить записи в блокноте", callback_data="apoc_s2_clue_notes"),
+            tele_types.InlineKeyboardButton("🚶 Идти дальше по следу", callback_data="apoc_s2_15")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 15: СТРАННЫЙ ОБЪЕКТ ] ---
     elif call.data == "apoc_s2_15":
         update_game_progress(user_id, current_node + "_clue_pollen")
-        text = (f"🗿 **ЭТАП 15: МОНУМЕНТ ИЗ ПРОШЛОГО**\n\n"
+        text = (f"🗿 *МОНУМЕНТ ИЗ ПРОШЛОГО*\n\n"
                 f"След обрывается у странного строения, напоминающего бетонный обелиск, облепленный датчиками. "
                 f"Из него исходит тот самый сигнал, за которым вы шли. \n\n"
                 f"Марти: 'Док, это ретранслятор Академии, но он... переделан. К нему припаяны детали от старой бормашины! "
@@ -292,7 +292,7 @@ def run_scenario(bot, call):
 
   # --- [ ЭТАП 16: УСТАНОВКА СВЯЗИ С ОБЕЛИСКОМ ] ---
     elif call.data == "apoc_s2_16":
-        text = (f"📻 **ЭТАП 16: ПЕРВЫЙ ГУЛ**\n"
+        text = (f"📻 *ПЕРВЫЙ ГУЛ*\n"
                 f"──────────────────────────\n"
                 f"Вы подносите Био-анализатор к основанию обелиска. Прибор вибрирует, синхронизируясь с ритмом 'биения сердца' монумента. "
                 f"Внезапно дрон на вершине расправляет металлические крылья, и из его динамиков, забитых пылью десятилетий, раздается хриплый, искаженный голос.\n\n"
@@ -302,13 +302,13 @@ def run_scenario(bot, call):
                 f"Смотрите, анализатор выдает ошибку: «Конфликт временных меток: 1985 и 2026». Нам нужно расшифровать остаток сообщения, "
                 f"но дрон требует подтверждения био-кода через сканирование ближайшего нароста мха'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🧬 Сканировать пульсирующий мох (Этап 17)", callback_data="apoc_s2_17")
+            tele_types.InlineKeyboardButton("🧬 Сканировать пульсирующий мох", callback_data="apoc_s2_17")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 17: МЕХАНИКА БИО-АНАЛИЗАТОРА ] ---
     elif call.data == "apoc_s2_17":
-        text = (f"🔍 **ЭТАП 17: АНАЛИЗ ГЕНОМА**\n\n"
+        text = (f"🔍 *АНАЛИЗ ГЕНОМА*\n\n"
                 f"Вы направляете луч анализатора на жирный фиолетовый нарост у подножия. Мох начинает светиться ярко-бирюзовым, "
                 f"сопротивляясь сканированию. На экране бегут цепочки нуклеотидов. \n\n"
                 f"Марти: 'Док, тут нужна ваша точность. Чтобы пробить защиту мха, нужно сопоставить структуру ДНК. "
@@ -326,7 +326,7 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s2_18":
         update_game_progress(user_id, current_node + "_clue_diary_page")
         add_xp(user_id, 10, username)
-        text = (f"📂 **ЭТАП 18: СТРАНИЦА ИЗ ПРОШЛОГО**\n\n"
+        text = (f"📂 *СТРАНИЦА ИЗ ПРОШЛОГО*\n\n"
                 f"Анализатор издает победный сигнал. В основании обелиска открывается небольшая ниша. "
                 f"Внутри лежит не электронный носитель, а настоящая бумажная страница, запечатанная в вакуумный пластик. \n\n"
                 f"Текст на ней написан от руки: *«Мариуполь. Клиника. 1985. Мы нашли способ кодировать память в клеточную структуру растений. "
@@ -334,13 +334,13 @@ def run_scenario(bot, call):
                 f"Марти (шокированно): 'Док... так вы не просто наследник. Вы — ходячая флешка с данными всего человечества! "
                 f"И посмотрите на обратную сторону... там схема прохода к Старому ТЦ. Сигнал идет именно оттуда!'.")
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton("🚶 Двигаться к ТЦ через 'Лес Вен' (Этап 19)", callback_data="apoc_s2_19")
+            tele_types.InlineKeyboardButton("🚶 Двигаться к ТЦ через 'Лес Вен'", callback_data="apoc_s2_19")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 19: ЮМОР И ОПАСНОСТЬ ] ---
     elif call.data == "apoc_s2_19":
-        text = (f"🌳 **ЭТАП 19: ЛЕС ПУЛЬСИРУЮЩИХ ВЕН**\n\n"
+        text = (f"🌳 *ЛЕС ПУЛЬСИРУЮЩИХ ВЕН*\n\n"
                 f"Вы входите в зону, где деревья буквально оплетены сосудами, по которым течет светящаяся фиолетовая жидкость. "
                 f"Воздух становится тяжелым и сладковатым. \n\n"
                 f"Марти: 'Знаете, Док, если бы я был обычным пуделем, я бы сейчас бегал за своим хвостом от этого запаха. "
@@ -349,14 +349,14 @@ def run_scenario(bot, call):
                 f"Я бы предложил пошутить про 'стоматологию в лесу', но боюсь, эти штуки не оценят ваш юмор. "
                 f"Нужно пройти максимально тихо, используя ваш Анализатор как маскировочный экран'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🤫 Включить режим маскировки (Стелс)", callback_data="apoc_s2_20"),
-            tele_types.InlineKeyboardButton("🔦 Просветить коконы сканером (Риск)", callback_data="apoc_s2_cocoons_fail")
+            tele_types.InlineKeyboardButton("🤫 Включить режим маскировки", callback_data="apoc_s2_20"),
+            tele_types.InlineKeyboardButton("🔦 Просветить коконы сканером", callback_data="apoc_s2_cocoons_fail")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 20: ЭХО МАРИУПОЛЯ ] ---
     elif call.data == "apoc_s2_20":
-        text = (f"🏙 **ЭТАП 20: ПОЮЩЕЕ БОЛОТО**\n\n"
+        text = (f"🏙 *ПОЮЩЕЕ БОЛОТО*\n\n"
                 f"Вы пробираетесь сквозь заросли. Внезапно шелест листьев складывается в отчетливую мелодию. "
                 f"Это популярная песня из 80-х, которую вы слышали на старых кассетах. Мох резонирует, создавая эффект объемного звука.\n\n"
                 f"Марти: 'Это не галлюцинация, Док. Мох транслирует аудио-архивы города. Мы буквально идем сквозь память Мариуполя. "
@@ -364,13 +364,13 @@ def run_scenario(bot, call):
                 f"Там, за туманом, стоит здание, которое светится изнутри. Это ТЦ 'Зенит'. И у его входа кто-то стоит... "
                 f"Тот самый кибер-паломник в халате вашего деда!'.")
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton("🎯 Попробовать перехватить фигуру (Этап 21)", callback_data="apoc_s2_21")
+            tele_types.InlineKeyboardButton("🎯 Попробовать перехватить фигуру", callback_data="apoc_s2_21")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
   # --- [ ЭТАП 21: ПОГОНЯ У ПОРОГА ] ---
     elif call.data == "apoc_s2_21":
-        text = (f"🏃 **ЭТАП 21: УСКОЛЬЗАЮЩАЯ ТЕНЬ**\n"
+        text = (f"🏃 *УСКОЛЬЗАЮЩАЯ ТЕНЬ*\n"
                 f"──────────────────────────\n"
                 f"Вы бросаетесь вперед, хлюпая по кислотной жиже, которая при каждом шаге выбрасывает в воздух облачка едкого пара. "
                 f"Фигура в халате вашего деда двигается неестественно плавно, почти не касаясь земли. Она замирает у главного входа в ТЦ всего на секунду, "
@@ -379,7 +379,7 @@ def run_scenario(bot, call):
                 f"но она держится идеально ровно, как у откалиброванного медицинского термостата. Это киборг или кто-то под очень мощным "
                 f"температурным щитом. Он зашел внутрь, но оставил подарок на пороге. Смотрите под ноги!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("🔍 Осмотреть брошенный предмет (Детектив)", callback_data="apoc_s2_22"),
+            tele_types.InlineKeyboardButton("🔍 Осмотреть брошенный предмет", callback_data="apoc_s2_22"),
             tele_types.InlineKeyboardButton("🚪 Рвануть следом в атриум", callback_data="apoc_s2_23")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -388,7 +388,7 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s2_22":
         update_game_progress(user_id, current_node + "_clue_extractor")
         add_xp(user_id, 7, username)
-        text = (f"🦷 **ЭТАП 22: СТРАННЫЙ ИНСТРУМЕНТ**\n\n"
+        text = (f"🦷 *СТРАННЫЙ ИНСТРУМЕНТ*\n\n"
                 f"Вы поднимаете предмет. Это старый стоматологический экстрактор, но его рукоять заменена на высокотехнологичный блок питания Академии. "
                 f"На металле выгравированы инициалы: *'Ф.Д.В. 1985'*.\n\n"
                 f"Марти: 'Док, этот парень использует инструменты вашего деда как оружие или ключи. "
@@ -396,13 +396,13 @@ def run_scenario(bot, call):
                 f"Или кого-то. В любом случае, эта деталь может усилить наш Био-анализатор, если мы найдем способ ее подключить. "
                 f"Берем с собой, в хозяйстве пригодится!'.")
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton("🚪 Войти в здание (Этап 23)", callback_data="apoc_s2_23")
+            tele_types.InlineKeyboardButton("🚪 Войти в здание)", callback_data="apoc_s2_23")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 23: ЗАБЛОКИРОВАННЫЙ ВХОД ] ---
     elif call.data == "apoc_s2_23":
-        text = (f"🚧 **ЭТАП 23: СТЕКЛЯННЫЙ БАРЬЕР**\n\n"
+        text = (f"🚧 *СТЕКЛЯННЫЙ БАРЬЕР*\n\n"
                 f"Стеклянные двери ТЦ заблокированы огромными узлами фиолетового мха, которые проросли сквозь стальной каркас. "
                 f"Обычный лом здесь не поможет — мох моментально регенерирует. Рядом на панели управления горит надпись: "
                 f"*«Авторизация по индексу вязкости реагента»*.\n\n"
@@ -419,7 +419,7 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 24: ВНУТРИ ЗЕНИТА ] ---
     elif call.data == "apoc_s2_24":
-        text = (f"🏛 **ЭТАП 24: ДЖУНГЛИ ПОТРЕБЛЕНИЯ**\n\n"
+        text = (f"🏛 *ДЖУНГЛИ ПОТРЕБЛЕНИЯ*\n\n"
                 f"Двери медленно расходятся, выпуская облако холодного пара. Вы заходите в главный атриум 'Зенита'. "
                 f"Здесь всё замерло в 2026 году: манекены в модной одежде, покрытые плесенью, эскалаторы, застывшие как скелеты древних чудовищ. "
                 f"Но по центру, там где когда-то был фонтан, теперь возвышается древоподобная структура, светящаяся мягким фосфорным светом.\n\n"
@@ -428,14 +428,14 @@ def run_scenario(bot, call):
                 f"Смотрите на второй этаж! Там, в отделе электроники, снова мелькнул халат!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("🪜 Подняться по застывшему эскалатору", callback_data="apoc_s2_25"),
-            tele_types.InlineKeyboardButton("📦 Обыскать стойку информации (Секрет)", callback_data="apoc_s2_clue_info")
+            tele_types.InlineKeyboardButton("📦 Обыскать стойку информации", callback_data="apoc_s2_clue_info")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 25: ПАНЕЛЬ 'СОТРУДНИК МЕСЯЦА' ] ---
     elif call.data == "apoc_s2_25":
         add_xp(user_id, 8, username)
-        text = (f"🖼 **ЭТАП 25: ЗЕРКАЛО ПРОШЛОГО**\n\n"
+        text = (f"🖼 *ЗЕРКАЛО ПРОШЛОГО*\n\n"
                 f"Вы поднимаетесь на второй ярус. Путь преграждает упавшая рекламная вывеска. Обойдя ее, вы натыкаетесь на почетную доску ТЦ. "
                 f"Среди фотографий лучших работников красуется одна рамка, защищенная бронированным стеклом. \n\n"
                 f"Марти: 'Док... я сейчас перегреюсь от удивления. Посмотрите на подпись под фото...'.\n\n"
@@ -443,13 +443,13 @@ def run_scenario(bot, call):
                 f"За вклад в сохранение генофонда нации»*. \n\n"
                 f"В этот момент Био-анализатор издает громкий сигнал тревоги: *«ОБЪЕКТ ОБНАРУЖЕН. ДИСТАНЦИЯ 10 МЕТРОВ. НАЧАЛО ПРОТОКОЛА ОБЪЕДИНЕНИЯ»*.")
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton("🔦 Пролить свет на фигуру (Этап 26)", callback_data="apoc_s2_26")
+            tele_types.InlineKeyboardButton("🔦 Пролить свет на фигуру", callback_data="apoc_s2_26")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
   # --- [ ЭТАП 26: ЛИЦОМ К ЛИЦУ С ПРОШЛЫМ ] ---
     elif call.data == "apoc_s2_26":
-        text = (f"👤 **ЭТАП 26: ГИПЕР-ЗЕРКАЛО**\n"
+        text = (f"👤 *ГИПЕР-ЗЕРКАЛО*\n"
                 f"──────────────────────────\n"
                 f"Вы направляете мощный луч фонаря вперед. Фигура медленно поворачивается. Халат вашего деда, забрызганный фиолетовым реагентом, "
                 f"сидит на ней идеально. Но когда свет падает на лицо, вы едва не роняете фонарь. \n\n"
@@ -461,14 +461,14 @@ def run_scenario(bot, call):
                 f"Марти (тихо рычит): 'Док, я не чую в нем зла. Но от него пахнет смертью и... формалином. Он — это вы, "
                 f"если бы вы стали частью этой чертовой лаборатории'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("📜 Потребовать расшифровку архива (Логика)", callback_data="apoc_s2_27"),
+            tele_types.InlineKeyboardButton("📜 Потребовать расшифровку архива", callback_data="apoc_s2_27"),
             tele_types.InlineKeyboardButton("🔧 Осмотреть кибер-протез андроида", callback_data="apoc_s2_clue_arm")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 27: ЗАГАДКА 'СЕМЕНИ ЖИЗНИ' ] ---
     elif call.data == "apoc_s2_27":
-        text = (f"🧩 **ЭТАП 27: КЛЮЧ К СПАСЕНИЮ**\n\n"
+        text = (f"🧩 *КЛЮЧ К СПАСЕНИЮ*\n\n"
                 f"Андроид протягивает руку. Его пальцы двигаются с точностью стоматологического манипулятора. \n\n"
                 f"**АНДРОИД:** 'Чтобы открыть архив, подтвердите базовую константу проекта. Дед учил вас: "
                 f"«Всё в природе стремится к симметрии, как здоровая улыбка». Какое количество резцов заложено в формулу идеального генофонда человека? \n\n"
@@ -485,7 +485,7 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s2_28":
         add_xp(user_id, 15, username)
         update_game_progress(user_id, current_node + "_clue_data_core")
-        text = (f"💾 **ЭТАП 28: ПОГРУЖЕНИЕ В БЕЗДНУ**\n\n"
+        text = (f"💾 *ПОГРУЖЕНИЕ В БЕЗДНУ*\n\n"
                 f"При вводе числа '8' глаза андроида вспыхивают золотом. Он берет вашу руку, и Био-анализатор начинает скачивать колоссальный объем данных. \n\n"
                 f"**АНДРОИД:** 'Загрузка пошла. Вы узнаете всё: про эксперименты 1985-го, про то, как Академия Орион "
                 f"пыталась приручить фиолетовый мох, и про то, почему вы — единственный выживший клон из партии 'Д-85'. "
@@ -502,14 +502,14 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 29: ПРОРЫВ СКВОЗЬ КИСЛОТУ ] ---
     elif call.data == "apoc_s2_sync":
-        text = (f"🔥 **ЭТАП 29: ОБРУШЕНИЕ ЗЕНИТА**\n\n"
+        text = (f"🔥 *ОБРУШЕНИЕ ЗЕНИТА*\n\n"
                 f"Как только полоса загрузки доходит до 100%, потолок атриума разлетается в щепки под ударами ракет. "
                 f"Здание 'Зенита' начинает оседать в кислотное болото. Андроид отталкивает вас к пожарному выходу.\n\n"
                 f"**АНДРОИД:** 'Бегите к окраинам! Ищите стоматологическую клинику на проспекте Мира. Семя там. Я задержу их'. \n\n"
                 f"Вы прыгаете в темный проем, а за вашей спиной раздается грохот рушащихся металлоконструкций. "
                 f"Марти лает, указывая путь через затопленные склады. Вы бежите сквозь едкий дым, ориентируясь только на пульс Био-анализатора.")
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton("🏃 Вырваться из ловушки (Этап 30)", callback_data="apoc_s2_30")
+            tele_types.InlineKeyboardButton("🏃 Вырваться из ловушки", callback_data="apoc_s2_30")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
@@ -517,7 +517,7 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s2_30":
         update_game_progress(user_id, current_node + "_apoc_ch2_done")
         add_xp(user_id, 150, username) 
-        text = (f"🏜 **ЭТАП 30: ГРАНИЦА МАРИУПОЛЯ**\n\n"
+        text = (f"🏜 *ГРАНИЦА МАРИУПОЛЯ*\n\n"
                 f"Вы выбираетесь из кислотного тумана. Сзади догорают руины ТЦ 'Зенит'. Впереди, за пеленой смога, "
                 f"проступают очертания города вашего детства — Мариуполя. Но он неузнаваем. Это джунгли из бетона и пульсирующего мха.\n\n"
                 f"Вы смотрите на Био-анализатор. Теперь на нем горит новая надпись: \n"
