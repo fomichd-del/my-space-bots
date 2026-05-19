@@ -120,16 +120,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ОБРАБОТЧИКИ ОШИБОК ] ---
-    elif call.data == "apoc_s5_med_fail":
-        bot.answer_callback_query(call.id, "❌ Пациенту больно! Инфекция распространяется. Вспоминайте точку Apex!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s5_astro_fail":
-        bot.answer_callback_query(call.id, "❌ Ошибка ключа. Спутник не распознает созвездие. Посмотрите на небо — ищите W!", show_alert=True)
-        return
-
-  # --- [ ЭТАП 6: ГНЕВ СЕМЕНИ ] ---
+    # --- [ ЭТАП 6: ГНЕВ СЕМЕНИ ] ---
     elif call.data == "apoc_s5_6":
         add_xp(user_id, 45, username)
         text = (f"⚡️ **ЭТАП 6: РЕЗОНАНС ВЕРТИКАЛИ**\n"
@@ -214,16 +205,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ОБРАБОТЧИКИ ОШИБОК ] ---
-    elif call.data == "apoc_s5_spy_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, вы ошиблись! Этот парень просто болен, а настоящий шпион чуть не ускользнул!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s5_shield_fail":
-        bot.answer_callback_query(call.id, "❌ Купол не синхронизируется. Ориентир выбран неверно. Ищите созвездие-навигатор!", show_alert=True)
-        return
-
-  # --- [ ЭТАП 11: ШЕПОТ ТУННЕЛЕЙ ] ---
+    # --- [ ЭТАП 11: ШЕПОТ ТУННЕЛЕЙ ] ---
     elif call.data == "apoc_s5_11":
         text = (f"🌊 **ЭТАП 11: СЫРОСТЬ И СТАЛЬ**\n"
                 f"──────────────────────────\n"
@@ -307,16 +289,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ОБРАБОТЧИКИ ОШИБОК ] ---
-    elif call.data == "apoc_s5_roots_fail":
-        bot.answer_callback_query(call.id, "❌ Неверно! Давление растет! Вспомните анатомию верхних моляров — сколько у них корней?", show_alert=True)
-        return
-
-    elif call.data == "apoc_s5_combat_fail":
-        bot.answer_callback_query(call.id, "⚠️ Опасно! Фонарь только выдал вашу позицию! Цербер атакует!", show_alert=True)
-        return
-
-  # --- [ ЭТАП 16: СИНХРОНИЗАЦИЯ ДУШ ] ---
+    # --- [ ЭТАП 16: СИНХРОНИЗАЦИЯ ДУШ ] ---
     elif call.data == "apoc_s5_16":
         text = (f"🧬 **ЭТАП 16: ЯДРО ЖИЗНИ**\n"
                 f"──────────────────────────\n"
@@ -401,16 +374,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ОБРАБОТЧИКИ ОШИБОК ] ---
-    elif call.data == "apoc_s5_anchor_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, сигнал нестабилен! Влад начинает растворяться! Вспомните базу постоянных зубов!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s5_marti_hero":
-        bot.answer_callback_query(call.id, "🐶 Марти: 'Я бы с радостью, Док, но там напряжение в 10 киловольт! Лучше используйте Бор!'", show_alert=True)
-        return
-
-  # --- [ ЭТАП 21: ФУНДАМЕНТ БУДУЩЕГО ] ---
+    # --- [ ЭТАП 21: ФУНДАМЕНТ БУДУЩЕГО ] ---
     elif call.data == "apoc_s5_21":
         text = (f"🏗 **ЭТАП 21: ПЕРВЫЙ КАМЕНЬ**\n"
                 f"──────────────────────────\n"
@@ -489,7 +453,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 26: ГЛАЗ ЦИКЛОПА ] ---
+    # --- [ ЭТАП 26: ГЛАЗ ЦИКЛОПА ] ---
     elif call.data == "apoc_s5_26":
         text = (f"🔭 **ЭТАП 26: ОКУЛЯР СУДЬБЫ**\n"
                 f"──────────────────────────\n"
@@ -578,14 +542,105 @@ def run_scenario(bot, call):
                 f"Вы закрываете дневник юного космонавта. Впереди — бесконечность.\n\n"
                 f"**СПАСИБО ЗА ИГРУ, ДМИТРИЙ ВЛАДИМИРОВИЧ!**")
         
-        bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
-        # Здесь можно вызвать финальное меню или просто закончить
+        # Заменяем send_message на edit_message_text для чистоты интерфейса
+        kb = tele_types.InlineKeyboardMarkup().add(
+            tele_types.InlineKeyboardButton("🏆 Вернуться в главное меню", callback_data="game_main_menu")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ОБРАБОТЧИКИ ОШИБОК ] ---
+    # =====================================================================
+    # --- [ БЛОК ОБРАБОТЧИКОВ ОШИБОК И ДЕТЕКТИВНЫХ УЛИК ] ---
+    # =====================================================================
+
+    # [ 1. Обработчики ошибок и неверных действий ]
+    elif call.data == "apoc_s5_med_fail":
+        bot.answer_callback_query(call.id, "❌ Пациенту больно! Инфекция распространяется. Вспоминайте точку Apex!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_astro_fail":
+        bot.answer_callback_query(call.id, "❌ Ошибка ключа. Спутник не распознает созвездие. Посмотрите на небо!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_trap_fail":
+        bot.answer_callback_query(call.id, "⚠️ ОШИБКА: Инквизиторы используют фильтры шума! Акустика их не берет. Включайте воду!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_spy_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, вы ошиблись! Этот парень просто болен, а настоящий шпион чуть не ускользнул!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_shield_fail":
+        bot.answer_callback_query(call.id, "❌ Купол не синхронизируется. Ориентир выбран неверно. Ищите созвездие-ковш!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_roots_fail":
+        bot.answer_callback_query(call.id, "❌ Неверно! Давление растет! Вспомните анатомию верхних моляров — сколько у них корней?", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_combat_fail":
+        bot.answer_callback_query(call.id, "⚠️ Опасно! Фонарь только выдал вашу позицию! Цербер атакует!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_anchor_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, сигнал нестабилен! Влад начинает растворяться! Вспомните базу постоянных зубов!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_marti_hero":
+        bot.answer_callback_query(call.id, "🐶 Марти: 'Я бы с радостью, Док, но там напряжение в 10 киловольт! Лучше используйте Бор!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_const_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, математика не сходится! Вспомните, сколько зубов в одной челюсти взрослого без восьмерок?'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_ph_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, кислота или щелочь убьют посевы! Нам нужен идеальный нейтральный баланс!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_code_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок пищит! Глазной зуб — это клык. Какой он по счету от центра?'", show_alert=True)
+        return
+
     elif call.data == "apoc_s5_final_code_fail":
         bot.answer_callback_query(call.id, "❌ Ошибка кода! Вспомните анатомию: сколько резцов у взрослого человека и сколько у них корней? Только один у каждого!", show_alert=True)
         return
 
     elif call.data == "apoc_s5_overload_fail":
         bot.answer_callback_query(call.id, "⚠️ Слишком медленно! Ручное управление заблокировано. Используйте заземление!", show_alert=True)
+        return
+
+    # [ 2. Обработчики детективных улик (с начислением XP) ]
+    elif call.data == "apoc_s5_clue_scan":
+        add_xp(user_id, 5, username)
+        bot.answer_callback_query(call.id, "🔍 СКАНИРОВАНИЕ: Влад чувствует слабые сигналы под землей. Это старые коммуникации, они нам еще пригодятся.", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_clue_negotiate":
+        add_xp(user_id, 5, username)
+        bot.answer_callback_query(call.id, "🗣 ПЕРЕГОВОРЫ: Линдер не слушает. Его шлем блокирует внешние звуки. Он пришел только уничтожать.", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_clue_traitor":
+        add_xp(user_id, 5, username)
+        bot.answer_callback_query(call.id, "📷 КАМЕРЫ: Записи стерты! Кто-то профессионально заметает следы. Действовать нужно через прямой осмотр.", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_clue_transport":
+        add_xp(user_id, 5, username)
+        bot.answer_callback_query(call.id, "🚙 ТРАНСПОРТ: Старый электрокар Академии разряжен. Пешком мы доберемся быстрее и незаметнее.", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_clue_coolant":
+        add_xp(user_id, 5, username)
+        bot.answer_callback_query(call.id, "❄️ ОХЛАДИТЕЛИ: Уровень фреона в норме. Проблема не здесь, идите к пульту давления!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_clue_hack":
+        add_xp(user_id, 5, username)
+        bot.answer_callback_query(call.id, "💻 ВЗЛОМ: Защита Линдера квантовая. Влад не может ее пробить, не рискуя своим разумом. Используйте Бор!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s5_clue_laser":
+        add_xp(user_id, 5, username)
+        bot.answer_callback_query(call.id, "🔭 РЕЗОНАНС: Зеркала еще не откалиброваны для боевого луча. Придется сбивать дедовским способом!", show_alert=True)
         return
