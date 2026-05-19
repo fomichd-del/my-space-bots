@@ -713,6 +713,32 @@ def is_user_new(user_id):
             cursor.close()
             conn.close()
 
+# Добавьте в database.py
+
+def set_game_node(user_id, node_id):
+    """Принудительно устанавливает узел, НЕ ДОБАВЛЯЯ к старому."""
+    conn = get_connection()
+    if not conn: return
+    try:
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET game_node = %s WHERE user_id = %s', (node_id, user_id))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+def reset_game(user_id):
+    """Полный сброс прогресса игры."""
+    conn = get_connection()
+    if not conn: return
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET game_node = 'apoc_start' WHERE user_id = %s", (user_id,))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
 if __name__ == "__main__":
     # Эта команда запустится только если вы запустите сам файл database.py
     # Она создаст все таблицы и колонки, если их еще нет.
