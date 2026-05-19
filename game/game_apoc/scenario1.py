@@ -18,7 +18,7 @@ def run_scenario(bot, call):
         set_game_timer(user_id, 0)
         current_node = "apoc_start"
         timer_end = None
-        bot.answer_callback_query(call.id, "🔄 Данные стерты. Начинаем с чистого листа!", show_alert=True)
+        bot.answer_callback_query(call.id, "🔄 Данные стерты. Вы очнулись заново!", show_alert=True)
         call.data = "apoc_start"
 
     # 🟢 --- [ УМНАЯ СИСТЕМА СОХРАНЕНИЙ (ЧЕКПОИНТЫ) ] --- 🟢
@@ -31,6 +31,8 @@ def run_scenario(bot, call):
             call.data = "apoc_n1_decode_radio"
         elif "_generator" in current_node:
             call.data = "apoc_n1_generator_room"
+        elif "_suit_fixed" in current_node:
+            call.data = "apoc_n1_base_menu"
         elif "_logic_pc_done" in current_node:
             call.data = "apoc_n1_base_menu"
         else:
@@ -45,9 +47,9 @@ def run_scenario(bot, call):
         text = (f"🏆 **ГЛАВА 1: ПРОЙДЕНА**\n"
                 f"──────────────────────────\n"
                 f"Вы успешно запустили реактор и выжили в бункере.\n\n"
-                f"🎁 **ПОЛУЧЕННЫЕ НАГРАДЫ:**\n"
+                f"🎁 **ВЫИГРЫШ ЗА ГЛАВУ:**\n"
                 f"✨ Опыт: +150 XP\n"
-                f"💎 Пыль: +50 ед.\n\n"
+                f"💎 Пыль: +150 ед.\n\n"
                 f"Марти ждет команду, чтобы отправиться во вторую главу!")
         
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
@@ -92,6 +94,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("🔍 Осмотреть место происшествия", callback_data="apoc_n1_investigate"),
             tele_types.InlineKeyboardButton("🖥 Проверить терминал", callback_data="apoc_n1_pc_check"),
+            tele_types.InlineKeyboardButton("🔄 Начать игру заново", callback_data="game_reset_all"), # Кнопка сброса добавлена сюда
             tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -148,8 +151,11 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_pc_success":
-        add_xp(user_id, 5, username)
-        update_game_progress(user_id, current_node + "_logic_pc_done")
+        # 🟢 ИСПРАВЛЕНИЕ: Защита от бесконечного опыта за взлом
+        if "_logic_pc_done" not in current_node:
+            add_xp(user_id, 5, username)
+            update_game_progress(user_id, current_node + "_logic_pc_done")
+            
         text = ("🔓 *ДОСТУП РАЗРЕШЕН*\n\n"
                 "Вы вошли в систему. Логи показывают: 'Внешнее вмешательство. Дверь шлюза открыта кодом 0441'.\n\n"
                 "Марти: 'Док, смотрите! Кто-то скачал чертежи вашего Костюма. Нас не просто грабили, нас изучали'.")
@@ -175,8 +181,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 7: ТРЕВОГА (Атмосфера) ] ---
     elif call.data == "apoc_n1_item_meds":
-        add_xp(user_id, 1, username)
-        update_game_progress(user_id, current_node + "_item_meds")
+        # 🟢 ИСПРАВЛЕНИЕ: Защита от получения бесконечной аптечки
+        if "_item_meds" not in current_node:
+            add_xp(user_id, 1, username)
+            update_game_progress(user_id, current_node + "_item_meds")
+            
         text = ("🚨 *СИГНАЛ ТРЕВОГИ*\n\n"
                 "Как только вы взяли аптечку, в бункере завыла сирена. Датчики радиации зашкаливают. \n\n"
                 "Марти: 'Док! Вентиляция засосала порцию 'свежего' воздуха с поверхности. У нас есть пара минут, пока фильтры не сдохли совсем. "
@@ -263,7 +272,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 10-B: СЕКРЕТНЫЙ КАБИНЕТ ] ---
     elif call.data == "apoc_n1_secret_hall":
-        add_xp(user_id, 10, username)
+        # 🟢 ИСПРАВЛЕНИЕ: Блокировка бесконечного опыта за вход в комнату
+        if "_secret_entered" not in current_node:
+            add_xp(user_id, 10, username)
+            update_game_progress(user_id, current_node + "_secret_entered")
+            
         text = ("🦷 *ЗАПРЕТНАЯ ЗОНА*\n\n"
                 "Люк открывается с пневматическим шипением. Вы спускаетесь в идеально чистую комнату. "
                 "Здесь хранятся прототипы инструментов, которые опередили свое время на десятилетия.\n\n"
@@ -278,7 +291,9 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 10-C: СЕКРЕТНЫЕ ФАЙЛЫ ] ---
     elif call.data == "apoc_n1_secret_files":
-        update_game_progress(user_id, current_node + "_clue_files")
+        if "_clue_files" not in current_node:
+            update_game_progress(user_id, current_node + "_clue_files")
+            
         text = ("📜 *ТАЙНЫЙ ОТЧЕТ*\n\n"
                 "В папке лежит рентгеновский снимок. На нем запечатлена челюсть, полностью заросшая фиолетовыми кристаллами. \n\n"
                 "Марти читает подпись: 'Заражение произошло через пломбу из метеоритного железа. Пациент номер ноль'. \n\n"
@@ -288,7 +303,9 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 10-D: ЛЕГЕНДАРНЫЙ МОТОР ] ---
     elif call.data == "apoc_n1_secret_motor":
-        update_game_progress(user_id, current_node + "_item_super_motor")
+        if "_item_super_motor" not in current_node:
+            update_game_progress(user_id, current_node + "_item_super_motor")
+            
         text = ("✅ *ЛЕГЕНДАРНЫЙ ТРОФЕЙ*\n\n"
                 "Вы бережно извлекаете мотор. Это настоящее сокровище старого мира.\n\n"
                 "Марти: 'Теперь я не просто той-пудель, я — стратегический радар! Док, с этой штукой мы "
@@ -305,7 +322,7 @@ def run_scenario(bot, call):
                 tele_types.InlineKeyboardButton("🔙 Вернуться в Хаб", callback_data="apoc_n1_base_menu")
             )
         elif "_item_cloth" in current_node:
-            text = "🛠 *ВЕРСТА**\n\nУ вас есть брезент. Марти готов помочь сшить защитный костюм."
+            text = "🛠 *ВЕРСТАК*\n\nУ вас есть брезент. Марти готов помочь сшить защитный костюм."
             kb = tele_types.InlineKeyboardMarkup().add(
                 tele_types.InlineKeyboardButton("⚒ Скрафтить Костюм", callback_data="apoc_n1_tool_choice"),
                 tele_types.InlineKeyboardButton("🔙 Назад", callback_data="apoc_n1_base_menu")
@@ -384,7 +401,9 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 19: УЛИКА: МАСКА ] ---
     elif call.data == "apoc_n1_shadow_talk":
-        update_game_progress(user_id, current_node + "_clue_mask")
+        if "_clue_mask" not in current_node:
+            update_game_progress(user_id, current_node + "_clue_mask")
+            
         text = ("👤 *ПУСТОТА*\n\n"
                 "Вы выкрикиваете имя, но фигура рассыпается облаком пыли. Это была запись системы безопасности. \n\n"
                 "На полу, там где стоял призрак, вы находите маску Академии Орион. \n\n"
@@ -393,8 +412,10 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_shadow_sneak":
-        update_game_progress(user_id, current_node + "_clue_mask")
-        add_xp(user_id, 5, username)
+        if "_clue_mask" not in current_node:
+            update_game_progress(user_id, current_node + "_clue_mask")
+            add_xp(user_id, 5, username)
+            
         text = ("👤 *ПУСТОТА*\n\n"
                 "Вы бесшумно крадетесь вперед и пытаетесь схватить незнакомца за плечо... но ваша рука проходит сквозь него! Фигура рассыпается пикселями. Это голограмма.\n\n"
                 "На полу вы находите маску Академии Орион. \n\n"
@@ -481,7 +502,9 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 25: ЗАГАДКА ГЕНЕРАТОРА ] ---
     elif call.data == "apoc_n1_generator_room":
-        update_game_progress(user_id, current_node + "_generator") 
+        if "_generator" not in current_node:
+            update_game_progress(user_id, current_node + "_generator") 
+            
         text = ("⚡️ **ЭТАП 25: СЕРДЦЕ БУНКЕРА**\n\n"
                 "Вы у главного щитка. Тут всё залито тем самым фиолетовым мхом. Он буквально 'ест' электричество.\n\n"
                 "Марти: 'Смотрите, Док! Кто-то перенаправил поток энергии. Чтобы запустить панели, нужно перераспределить нагрузку по фазам. "
@@ -498,8 +521,11 @@ def run_scenario(bot, call):
         bot.answer_callback_query(call.id, "⚡️ ЗЗЗЗЗТ! Неверная фаза! Вспоминайте таблицу Менделеева: Углерод - 6-й элемент!", show_alert=True)
 
     elif call.data == "apoc_n1_gen_success":
-        add_xp(user_id, 10, username)
-        update_game_progress(user_id, current_node + "_truth_found")
+        # 🟢 ИСПРАВЛЕНИЕ: Защита от накрутки опыта за генератор
+        if "_truth_found" not in current_node:
+            add_xp(user_id, 10, username)
+            update_game_progress(user_id, current_node + "_truth_found")
+            
         text = ("🔥 **ПИТАНИЕ ВОССТАНОВЛЕНО**\n\n"
                 "Свет с миганием загорается во всем бункере. Мох испуганно сжимается. Но в этом свете вы видите то, что повергает вас в шок.\n\n"
                 "На стене у генератора висит старая фотография. На ней — ваш дед, Дмитрий Владимирович, в таком же бункере. "
@@ -521,8 +547,13 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_clue_radio":
-        add_xp(user_id, 3, username)
-        bot.answer_callback_query(call.id, "📡 Частота сохранена! Марти скачал обрывок аудиодневника деда. Это пригодится в будущем.", show_alert=True)
+        # 🟢 ИСПРАВЛЕНИЕ: Защита от накрутки опыта
+        if "_clue_radio" not in current_node:
+            add_xp(user_id, 3, username)
+            update_game_progress(user_id, current_node + "_clue_radio")
+            bot.answer_callback_query(call.id, "📡 Частота сохранена! Марти скачал обрывок аудиодневника деда. Получено 3 XP.", show_alert=True)
+        else:
+            bot.answer_callback_query(call.id, "📡 Данные уже скачаны в память Марти.", show_alert=True)
 
     # --- [ ЭТАП 27: ПЕРЕХОД (Логика/Крафт) ] ---
     elif call.data == "apoc_n1_stairwell":
@@ -539,7 +570,6 @@ def run_scenario(bot, call):
 
     elif call.data == "apoc_n1_marty_risk":
         bot.answer_callback_query(call.id, "🐕 БЗЗЗТ! Марти вскрикнул, и от него пошел дымок. Лифт заработал, но вы потеряли 5 XP за жестокость!", show_alert=True)
-        # Перекидываем на этап 28
         run_scenario(bot, type('obj', (object,), {'from_user': call.from_user, 'data': 'apoc_n1_lift_fix', 'message': call.message, 'id': call.id}))
         return
 
@@ -555,8 +585,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 29: СЕКРЕТ В ШАХТЕ (Скрытая улика) ] ---
     elif call.data == "apoc_n1_shaft_secret":
-        add_xp(user_id, 5, username)
-        update_game_progress(user_id, current_node + "_secret_found") 
+        # 🟢 ИСПРАВЛЕНИЕ: Защита от накрутки опыта
+        if "_secret_found" not in current_node:
+            add_xp(user_id, 5, username)
+            update_game_progress(user_id, current_node + "_secret_found") 
+            
         text = ("💎 **ЭТАП 29: ТАЙНИК ЗА СТЕНКОЙ**\n\n"
                 "Лифт застрял на секунду, и вы заметили в стене шахты нишу. Там лежит старая стоматологическая аптечка вашего деда.\n\n"
                 "Внутри — **Антисептик 'Орион'**. Это мощное средство, которое позволит нам лечить раны во 2-й главе.\n\n"
@@ -590,7 +623,7 @@ def run_scenario(bot, call):
                 "В глазах Марти читается легкое непонимание, но он преданно виляет хвостом.\n\n"
                 "🎁 **НАГРАДЫ ЗА ГЛАВУ:**\n"
                 "• Опыт: +100 XP\n"
-                "• Пыль: +50 ед.\n\n"
+                "• Пыль: +100 ед.\n\n"
                 "🎉 **ГЛАВА 1 ЗАВЕРШЕНА!** Вы открыли доступ ко второй главе.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("🚀 Начать Главу 2", callback_data="apoc_s2_start"),
@@ -609,7 +642,7 @@ def run_scenario(bot, call):
                 "Сказав это, он отключается навсегда. Марти уважительно кивает.\n\n"
                 "🎁 **НАГРАДЫ ЗА ГЛАВУ:**\n"
                 "• Опыт: +150 XP\n"
-                "• Пыль: +50 ед.\n\n"
+                "• Пыль: +150 ед.\n\n"
                 "🎉 **ГЛАВА 1 ЗАВЕРШЕНА!** Вы открыли доступ ко второй главе.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("🚀 Начать Главу 2", callback_data="apoc_s2_start"),
