@@ -586,15 +586,18 @@ def run_scenario(bot, call):
 
     elif call.data == "apoc_s4_clue_vlad":
         update_game_progress(user_id, current_node + "_clue_subject_zero")
+        add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "📋 ДОКУМЕНТ: 'Субъект Влад — первый успешный носитель гена Семени'. Это имя вашего сына... Но документ из 1985-го!", show_alert=True)
         return
 
     elif call.data == "apoc_s4_clue_names":
+        add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "📝 На колбах имена ваших старых коллег и друзей. Архив хранит их личности даже после смерти.", show_alert=True)
         return
 
 # --- [ ОБРАБОТЧИКИ ОШИБОК И НАХОДОК ЭТАПОВ 11-15 ] ---
     elif call.data == "apoc_s4_clue_shadow":
+        add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "👤 ТЕНЬ: На снимке за спиной отца стоит человек в такой же форме, как у вас. Это вы... но из будущего?", show_alert=True)
         return
 
@@ -608,6 +611,7 @@ def run_scenario(bot, call):
 
 # --- [ ОБРАБОТЧИКИ ОШИБОК И НАХОДОК ЭТАПОВ 16-20 ] ---
     elif call.data == "apoc_s4_clue_nodes":
+        add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🧬 ДАННЫЕ: Узлы содержат отчеты о лечении детей в 1985-м. Все они имели одну и ту же аномалию прикуса.", show_alert=True)
         return
 
@@ -620,11 +624,13 @@ def run_scenario(bot, call):
         return
 
     elif call.data == "apoc_s4_clue_history":
+        add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "📋 ИСТОРИЯ: 'Субъект 0 — биологический якорь. Без него Семя Жизни превращается в вирус'.", show_alert=True)
         return
 
 # --- [ ОБРАБОТЧИКИ ОШИБОК И НАХОДОК ЭТАПОВ 21-25 ] ---
     elif call.data == "apoc_s4_clue_aura":
+        add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "✨ СИЯНИЕ: Семя создает поле, которое блокирует излучение Академии. Вы в безопасности, пока оно рядом.", show_alert=True)
         return
 
@@ -637,6 +643,7 @@ def run_scenario(bot, call):
         return
 
     elif call.data == "apoc_s4_clue_tracks":
+        add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🛤 ПУТИ: Рельсы ведут прямо в сердце Академии. Это путь в один конец.", show_alert=True)
         return
 
