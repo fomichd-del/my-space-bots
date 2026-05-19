@@ -117,7 +117,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 6: ВИДЕО ИЗ БЕЗДНЫ ] ---
+    # --- [ ЭТАП 6: ВИДЕО ИЗ БЕЗДНЫ ] ---
     elif call.data == "apoc_s4_6":
         text = (f"📼 *ПЕРВЫЙ ФАЙЛ*\n"
                 f"──────────────────────────\n"
@@ -204,7 +204,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 11: ДИАЛОГ С ОТРАЖЕНИЕМ ] ---
+    # --- [ ЭТАП 11: ДИАЛОГ С ОТРАЖЕНИЕМ ] ---
     elif call.data == "apoc_s4_11":
         text = (f"🪞 *ЛИЦО ПОД МАСКОЙ*\n"
                 f"──────────────────────────\n"
@@ -295,7 +295,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 16: СПУСК К ТОЧКЕ НОЛЬ ] ---
+    # --- [ ЭТАП 16: СПУСК К ТОЧКЕ НОЛЬ ] ---
     elif call.data == "apoc_s4_16":
         text = (f"📉 *ВНИЗ ПО ВЕНАМ ГОРОДА*\n"
                 f"──────────────────────────\n"
@@ -382,7 +382,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 21: ТЕПЛО ЖИЗНИ ] ---
+    # --- [ ЭТАП 21: ТЕПЛО ЖИЗНИ ] ---
     elif call.data == "apoc_s4_21":
         text = (f"🧬 *ВЫХОД ИЗ СТАЗИСА*\n"
                 f"──────────────────────────\n"
@@ -468,7 +468,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 26: ВОКЗАЛ «ЗЕНИТ» ] ---
+    # --- [ ЭТАП 26: ВОКЗАЛ «ЗЕНИТ» ] ---
     elif call.data == "apoc_s4_26":
         text = (f"🏙 *В ЛОГОВЕ ВРАГА*\n"
                 f"──────────────────────────\n"
@@ -556,13 +556,20 @@ def run_scenario(bot, call):
                 f"💰 Вы получили 250 Пыли за раскрытие тайны проекта Влад.\n"
                 f"🚀 **Глава 5: Новая Почва** разблокирована. Время строить мир на руинах старого.")
         
-        # 🟢 ИСПРАВЛЕНИЕ: Кнопка возврата
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("🏆 Вернуться в меню симуляций", callback_data="game_main_menu")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ОБРАБОТЧИКИ ОШИБОК И НАХОДОК ГЛАВЫ 4 ] ---
+    # =====================================================================
+    # --- [ БЛОК ОБРАБОТЧИКОВ ОШИБОК И ДЕТЕКТИВНЫХ УЛИК ] ---
+    # =====================================================================
+
+    # [ 1. Обработчики ошибок и неверных действий ]
+    elif call.data == "apoc_s4_logic_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, это неверное число! Формула не сходится! Попробуйте еще раз!'", show_alert=True)
+        return
+
     elif call.data == "apoc_s4_cover_fail":
         bot.answer_callback_query(call.id, "⚠️ ОШИБКА: Контейнеры прозрачны для сканеров Академии! Бегите к лифту!", show_alert=True)
         return
@@ -575,7 +582,6 @@ def run_scenario(bot, call):
         bot.answer_callback_query(call.id, "🌀 РЕЗОНАНС: Семя требует слишком много энергии! Вы можете погибнуть! Используйте Бор на пульте!", show_alert=True)
         return
 
-    # --- [ ОБРАБОТЧИКИ ОШИБОК И НАХОДОК ГЛАВЫ 4 ] ---
     elif call.data == "apoc_s4_root_fail":
         bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок не срабатывает! Вы точно помните количество опор моляра? Попробуйте еще раз!'", show_alert=True)
         return
@@ -584,6 +590,31 @@ def run_scenario(bot, call):
         bot.answer_callback_query(call.id, "⚠️ Академия слишком сильна! Дверь не выдержит! Срочно используйте азот!", show_alert=True)
         return
 
+    elif call.data == "apoc_s4_trans_fail":
+        bot.answer_callback_query(call.id, "❌ ОТКАЗ: Система требует био-синхронизации через Семя. Обычная активация заблокирована!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s4_combat_fail":
+        bot.answer_callback_query(call.id, "⚠️ РИСК: У вас недостаточно патронов, чтобы сдержать всю Академию. Используйте Передатчик!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s4_riddle_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, это не база! Резцы — это фасад системы! Попробуйте еще раз!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s4_nav_fight":
+        bot.answer_callback_query(call.id, "⚠️ ТЩЕТНО: Навигатор поглощает энергию луча. Он синхронизирован с Архивом. Нужно действовать иначе!", show_alert=True)
+        return
+
+    elif call.data == "apoc_s4_final_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок не принимает число! Вспоминайте формулу взрослого набора!'", show_alert=True)
+        return
+
+    elif call.data == "apoc_s4_blind_fail":
+        bot.answer_callback_query(call.id, "⚠️ ТЩЕТНО: Вспышка лишь разозлила их. Броня Чистильщиков защищена от света! Используйте хладагент!", show_alert=True)
+        return
+
+    # [ 2. Обработчики детективных улик (с начислением XP) ]
     elif call.data == "apoc_s4_clue_vlad":
         update_game_progress(user_id, current_node + "_clue_subject_zero")
         add_xp(user_id, 5, username)
@@ -595,32 +626,14 @@ def run_scenario(bot, call):
         bot.answer_callback_query(call.id, "📝 На колбах имена ваших старых коллег и друзей. Архив хранит их личности даже после смерти.", show_alert=True)
         return
 
-# --- [ ОБРАБОТЧИКИ ОШИБОК И НАХОДОК ЭТАПОВ 11-15 ] ---
     elif call.data == "apoc_s4_clue_shadow":
         add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "👤 ТЕНЬ: На снимке за спиной отца стоит человек в такой же форме, как у вас. Это вы... но из будущего?", show_alert=True)
         return
 
-    elif call.data == "apoc_s4_trans_fail":
-        bot.answer_callback_query(call.id, "❌ ОТКАЗ: Система требует био-синхронизации через Семя. Обычная активация заблокирована!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_combat_fail":
-        bot.answer_callback_query(call.id, "⚠️ РИСК: У вас недостаточно патронов, чтобы сдержать всю Академию. Используйте Передатчик!", show_alert=True)
-        return
-
-# --- [ ОБРАБОТЧИКИ ОШИБОК И НАХОДОК ЭТАПОВ 16-20 ] ---
     elif call.data == "apoc_s4_clue_nodes":
         add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🧬 ДАННЫЕ: Узлы содержат отчеты о лечении детей в 1985-м. Все они имели одну и ту же аномалию прикуса.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_riddle_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, это не база! Резцы — это фасад системы! Попробуйте еще раз!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_nav_fight":
-        bot.answer_callback_query(call.id, "⚠️ ТЩЕТНО: Навигатор поглощает энергию луча. Он синхронизирован с Архивом. Нужно действовать иначе!", show_alert=True)
         return
 
     elif call.data == "apoc_s4_clue_history":
@@ -628,18 +641,9 @@ def run_scenario(bot, call):
         bot.answer_callback_query(call.id, "📋 ИСТОРИЯ: 'Субъект 0 — биологический якорь. Без него Семя Жизни превращается в вирус'.", show_alert=True)
         return
 
-# --- [ ОБРАБОТЧИКИ ОШИБОК И НАХОДОК ЭТАПОВ 21-25 ] ---
     elif call.data == "apoc_s4_clue_aura":
         add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "✨ СИЯНИЕ: Семя создает поле, которое блокирует излучение Академии. Вы в безопасности, пока оно рядом.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_final_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок не принимает число! Вспоминайте формулу взрослого набора!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_blind_fail":
-        bot.answer_callback_query(call.id, "⚠️ ТЩЕТНО: Вспышка лишь разозлила их. Броня Чистильщиков защищена от света! Используйте хладагент!", show_alert=True)
         return
 
     elif call.data == "apoc_s4_clue_tracks":
@@ -647,11 +651,6 @@ def run_scenario(bot, call):
         bot.answer_callback_query(call.id, "🛤 ПУТИ: Рельсы ведут прямо в сердце Академии. Это путь в один конец.", show_alert=True)
         return
 
-    elif call.data == "apoc_s4_logic_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, это неверное число! Формула не сходится! Попробуйте еще раз!'", show_alert=True)
-        return
-    
-    # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ ГЛАВЫ 4 ] ---
     elif call.data == "apoc_s4_clue_depth":
         add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🔭 Анализ: Глубина архива скрыта за частотными фильтрами 1985 года. Прямое сканирование невозможно.", show_alert=True)
