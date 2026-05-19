@@ -482,11 +482,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 25: ЗАГАДКА ГЕНЕРАТОРА (Логика) ] ---
     elif call.data == "apoc_n1_generator_room":
-        text = ("⚡️ *СЕРДЦЕ БУНКЕРА*\n\n"
+        text = ("⚡️ **ЭТАП 25: СЕРДЦЕ БУНКЕРА**\n\n"
                 "Вы у главного щитка. Тут всё залито тем самым фиолетовым мхом. Он буквально 'ест' электричество.\n\n"
                 "Марти: 'Смотрите, Док! Кто-то перенаправил поток энергии. Чтобы запустить панели, нужно перераспределить нагрузку по фазам. "
                 "Если ошибиться — нас поджарит, а мох разрастется еще сильнее'.\n\n"
-                "Перед вами три тумблера: А-1, Б-2, В-3. Нацарапано: 'Сумма должна быть равна атомному номеру углерода (C)'.")
+                "Перед вами три тумблера: А-1, Б-2, В-3. Нацарапано: 'Сумма должна быть равна атомному номеру углерода'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("🔘 4", callback_data="apoc_n1_gen_fail"),
             tele_types.InlineKeyboardButton("🔘 6", callback_data="apoc_n1_gen_success"),
@@ -494,20 +494,64 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    elif call.data == "apoc_n1_gen_fail":
-        bot.answer_callback_query(call.id, "⚡️ ЗЗЗЗЗТ! Неверная фаза! Вспоминайте таблицу Менделеева: Углерод - 6-й элемент!", show_alert=True)
+# --- [ ЭТАП 26: ЗАШИФРОВАННЫЙ КАНАЛ (Детектив) ] ---
+    elif call.data == "apoc_n1_decode_radio":
+        text = ("📟 **ЭТАП 26: ПРИЗРАКИ В ЭФИРЕ**\n\n"
+                "После запуска генератора старая радиостанция на стене внезапно ожила. Сквозь треск слышен голос.\n\n"
+                "Голос: '...объект 85-Мариуполь... протокол выполнен... мы уходим в ТЦ...'.\n\n"
+                "Марти: 'Док, это старая запись. Но смотрите на частоту — она заблокирована программно. "
+                "Тот, кто был здесь до нас, пытался скрыть это сообщение от Академии. Кажется, ваш дед оставил этот 'хвост' специально для вас'.")
+        kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
+            tele_types.InlineKeyboardButton("📡 Сканировать частоту (Опыт)", callback_data="apoc_n1_clue_radio"),
+            tele_types.InlineKeyboardButton("🧗 Искать выход к лестнице", callback_data="apoc_n1_stairwell")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
+    # --- [ ЭТАП 27: ПЕРЕХОД (Логика/Крафт) ] ---
+    elif call.data == "apoc_n1_stairwell":
+        text = ("🪜 **ЭТАП 27: ВЕРТИКАЛЬНЫЙ ПРЕДЕЛ**\n\n"
+                "Лестница на крышу заблокирована обвалом. Единственный путь — технический лифт, но у него перегорел предохранитель.\n\n"
+                "Марти: 'Док, я могу замкнуть контакты своим жилетом, но меня может слегка... поджарить. "
+                "Или вы можете попробовать собрать перемычку из того медного кабеля, который мы нашли в начале главы'.")
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        if "_clue_wire" in current_node:
+            kb.add(tele_types.InlineKeyboardButton("🛠 Использовать кабель из улик", callback_data="apoc_n1_lift_fix"))
+        else:
+            kb.add(tele_types.InlineKeyboardButton("🐕 Рискнуть Марти (Плохо для отношений)", callback_data="apoc_n1_marty_risk"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- [ ЭТАП 28: ЛИФТ (Шутки Марти) ] ---
+    elif call.data == "apoc_n1_lift_fix":
+        text = ("🏗 **ЭТАП 28: ПОДЪЕМ**\n\n"
+                "Лифт со скрипом тронулся. Вы медленно ползете вверх сквозь этажи разрушенного НИИ. В щели видны заброшенные лаборатории.\n\n"
+                "Марти: 'Знаете, Док, в книгах по истории писали, что раньше в лифтах играла музыка. "
+                "Я бы сейчас не отказался от чего-нибудь бодрого. Но вместо этого у нас только скрежет металла и запах вашей немытой головы. "
+                "Кстати, вы знали, что пудели не потеют? Мы идеальные существа для постапокалипсиса!'.")
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("👀 Осмотреться в шахте", callback_data="apoc_n1_shaft_secret"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- [ ЭТАП 29: СЕКРЕТ В ШАХТЕ (Скрытая улика) ] ---
+    elif call.data == "apoc_n1_shaft_secret":
+        add_xp(user_id, 5, username)
+        update_game_progress(user_id, current_node + "_secret_found")
+        text = ("💎 **ЭТАП 29: ТАЙНИК ЗА СТЕНКОЙ**\n\n"
+                "Лифт застрял на секунду, и вы заметили в стене шахты нишу. Там лежит старая стоматологическая аптечка вашего деда.\n\n"
+                "Внутри — **Антисептик 'Орион'**. Это мощное средство, которое позволит нам лечить раны во 2-й главе.\n\n"
+                "Марти: 'Ого! Дед знал, где прятать заначки. Теперь мы точно не загнемся от первой же царапины мутанта!'.")
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🚀 Выйти на крышу", callback_data="apoc_n1_final_ascent"))
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+    
     elif call.data == "apoc_n1_gen_success":
         add_xp(user_id, 10, username)
-        text = ("🔥 *ПИТАНИЕ ВОССТАНОВЛЕНО*\n\n"
+        text = ("🔥 **ПИТАНИЕ ВОССТАНОВЛЕНО**\n\n"
                 "Свет с миганием загорается во всем бункере. Мох испуганно сжимается. Но в этом свете вы видите то, что повергает вас в шок.\n\n"
                 "На стене у генератора висит старая фотография. На ней — ваш дед, Дмитрий Владимирович, в таком же бункере. "
                 "В руках у него странный прибор, подозрительно похожий на тот самый 'Сканер', который мы пытаемся собрать.")
-        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🧗 Выйти на крышу", callback_data="apoc_n1_final_ascent"))
+        kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🧗 Выйти на крышу (Финал)", callback_data="apoc_n1_final_ascent"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         update_game_progress(user_id, current_node + "_truth_found")
 
-    # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ (Моральный выбор) ] ---
+    # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ (Моральный выбор) ] --
     elif call.data == "apoc_n1_final_ascent":
         text = (f"☀️ *ГЛОТОК ЯДА*\n\n"
                 f"Вы на крыше НИИ. Перед вами расстилается мертвый город. Вдали виднеются шпили торгового центра.\n\n"
