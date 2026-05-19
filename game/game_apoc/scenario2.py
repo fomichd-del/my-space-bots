@@ -157,6 +157,9 @@ def run_scenario(bot, call):
         # Если игрок выбрал ждать, ставим таймер
         if "wait" in call.data:
             set_game_timer(user_id, 10)
+    elif call.data.startswith("apoc_s2_9"):
+        update_game_progress(user_id, current_node + "_waiting_done") # Помечаем, что ожидание началось
+        # ... остальной код выбора текста ...
             wait_text = "Вы сидите в полной темноте 10 минут, слыша, как тварь дышит прямо за дверью. Наконец, шаги затихают."
         else:
             wait_text = "Звуковой импульс Марти сработал! Тварь с диким визгом бросилась в сторону болот, подальше от источника шума."
@@ -232,10 +235,12 @@ def run_scenario(bot, call):
                 f"Марти (встревоженно): 'Док! Очнитесь! Это не реальность! Мох выделяет галлюциногенные споры, когда чувствует вашу ДНК. "
                 f"Оно пытается заманить вас в ловушку ваших же воспоминаний. Смотрите на показатели — кислород падает!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-            tele_types.InlineKeyboardButton("💉 Вколоть антисептик из Главы 1", callback_data="apoc_s2_14"),
-            tele_types.InlineKeyboardButton("🧘 Попробовать подавить галлюцинацию волей", callback_data="apoc_s2_will_fail")
-        )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+             if "_secret_found" in current_node: # пометка из этапа 29 главы 1
+             kb.add(tele_types.InlineKeyboardButton("💉 Вколоть антисептик 'Орион'", callback_data="apoc_s2_14"))
+        
+        # Общий вариант для всех (но более болезненный)
+             kb.add(tele_types.InlineKeyboardButton("💥 Укусить себя за руку (Боль прояснит разум)", callback_data="apoc_s2_14"))
+             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ ЭТАП 14: СТОЯНКА ТЕНИ ] ---
     elif call.data == "apoc_s2_14":
@@ -504,6 +509,11 @@ def run_scenario(bot, call):
                 f"💰 **НАГРАДА:** 150 Пыли.\n"
                 f"🚀 **ГЛАВА 2 ЗАВЕРШЕНА. Глава 3: Эхо Небоскребов разблокирована.**")
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="Markdown")
+
+        kb = tele_types.InlineKeyboardMarkup().add(
+                    tele_types.InlineKeyboardButton("🏆 Вернуться в меню симуляций", callback_data="game_main_menu")
+                )
+                bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ БЛОК: ОБРАБОТКА ОШИБОК И НЕВЕРНЫХ ВЫБОРОВ ] ---
     elif call.data in ["apoc_s2_synth_fail", "apoc_s2_freq_fail", "apoc_s2_dna_fail", "apoc_s2_visco_fail", "apoc_s2_pass_fail", "apoc_n1_pc_f"]:
