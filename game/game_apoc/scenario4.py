@@ -431,7 +431,7 @@ def run_scenario(bot, call):
                 f"врукопашную, используя Семя для ослепления?'")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Выстрелить в трубы с хладагентом", callback_data="apoc_s4_24"),
-            tele_types.InlineKeyboardButton("Ослепить врагов вспышкой Семени", callback_data="apoc_s4_combat_fail")
+            tele_types.InlineKeyboardButton("Ослепить врагов вспышкой Семени", callback_data="apoc_s4_blind_fail")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
@@ -632,12 +632,16 @@ def run_scenario(bot, call):
         bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок не принимает число! Вспоминайте формулу взрослого набора!'", show_alert=True)
         return
 
-    elif call.data == "apoc_s4_combat_fail":
+    elif call.data == "apoc_s4_blind_fail":
         bot.answer_callback_query(call.id, "⚠️ ТЩЕТНО: Вспышка лишь разозлила их. Броня Чистильщиков защищена от света! Используйте хладагент!", show_alert=True)
         return
 
     elif call.data == "apoc_s4_clue_tracks":
         bot.answer_callback_query(call.id, "🛤 ПУТИ: Рельсы ведут прямо в сердце Академии. Это путь в один конец.", show_alert=True)
+        return
+
+    elif call.data == "apoc_s4_logic_fail":
+        bot.answer_callback_query(call.id, "❌ Марти: 'Док, это неверное число! Формула не сходится! Попробуйте еще раз!'", show_alert=True)
         return
     
     # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ ГЛАВЫ 4 ] ---
