@@ -9,7 +9,7 @@ from database import (
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
-
+    print(f"DEBUG: User {user_id} current_node: {raw_node}, timer: {timer_end}")
     # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
     if not is_timer_expired(user_id):
         try:
