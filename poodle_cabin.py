@@ -195,82 +195,44 @@ def get_cabin_style(level):
 
 def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
-        return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
+        return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", 42
 
-    # 1. Анатомия и Эволюция
     gender = dog.get('gender', 'male')
     dna_data = get_deterministic_dna(user_id, gender=gender)
-    
     dna_desc = dna_data['desc']
     trait = dna_data['trait']
-    
     growth = get_growth_stage(dog['level'])
     cabin_tier = get_cabin_style(dog['level'])
     
-    # 2. Округление динамических статов для КЭША
     u_data = get_user_data(user_id)
     dust = u_data['spendable_dust']
     hour = datetime.now().hour
     
-    # БЛОК 1: Пыль
-    if dust < 50: dust_str = "a few specks of glowing cosmic dust"
-    elif dust < 200: dust_str = "a small shiny pile of cosmic dust"
-    elif dust < 500: dust_str = "a large glowing heap of cosmic dust"
-    else: dust_str = "a massive, radiant mound of cosmic dust"
-    dust_text = f"Right next to the desk is {dust_str}."
-
-    # БЛОК 2: Настроение
-    if dog['mood'] >= 70: mood_str = "very happy and playful"
-    elif dog['mood'] >= 30: mood_str = "calm and content"
-    else: mood_str = "sad and sleepy"
+    # Пыль и Настроение (упрощаем для кэша)
+    dust_str = "glowing cosmic dust" if dust > 50 else "a few specks of dust"
+    mood_str = "happy" if dog['mood'] >= 50 else "sad"
     
-    # БЛОК 3: Динамика Времени
-    if 6 <= hour < 11:
-        dog_position = "stretching lazily on the soft plush dog bed"
-        camera_shot = "medium shot, slightly low angle"
-        window = "glowing morning nebula"
-        fx = "soft morning light, pastel color grading, airy atmosphere"
-    elif 11 <= hour < 18:
-        dog_position = "sitting upright on a futuristic ergonomic chair positioned right at the metallic workspace desk"
-        camera_shot = "wide angle cinematic shot, showing the desk and chair clearly"
-        window = "vibrant solar system"
-        fx = "bright crisp daylight, high contrast, studio lighting"
-    elif 18 <= hour < 22:
-        dog_position = "sitting on the floor, looking thoughtfully out the large circular porthole window"
-        camera_shot = "over-the-shoulder dynamic shot"
-        window = "warm sunset over a distant alien planet"
-        fx = "warm golden hour lighting, cinematic teal and orange color grading, long dramatic shadows"
-    else:
-        dog_position = "curled up and sleeping deeply on the soft plush dog bed"
-        camera_shot = "close-up top-down overhead shot"
-        window = "deep space with glittering stars"
-        fx = "moody low-key lighting, glowing neon panel accents, dark ambient sci-fi atmosphere"
-        
-    # БЛОК 4: "Случайные" события
-    if hour in [14, 19]:
-        dog_position += ", curiously watching a tiny cleaning drone hovering nearby"
-        
-    # 3. Слоты экипировки
+    # Позиция
+    if 6 <= hour < 11: dog_pos, cam, win, fx = "stretching on the dog bed", "medium shot", "morning nebula", "soft light"
+    elif 11 <= hour < 18: dog_pos, cam, win, fx = "sitting on a chair at the desk", "wide shot", "solar system", "bright daylight"
+    elif 18 <= hour < 22: dog_pos, cam, win, fx = "sitting on the floor looking at the window", "over-the-shoulder", "alien sunset", "golden hour"
+    else: dog_pos, cam, win, fx = "sleeping on the dog bed", "top-down shot", "starry space", "low-key night lighting"
+    
+    # 🟢 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Жесткая привязка аксессуаров к собаке
     equipped = dog.get('equipped', [])
-    slots = {k: [] for k in ["HEAD", "FACE", "MOUTH", "NECK", "TORSO", "BACK", "PAWS", "TAIL"]}
+    wearables = []
     for k in equipped:
-        if k not in DOG_SHOP: continue
-        slots[get_item_slot(k).upper()].append(DOG_SHOP[k]["prompt"])
+        if k in DOG_SHOP:
+            wearables.append(DOG_SHOP[k]["prompt"])
+    wearables_str = f", wearing {', '.join(wearables)}" if wearables else ""
 
-    # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА
     full_prompt = (
-        f"RAW photo, highly detailed, shot on 35mm lens, f/2.8, cinematic depth of field. {camera_shot}. "
-        f"STRICT SUBJECT: Purebred Toy Poodle, dense signature tight curls. A {dna_desc}, {growth}, showing a {trait} and {mood_str} expression. "
-        f"SCENE: {cabin_tier}. The dog is {dog_position}. The room topology includes a large porthole window showing {window}, a metallic desk, and a dog bed. {dust_text} "
+        f"RAW photo, highly detailed, {cam}. {dna_desc}, {growth}, {mood_str} expression, {dog_pos}{wearables_str}. "
+        f"SCENE: {cabin_tier}, porthole window with {win}, {dust_str} nearby. STYLE: {fx}. "
+        "NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch, dog standing on the desk, floating objects."
     )
     
-    for slot, items in slots.items():
-        if items: full_prompt += f" {slot}: {', '.join(items)}."
-            
-    full_prompt += f" STYLE: {fx}. Photorealistic, 8k resolution, crisp textures. "
-    full_prompt += "NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch, dog standing on the desk."
-    
-    return full_prompt, hour
+    return full_prompt, hash(full_prompt) % 10000
 
 def send_dog_menu(bot, chat_id, user_id):
     dog = get_dog_data(user_id)
@@ -320,7 +282,7 @@ def send_dog_menu(bot, chat_id, user_id):
         if dog['level'] >= 10 and current_prof == 'Кадет':
             kb.row(tele_types.InlineKeyboardButton(text="🎓 Выбрать специализацию", callback_data="dog_choose_prof"))
   
-        # 🟢 КВАНТОВЫЙ КЭШ
+        # 🟢 КВАНТОВЫЙ КЭШ: теперь ключ зависит от промпта, который включает в себя список вещей!
         cache_key = f"{user_id}_{full_prompt}"
         
         if cache_key in CABIN_IMAGE_CACHE:
@@ -328,7 +290,6 @@ def send_dog_menu(bot, chat_id, user_id):
         else:
             bot.send_chat_action(chat_id, 'upload_photo')
             image_bytes = get_cascade_image(full_prompt, seed)
-            
             if image_bytes:
                 msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
                 CABIN_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
