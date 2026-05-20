@@ -141,36 +141,33 @@ def get_item_slot(item_key):
 
 def get_deterministic_dna(user_id, gender=None):
     """
-    Генерирует ДНК: если пол передан (выбран игроком), используем его,
-    если нет — берем из хэша.
+    Генерирует ДНК: хэш укладывается строго в 32 символа MD5.
+    Отрезки распределены без выхода за границы строки.
     """
     hash_obj = hashlib.md5(str(user_id).encode())
-    digest = hash_obj.hexdigest()
+    digest = hash_obj.hexdigest() # Длина ровно 32 символа (индексы 0-31)
     
-    # Списки для генерации
     builds = ["athletic", "compact", "dainty", "sturdy"]
     ears = ["floppy long ears covered in tight curls", "characteristic long drooping poodle ears"]
     noses = ["black button nose", "distinctive small black nose"]
     eyes = ["round expressive dark eyes", "almond-shaped dark eyes"]
     fur_types = ["tightly curled hypoallergenic coat", "dense soft curly fur", "tight poodle curls", "well-groomed curly coat"]
     colors = ["snow-white", "ash-grey", "coffee-brown", "apricot", "silver-grey", "cream"]
-    
-    # НОВЫЕ ПАРАМЕТРЫ
     traits = ["brave", "shy", "clumsy", "energetic", "calm", "mischievous"]
     markings = ["a small white patch on chest", "a white tip on tail", "no special markings", "one white paw"]
     
-    # Если пол не передан, берем из хэша
     if not gender:
-        gender = ["male", "female"][int(digest[0:4], 16) % 2]
+        gender = ["male", "female"][int(digest[0:3], 16) % 2]
     
-    build = builds[int(digest[4:8], 16) % len(builds)]
-    ear = ears[int(digest[8:12], 16) % len(ears)]
-    nose = noses[int(digest[12:16], 16) % len(noses)]
-    eye = eyes[int(digest[16:20], 16) % len(eyes)]
-    fur = fur_types[int(digest[20:24], 16) % len(fur_types)]
-    color = colors[int(digest[24:28], 16) % len(colors)]
-    trait = traits[int(digest[28:32], 16) % len(traits)]
-    mark = markings[int(digest[32:36], 16) % len(markings)]
+    # Распределяем индексы внутри 32 символов [0:28] с шагом в 4 символа
+    build = builds[int(digest[3:7], 16) % len(builds)]
+    ear = ears[int(digest[7:11], 16) % len(ears)]
+    nose = noses[int(digest[11:15], 16) % len(noses)]
+    eye = eyes[int(digest[15:19], 16) % len(eyes)]
+    fur = fur_types[int(digest[19:23], 16) % len(fur_types)]
+    color = colors[int(digest[23:26], 16) % len(colors)]
+    trait = traits[int(digest[26:29], 16) % len(traits)]
+    mark = markings[int(digest[29:32], 16) % len(markings)] # Строго до конца строки (индекс 31)
     
     return {
         "desc": f"Toy Poodle, {color} {gender} with {build} build, {ear}, {nose}, {eye}, {fur}, {mark}",
@@ -273,7 +270,7 @@ def get_dog_prompt(dog, user_id):
     full_prompt += f" STYLE: {fx}. Photorealistic, 8k resolution, crisp textures. "
     full_prompt += "NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch, dog standing on the desk."
     
-    return full_prompt, hour # Заменили user_id на hour/seed для каскада генерации
+    return full_prompt, hour
 
 def send_dog_menu(bot, chat_id, user_id):
     dog = get_dog_data(user_id)
@@ -289,7 +286,7 @@ def send_dog_menu(bot, chat_id, user_id):
         if dog['hunger'] <= 0 or dog['energy'] <= 0: dog['status'] = 'dead'
         update_dog_data(user_id, dog)
 
-    full_prompt, seed = get_dog_prompt(dog, user_id) # ТУТ ИСПРАВЛЕНО (было prompt, seed)
+    full_prompt, seed = get_dog_prompt(dog, user_id)
     
     if dog['status'] == 'dead':
         text = "🛰 **СИГНАЛ ПОТЕРЯН**\n\nКомандор, твой верный пес покинул корабль. Каюта пуста..."
@@ -324,13 +321,13 @@ def send_dog_menu(bot, chat_id, user_id):
             kb.row(tele_types.InlineKeyboardButton(text="🎓 Выбрать специализацию", callback_data="dog_choose_prof"))
   
         # 🟢 КВАНТОВЫЙ КЭШ
-        cache_key = f"{user_id}_{full_prompt}" # ТУТ ИСПРАВЛЕНО (было prompt)
+        cache_key = f"{user_id}_{full_prompt}"
         
         if cache_key in CABIN_IMAGE_CACHE:
             bot.send_photo(chat_id, photo=CABIN_IMAGE_CACHE[cache_key], caption=text, parse_mode="Markdown", reply_markup=kb)
         else:
             bot.send_chat_action(chat_id, 'upload_photo')
-            image_bytes = get_cascade_image(full_prompt, seed) # ТУТ ИСПРАВЛЕНО (было prompt)
+            image_bytes = get_cascade_image(full_prompt, seed)
             
             if image_bytes:
                 msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
@@ -544,7 +541,7 @@ def handle_dog_callback(bot, call):
         else: 
             bot.answer_callback_query(call.id, f"❌ Мало пыли! Нужно {price} 💰", show_alert=True)
 
-    # ИСПРАВЛЕНО: Блок вызова окна выбора пола
+    # Вызов окна выбора пола
     elif action == "resurrect":
         kb = tele_types.InlineKeyboardMarkup()
         kb.row(tele_types.InlineKeyboardButton("♂ Мальчик", callback_data="dog_resurrect_male"))
@@ -553,7 +550,7 @@ def handle_dog_callback(bot, call):
                                  call.message.chat.id, call.message.message_id, reply_markup=kb)
         return
 
-    # ИСПРАВЛЕНО: Блок обработки самого создания и списания пыли
+    # Обработка создания и списания пыли
     elif action.startswith("resurrect_"):
         gender = action.split("_")[1]
         if spend_dust(user_id, 100):
@@ -562,16 +559,15 @@ def handle_dog_callback(bot, call):
                                       "status": "alive", "gender": gender})
             bot.answer_callback_query(call.id, "🛰 Новый щенок на борту!")
             
-            # Сразу перерисовываем меню и завершаем выполнение, чтобы не было дублей ниже
             try: bot.delete_message(call.message.chat.id, call.message.message_id)
             except: pass
             send_dog_menu(bot, call.message.chat.id, user_id)
             return
         else: 
-            bot.answer_cookie_query(call.id, "❌ Нужно 100 пыли!", show_alert=True)
+            bot.answer_callback_query(call.id, "❌ Нужно 100 пыли!", show_alert=True)
             return
 
-    # Общее плановое обновление меню для обычных действий (клик на еду, сон и т.д.)
+    # Общее плановое обновление меню
     try: bot.delete_message(call.message.chat.id, call.message.message_id)
     except: pass
     send_dog_menu(bot, call.message.chat.id, user_id)
