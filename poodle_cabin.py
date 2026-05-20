@@ -1,4 +1,5 @@
 import time
+import hashlib
 from datetime import datetime
 from telebot import types as tele_types
 from database import (get_dog_data, update_dog_data, spend_dust, get_user_data, 
@@ -97,30 +98,28 @@ DOG_SHOP = {
     "dentist_drill": {"name": "Бормашина Академии", "prompt": "the dog's jaws are firmly clenching a high-speed pneumatic dental drill handpiece horizontally in its teeth, prominent mechanical details and cables visible", "price": 70}
 }
 
+def get_deterministic_dna(user_id):
+    """Создает фиксированную ДНК для пользователя, чтобы Марти не менял окрас"""
+    hash_obj = hashlib.md5(str(user_id).encode())
+    digest = hash_obj.hexdigest()
+    
+    colors = ["snow-white", "ash-grey", "coffee-brown", "apricot", "silver-grey", "cream"]
+    patterns = ["with solid color", "with white patches", "with darker ears", "with a light belly"]
+    
+    color = colors[int(digest[:8], 16) % len(colors)]
+    pattern = patterns[int(digest[8:16], 16) % len(patterns)]
+    return f"{color} poodle {pattern}"
+
 def get_dog_prompt(dog, user_id):
-    if dog['status'] == 'dead':
-        return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
-
-    # 1. Световой модуль (Локальное время Чернигова)
+    # 1. Генетическая неизменность (ДНК)
+    dog_dna = get_deterministic_dna(user_id)
+    
+    # 2. Световой модуль
     hour = datetime.now().hour
-    if 6 <= hour < 11: light = "soft morning sunrise light through the window, cool blue and orange tones"
-    elif 11 <= hour < 18: light = "bright direct midday sunlight, high contrast, crisp shadows"
-    elif 18 <= hour < 22: light = "warm golden hour sunset glow, long soft shadows, cozy atmosphere"
-    else: light = "deep blue night atmosphere, dim interior lighting, glowing neon control panels"
-
-    # 2. Визуализация богатства (Пыль на столе)
-    u_data = get_user_data(user_id)
-    dust = u_data['spendable_dust']
-    if dust < 50: dust_visual = "an empty clean metallic desk near the dog"
-    elif dust < 200: dust_visual = "a small glowing pile of blue stardust on the desk"
-    elif dust < 1000: dust_visual = "a large heap of shimmering cosmic dust on the table"
-    else: dust_visual = "a massive overflowing treasure chest filled with glowing stardust on the desk"
-
-    # 3. Износ оборудования (Чистота привязана к настроению и сытости)
-    if dog['mood'] < 40 or dog['hunger'] < 40:
-        wear = "grimy metallic surfaces, faint oil stains on the walls, dusty floor, worn-out equipment"
-    else:
-        wear = "pristine polished chrome surfaces, sterile clean environment, high-tech gloss"
+    if 6 <= hour < 11: light = "morning sunrise light, soft blue and orange tones"
+    elif 11 <= hour < 18: light = "bright direct midday sunlight, sharp contrast"
+    elif 18 <= hour < 22: light = "warm golden hour sunset glow"
+    else: light = "deep blue night atmosphere, neon interior lights"
 
     # 4. Генетическое наследие (Шанс 10% увидеть улитку)
     import random
@@ -128,24 +127,39 @@ def get_dog_prompt(dog, user_id):
     if random.random() < 0.10:
         crossover = "a small realistic garden snail is slowly crawling on the window glass,"
 
-    # 🧬 ИТОГОВЫЙ ДИНАМИЧЕСКИЙ БАЗОВЫЙ ПРОМПТ (Теперь без перезаписи!)
-    base = f"macro photography of a realistic living fluffy random-colored toy poodle dog, {light}, {dust_visual}, {wear}, {crossover} in a high-tech cozy spaceship cabin with a window showing stars, 4k, cinematic lighting"
+   # 2. Визуализация богатства (Пыль на столе)
+    u_data = get_user_data(user_id)
+    dust = u_data['spendable_dust']
+    if dust < 50: dust_visual = "an empty clean metallic desk near the dog"
+    elif dust < 200: dust_visual = "a small glowing pile of blue stardust on the desk"
+    elif dust < 1000: dust_visual = "a large heap of shimmering cosmic dust on the table"
+    else: dust_visual = "a massive overflowing treasure chest filled with glowing stardust on the desk"
+
+    # 1. Световой модуль (Локальное время Чернигова)
+    hour = datetime.now().hour
+    if 6 <= hour < 11: light = "soft morning sunrise light through the window, cool blue and orange tones"
+    elif 11 <= hour < 18: light = "bright direct midday sunlight, high contrast, crisp shadows"
+    elif 18 <= hour < 22: light = "warm golden hour sunset glow, long soft shadows, cozy atmosphere"
+    else: light = "deep blue night atmosphere, dim interior lighting, glowing neon control panels"
+  
+    # 3. Эволюция и состояние
+    evo = "tiny puppy" if dog['level'] < 5 else ("adolescent poodle" if dog['level'] < 12 else "wise adult poodle")
+    state = "happy, sparkling eyes" if dog['energy'] >= 30 else "tired, resting"
     
-    # Эволюция
-    if dog['level'] < 5: evo = "a tiny cute puppy poodle, sleeping on a soft pillow"
-    elif dog['level'] < 12: evo = "an active adolescent poodle, sitting alert and happy"
-    else: evo = "a wise adult poodle, sitting at a control panel like a co-pilot"
+    # 4. СТРУКТУРИРОВАННАЯ ОДЕЖДА (Разделение по слоям для ИИ)
+    equipped = dog.get('equipped', [])
+    head_items = [DOG_SHOP[k]["prompt"] for k in equipped if k in DOG_SHOP and any(x in DOG_SHOP[k]["prompt"].lower() for x in ["head", "hat", "visor", "helmet", "crown", "monocle", "glasses", "antenna"])]
+    mouth_items = [DOG_SHOP[k]["prompt"] for k in equipped if k in DOG_SHOP and any(x in DOG_SHOP[k]["prompt"].lower() for x in ["mouth", "teeth", "pipe", "drill", "smile", "grillz"])]
+    body_items = [DOG_SHOP[k]["prompt"] for k in equipped if k in DOG_SHOP and k not in [i for i in head_items] and k not in [i for i in mouth_items]]
 
-    # Состояние
-    if dog['energy'] < 30: state = "tired look, dim lighting, dog is resting"
-    else: state = "happy expression, bright warm lighting, sparkling eyes"
+    style_prompt = f"HEAD WEAR: {', '.join(head_items) if head_items else 'none'}, " \
+                   f"MOUTH ITEM: {', '.join(mouth_items) if mouth_items else 'none'}, " \
+                   f"BODY OUTFIT: {', '.join(body_items) if body_items else 'none'}"
 
-    # Одежда
-    equipped_items = dog.get('equipped', [])
-    clothes = [DOG_SHOP[k]["prompt"] for k in equipped_items if k in DOG_SHOP]
-    style_prompt = ", ".join(clothes) if clothes else "natural living fluffy fur texture"
-
-    full_prompt = f"{base}, {evo}, {state}, {style_prompt}, photorealistic"
+    # ИТОГОВЫЙ ПРОМПТ
+    base = f"macro photography of a {dog_dna}, {evo}, {state}, {light} in a spaceship cabin"
+    full_prompt = f"{base}, {style_prompt}, photorealistic, 8k, highly detailed"
+    
     return full_prompt, user_id
 
 def send_dog_menu(bot, chat_id, user_id):
