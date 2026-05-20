@@ -39,12 +39,13 @@ def run_scenario(bot, call):
 
     # 🔴 --- [ СБРОС ИГРЫ (RESET) ] --- 🔴
     if call.data == "game_reset_all":
-        reset_game(user_id, "apoc_start")
-        set_game_timer(user_id, 0)  # ПРИНУДИТЕЛЬНЫЙ СБРОС ТАЙМЕРА
-        current_node = "apoc_start"
-        loc = "apoc_start"
+        reset_game(user_id, "apoc_start")     # Сброс узла
+        set_game_timer(user_id, 0)            # Обязательный сброс таймера (наш новый метод из базы)
         bot.answer_callback_query(call.id, "🔄 Данные стерты. Начинаем с чистого листа!", show_alert=True)
+        
+        # ПРИНУДИТЕЛЬНО ПЕРЕЗАГРУЖАЕМ СЦЕНАРИЙ С "apoc_start"
         call.data = "apoc_start"
+        return run_scenario(bot, call)
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ] --- 🟢
     if call.data == "apoc_s1_start":
