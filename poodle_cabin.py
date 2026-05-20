@@ -11,37 +11,37 @@ CABIN_IMAGE_CACHE = {}
 
 DOG_SHOP = {
     # --- БАЗОВАЯ КОСМИЧЕСКАЯ ЭКИПИРОВКА ---
-    "space_helmet": {"name": "Стеклянный шлем", "prompt": "Astronaut bubble helmet, clear glass, massive, metallic locking ring, neon reflections", "price": 40},
-    "star_suit": {"name": "Скафандр", "prompt": "White padded astronaut spacesuit, Orion patches, deep fabric folds, heavy-duty", "price": 60},
+    "space_helmet": {"name": "Стеклянный шлем", "prompt": "Astronaut bubble helmet, clear glass, massive, metal locking ring, neon reflections", "price": 40},
+    "star_suit": {"name": "Скафандр", "prompt": "White padded astronaut spacesuit, Orion patches, deep fabric folds, bulky", "price": 60},
     "cool_glasses": {"name": "Кибер-очки", "prompt": "Cyberpunk sunglasses, neon glow, thick metal frames, blue light reflection", "price": 30},
-    "bandana": {"name": "Бандана Орион", "prompt": "Bright blue fabric bandana, knotted, realistic textile texture, frayed edges", "price": 20},
-    "laser_collar": {"name": "Лазерный ошейник", "prompt": "Glowing neon-cyan laser collar, thick, light flares on chin", "price": 25},
-    "pilot_cap": {"name": "Кепка пилота", "prompt": "Vintage aviator pilot hat, brown leather, thick chin straps, buckled", "price": 35},
+    "bandana": {"name": "Бандана Орион", "prompt": "Bright blue fabric bandana, knotted, frayed edges, textile texture", "price": 20},
+    "laser_collar": {"name": "Лазерный ошейник", "prompt": "Glowing neon-cyan laser collar, thick buckle, light flares on chin", "price": 25},
+    "pilot_cap": {"name": "Кепка пилота", "prompt": "Vintage aviator pilot hat, brown leather, thick buckled chin straps", "price": 35},
     "nebula_scarf": {"name": "Шарф Небула", "prompt": "Cosmic-purple silk scarf, massive thick drapery, heavy fabric", "price": 15},
-    "cyber_paws": {"name": "Кибер-лапы", "prompt": "Metallic robotic mech-boots, matte steel plates, glowing joints, mechanical", "price": 45},
+    "cyber_paws": {"name": "Кибер-лапы", "prompt": "Metallic robotic mech-boots, matte steel plates, glowing joints", "price": 45},
     "galaxy_crown": {"name": "Корона Галактики", "prompt": "Golden royal crown, detailed, heavy, encrusted with glowing jewels", "price": 80},
     "steampunk_goggles": {"name": "Стимпанк-очки", "prompt": "Brass steampunk goggles, leather belts, heavy, vintage design", "price": 30},
-    "neon_harness": {"name": "Неоновая сбруя", "prompt": "Neon-green tactical military harness, thick nylon straps, massive buckles", "price": 40},
+    "neon_harness": {"name": "Неоновая сбруя", "prompt": "Neon-green tactical military harness, thick nylon straps, plastic buckles", "price": 40},
     "comet_bowtie": {"name": "Галстук-комета", "prompt": "Glowing magical cosmic bowtie, oversized, ember particles", "price": 20},
-    "radar_monocle": {"name": "Монокль-радар", "prompt": "High-tech cybernetic monocle, glowing green holographic UI, clamped over eye", "price": 50},
+    "radar_monocle": {"name": "Монокль-радар", "prompt": "High-tech cybernetic monocle, glowing green holographic UI", "price": 50},
     "alien_antenna": {"name": "Антенны пришельца", "prompt": "Black headband, two bouncy glowing green alien antennas, sci-fi", "price": 15},
-    "astro_boots": {"name": "Астро-ботинки", "prompt": "Oversized white puffy astronaut moon boots, thick heavy rubber soles", "price": 35},
-    "heavy_gold_chain": {"name": "Золотая цепь", "prompt": "Thick solid gold cuban link chain, heavy, gold bone pendant", "price": 55},
-    "diamond_collar": {"name": "Бриллиантовый ошейник", "prompt": "Luxury collar, ultra-thick, encrusted with sparkling diamonds, reflective", "price": 90},
-    "star_pendant": {"name": "Кулон Полярная звезда", "prompt": "Glowing blue star-shaped crystal pendant, thick silver rope chain", "price": 30},
-    "warp_jetpack": {"name": "Варп-ранец", "prompt": "Metallic sci-fi jetpack, industrial nylon belts, blue plasma nozzles firing", "price": 70},
-    "saturn_ring": {"name": "Кольцо Сатурна", "prompt": "Mechanical collar base, glowing holographic golden planetary ring, spinning", "price": 45},
+    "astro_boots": {"name": "Астро-ботинки", "prompt": "Oversized white puffy astronaut moon boots, thick rubber soles", "price": 35},
+    "heavy_gold_chain": {"name": "Золотая цепь", "prompt": "Thick solid gold Cuban link chain, gold bone pendant, metallic sheen", "price": 55},
+    "diamond_collar": {"name": "Бриллиантовый ошейник", "prompt": "Ultra-thick luxury collar, encrusted with thousands of diamonds, reflective", "price": 90},
+    "star_pendant": {"name": "Кулон Полярная звезда", "prompt": "Glowing blue star-shaped crystal pendant, silver rope chain", "price": 30},
+    "warp_jetpack": {"name": "Варп-ранец", "prompt": "Metallic sci-fi jetpack, industrial nylon belts, blue plasma nozzles", "price": 70},
+    "saturn_ring": {"name": "Кольцо Сатурна", "prompt": "Mechanical collar base, glowing holographic golden planetary ring", "price": 45},
     "plasma_cloak": {"name": "Плазменный плащ", "prompt": "Superhero cape, bright semi-transparent blue plasma energy, flowing drapery", "price": 65},
-    "ufo_hat": {"name": "Шапка-тарелка", "prompt": "Silver metal UFO flying saucer toy, hat style, metallic sheen", "price": 40},
-    "vr_visor_2": {"name": "Визор VR-Орион", "prompt": "Modern white VR headset, bulky, thick head straps, futuristic", "price": 50},
+    "ufo_hat": {"name": "Шапка-тарелка", "prompt": "Silver metal UFO flying saucer, hat style, metallic sheen", "price": 40},
+    "vr_visor_2": {"name": "Визор VR-Орион", "prompt": "Modern white VR headset, bulky, thick head straps", "price": 50},
     "dual_aura": {"name": "Аура Контроллера", "prompt": "Intense white and neon-blue energy aura, light rays, radiating", "price": 25},
-    "brilliant_smile": {"name": "Ослепительная улыбка", "prompt": "Exaggerated human-like smile, perfect bright white teeth, diamond spark", "price": 100},
-    "dentist_mirror": {"name": "Зеркало Космо-Врача", "prompt": "Professional stainless steel dental mirror tool, reflective, metallic", "price": 15},
-    "detective_pipe": {"name": "Трубка Шерлока", "prompt": "Classic polished wooden detective pipe, wisps of smoke, detailed", "price": 20},
-    "dragon_wings": {"name": "Крылья Дракона", "prompt": "Black leather chest harness, two massive wide-open dragon wings, dark leather", "price": 75},
-    "taco_suit": {"name": "Костюм Тако", "prompt": "Plush taco shell costume, fabric lettuce and cheese, food costume", "price": 35},
+    "brilliant_smile": {"name": "Ослепительная улыбка", "prompt": "Exaggerated human-like smile, perfect white teeth, diamond spark", "price": 100},
+    "dentist_mirror": {"name": "Зеркало Космо-Врача", "prompt": "Professional stainless steel dental mirror, reflective, metallic", "price": 15},
+    "detective_pipe": {"name": "Трубка Шерлока", "prompt": "Polished wooden tobacco pipe, wisps of smoke, detailed", "price": 20},
+    "dragon_wings": {"name": "Крылья Дракона", "prompt": "Black leather chest harness, two massive wide-open dragon wings", "price": 75},
+    "taco_suit": {"name": "Костюм Тако", "prompt": "Plush taco shell costume, fabric lettuce and cheese, food aesthetic", "price": 35},
     "thug_beanie": {"name": "Шапка Thug Life", "prompt": "Black knitted beanie hat, 3D white embroidered text, streetwear", "price": 15},
-    "cosmic_boots": {"name": "Луноходы", "prompt": "Neon-blue space boots, heavy industrial treads, protective", "price": 40},
+    "cosmic_boots": {"name": "Луноходы", "prompt": "Neon-blue space boots, heavy industrial treads, protective design", "price": 40},
     "chef_hat": {"name": "Колпак Кока", "prompt": "Tall white pleated chef hat, red fabric scarf", "price": 20},
     "holographic_wings": {"name": "Крылья Ангела", "prompt": "Metallic chest backpack, two massive glowing white holographic angel wings", "price": 85},
     "monocle_tophat": {"name": "Джентльмен", "prompt": "Formal black top hat, golden monocle, elegant style", "price": 50},
@@ -70,7 +70,7 @@ DOG_SHOP = {
     "cyberspace_aura": {"name": "Аура Матрицы", "prompt": "Collar projector, dense hologram of falling green digital matrix code", "price": 0},
 
     # --- 🆕🔥 НОВЫЕ ПОСТУПЛЕНИЯ 🔥🆕 ---
-    "exosuit_armor": {"name": "Экзо-броня", "prompt": "Matte-black mechanical exosuit armor panels, industrial, heavy", "price": 110},
+    "exosuit_armor": {"name": "Экзо-броня", "prompt": "Matte-black mechanical exosuit armor, industrial panels, heavy", "price": 110},
     "cyberpunk_jacket": {"name": "Куртка Найт-Сити", "prompt": "Oversized black leather cyberpunk jacket, neon-pink high collar, zip-up", "price": 95},
     "tactical_vest": {"name": "Тактический жилет", "prompt": "Olive drab military tactical vest, pouches, heavy-duty", "price": 80},
     "warp_robe": {"name": "Варп-мантия", "prompt": "Deep-purple velvet monk robe, heavy, rope belt", "price": 70},
@@ -179,7 +179,7 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
 
-    # 1. Анатомия
+    # 1. Анатомия и порода (В самом верху — это приоритет №1)
     dna = get_deterministic_dna(user_id)
     growth = get_growth_stage(dog['level'])
     
@@ -189,48 +189,35 @@ def get_dog_prompt(dog, user_id):
     hour = datetime.now().hour
     
     # Вид из окна
-    window_views = {
-        (6, 11): "glowing colorful nebula",
-        (11, 18): "vibrant solar system",
-        (18, 22): "sunset over alien planet"
-    }
-    window = next((v for (start, end), v in window_views.items() if start <= hour < end), "deep space stars")
-    
-    # Пыль (всегда актуальная!)
-    dust_str = f"{dust} units of shimmering cosmic dust on the desk"
-    
-    # 3. Слоты (Жестко берем функцию слотирования)
+    window = "deep space stars"
+    if 6 <= hour < 11: window = "nebula cloud"
+    elif 11 <= hour < 18: window = "vibrant planets"
+    elif 18 <= hour < 22: window = "alien sunset"
+        
+    # 3. Слоты (Жесткие теги)
     equipped = dog.get('equipped', [])
     slots = {k: [] for k in ["HEAD", "FACE", "MOUTH", "NECK", "TORSO", "BACK", "PAWS", "TAIL"]}
-    
     for k in equipped:
         if k not in DOG_SHOP: continue
-        slot_name = get_item_slot(k).upper() # Используем вашу функцию слотов
-        slots[slot_name].append(DOG_SHOP[k]["prompt"])
+        slots[get_item_slot(k).upper()].append(DOG_SHOP[k]["prompt"])
 
-    # Собираем экипировку в один блок
-    equipped_str = "\n".join([f"- {s}: {', '.join(items)}" for s, items in slots.items() if items])
-    if not equipped_str: equipped_str = "- No equipment"
-
-    # 4. ИТОГОВЫЙ ПРОМПТ (Структура!)
-    full_prompt = f"""
-    Professional photography, 85mm, f/1.8, cinematic lighting.
+    # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА
+    # Ставим породу, фото-параметры и жесткие ограничения в самое начало!
+    full_prompt = (
+        f"STRICT: Purebred Toy Poodle, dense signature tight curls, compact stature. "
+        f"Professional photo, 85mm lens, realistic textures, cinematic lighting. "
+        f"Subject: {dna}, {growth}, {dog['mood']}% happy. "
+        f"Scene: Futuristic cabin, porthole window with {window}, {dust} units of cosmic dust on desk. "
+    )
     
-    ### BREED & SUBJECT
-    {dna}, {growth}, {dog['mood']}% happy expression. 
-    Strict Morphology: Toy Poodle, dense signature tight curls. 
+    # Добавляем экипировку (короткими блоками)
+    for slot, items in slots.items():
+        if items:
+            full_prompt += f" {slot}: {', '.join(items)}."
+            
+    # Запреты (они должны идти в конце, чтобы ИИ их "запомнил")
+    full_prompt += " NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch."
     
-    ### SCENE
-    Futuristic spaceship cabin. Background: plush dog bed. Workspace: metallic desk with {dust_str}. 
-    View: Large circular porthole window showing {window}. 
-    
-    ### EQUIPMENT
-    {equipped_str}
-    
-    ### QUALITY & CONSTRAINTS
-    Photorealistic, 8k, extremely detailed fur. 
-    NEGATIVE CONSTRAINT: Yorkshire terrier, long straight hair, drawing, cartoon, illustration, 3d render, plastic, art, sketch."
-    """
     return full_prompt, user_id
 
 def get_growth_stage(level):
