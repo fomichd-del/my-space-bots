@@ -9,19 +9,21 @@ from database import (
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
+    
+    # 1. Сначала получаем статус из базы, чтобы избежать ошибок NameError
+    raw_node, timer_end = get_game_status(user_id)
+    if not raw_node: 
+        raw_node = "apoc_start"
+        
     print(f"DEBUG: User {user_id} current_node: {raw_node}, timer: {timer_end}")
     
-    # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
-    # Пропускаем системные кнопки входа, чтобы бот мог показать меню "Продолжить экспедицию"
-    if call.data not in ["apoc_s1_start", "resume_game_1", "game_reset_ch1", "game_main_menu"]:
+    # --- [ АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
+    # Пропускаем системные кнопки входа и возврата
+    if call.data not in ["apoc_s1_start", "resume_game", "resume_game_1", "game_reset_all", "game_reset_ch1", "game_main_menu"]:
         if not is_timer_expired(user_id):
             try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
             except: pass
             return
-
-    raw_node, _ = get_game_status(user_id)
-    if not raw_node: 
-        raw_node = "apoc_start"
 
     # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ДЛЯ РАБОТЫ СО СТРОКОЙ СОХРАНЕНИЯ ---
     def get_loc(node_str): return node_str.split('|')[0]
@@ -38,6 +40,7 @@ def run_scenario(bot, call):
     # 🔴 --- [ СБРОС ИГРЫ (RESET) ] --- 🔴
     if call.data == "game_reset_all":
         reset_game(user_id, "apoc_start")
+        set_game_timer(user_id, 0)  # ПРИНУДИТЕЛЬНЫЙ СБРОС ТАЙМЕРА
         current_node = "apoc_start"
         loc = "apoc_start"
         bot.answer_callback_query(call.id, "🔄 Данные стерты. Начинаем с чистого листа!", show_alert=True)
@@ -156,8 +159,7 @@ def run_scenario(bot, call):
         if has_flag(current_node, "pc_done"):
             bot.answer_callback_query(call.id, "🖥 Система уже взломана!")
             call.data = "apoc_n1_base_menu"
-            run_scenario(bot, call)
-            return
+            return run_scenario(bot, call)
 
         text = ("🖥 *ТЕРМИНАЛ: ЗАБЛОКИРОВАНО*\n\n"
                 "Экран требует пароль администратора. В углу висит стикер с подсказкой: 'Год, когда всё началось в Мариуполе'.\n\n"
@@ -245,7 +247,7 @@ def run_scenario(bot, call):
         try: bot.answer_callback_query(call.id, "✅ Идеальная частота! Инструмент готов к работе.")
         except: pass
         call.data = "apoc_n1_craft_suit"
-        handle_craft(bot, call, current_node)
+        return handle_craft(bot, call, current_node)
     
    # --- [ ЭТАП 10: ЦЕНТРАЛЬНЫЙ ОТСЕК И ТАЙНЫЙ ЛЮК ] ---
     elif call.data == "apoc_n1_base_menu":
@@ -352,17 +354,21 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_craft_suit":
-        handle_craft(bot, call, current_node)
+        return handle_craft(bot, call, current_node)
     
     # --- [ ЭТАПЫ 11-15: СЛОЖНЫЙ ПОИСК ] ---
     elif call.data == "apoc_n1_search_1":
         if has_flag(current_node, "cloth"):
             bot.answer_callback_query(call.id, "📦 Вы уже вскрыли этот замок и забрали брезент!", show_alert=True)
             call.data = 'apoc_n1_base_menu'
-            run_scenario(bot, call)
-            return
+            return run_scenario(bot, call)
 
-        set_game_timer(user_id, 15)
+        # ЗАЩИТА ОТ ДВОЙНОГО ЗАПУСКА ТАЙМЕРА
+        if not has_flag(current_node, "sklad_timer_started"):
+            current_node = add_flag(current_node, "sklad_timer_started")
+            set_game_node(user_id, current_node)
+            set_game_timer(user_id, 15)
+
         text = ("📦 *СКЛАД: ТЯЖЕЛЫЙ ТРУД*\n\n"
                 "Вы начинаете разгребать завалы. Марти нашел коробку с надписью 'Хлам', но она заперта на магнитный замок.\n\n"
                 "Ожидание: **15 минут**.")
@@ -523,8 +529,7 @@ def run_scenario(bot, call):
     elif call.data == "apoc_n1_gen_noise":
         bot.answer_callback_query(call.id, "🔊 СКРЕЖЕТ! Дверь поддалась, но вы наделали много шума. Потеряно 5 XP.", show_alert=True)
         call.data = "apoc_n1_generator_room"
-        run_scenario(bot, call)
-        return
+        return run_scenario(bot, call)
 
     # --- [ ЭТАП 25: ЗАГАДКА ГЕНЕРАТОРА ] ---
     elif call.data == "apoc_n1_generator_room":
@@ -598,8 +603,7 @@ def run_scenario(bot, call):
     elif call.data == "apoc_n1_marty_risk":
         bot.answer_callback_query(call.id, "🐕 БЗЗЗТ! Марти вскрикнул, и от него пошел дымок. Лифт заработал, но вы потеряли 5 XP за жестокость!", show_alert=True)
         call.data = "apoc_n1_lift_fix"
-        run_scenario(bot, call)
-        return
+        return run_scenario(bot, call)
 
     # --- [ ЭТАП 28: ЛИФТ (Шутки Марти) ] ---
     elif call.data == "apoc_n1_lift_fix":
@@ -700,7 +704,11 @@ def handle_craft(bot, call, current_node):
         bonus_text = "🔧 Обычные инструменты работают медленно, но верно."
 
     if "suit" in call.data:
-        set_game_timer(user_id, time_needed)
+        # ЗАЩИТА ТАЙМЕРА КРАФТА ОТ ПОВТОРНОГО ЗАПУСКА
+        if not has_flag(current_node, "craft_timer_started"):
+            current_node = add_flag(current_node, "craft_timer_started")
+            set_game_timer(user_id, time_needed)
+            
         current_node = add_flag(current_node, "suit_fixed")
         current_node = set_loc(current_node, "apoc_n1_base_menu")
         set_game_node(user_id, current_node)
