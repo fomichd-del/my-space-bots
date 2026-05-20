@@ -2,17 +2,22 @@ import telebot
 from datetime import datetime
 from telebot import types as tele_types
 
-# Импортируем все необходимые функции из нашей обновленной базы
 from database import (
     get_game_status, set_game_node, reset_game, set_game_timer, add_xp, 
-    has_completed_chapter, mark_chapter_completed
+    has_completed_chapter, mark_chapter_completed, is_timer_expired
 )
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
-    
-    raw_node, timer_end = get_game_status(user_id)
+
+    # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
+    if not is_timer_expired(user_id):
+        try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
+        except: pass
+        return
+
+    raw_node, _ = get_game_status(user_id)
     if not raw_node: 
         raw_node = "apoc_start"
 
@@ -54,31 +59,9 @@ def run_scenario(bot, call):
         current_node = set_loc(current_node, "apoc_s3_scene_1")
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
-        timer_end = None
         call.data = "apoc_s3_scene_1"
         try: bot.answer_callback_query(call.id, "🔄 Глава 3 начата заново!", show_alert=True)
         except: pass
-
-    # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (БРОНЕБОЙНЫЙ) ] ---
-    if timer_end:
-        if isinstance(timer_end, str):
-            try:
-                clean_time = timer_end.split('.')[0].replace('T', ' ')
-                timer_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-            except:
-                timer_end = None
-                
-        if timer_end:
-            safe_timer_end = timer_end.replace(tzinfo=None)
-            safe_now = datetime.now().replace(tzinfo=None)
-            
-            if safe_now < safe_timer_end:
-                mins = int((safe_timer_end - safe_now).total_seconds() // 60) + 1
-                try:
-                    bot.answer_callback_query(call.id, f"⌛️ Ожидание... Осталось {mins} мин.", show_alert=True)
-                except Exception as alert_e:
-                    print(f"🚨 Ошибка Telegram Alert: {alert_e}")
-                return
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
     MAJOR_NODES = [
@@ -313,7 +296,7 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 13: ЗАГАДКА 'ВОСЬМЕРКИ' ] ---
     elif call.data == "apoc_s3_13":
-        text = (f"📂 *СЕКРЕТНЫЙ АРХИВАТО**\n\n"
+        text = (f"📂 *СЕКРЕТНЫЙ АРХИВАТОР*\n\n"
                 f"Вы подходите к двери своего бывшего кабинета. Она заблокирована массивным механическим диском, который выглядит "
                 f"как нечто среднее между сейфовым замком и анатомической моделью челюсти. На нем выгравированы номера зубов. \n\n"
                 f"Марти: 'Тут записка на дверной ручке: «Мудрость приходит последней, но открывает все двери». "
@@ -624,10 +607,10 @@ def run_scenario(bot, call):
             set_game_node(user_id, current_node)
 
         text = (f"🏙 *РАССВЕТ НАД РУИНАМИ*\n\n"
-                f"Лифт выбрасывает вас на крышу самого высокого здания на проспекте Мира. Вы стоите над Мариуполем, сжимая в руках "
+                f"Вы выбираетесь на крышу самого высокого здания на проспекте Мира. Вы стоите над Мариуполем, сжимая в руках "
                 f"сияющее Белое Семя. Внизу, в утреннем тумане, город кажется огромным спящим зверем. Теперь у вас есть ключ к его пробуждению.\n\n"
                 f"Марти (вытирая лапой пыль с жилета): 'Док... мы сделали это. Мы вырвали сердце города из рук Академии. "
-                f"Но посмотрите на горизонт. Они поднимают в воздух весь свой флот. Нас ждет долгий путь к Глубинному Архиву. "
+                f"Но посмотрите на горизонт. Они поднимают в воздух весь свой флот. Нам ждет долгий путь к Глубинному Архиву. "
                 f"Но теперь я уверен — с вашими зубоврачебными навыками и моим носом мы перекусим этот апокалипсис пополам!'.\n\n"
                 f"{reward_msg}\n"
                 f"🚀 **ГЛАВА 3 ЗАВЕРШЕНА. Глава 4: Глубинный Архив разблокирована.**")
@@ -638,76 +621,38 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ОБРАБОТЧИКИ ОШИБОК ДЛЯ ГЛАВЫ 3 ] ---
+    # --- [ ОБРАБОТЧИКИ ОШИБОК ] ---
     elif call.data in ["apoc_s3_logic_fail", "apoc_s3_milk_fail", "apoc_s3_drill_fail", "apoc_s3_temp_fail", "apoc_s3_root_fail"]:
         bot.answer_callback_query(call.id, "❌ Марти: 'Док, это неправильное число! Система блокируется! Перепроверьте свои медицинские справочники!'", show_alert=True)
         return
-
     elif call.data in ["apoc_s3_sprint_fail", "apoc_s3_kick_fail", "apoc_s3_run_fail", "apoc_s3_patrol_fail", "apoc_s3_chair_fail", "apoc_s3_tool_fail"]:
         bot.answer_callback_query(call.id, "⚠️ ОПАСНО: Прямое столкновение приведет к гибели! Марти: 'Ищите обходной путь, Док, не лезьте на рожон!'", show_alert=True)
         return
-
-    # Этап 11: Порт
     elif call.data == "apoc_s3_analyze_port":
         bot.answer_callback_query(call.id, "🔌 Порт защищен шифром деда. Марти: 'Док, тут нужен прямой контакт, резать провода было быстрее!'", show_alert=True)
         return
-
-    # Этап 20: Лифт
     elif call.data == "apoc_s3_elevator_start":
         bot.answer_callback_query(call.id, "🚫 ЛИФТ ЗАБЛОКИРОВАН. Навигатор перерезал питание сверху! Марти: 'Только Бор, Док! Жгите замок!'", show_alert=True)
         return
-
-    # Этап 21: Разговор с Навигатором
     elif call.data == "apoc_s3_nav_talk":
         bot.answer_callback_query(call.id, "🎭 Навигатор смеется: 'Слова — это шум. Ваша ДНК говорит громче'. Он поднимает оружие!", show_alert=True)
         return
 
-    elif call.data == "apoc_s3_clue_dna_bank":
-        if not has_flag(current_node, "clue_dna_bank"):
-            current_node = add_flag(current_node, "clue_dna_bank")
+    # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ ] ---
+    elif call.data.startswith("apoc_s3_clue_"):
+        clue_key = call.data.replace("apoc_s3_", "")
+        if not has_flag(current_node, clue_key):
+            current_node = add_flag(current_node, clue_key)
             set_game_node(user_id, current_node)
             add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🦷 МАРКИРОВКА: 'Образец 1985-А. Генетическая память сохранена'. Это база данных целого поколения!", show_alert=True)
-    
-    # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ (Анти-фарм) ] ---
-    elif call.data == "apoc_s3_clue_track":
-        if not has_flag(current_node, "clue_track"):
-            current_node = add_flag(current_node, "clue_track")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "👣 Следы ведут вглубь города. Это не человеческая походка, а тяжелые шаги Навигатора.", show_alert=True)
         
-    elif call.data == "apoc_s3_clue_spy":
-        if not has_flag(current_node, "clue_spy"):
-            current_node = add_flag(current_node, "clue_spy")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🔭 Навигатор калибрует частоту мха. Он настраивает город как музыкальный инструмент.", show_alert=True)
-        
-    elif call.data == "apoc_s3_clue_gold":
-        if not has_flag(current_node, "clue_gold"):
-            current_node = add_flag(current_node, "clue_gold")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🏆 Золотой слепок — это зашифрованный ключ доступа. На нем дата: 1985 год.", show_alert=True)
-        
-    elif call.data == "apoc_s3_clue_navigator":
-        if not has_flag(current_node, "clue_navigator"):
-            current_node = add_flag(current_node, "clue_navigator")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "👤 Навигатор — это результат проекта 'Д-85'. Он верит, что он истинный наследник.", show_alert=True)
-        
-    elif call.data == "apoc_s3_clue_ticket":
-        if not has_flag(current_node, "clue_ticket"):
-            current_node = add_flag(current_node, "clue_ticket")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🎫 КАССА: Вы нашли старый жетон метро. На нем нацарапано: 'Не верь отражениям. Навигатор лжет'.", show_alert=True)
-
-    elif call.data == "apoc_s3_clue_tooth_map":
-        if not has_flag(current_node, "clue_tooth_map"):
-            current_node = add_flag(current_node, "clue_tooth_map")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🦷 МАКЕТ: Зуб резонирует! Био-анализатор скачал скрытые чертежи подвалов клиники.", show_alert=True)
+        responses = {
+            "clue_dna_bank": "🦷 МАРКИРОВКА: 'Образец 1985-А. Генетическая память сохранена'. Это база данных целого поколения!",
+            "clue_track": "👣 Следы ведут вглубь города. Это не человеческая походка, а тяжелые шаги Навигатора.",
+            "clue_spy": "🔭 Навигатор калибрует частоту мха. Он настраивает город как музыкальный инструмент.",
+            "clue_gold": "🏆 Золотой слепок — это зашифрованный ключ доступа. На нем дата: 1985 год.",
+            "clue_navigator": "👤 Навигатор — это результат проекта 'Д-85'. Он верит, что он истинный наследник.",
+            "clue_ticket": "🎫 КАССА: Вы нашли старый жетон метро. На нем нацарапано: 'Не верь отражениям. Навигатор лжет'.",
+            "clue_tooth_map": "🦷 МАКЕТ: Зуб резонирует! Био-анализатор скачал скрытые чертежи подвалов клиники."
+        }
+        bot.answer_callback_query(call.id, responses.get(clue_key, "Инфо получено."), show_alert=True)
