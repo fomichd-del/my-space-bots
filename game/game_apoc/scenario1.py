@@ -10,13 +10,14 @@ def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
     print(f"DEBUG: User {user_id} current_node: {raw_node}, timer: {timer_end}")
+    
     # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
-    if not is_timer_expired(user_id):
-        try:
-            bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
-        except:
-            pass
-        return
+    # Пропускаем системные кнопки входа, чтобы бот мог показать меню "Продолжить экспедицию"
+    if call.data not in ["apoc_s1_start", "resume_game_1", "game_reset_ch1", "game_main_menu"]:
+        if not is_timer_expired(user_id):
+            try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
+            except: pass
+            return
 
     raw_node, _ = get_game_status(user_id)
     if not raw_node: 
