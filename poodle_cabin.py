@@ -197,56 +197,68 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", 42
 
-    # 1. Данные
+    # 1. Анатомия
     gender = dog.get('gender', 'male')
     dna_data = get_deterministic_dna(user_id, gender=gender)
     dna_desc = dna_data['desc']
-    trait = dna_data['trait']
-    growth = get_growth_stage(dog['level'])
-    cabin_tier = get_cabin_style(dog['level'])
     
+    # 2. Окружение и Статы
+    cabin_tier = get_cabin_style(dog['level'])
     u_data = get_user_data(user_id)
     dust = u_data['spendable_dust']
     hour = datetime.now().hour
     
-    # 2. Окружение
     dust_str = "glowing cosmic dust" if dust > 50 else "a few specks of dust"
-    mood_str = "happy" if dog['mood'] >= 50 else "sad"
     
-    if 6 <= hour < 11: dog_pos, cam, win, fx = "stretching on the dog bed", "medium shot", "morning nebula", "soft light"
-    elif 11 <= hour < 18: dog_pos, cam, win, fx = "sitting on a chair at the desk", "wide shot", "solar system", "bright daylight"
-    elif 18 <= hour < 22: dog_pos, cam, win, fx = "sitting on the floor looking at the window", "over-the-shoulder", "alien sunset", "golden hour"
-    else: dog_pos, cam, win, fx = "sleeping on the dog bed", "top-down shot", "starry space", "low-key night lighting"
-    if hour in [14, 19]: dog_pos += ", curiously watching a tiny cleaning drone hovering nearby"
+    # 3. ТРИ ЖЕСТКИХ СОСТОЯНИЯ ФОНА (Как вы и задумывали)
+    if 6 <= hour < 12: 
+        # Утро
+        time_state = "morning"
+        dog_pos = "sitting on the soft dog bed"
+        bg_desc = "morning light through the space window"
+    elif 12 <= hour < 22: 
+        # Вечер/День (Ноутбук)
+        time_state = "evening"
+        dog_pos = "sitting on the desk right next to an open glowing laptop"
+        bg_desc = "deep space view through the porthole window"
+    else: 
+        # Ночь
+        time_state = "night"
+        dog_pos = "sleeping curled up on the dog bed"
+        bg_desc = "dark room, moody night lighting, starry space outside"
 
-    # 🟢 ИСПРАВЛЕННЫЙ БЛОК ЭКИПИРОВКИ (Позиционная привязка)
+    # 4. СБОРКА ЭКИПИРОВКИ (С позиционной привязкой)
     equipped = dog.get('equipped', [])
     slots_data = {}
     for k in equipped:
         if k in DOG_SHOP:
-            slot = get_item_slot(k) # Получаем слот (head, paws, neck и т.д.)
+            slot = get_item_slot(k) 
             if slot not in slots_data: slots_data[slot] = []
             slots_data[slot].append(DOG_SHOP[k]["prompt"])
     
-    # Собираем строгие инструкции: "вещь worn on its [слот]"
     wearables_parts = []
     for slot, prompts in slots_data.items():
-        # Склеиваем группу предметов для одного слота
-        wearables_parts.append(f"{', '.join(prompts)} worn on its {slot}")
+        wearables_parts.append(f"{', '.join(prompts)} worn strictly on its {slot}")
         
-    wearables_str = f", with {', '.join(wearables_parts)}" if wearables_parts else ""
+    # КРИТИЧНО: Капсом выделяем блок одежды для нейросети
+    wearables_str = f" OUTFIT: {'; '.join(wearables_parts)}." if wearables_parts else ""
 
-    # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА
+    # 5. ФИНАЛЬНАЯ СБОРКА (Изменен порядок приоритетов!)
     full_prompt = (
-        f"RAW photo, highly detailed, {cam}, 35mm lens, f/2.8. "
-        f"Subject: Purebred Toy Poodle, {dna_desc}, {growth}, showing a {trait} and {mood_str} expression{wearables_str}. "
-        f"Scene: {cabin_tier}, porthole window with {win}, {dust_str} on the floor. STYLE: {fx}. "
-        # 🟢 УСИЛЕННЫЙ НЕГАТИВ: запрещаем всё "отлетевшее"
-        "NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch, dog standing on the desk, "
-        "detached accessories, floating items, disconnected halo, items hovering in the air, accessories not worn by dog, misplaced clothing."
+        f"RAW photo, highly detailed, 35mm lens. "
+        f"SUBJECT: Purebred Toy Poodle, {dna_desc}. "
+        f"{wearables_str} " # Одежда идет СРАЗУ после собаки!
+        f"ACTION: The dog is {dog_pos}. "
+        f"SCENE: {cabin_tier}, {bg_desc}, {dust_str} on the surface. "
+        "NEGATIVE: Yorkshire terrier, cartoon, 3d render, floating items, detached accessories, missing clothes."
     )
     
-    return full_prompt, hash(full_prompt) % 10000
+    # 6. СТАТИЧНЫЙ СИД (Фон больше не "скачет")
+    # Генерируем уникальное, но постоянное число для (Юзера + Каюты + Времени суток)
+    seed_string = f"{user_id}_{cabin_tier}_{time_state}"
+    static_seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16) % 1000000
+    
+    return full_prompt, static_seed
 
 def send_dog_menu(bot, chat_id, user_id):
     dog = get_dog_data(user_id)
