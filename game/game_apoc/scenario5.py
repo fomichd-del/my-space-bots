@@ -1,20 +1,22 @@
 import telebot
 from datetime import datetime
 from telebot import types as tele_types
-
-# Импортируем обновленные функции из базы данных
 from database import (
     get_game_status, set_game_node, reset_game, set_game_timer, add_xp, 
-    has_completed_chapter, mark_chapter_completed
+    has_completed_chapter, mark_chapter_completed, is_timer_expired
 )
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
     
-    raw_node, timer_end = get_game_status(user_id)
-    
-    # Защита от пустой базы
+    # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
+    if not is_timer_expired(user_id):
+        try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
+        except: pass
+        return
+
+    raw_node, _ = get_game_status(user_id)
     if not raw_node: 
         raw_node = "apoc_start"
 
@@ -32,7 +34,7 @@ def run_scenario(bot, call):
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
     if call.data == "apoc_s5_start":
-        if loc in ["apoc_ch4_completed_screen", "apoc_s5_scene_1", "start", "apoc_start"]:
+        if loc in ["apoc_game_completed_screen", "apoc_s5_scene_1", "start", "apoc_start"]:
             call.data = "apoc_s5_scene_1"
         else:
             text = (f"🔙 *ВОЗВРАЩЕНИЕ В НОВЫЙ МИР*\n"
@@ -56,31 +58,9 @@ def run_scenario(bot, call):
         current_node = set_loc(current_node, "apoc_s5_scene_1")
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
-        timer_end = None
         call.data = "apoc_s5_scene_1"
         try: bot.answer_callback_query(call.id, "🔄 Глава 5 начата заново!", show_alert=True)
         except: pass
-
-    # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (БРОНЕБОЙНЫЙ) ] ---
-    if timer_end:
-        if isinstance(timer_end, str):
-            try:
-                clean_time = timer_end.split('.')[0].replace('T', ' ')
-                timer_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-            except:
-                timer_end = None
-                
-        if timer_end:
-            safe_timer_end = timer_end.replace(tzinfo=None)
-            safe_now = datetime.now().replace(tzinfo=None)
-            
-            if safe_now < safe_timer_end:
-                mins = int((safe_timer_end - safe_now).total_seconds() // 60) + 1
-                try:
-                    bot.answer_callback_query(call.id, f"⌛️ Ожидание... Осталось {mins} мин.", show_alert=True)
-                except Exception as alert_e:
-                    print(f"🚨 Ошибка Telegram Alert: {alert_e}")
-                return
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
     MAJOR_NODES = [
@@ -137,7 +117,6 @@ def run_scenario(bot, call):
                 f"главное — не задеть сосудисто-нервный пучок. Чтобы обезболить и очистить канал максимально эффективно, "
                 f"на какой зоне пульпы нам нужно сосредоточить резонанс Бора? Вспомните анатомию: где находится "
                 f"самая чувствительная точка входа нерва в корневой канал?'")
-        # Логика: Апикальное отверстие (Apex).
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Направить луч на апикальное отверстие", callback_data="apoc_s5_3"),
             tele_types.InlineKeyboardButton("Работать по коронковой части", callback_data="apoc_s5_med_fail"),
@@ -235,7 +214,6 @@ def run_scenario(bot, call):
                 f"Марти: 'Док, смотрите на этого парня. Он утверждает, что он местный рыбак. Но его «клыки» ведут себя странно "
                 f"под ультрафиолетом. Чтобы не ошибиться и не обвинить невиновного, вспомните: сколько клыков (cuspids) "
                 f"в норме должно быть у взрослого человека во рту? Любое другое число выдаст в нем аугментированного шпиона!'.")
-        # Логика: 4 клыка (2 сверху, 2 снизу).
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("2", callback_data="apoc_s5_spy_fail"),
             tele_types.InlineKeyboardButton("4", callback_data="apoc_s5_8"),
@@ -325,7 +303,6 @@ def run_scenario(bot, call):
                 f"подтвердите знание структуры верхних опор. Сколько корней у первого верхнего моляра в стандартной анатомии?»\n\n"
                 f"Марти: 'Док, это снова проверка на «своего». Верхние моляры — это атланты, держащие свод. "
                 f"Если введем неверное количество корней, рычаги заблокируются, и нас просто зальет кипятком из системы охлаждения!'.")
-        # Логика: У первого верхнего моляра (6-й зуб) обычно 3 корня (2 щечных и 1 небный).
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("2", callback_data="apoc_s5_roots_fail"),
             tele_types.InlineKeyboardButton("3", callback_data="apoc_s5_13"),
@@ -399,7 +376,6 @@ def run_scenario(bot, call):
                 f"создать «якорь» через ваш Анализатор. Подайте на него сигнал, основанный на базовых константах человеческого тела. "
                 f"Вспомните, сколько постоянных зубов в норме у взрослого человека, если исключить зубы мудрости? "
                 f"Это число станет биологическим фильтром, который не даст Владу превратиться в чистую энергию!'.")
-        # Логика: 28 зубов (без зубов мудрости).
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("20", callback_data="apoc_s5_anchor_fail"),
             tele_types.InlineKeyboardButton("28", callback_data="apoc_s5_17"),
@@ -413,8 +389,8 @@ def run_scenario(bot, call):
             current_node = add_flag(current_node, "human_anchor_set")
             set_game_node(user_id, current_node)
             add_xp(user_id, 45, username)
-            # Устанавливаем таймер на стабилизацию
-            set_game_timer(user_id, 300) 
+            # Внимание: таймер! 
+            set_game_timer(user_id, 5) 
 
         text = (f"🛰 *НЕБО ПАДАЕТ*\n\n"
                 f"Число 28 сработало! Процесс стабилизировался, Влад сохраняет человеческий облик, но он всё еще внутри потока. "
@@ -492,7 +468,6 @@ def run_scenario(bot, call):
                 f"Марти: 'Док, Влад уже начал проектировать линзы. Но для настройки телескопа нам нужно "
                 f"откалибровать зеркала. Система спрашивает: сколько зубов в одной челюсти "
                 f"взрослого человека (без учета зубов мудрости)?'")
-        # Логика: 14 зубов.
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("14", callback_data="apoc_s5_22"),
             tele_types.InlineKeyboardButton("16", callback_data="apoc_s5_const_fail"),
@@ -512,7 +487,6 @@ def run_scenario(bot, call):
                 f"Марти: 'Док, чтобы нейтрализовать остатки химии Академии, нам нужен раствор с идеальным pH. "
                 f"Влад говорит, что для защиты эмали растений нужен тот же баланс, что и в слюне здорового человека. "
                 f"Какое значение pH считается нейтральным и безопасным для тканей?'.")
-        # Логика: 7.0 (нейтральный pH).
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("5.5", callback_data="apoc_s5_ph_fail"),
             tele_types.InlineKeyboardButton("7.0", callback_data="apoc_s5_23"),
@@ -533,7 +507,6 @@ def run_scenario(bot, call):
                 f"Марти: 'Док, там хранятся резервные копии памяти всех жителей до 1985 года! Если мы их достанем, "
                 f"люди смогут вспомнить свою настоящую жизнь. Но шлюз лаборатории заблокирован. Код доступа — "
                 f"это порядковый номер самого твердого зуба в челюсти, который дед называл «глазным»'.")
-        # Логика: Клык (3-й зуб от центра).
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("1", callback_data="apoc_s5_code_fail"),
             tele_types.InlineKeyboardButton("3", callback_data="apoc_s5_24"),
@@ -605,7 +578,6 @@ def run_scenario(bot, call):
                 f"Но Академия превратила её в клетку. Влад — это живой ключ к свободе. Чтобы отключить протокол контроля, "
                 f"введи финальный код. Он равен количеству корней у всех твоих резцов. Это символ того, что человек "
                 f"крепко стоит на своей земле одной опорой, но вместе мы — фундамент'.")
-        # Логика: У каждого из 8 резцов (4 сверху, 4 снизу) по 1 корню. Итого 8.
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("4", callback_data="apoc_s5_final_code_fail"),
             tele_types.InlineKeyboardButton("8", callback_data="apoc_s5_28"),
@@ -651,9 +623,7 @@ def run_scenario(bot, call):
 
     # 🏆 --- [ ЭТАП 30: ЭПИЛОГ И ТИТРЫ ] --- 🏆
     elif call.data.startswith("apoc_s5_30"):
-        # Определяем концовку на основе выбора
         ending = "Свободы" if "freedom" in call.data else "Порядка" if "order" in call.data else "Милосердия"
-        
         is_first_time = not has_completed_chapter(user_id, "chapter_5")
         
         if is_first_time:
@@ -694,65 +664,48 @@ def run_scenario(bot, call):
     # =====================================================================
     # --- [ БЛОК ОБРАБОТЧИКОВ ОШИБОК И ДЕТЕКТИВНЫХ УЛИК ] ---
     # =====================================================================
-
-    # [ 1. Обработчики ошибок и неверных действий ]
     elif call.data == "apoc_s5_med_fail":
         bot.answer_callback_query(call.id, "❌ Пациенту больно! Инфекция распространяется. Вспоминайте точку Apex!", show_alert=True)
         return
-
     elif call.data == "apoc_s5_astro_fail":
         bot.answer_callback_query(call.id, "❌ Ошибка ключа. Спутник не распознает созвездие. Посмотрите на небо!", show_alert=True)
         return
-
     elif call.data == "apoc_s5_trap_fail":
         bot.answer_callback_query(call.id, "⚠️ ОШИБКА: Инквизиторы используют фильтры шума! Акустика их не берет. Включайте воду!", show_alert=True)
         return
-
     elif call.data == "apoc_s5_spy_fail":
         bot.answer_callback_query(call.id, "❌ Марти: 'Док, вы ошиблись! Этот парень просто болен, а настоящий шпион чуть не ускользнул!'", show_alert=True)
         return
-
     elif call.data == "apoc_s5_shield_fail":
         bot.answer_callback_query(call.id, "❌ Купол не синхронизируется. Ориентир выбран неверно. Ищите созвездие-ковш!", show_alert=True)
         return
-
     elif call.data == "apoc_s5_roots_fail":
         bot.answer_callback_query(call.id, "❌ Неверно! Давление растет! Вспомните анатомию верхних моляров — сколько у них корней?", show_alert=True)
         return
-
     elif call.data == "apoc_s5_combat_fail":
         bot.answer_callback_query(call.id, "⚠️ Опасно! Фонарь только выдал вашу позицию! Цербер атакует!", show_alert=True)
         return
-
     elif call.data == "apoc_s5_anchor_fail":
         bot.answer_callback_query(call.id, "❌ Марти: 'Док, сигнал нестабилен! Влад начинает растворяться! Вспомните базу постоянных зубов!'", show_alert=True)
         return
-
     elif call.data == "apoc_s5_marti_hero":
         bot.answer_callback_query(call.id, "🐶 Марти: 'Я бы с радостью, Док, но там напряжение в 10 киловольт! Лучше используйте Бор!'", show_alert=True)
         return
-
     elif call.data == "apoc_s5_const_fail":
         bot.answer_callback_query(call.id, "❌ Марти: 'Док, математика не сходится! Вспомните, сколько зубов в одной челюсти взрослого без восьмерок?'", show_alert=True)
         return
-
     elif call.data == "apoc_s5_ph_fail":
         bot.answer_callback_query(call.id, "❌ Марти: 'Док, кислота или щелочь убьют посевы! Нам нужен идеальный нейтральный баланс!'", show_alert=True)
         return
-
     elif call.data == "apoc_s5_code_fail":
         bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок пищит! Глазной зуб — это клык. Какой он по счету от центра?'", show_alert=True)
         return
-
     elif call.data == "apoc_s5_final_code_fail":
         bot.answer_callback_query(call.id, "❌ Ошибка кода! Вспомните анатомию: сколько резцов у взрослого человека и сколько у них корней? Только один у каждого!", show_alert=True)
         return
-
     elif call.data == "apoc_s5_overload_fail":
         bot.answer_callback_query(call.id, "⚠️ Слишком медленно! Ручное управление заблокировано. Используйте заземление!", show_alert=True)
         return
-
-    # [ 2. Обработчики детективных улик (с начислением XP) ]
     elif call.data == "apoc_s5_clue_scan":
         if not has_flag(current_node, "clue_scan"):
             current_node = add_flag(current_node, "clue_scan")
@@ -760,7 +713,6 @@ def run_scenario(bot, call):
             add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🔍 СКАНИРОВАНИЕ: Влад чувствует слабые сигналы под землей. Это старые коммуникации, они нам еще пригодятся.", show_alert=True)
         return
-
     elif call.data == "apoc_s5_clue_negotiate":
         if not has_flag(current_node, "clue_negotiate"):
             current_node = add_flag(current_node, "clue_negotiate")
@@ -768,7 +720,6 @@ def run_scenario(bot, call):
             add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🗣 ПЕРЕГОВОРЫ: Линдер не слушает. Его шлем блокирует внешние звуки. Он пришел только уничтожать.", show_alert=True)
         return
-
     elif call.data == "apoc_s5_clue_traitor":
         if not has_flag(current_node, "clue_traitor"):
             current_node = add_flag(current_node, "clue_traitor")
@@ -776,7 +727,6 @@ def run_scenario(bot, call):
             add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "📷 КАМЕРЫ: Записи стерты! Кто-то профессионально заметает следы. Действовать нужно через прямой осмотр.", show_alert=True)
         return
-
     elif call.data == "apoc_s5_clue_transport":
         if not has_flag(current_node, "clue_transport"):
             current_node = add_flag(current_node, "clue_transport")
@@ -784,7 +734,6 @@ def run_scenario(bot, call):
             add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🚙 ТРАНСПОРТ: Старый электрокар Академии разряжен. Пешком мы доберемся быстрее и незаметнее.", show_alert=True)
         return
-
     elif call.data == "apoc_s5_clue_coolant":
         if not has_flag(current_node, "clue_coolant"):
             current_node = add_flag(current_node, "clue_coolant")
@@ -792,7 +741,6 @@ def run_scenario(bot, call):
             add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "❄️ ОХЛАДИТЕЛИ: Уровень фреона в норме. Проблема не здесь, идите к пульту давления!", show_alert=True)
         return
-
     elif call.data == "apoc_s5_clue_hack":
         if not has_flag(current_node, "clue_hack"):
             current_node = add_flag(current_node, "clue_hack")
@@ -800,7 +748,6 @@ def run_scenario(bot, call):
             add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "💻 ВЗЛОМ: Защита Линдера квантовая. Влад не может ее пробить, не рискуя своим разумом. Используйте Бор!", show_alert=True)
         return
-
     elif call.data == "apoc_s5_clue_laser":
         if not has_flag(current_node, "clue_laser"):
             current_node = add_flag(current_node, "clue_laser")
