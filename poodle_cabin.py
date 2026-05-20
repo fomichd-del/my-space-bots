@@ -99,21 +99,19 @@ DOG_SHOP = {
 }
 
 def get_deterministic_dna(user_id):
-    """Генерирует фиксированный анатомический паспорт (Геном)"""
-    # Создаем уникальный "отпечаток" на основе ID
+    """Генерирует фиксированный анатомический паспорт с жесткой привязкой к Той-Пуделю"""
     hash_obj = hashlib.md5(str(user_id).encode())
     digest = hash_obj.hexdigest()
     
-    # Пул характеристик
+    # Характеристики (только для той-пуделя!)
     genders = ["male", "female"]
-    builds = ["athletic", "chubby", "slender", "compact"]
-    ears = ["floppy long ears", "pointy ears", "short cropped ears"]
-    noses = ["button nose", "long elegant nose"]
-    eyes = ["round expressive eyes", "almond-shaped eyes", "playful wide eyes"]
-    fur_types = ["short curly fur", "long wavy fur", "fluffy thick fur", "tightly curled fur"]
+    builds = ["athletic", "compact", "dainty", "sturdy"]
+    ears = ["floppy long ears covered in curls", "characteristic long drooping ears"]
+    noses = ["button nose", "distinctive black nose"]
+    eyes = ["round expressive dark eyes", "almond-shaped dark eyes"]
+    fur_types = ["tightly curled hypoallergenic coat", "dense soft curly fur", "fluffy tight poodle curls", "well-groomed curly coat"]
     colors = ["snow-white", "ash-grey", "coffee-brown", "apricot", "silver-grey", "cream"]
     
-    # Извлекаем характеристики из хеша
     gender = genders[int(digest[0:4], 16) % len(genders)]
     build = builds[int(digest[4:8], 16) % len(builds)]
     ear = ears[int(digest[8:12], 16) % len(ears)]
@@ -122,62 +120,105 @@ def get_deterministic_dna(user_id):
     fur = fur_types[int(digest[20:24], 16) % len(fur_types)]
     color = colors[int(digest[24:28], 16) % len(colors)]
     
+    # 🟢 ЖЕСТКАЯ ПРИВЯЗКА К ПОРОДЕ
     return f"Toy Poodle, {color} {gender} with {build} build, {ear}, {nose}, {eye}, {fur}"
 
 def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
-
-    # 1. Анатомический паспорт (ДНК)
+    
+    # 1. Анатомический паспорт (ДНК) - ПРИВЯЗКА К ТОЙ-ПУДЕЛЮ
     dna = get_deterministic_dna(user_id)
     
-    # 2. Окружение и данные пользователя (делаем один раз)
-    u_data = get_user_data(user_id)
+    # 2. Окружение и время
     hour = datetime.now().hour
-    
-    # Световой модуль
-    if 6 <= hour < 11: light = "soft morning sunrise light through the window, cool blue and orange tones"
-    elif 11 <= hour < 18: light = "bright direct midday sunlight, high contrast, crisp shadows"
-    elif 18 <= hour < 22: light = "warm golden hour sunset glow, long soft shadows, cozy atmosphere"
-    else: light = "deep blue night atmosphere, dim interior lighting, glowing neon control panels"
-    
-    # Визуализация богатства (Пыль)
+    u_data = get_user_data(user_id)
     dust = u_data['spendable_dust']
-    if dust < 50: dust_visual = "an empty clean metallic desk near the dog"
-    elif dust < 200: dust_visual = "a small glowing pile of blue stardust on the desk"
-    elif dust < 1000: dust_visual = "a large heap of shimmering cosmic dust on the table"
-    else: dust_visual = "a massive overflowing treasure chest filled with glowing stardust on the desk"
     
+    # 2. Окружение и время
+    hour = datetime.now().hour
+    u_data = get_user_data(user_id)
+    dust = u_data['spendable_dust']
+    
+    # Световой модуль + Вид из окна
+    if 6 <= hour < 11:
+        light = "soft morning sunrise light"
+        window = "a glowing colorful nebula"
+    elif 11 <= hour < 18:
+        light = "bright direct midday sunlight"
+        window = "a vibrant solar system with planets"
+    elif 18 <= hour < 22:
+        light = "warm golden hour sunset glow"
+        window = "a sunset over a distant alien planet"
+    else:
+        light = "deep blue night atmosphere with neon panel glow"
+        window = "deep space with glittering stars and distant galaxies"
+    
+    # Стол и пыль
+    if dust < 50: 
+        desk = "a clean minimalist workspace desk with a closed laptop"
+    elif dust < 500: 
+        desk = "a metallic workspace desk with an open laptop, small specks of blue stardust nearby"
+    else: 
+        desk = "a messy workspace desk, an open laptop displaying scrolling code, a massive heap of shimmering cosmic dust on the surface"
+
     # Эволюция и состояние
     evo = "tiny puppy" if dog['level'] < 5 else ("adolescent poodle" if dog['level'] < 12 else "wise adult poodle")
-    state = "happy, sparkling eyes" if dog['energy'] >= 30 else "tired, resting"
-
-    # Генетическое наследие
+    state = "happy, sparkling eyes" if dog['energy'] >= 30 else "tired, resting comfortably"
+    
+  # Генетическое наследие
     import random
     crossover = "a small realistic garden snail is slowly crawling on the window glass," if random.random() < 0.10 else ""
 
-    # 3. СЛОТИРОВАНИЕ (Разбиваем вещи)
+    # 3. ТОЧНОЕ СЛОТИРОВАНИЕ (Разбиваем на 8 зон)
     equipped = dog.get('equipped', [])
-    head_keywords = ["head", "hat", "visor", "helmet", "crown", "monocle", "glasses", "antenna", "beanie", "cap"]
-    mouth_keywords = ["mouth", "teeth", "pipe", "drill", "smile", "grillz", "bone", "relic", "stone"]
-    
-    head_items, mouth_items, body_items = [], [], []
-    
+    slots = {
+        "head": [], "face": [], "mouth": [], "neck": [], 
+        "torso": [], "back": [], "paws": [], "tail": []
+    }
+
+    # Карта ключевых слов для сортировки
+    keywords = {
+        "head": ["hat", "helmet", "antenna", "crown", "cap", "beanie"],
+        "face": ["glass", "goggles", "monocle", "visor", "eye"],
+        "mouth": ["mouth", "teeth", "pipe", "drill", "smile", "grillz", "bone", "relic", "stone"],
+        "neck": ["collar", "scarf", "bandana", "chain"],
+        "torso": ["suit", "vest", "harness", "robe", "jacket"],
+        "back": ["wing", "jetpack", "cape", "backpack", "speakers"],
+        "paws": ["boot", "paw", "glove"],
+        "tail": ["tail", "ribbon"]
+    }
+
     for k in equipped:
         if k not in DOG_SHOP: continue
         prompt = DOG_SHOP[k]["prompt"]
-        if any(w in prompt.lower() for w in head_keywords): head_items.append(prompt)
-        elif any(w in prompt.lower() for w in mouth_keywords): mouth_items.append(prompt)
-        else: body_items.append(prompt)
+        assigned = False
+        for slot, words in keywords.items():
+            if any(w in prompt.lower() for w in words):
+                slots[slot].append(prompt)
+                assigned = True
+                break
+        if not assigned: slots["torso"].append(prompt) # дефолт в тело
 
-    # 4. ФОРМИРОВАНИЕ ИТОГОВОГО ПРОМПТА
-    style_prompt = f"WEARING: {', '.join(head_items + mouth_items + body_items)}" if equipped else "no clothes"
+    # Формируем описание экипировки
+    style_parts = []
+    for slot, items in slots.items():
+        if items: style_parts.append(f"{slot.upper()}: {', '.join(items)}")
     
+    style_prompt = f"WEARING: {'; '.join(style_parts)}" if style_parts else "no clothes"
+    
+    # 4. ИТОГОВЫЙ "ЖЕЛЕЗНЫЙ" ПРОМПТ
     full_prompt = (
-        f"Macro photography of a {dna}. The dog is a {evo}, {state}. "
-        f"Environment: {light} in a spaceship cabin, {dust_visual}. {crossover} "
+        f"Macro photography of a {dna}. "
+        f"Scene: {evo} sitting in a cozy futuristic spaceship cabin. "
+        f"In the background, there is a soft plush dog bed. "
+        f"Beside the dog is {desk}. "
+        f"A large circular porthole window shows {window}. "
+        f"Lighting: {light}. "
+        f"The {evo} is {state}. "
         f"{style_prompt}. "
-        f"Constraint: This is absolutely a Toy Poodle. Maintain compact toy poodle size, characteristic curly fur, and distinct poodle features. "
+        f"Constraint: STRICT BREED CONSTRAINT: Toy Poodle morphology only (signature tight curls). "
+        f"Do not draw a Yorkshire terrier. Do not draw long straight hair. "
         f"Include ALL items listed in WEARING. Do not drop items. Photorealistic, 8k, extremely detailed."
     )
     
