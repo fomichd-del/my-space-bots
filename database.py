@@ -394,6 +394,14 @@ def get_game_status(user_id):
         cursor.close()
         conn.close()
 
+# --- МОСТ СОВМЕСТИМОСТИ ДЛЯ СЦЕНАРИЕВ ---
+def update_game_progress(user_id, node_name):
+    """
+    Старая функция для совместимости со сценариями.
+    Теперь перенаправляет всё на актуальный метод set_game_node.
+    """
+    return set_game_node(user_id, node_name)
+
 def set_game_timer(user_id, minutes):
     conn = get_connection()
     if not conn: return
