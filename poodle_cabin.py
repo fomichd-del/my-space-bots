@@ -103,13 +103,14 @@ def get_deterministic_dna(user_id):
     hash_obj = hashlib.md5(str(user_id).encode())
     digest = hash_obj.hexdigest()
     
-    # Характеристики (только для той-пуделя!)
+    # Характеристики: убрали "fluffy" (это создает йорков), оставили только "curly"
     genders = ["male", "female"]
     builds = ["athletic", "compact", "dainty", "sturdy"]
-    ears = ["floppy long ears covered in curls", "characteristic long drooping ears"]
-    noses = ["button nose", "distinctive black nose"]
+    ears = ["floppy long ears covered in tight curls", "characteristic long drooping poodle ears"]
+    noses = ["black button nose", "distinctive small black nose"]
     eyes = ["round expressive dark eyes", "almond-shaped dark eyes"]
-    fur_types = ["tightly curled hypoallergenic coat", "dense soft curly fur", "fluffy tight poodle curls", "well-groomed curly coat"]
+    # ТОЛЬКО КУДРИ! Никакой длинной шерсти
+    fur_types = ["tightly curled hypoallergenic coat", "dense soft curly fur", "tight poodle curls", "well-groomed curly coat"]
     colors = ["snow-white", "ash-grey", "coffee-brown", "apricot", "silver-grey", "cream"]
     
     gender = genders[int(digest[0:4], 16) % len(genders)]
@@ -120,64 +121,46 @@ def get_deterministic_dna(user_id):
     fur = fur_types[int(digest[20:24], 16) % len(fur_types)]
     color = colors[int(digest[24:28], 16) % len(colors)]
     
-    # 🟢 ЖЕСТКАЯ ПРИВЯЗКА К ПОРОДЕ
     return f"Toy Poodle, {color} {gender} with {build} build, {ear}, {nose}, {eye}, {fur}"
 
 def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
-    
-    # 1. Анатомический паспорт (ДНК) - ПРИВЯЗКА К ТОЙ-ПУДЕЛЮ
+
+    # 1. Анатомический паспорт
     dna = get_deterministic_dna(user_id)
     
-    # 2. Окружение и время
+    # 2. Окружение и время (ВЫЧИСЛЯЕМ 1 РАЗ!)
     hour = datetime.now().hour
     u_data = get_user_data(user_id)
     dust = u_data['spendable_dust']
     
-    # 2. Окружение и время
-    hour = datetime.now().hour
-    u_data = get_user_data(user_id)
-    dust = u_data['spendable_dust']
-    
-    # Световой модуль + Вид из окна
     if 6 <= hour < 11:
-        light = "soft morning sunrise light"
+        light = "soft morning sunrise light through the window, cool blue and orange tones"
         window = "a glowing colorful nebula"
     elif 11 <= hour < 18:
-        light = "bright direct midday sunlight"
+        light = "bright direct midday sunlight, high contrast, crisp shadows"
         window = "a vibrant solar system with planets"
     elif 18 <= hour < 22:
-        light = "warm golden hour sunset glow"
+        light = "warm golden hour sunset glow, long soft shadows, cozy atmosphere"
         window = "a sunset over a distant alien planet"
     else:
-        light = "deep blue night atmosphere with neon panel glow"
+        light = "deep blue night atmosphere, dim interior lighting, glowing neon control panels"
         window = "deep space with glittering stars and distant galaxies"
     
-    # Стол и пыль
+    # Стол и пыль (Единая логика)
     if dust < 50: 
         desk = "a clean minimalist workspace desk with a closed laptop"
     elif dust < 500: 
         desk = "a metallic workspace desk with an open laptop, small specks of blue stardust nearby"
     else: 
         desk = "a messy workspace desk, an open laptop displaying scrolling code, a massive heap of shimmering cosmic dust on the surface"
-
-    # Эволюция и состояние
+    
     evo = "tiny puppy" if dog['level'] < 5 else ("adolescent poodle" if dog['level'] < 12 else "wise adult poodle")
     state = "happy, sparkling eyes" if dog['energy'] >= 30 else "tired, resting comfortably"
-    
-  # Генетическое наследие
-    import random
-    crossover = "a small realistic garden snail is slowly crawling on the window glass," if random.random() < 0.10 else ""
 
-    # 3. ТОЧНОЕ СЛОТИРОВАНИЕ (Разбиваем на 8 зон)
+    # 3. ТОЧНОЕ СЛОТИРОВАНИЕ
     equipped = dog.get('equipped', [])
-    slots = {
-        "head": [], "face": [], "mouth": [], "neck": [], 
-        "torso": [], "back": [], "paws": [], "tail": []
-    }
-
-    # Карта ключевых слов для сортировки
     keywords = {
         "head": ["hat", "helmet", "antenna", "crown", "cap", "beanie"],
         "face": ["glass", "goggles", "monocle", "visor", "eye"],
@@ -189,6 +172,7 @@ def get_dog_prompt(dog, user_id):
         "tail": ["tail", "ribbon"]
     }
 
+    slots = {k: [] for k in keywords.keys()}
     for k in equipped:
         if k not in DOG_SHOP: continue
         prompt = DOG_SHOP[k]["prompt"]
@@ -197,29 +181,24 @@ def get_dog_prompt(dog, user_id):
             if any(w in prompt.lower() for w in words):
                 slots[slot].append(prompt)
                 assigned = True
-                break
-        if not assigned: slots["torso"].append(prompt) # дефолт в тело
+        if not assigned: slots["torso"].append(prompt)
 
-    # Формируем описание экипировки
-    style_parts = []
-    for slot, items in slots.items():
-        if items: style_parts.append(f"{slot.upper()}: {', '.join(items)}")
-    
+    # Формируем описание (убираем пустые слоты)
+    style_parts = [f"{s.upper()}: {', '.join(items)}" for s, items in slots.items() if items]
     style_prompt = f"WEARING: {'; '.join(style_parts)}" if style_parts else "no clothes"
     
     # 4. ИТОГОВЫЙ "ЖЕЛЕЗНЫЙ" ПРОМПТ
     full_prompt = (
         f"Macro photography of a {dna}. "
         f"Scene: {evo} sitting in a cozy futuristic spaceship cabin. "
-        f"In the background, there is a soft plush dog bed. "
-        f"Beside the dog is {desk}. "
-        f"A large circular porthole window shows {window}. "
+        f"There is a metallic workspace desk with {desk}. "
+        f"A large porthole window shows {window}. "
         f"Lighting: {light}. "
-        f"The {evo} is {state}. "
+        f"The dog is {state}. "
         f"{style_prompt}. "
-        f"Constraint: STRICT BREED CONSTRAINT: Toy Poodle morphology only (signature tight curls). "
-        f"Do not draw a Yorkshire terrier. Do not draw long straight hair. "
-        f"Include ALL items listed in WEARING. Do not drop items. Photorealistic, 8k, extremely detailed."
+        f"STRICT CONSTRAINT: Purebred Toy Poodle morphology, signature tight curls, compact toy size. "
+        f"NEGATIVE CONSTRAINT: Do not draw Yorkie, do not draw long straight hair, do not draw large dogs. "
+        f"Include ALL equipped items. Photorealistic, 8k, extremely detailed."
     )
     
     return full_prompt, user_id
