@@ -1,23 +1,28 @@
 import telebot
 from datetime import datetime
 from telebot import types as tele_types
-
-# Импортируем все необходимые функции из нашей обновленной базы
 from database import (
     get_game_status, set_game_node, reset_game, set_game_timer, add_xp, 
-    has_completed_chapter, mark_chapter_completed
+    has_completed_chapter, mark_chapter_completed, is_timer_expired
 )
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
-    
-    raw_node, timer_end = get_game_status(user_id)
+
+    # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
+    if not is_timer_expired(user_id):
+        try:
+            bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
+        except:
+            pass
+        return
+
+    raw_node, _ = get_game_status(user_id)
     if not raw_node: 
         raw_node = "apoc_start"
 
     # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ДЛЯ РАБОТЫ СО СТРОКОЙ СОХРАНЕНИЯ ---
-    # Мы храним данные в формате: "текущая_комната|флаг1|флаг2"
     def get_loc(node_str): return node_str.split('|')[0]
     def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
     def add_flag(node_str, flag): return node_str if has_flag(node_str, flag) else f"{node_str}|{flag}"
@@ -34,7 +39,6 @@ def run_scenario(bot, call):
         reset_game(user_id, "apoc_start")
         current_node = "apoc_start"
         loc = "apoc_start"
-        timer_end = None
         bot.answer_callback_query(call.id, "🔄 Данные стерты. Начинаем с чистого листа!", show_alert=True)
         call.data = "apoc_start"
 
@@ -62,24 +66,7 @@ def run_scenario(bot, call):
         try: bot.answer_callback_query(call.id, "🔄 Сохранение загружено!")
         except: pass
 
-    # --- [ БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА ] ---
-    if timer_end:
-        if isinstance(timer_end, str):
-            try: timer_end = datetime.strptime(timer_end.split('.')[0].replace('T', ' '), "%Y-%m-%d %H:%M:%S")
-            except: timer_end = None
-                
-        if timer_end:
-            safe_timer_end = timer_end.replace(tzinfo=None)
-            safe_now = datetime.now().replace(tzinfo=None)
-            
-            if safe_now < safe_timer_end:
-                mins = int((safe_timer_end - safe_now).total_seconds() // 60) + 1
-                try: bot.answer_callback_query(call.id, f"⌛️ Ожидание... Осталось {mins} мин.", show_alert=True)
-                except: pass
-                return # Блокируем дальнейшие действия, пока таймер тикает
-
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
-    # Если игрок переходит в новую "большую" комнату, жестко сохраняем её как точку возврата
     MAJOR_NODES = [
         "apoc_start", "apoc_n1_investigate", "apoc_n1_pc_check", "apoc_n1_pantry",
         "apoc_n1_tool_choice", "apoc_n1_base_menu", "apoc_n1_secret_entry",
@@ -168,7 +155,7 @@ def run_scenario(bot, call):
         if has_flag(current_node, "pc_done"):
             bot.answer_callback_query(call.id, "🖥 Система уже взломана!")
             call.data = "apoc_n1_base_menu"
-            run_scenario(bot, call) # Эмулируем переход
+            run_scenario(bot, call)
             return
 
         text = ("🖥 *ТЕРМИНАЛ: ЗАБЛОКИРОВАНО*\n\n"
@@ -655,26 +642,21 @@ def run_scenario(bot, call):
     # 🏆 --- [ ФИНАЛЫ: РАСЧЕТ НАГРАДЫ И СОХРАНЕНИЕ ] --- 🏆
     elif call.data in ["apoc_n1_end_power", "apoc_n1_end_knowledge"]:
         
-        # Проверяем, проходил ли игрок эту главу ранее
         is_first_time = not has_completed_chapter(user_id, "chapter_1")
         
         if is_first_time:
-            # ДЖЕКПОТ ЗА ПЕРВОЕ ПРОХОЖДЕНИЕ
             xp_reward = 150 if call.data == "apoc_n1_end_knowledge" else 100
-            dust_reward = xp_reward # Пыль равна опыту
+            dust_reward = xp_reward
             mark_chapter_completed(user_id, "chapter_1")
             reward_msg = f"🎁 **ДЖЕКПОТ ЗА ПЕРВОЕ ПРОХОЖДЕНИЕ:**\n✨ Опыт: +{xp_reward} XP\n💎 Пыль: +{dust_reward} ед.\n"
         else:
-            # УТЕШИТЕЛЬНЫЙ ПРИЗ ЗА ФАРМ
             xp_reward = 20
             dust_reward = 20
             reward_msg = f"🔄 **НАГРАДА ЗА ПОВТОРНОЕ ПРОХОЖДЕНИЕ:**\n✨ Опыт: +{xp_reward} XP\n💎 Пыль: +{dust_reward} ед.\n"
 
-        # Начисляем награду только если метки о финале еще нет в ЭТОМ прохождении
         if not has_flag(current_node, "ch1_done"):
             add_xp(user_id, xp_reward, username) 
             current_node = add_flag(current_node, "ch1_done")
-            # Закрываем комнату, чтобы игрок мог видеть финальный экран при возврате
             current_node = set_loc(current_node, "apoc_ch1_completed_screen")
             set_game_node(user_id, current_node)
             
@@ -702,7 +684,6 @@ def run_scenario(bot, call):
 def handle_craft(bot, call, current_node):
     user_id = call.from_user.id
     
-    # Внутренний хелпер, чтобы не дублировать код
     def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
     def add_flag(node_str, flag): return node_str if has_flag(node_str, flag) else f"{node_str}|{flag}"
     def set_loc(node_str, new_loc):
@@ -719,7 +700,6 @@ def handle_craft(bot, call, current_node):
 
     if "suit" in call.data:
         set_game_timer(user_id, time_needed)
-        # Ставим флаг, что костюм готов, и перекидываем локацию на Главное меню бункера
         current_node = add_flag(current_node, "suit_fixed")
         current_node = set_loc(current_node, "apoc_n1_base_menu")
         set_game_node(user_id, current_node)
