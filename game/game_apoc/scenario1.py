@@ -10,34 +10,29 @@ def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
     
-    # 1. Сначала получаем статус из базы, чтобы избежать ошибок NameError
+    # 🔴 --- [ ПРИНУДИТЕЛЬНЫЙ СБРОС - ДОЛЖЕН БЫТЬ ПЕРВЫМ ] --- 🔴
+    if call.data == "game_reset_all":
+        reset_game(user_id, "apoc_start")
+        set_game_timer(user_id, 0)
+        bot.answer_callback_query(call.id, "🔄 Система очищена. Перезапуск...", show_alert=True)
+        call.data = "apoc_start"
+        # Перезагружаем функцию с чистыми данными
+        return run_scenario(bot, call)
+
+    # 1. Получаем статус из базы
     raw_node, timer_end = get_game_status(user_id)
-    if not raw_node: 
-        raw_node = "apoc_start"
+    if not raw_node: raw_node = "apoc_start"
         
     print(f"DEBUG: User {user_id} current_node: {raw_node}, timer: {timer_end}")
     
     # --- [ АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
-    # Пропускаем системные кнопки входа и возврата
-    if call.data not in ["apoc_s1_start", "resume_game", "resume_game_1", "game_reset_all", "game_reset_ch1", "game_main_menu"]:
+    if call.data not in ["apoc_s1_start", "resume_game", "game_reset_all", "game_main_menu"]:
         if not is_timer_expired(user_id):
             try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
             except: pass
             return
 
-# 🔴 --- [ ЕДИНЫЙ БЛОК СБРОСА ] --- 🔴
-    if call.data == "game_reset_all":
-        reset_game(user_id, "apoc_start")  # Сбрасываем узел на старт
-        set_game_timer(user_id, 0)         # Обнуляем таймер через функцию в database.py
-        
-        # Уведомляем пользователя
-        bot.answer_callback_query(call.id, "🔄 Данные стерты. Начинаем с чистого листа!", show_alert=True)
-        
-        # Перезагружаем сценарий с "apoc_start"
-        call.data = "apoc_start"
-        return run_scenario(bot, call)
-    
-    # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ДЛЯ РАБОТЫ СО СТРОКОЙ СОХРАНЕНИЯ ---
+    # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ---
     def get_loc(node_str): return node_str.split('|')[0]
     def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
     def add_flag(node_str, flag): return node_str if has_flag(node_str, flag) else f"{node_str}|{flag}"
@@ -56,10 +51,7 @@ def run_scenario(bot, call):
         elif loc == "apoc_ch1_completed_screen":
             call.data = "apoc_ch1_completed_screen"
         else:
-            text = (f"🔙 *ВОЗВРАЩЕНИЕ В БУНКЕР*\n"
-                    f"──────────────────────────\n"
-                    f"Командор, вы остановились на этапе выживания. Марти уже заждался и готов продолжать!\n\n"
-                    f"Что делаем?")
+            text = "🔙 *ВОЗВРАЩЕНИЕ В БУНКЕР*\nКомандор, вы остановились на этапе выживания. Что делаем?"
             kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
                 tele_types.InlineKeyboardButton("▶️ Продолжить игру", callback_data="resume_game"),
                 tele_types.InlineKeyboardButton("🔄 Сбросить и начать заново", callback_data="game_reset_all"),
@@ -75,15 +67,15 @@ def run_scenario(bot, call):
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
     MAJOR_NODES = [
-    "apoc_start", "apoc_n1_investigate", "apoc_n1_pc_check", "apoc_n1_pantry",
-    "apoc_n1_tool_choice", "apoc_n1_base_menu", "apoc_n1_secret_entry",
-    "apoc_n1_secret_hall", "apoc_n1_secret_files", "apoc_n1_workbench", 
-    "apoc_n1_search_1", "apoc_n1_search_2", "apoc_n1_frozen_door", 
-    "apoc_n1_melt_success", "apoc_n1_vent_enter", "apoc_n1_stealth_success", 
-    "apoc_n1_climb", "apoc_n1_valve_turn", "apoc_n1_generator_room", 
-    "apoc_n1_decode_radio", "apoc_n1_stairwell", "apoc_n1_lift_fix", 
-    "apoc_n1_final_ascent", "apoc_ch1_completed_screen", "apoc_n1_res_1" # <--- ДОБАВИЛИ ЭТАП СКЛАДА
-]
+        "apoc_start", "apoc_n1_investigate", "apoc_n1_pc_check", "apoc_n1_pantry",
+        "apoc_n1_tool_choice", "apoc_n1_base_menu", "apoc_n1_secret_entry",
+        "apoc_n1_secret_hall", "apoc_n1_secret_files", "apoc_n1_workbench", 
+        "apoc_n1_search_1", "apoc_n1_search_2", "apoc_n1_frozen_door", 
+        "apoc_n1_melt_success", "apoc_n1_vent_enter", "apoc_n1_stealth_success", 
+        "apoc_n1_climb", "apoc_n1_valve_turn", "apoc_n1_generator_room", 
+        "apoc_n1_decode_radio", "apoc_n1_stairwell", "apoc_n1_lift_fix", 
+        "apoc_n1_final_ascent", "apoc_ch1_completed_screen", "apoc_n1_res_1"
+    ]
     if call.data in MAJOR_NODES:
         current_node = set_loc(current_node, call.data)
         set_game_node(user_id, current_node)
