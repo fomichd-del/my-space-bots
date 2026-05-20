@@ -90,49 +90,43 @@ def get_cascade_image(prompt, seed):
         except Exception as e:
             print(f"⚠️ Together AI ОШИБКА: {e}", flush=True)
 
-    # 🚀 2. ЭЛИТНЫЙ РЕЗЕРВ: Модели Gemini (с Умной Очередью)
+    # 🚀 2. ЭЛИТНЫЙ РЕЗЕРВ: Модели Gemini Image
     GEMINI_IMAGE_MODELS = [
         'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 
-        'gemini-2.0-flash-lite', 'gemini-3.1-flash-image-preview',
-        'gemini-3-pro-image-preview', 'gemini-2.5-flash-image'
+        'gemini-2.0-flash-lite', 'gemini-3.1-flash-image-preview'
     ]
-    
-    # Перемешиваем ключи, чтобы не бить по лимитам одного API-ключа
+
+    print("🔄 Переход к матрице Gemini Image...", flush=True)
+    # Перемешиваем ключи прямо здесь
     shuffled_keys = API_KEYS.copy()
     random.shuffle(shuffled_keys)
     
-    print("🔄 Переход к матрице Gemini Image...", flush=True)
     for img_model in GEMINI_IMAGE_MODELS:
+        # Используем shuffled_keys вместо API_KEYS
         for i, key in enumerate(shuffled_keys):
             try:
                 client = genai.Client(api_key=key)
-                # Используем один seed, безопасный для Gemini (32-битный)
-                safe_seed = int(seed) % 2147483647
-                # 🟢 ДОБАВЛЕН ГЕНЕТИЧЕСКИЙ КОД ДЛЯ GEMINI
-                seed=int(seed) if str(seed).isdigit() else None
                 result = client.models.generate_images(
                     model=img_model,
                     prompt=prompt,
                     config=types.GenerateImagesConfig(
-                        number_of_images=1, 
+                        number_of_images=1,
                         aspect_ratio="1:1",
-                        seed=safe_seed
+                        seed=int(seed) % 2147483647 # Оставили только один seed
                     )
                 )
                 if result.generated_images:
                     print(f"✅ Gemini Image ({img_model}) Ключ {i+1}: УСПЕХ!", flush=True)
                     return result.generated_images[0].image.image_bytes
-            
             except Exception as e:
-                # Обработка перегрева лимитов
                 if "429" in str(e):
-                    print(f"⏳ Ключ {i+1} перегрет (429), пауза 3 сек...", flush=True)
-                    time.sleep(3) 
+                    print(f"⏳ Ключ {i+1} перегрет (429), отдых 5 сек...", flush=True)
+                    time.sleep(5) 
                     continue
                 else:
                     print(f"⚠️ Ошибка {img_model} (Ключ {i+1}): {e}", flush=True)
                     continue
-
+    
     # 🥈 3. Pollinations FLUX - Бесплатный резерв №1
     print("🔄 Переход к Pollinations FLUX...", flush=True)
     try:
