@@ -4,7 +4,7 @@ import telebot
 import random
 from datetime import datetime, timedelta
 
-# --- ДОБАВЛЕННАЯ ФУНКЦИЯ ДЛЯ СИНХРОНИЗАЦИИ ВРЕМЕНИ ---
+# --- СИНХРОНИЗАЦИЯ ВРЕМЕНИ ---
 def get_ship_date():
     """Возвращает текущую дату для Чернигова (UTC+3)"""
     return (datetime.now() + timedelta(hours=3)).strftime("%Y-%m-%d")
@@ -32,7 +32,6 @@ def init_db():
     if not conn: return
     try:
         cursor = conn.cursor()
-        # 1. Создаем таблицу пользователей
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
@@ -42,13 +41,13 @@ def init_db():
             )
         ''')
         
-        # 2. Добавляем все нужные колонки (ваш существующий цикл)
+        # ДОБАВЛЕНО: completed_chapters для отслеживания повторных прохождений
         new_columns = [
             ("spendable_dust", "INTEGER DEFAULT 0"),
             ("jackpot_claimed", "BOOLEAN DEFAULT FALSE"),
             ("streak_days", "INTEGER DEFAULT 0"),
             ("last_active_date", "TEXT DEFAULT ''"),
-            ("game_node", "TEXT DEFAULT 'start'"),
+            ("game_node", "TEXT DEFAULT 'apoc_start'"),
             ("game_timer_end", "TIMESTAMP"),
             ("last_interact", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
             ("silence_until", "TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP"),
@@ -57,7 +56,8 @@ def init_db():
             ("dog_equipped", "TEXT DEFAULT ''"),
             ("dog_profession", "TEXT DEFAULT 'Кадет'"),
             ("last_quiz_date", "TEXT DEFAULT ''"),
-            ("dog_last_exp", "TEXT DEFAULT ''")
+            ("dog_last_exp", "TEXT DEFAULT ''"),
+            ("completed_chapters", "TEXT DEFAULT ''")
         ]
         
         for col_name, col_type in new_columns:
@@ -74,11 +74,8 @@ def init_db():
         conn.commit()
         print("📡 Таблица пользователей синхронизирована.")
         
-        # --- ВОТ ТА САМАЯ МЕЛКАЯ ПРАВКА ---
-        # Теперь прямо отсюда вызываем создание таблицы новостей и эко-отсека
         setup_news_db()
         setup_eco_bay()
-        # ----------------------------------
 
     except Exception as e:
         send_log(f"Ошибка инициализации БД: {e}")
@@ -87,7 +84,6 @@ def init_db():
         conn.close()
 
 # --- КРАТКОСРОЧНАЯ ПАМЯТЬ ЗРЕНИЯ ---
-
 def save_vision_context(user_id, context_text):
     conn = get_connection()
     if not conn: return
@@ -138,7 +134,6 @@ def clear_vision_context(user_id):
         conn.close()
 
 # --- ФУНКЦИИ АКТИВНОСТИ ПИЛОТОВ ---
-
 def update_last_active(user_id):
     conn = get_connection()
     if not conn: return
@@ -181,7 +176,6 @@ def get_users_for_ping():
         conn.close()
 
 # --- ФУНКЦИИ ПРОФИЛЯ И ОПЫТА ---
-
 def add_xp(user_id, amount, username="Пилот"):
     conn = get_connection()
     if not conn: return
@@ -204,13 +198,11 @@ def add_xp(user_id, amount, username="Пилот"):
         conn.close()
 
 def is_user_new(user_id):
-    """Проверяет, есть ли пилот в базе данных (True - если новый, False - если уже был)"""
     conn = get_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
-        # Если ничего не нашли, значит пилот новый (вернут True)
         return cursor.fetchone() is None
     finally:
         cursor.close()
@@ -243,7 +235,6 @@ def get_user_data(user_id):
         conn.close()
 
 def update_user_data(user_id, u_data):
-    """Сохраняет обновленные данные пользователя (опыт, пыль, стрик) обратно в базу"""
     conn = get_connection()
     if not conn: return
     try:
@@ -364,69 +355,32 @@ def get_rank_name(xp):
     if xp < 900: return "Академик Космоса 🎓"
     return "Верный Помощник Марти 🐕"
 
-# --- ИГРОВОЙ МОДУЛЬ ---
+# --- ИГРОВОЙ МОДУЛЬ (ПРОДВИНУТОЕ СОХРАНЕНИЕ) ---
 
-def update_game_progress(user_id, node_id):
+def set_game_node(user_id, node_id):
+    """Принудительно устанавливает узел. ЧИСТАЯ ПЕРЕЗАПИСЬ."""
     conn = get_connection()
     if not conn: return
     try:
         cursor = conn.cursor()
-        cursor.execute('UPDATE users SET game_node = %s WHERE user_id = %s', (node_id, user_id))
+        # Обнуляем таймер при переходе на следующий этап, чтобы он не заблокировал будущие крафты
+        cursor.execute('UPDATE users SET game_node = %s, game_timer_end = NULL WHERE user_id = %s', (node_id, user_id))
         conn.commit()
     finally:
         cursor.close()
         conn.close()
 
-def set_game_timer(user_id, minutes):
+def reset_game(user_id, start_node="apoc_start"):
+    """Полный сброс прогресса до нужной контрольной точки (Глава 1 или 2)."""
     conn = get_connection()
     if not conn: return
-    
-    cursor = None 
     try:
-        minutes_int = int(minutes) 
-        now = datetime.now()
         cursor = conn.cursor()
-
-        # 🛡 --- УМНАЯ ЗАЩИТА ТАЙМЕРА (БЛОКИРОВКА АМНЕЗИИ) ---
-        # Проверяем, есть ли уже активный таймер у пилота
-        cursor.execute('SELECT game_timer_end FROM users WHERE user_id = %s', (user_id,))
-        res = cursor.fetchone()
-
-        if res and res[0]:
-            current_end = res[0]
-            
-            # Страховка, если база вдруг вернет время текстом
-            if isinstance(current_end, str):
-                try:
-                    clean_time = current_end.split('.')[0].replace('T', ' ')
-                    current_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-                except:
-                    current_end = now # При ошибке считаем, что таймера нет
-
-            # Сравниваем (без часовых поясов, чтобы не было конфликтов)
-            safe_current_end = current_end.replace(tzinfo=None)
-            safe_now = now.replace(tzinfo=None)
-
-            # Если старый таймер еще тикает — ИГНОРИРУЕМ КОМАНДУ СБРОСА!
-            if safe_current_end > safe_now:
-                print(f"⏳ Таймер для {user_id} еще активен. Защита от сброса сработала.")
-                return # 🛑 ВЫХОДИМ ИЗ ФУНКЦИИ! База не перезаписывается.
-        # ----------------------------------------------------
-
-        # Если мы дошли сюда, значит таймера нет или он уже закончился. Ставим новый!
-        finish_time = now + timedelta(minutes=minutes_int)
-        cursor.execute('UPDATE users SET game_timer_end = %s WHERE user_id = %s', (finish_time, user_id))
+        cursor.execute("UPDATE users SET game_node = %s, game_timer_end = NULL WHERE user_id = %s", (start_node, user_id))
         conn.commit()
-        
-    except Exception as e:
-        send_log(f"Ошибка таймера: {e}")
-        print(f"🚨 ОШИБКА БД (таймер): {e}")
-        
     finally:
-        if cursor: 
-            cursor.close()
-        if conn:
-            conn.close()
+        cursor.close()
+        conn.close()
 
 def get_game_status(user_id):
     conn = get_connection()
@@ -440,8 +394,74 @@ def get_game_status(user_id):
         cursor.close()
         conn.close()
 
-# --- ЭКО-ОТCЕК ---
+def set_game_timer(user_id, minutes):
+    conn = get_connection()
+    if not conn: return
+    try:
+        minutes_int = int(minutes) 
+        now = datetime.now()
+        cursor = conn.cursor()
 
+        cursor.execute('SELECT game_timer_end FROM users WHERE user_id = %s', (user_id,))
+        res = cursor.fetchone()
+
+        if res and res[0]:
+            current_end = res[0]
+            if isinstance(current_end, str):
+                try:
+                    clean_time = current_end.split('.')[0].replace('T', ' ')
+                    current_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
+                except:
+                    current_end = now 
+
+            safe_current_end = current_end.replace(tzinfo=None)
+            safe_now = now.replace(tzinfo=None)
+
+            if safe_current_end > safe_now:
+                return # Таймер еще активен, не сбрасываем!
+
+        finish_time = now + timedelta(minutes=minutes_int)
+        cursor.execute('UPDATE users SET game_timer_end = %s WHERE user_id = %s', (finish_time, user_id))
+        conn.commit()
+    finally:
+        if 'cursor' in locals() and cursor: cursor.close()
+        if conn: conn.close()
+
+# --- СИСТЕМА УЧЕТА ПРОЙДЕННЫХ ГЛАВ (ДЛЯ ПОВТОРОК) ---
+
+def mark_chapter_completed(user_id, chapter_tag):
+    """Отмечает главу как пройденную, чтобы в будущем резать награды."""
+    conn = get_connection()
+    if not conn: return
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT completed_chapters FROM users WHERE user_id = %s", (user_id,))
+        res = cursor.fetchone()
+        current_chapters = res[0] if res and res[0] else ""
+        
+        if chapter_tag not in current_chapters:
+            new_chapters = f"{current_chapters},{chapter_tag}" if current_chapters else chapter_tag
+            cursor.execute("UPDATE users SET completed_chapters = %s WHERE user_id = %s", (new_chapters, user_id))
+            conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+def has_completed_chapter(user_id, chapter_tag):
+    """Проверяет, прошел ли пилот эту главу раньше."""
+    conn = get_connection()
+    if not conn: return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT completed_chapters FROM users WHERE user_id = %s", (user_id,))
+        res = cursor.fetchone()
+        current_chapters = res[0] if res and res[0] else ""
+        return chapter_tag in current_chapters
+    finally:
+        cursor.close()
+        conn.close()
+
+# --- ЭКО-ОТCЕК (Без изменений, только порядок навел) ---
 def setup_eco_bay():
     conn = get_connection()
     if not conn: return
@@ -507,12 +527,10 @@ def get_all_users_with_pets():
     return res
 
 # --- ПУДЕЛЬ (ГАРДЕРОБ И ВЫГУЛ) ---
-
 def get_dog_data(user_id):
     conn = get_connection()
     if not conn: return None
     cursor = conn.cursor()
-    # 🟢 Добавили dog_last_exp в SELECT
     cursor.execute("""SELECT dog_level, dog_hunger, dog_energy, dog_mood, dog_items, 
                       dog_xp, dog_date, dog_status, dog_equipped, dog_last_exp FROM users WHERE user_id = %s""", (user_id,))
     res = cursor.fetchone()
@@ -523,7 +541,7 @@ def get_dog_data(user_id):
             "items": res[4].split(",") if res[4] else [],
             "xp": res[5], "date": res[6], "status": res[7],
             "equipped": res[8].split(",") if res[8] else [],
-            "last_exp": res[9] if res[9] else "" # 🟢 Записываем в словарь
+            "last_exp": res[9] if res[9] else ""
         }
     return None
 
@@ -535,7 +553,6 @@ def update_dog_data(user_id, d):
     items_str = ",".join([i for i in d['items'] if i.strip()])
     equipped_str = ",".join([i for i in d.get('equipped', []) if i.strip()])
     
-    # 🟢 Добавили dog_last_exp=%s в UPDATE
     cursor.execute("""
         UPDATE users SET dog_level=%s, dog_hunger=%s, dog_energy=%s, dog_mood=%s, 
         dog_items=%s, dog_xp=%s, dog_date=%s, dog_status=%s, dog_equipped=%s, dog_last_exp=%s WHERE user_id=%s
@@ -544,7 +561,6 @@ def update_dog_data(user_id, d):
     conn.close()
 
 def equip_dog_item(user_id, item_name):
-    """Надеть вещь на Марти"""
     d = get_dog_data(user_id)
     if not d or item_name not in d['items']: return False
     if item_name not in d['equipped']:
@@ -554,7 +570,6 @@ def equip_dog_item(user_id, item_name):
     return False
 
 def unequip_dog_item(user_id, item_name):
-    """Снять вещь с Марти"""
     d = get_dog_data(user_id)
     if not d or item_name not in d['equipped']: return False
     d['equipped'].remove(item_name)
@@ -562,28 +577,25 @@ def unequip_dog_item(user_id, item_name):
     return True
 
 def process_dog_walk(user_id):
-    """Выгулять Марти за 10 пыли"""
     if not spend_dust(user_id, 10): return "low_dust"
     d = get_dog_data(user_id)
     if not d: return "error"
     d['mood'] = 100
     d['energy'] = min(100, d['energy'] + 30)
     bonus_xp = 0
-    if random.random() < 0.2: # 20% шанс найти бонус
+    if random.random() < 0.2:
         bonus_xp = random.randint(5, 15)
         d['xp'] += bonus_xp
         add_xp(user_id, bonus_xp)
     update_dog_data(user_id, d)
     return bonus_xp if bonus_xp > 0 else "success"
 
-# --- НОВОСТИ (УЛУЧШЕННЫЙ ОТСЕК) ---
-
+# --- НОВОСТИ ---
 def setup_news_db():
     conn = get_connection()
     if not conn: return
     try:
         cursor = conn.cursor()
-        # Добавляем UNIQUE на content, чтобы одна и та же новость не дублировалась
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS channel_news (
                 id SERIAL PRIMARY KEY,
@@ -592,14 +604,11 @@ def setup_news_db():
             );
         ''')
         conn.commit()
-    except Exception as e:
-        send_log(f"Ошибка создания таблицы новостей: {e}")
     finally:
         cursor.close()
         conn.close()
 
 def add_news(date, text):
-    """Сохраняет новость. Если такая уже есть — просто игнорирует (благодаря ON CONFLICT)"""
     conn = get_connection()
     if not conn: return
     try:
@@ -610,27 +619,19 @@ def add_news(date, text):
             ON CONFLICT (content) DO NOTHING
         ''', (date, text))
         conn.commit()
-    except Exception as e:
-        send_log(f"Ошибка записи новости: {e}")
     finally:
         cursor.close()
         conn.close()
 
 def get_today_news(date):
-    """Возвращает список уникальных новостей за указанную дату"""
     conn = get_connection()
     if not conn: return []
     try:
         cursor = conn.cursor()
-        # Используем DISTINCT для страховки от дублей
         cursor.execute("SELECT DISTINCT content FROM channel_news WHERE date = %s", (date,))
         res = cursor.fetchall()
-        return [r[0] for r in res] # Возвращаем результат здесь
-    except Exception as e:
-        send_log(f"Ошибка чтения новостей: {e}")
-        return []
+        return [r[0] for r in res]
     finally:
-        # Ресурсы всегда закрываются после return в блоке try
         if conn:
             cursor.close()
             conn.close()
@@ -645,7 +646,6 @@ def get_all_user_ids():
     return [r[0] for r in res]
 
 def get_dog_profession(user_id):
-    """Получает текущую профессию Марти из базы."""
     conn = get_connection()
     if not conn: return 'Кадет'
     try:
@@ -661,7 +661,6 @@ def get_dog_profession(user_id):
             conn.close()
 
 def set_dog_profession(user_id, profession_name):
-    """Записывает выбранную профессию в базу."""
     conn = get_connection()
     if not conn: return False
     try:
@@ -669,78 +668,28 @@ def set_dog_profession(user_id, profession_name):
         cursor.execute("UPDATE users SET dog_profession = %s WHERE user_id = %s", (profession_name, user_id))
         conn.commit()
         return True
-    except Exception as e:
-        print(f"Ошибка записи профессии: {e}")
-        return False
     finally:
         if conn:
             cursor.close()
             conn.close()
 
 def check_and_update_quiz(user_id, today_date):
-    """Проверяет, участвовал ли пилот в викторине сегодня."""
     conn = get_connection()
     if not conn: return False
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT last_quiz_date FROM users WHERE user_id = %s", (user_id,))
         result = cursor.fetchone()
-        
         if result and result[0] == today_date:
             return False 
-            
         cursor.execute("UPDATE users SET last_quiz_date = %s WHERE user_id = %s", (today_date, user_id))
         conn.commit()
         return True
-    except Exception as e:
-        print(f"Ошибка викторины в БД: {e}")
-        return False
     finally:
         if conn:
             cursor.close()
             conn.close()
-
-def is_user_new(user_id):
-    """Проверяет, является ли пилот новым."""
-    conn = get_connection()
-    if not conn: return False
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM users WHERE user_id = %s", (user_id,))
-        return cursor.fetchone() is None
-    finally:
-        if conn:
-            cursor.close()
-            conn.close()
-
-# Добавьте в database.py
-
-def set_game_node(user_id, node_id):
-    """Принудительно устанавливает узел, НЕ ДОБАВЛЯЯ к старому."""
-    conn = get_connection()
-    if not conn: return
-    try:
-        cursor = conn.cursor()
-        cursor.execute('UPDATE users SET game_node = %s WHERE user_id = %s', (node_id, user_id))
-        conn.commit()
-    finally:
-        cursor.close()
-        conn.close()
-
-def reset_game(user_id):
-    """Полный сброс прогресса игры."""
-    conn = get_connection()
-    if not conn: return
-    try:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET game_node = 'apoc_start' WHERE user_id = %s", (user_id,))
-        conn.commit()
-    finally:
-        cursor.close()
-        conn.close()
 
 if __name__ == "__main__":
-    # Эта команда запустится только если вы запустите сам файл database.py
-    # Она создаст все таблицы и колонки, если их еще нет.
     init_db() 
     print("✅ Все системы базы данных инициализированы!")
