@@ -25,18 +25,15 @@ def run_scenario(bot, call):
             except: pass
             return
 
-# 🔴 --- [ ПРИНУДИТЕЛЬНЫЙ СБРОС ] --- 🔴
+# 🔴 --- [ ЕДИНЫЙ БЛОК СБРОСА ] --- 🔴
     if call.data == "game_reset_all":
-        # Явный вызов функций БД
-        reset_game(user_id, "apoc_start")  # Сброс узла на старт
-        set_game_timer(user_id, 0)         # Обнуление таймера через наш новый метод
+        reset_game(user_id, "apoc_start")  # Сбрасываем узел на старт
+        set_game_timer(user_id, 0)         # Обнуляем таймер через функцию в database.py
         
-        # Очистка флагов (на всякий случай, если у вас в БД есть таблица флагов, 
-        # но если вы храните их в узле, то reset_game их уже стер)
+        # Уведомляем пользователя
+        bot.answer_callback_query(call.id, "🔄 Данные стерты. Начинаем с чистого листа!", show_alert=True)
         
-        bot.answer_callback_query(call.id, "🔄 Система очищена. Перезапуск...", show_alert=True)
-        
-        # Сразу переводим игру в начальное состояние
+        # Перезагружаем сценарий с "apoc_start"
         call.data = "apoc_start"
         return run_scenario(bot, call)
     
@@ -51,16 +48,6 @@ def run_scenario(bot, call):
 
     current_node = raw_node
     loc = get_loc(current_node)
-
-    # 🔴 --- [ СБРОС ИГРЫ (RESET) ] --- 🔴
-    if call.data == "game_reset_all":
-        reset_game(user_id, "apoc_start")     # Сброс узла
-        set_game_timer(user_id, 0)            # Обязательный сброс таймера (наш новый метод из базы)
-        bot.answer_callback_query(call.id, "🔄 Данные стерты. Начинаем с чистого листа!", show_alert=True)
-        
-        # ПРИНУДИТЕЛЬНО ПЕРЕЗАГРУЖАЕМ СЦЕНАРИЙ С "apoc_start"
-        call.data = "apoc_start"
-        return run_scenario(bot, call)
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ] --- 🟢
     if call.data == "apoc_s1_start":
@@ -88,15 +75,15 @@ def run_scenario(bot, call):
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
     MAJOR_NODES = [
-        "apoc_start", "apoc_n1_investigate", "apoc_n1_pc_check", "apoc_n1_pantry",
-        "apoc_n1_tool_choice", "apoc_n1_base_menu", "apoc_n1_secret_entry",
-        "apoc_n1_secret_hall", "apoc_n1_secret_files", "apoc_n1_workbench", 
-        "apoc_n1_search_1", "apoc_n1_search_2", "apoc_n1_frozen_door", 
-        "apoc_n1_melt_success", "apoc_n1_vent_enter", "apoc_n1_stealth_success", 
-        "apoc_n1_climb", "apoc_n1_valve_turn", "apoc_n1_generator_room", 
-        "apoc_n1_decode_radio", "apoc_n1_stairwell", "apoc_n1_lift_fix", 
-        "apoc_n1_final_ascent", "apoc_ch1_completed_screen"
-    ]
+    "apoc_start", "apoc_n1_investigate", "apoc_n1_pc_check", "apoc_n1_pantry",
+    "apoc_n1_tool_choice", "apoc_n1_base_menu", "apoc_n1_secret_entry",
+    "apoc_n1_secret_hall", "apoc_n1_secret_files", "apoc_n1_workbench", 
+    "apoc_n1_search_1", "apoc_n1_search_2", "apoc_n1_frozen_door", 
+    "apoc_n1_melt_success", "apoc_n1_vent_enter", "apoc_n1_stealth_success", 
+    "apoc_n1_climb", "apoc_n1_valve_turn", "apoc_n1_generator_room", 
+    "apoc_n1_decode_radio", "apoc_n1_stairwell", "apoc_n1_lift_fix", 
+    "apoc_n1_final_ascent", "apoc_ch1_completed_screen", "apoc_n1_res_1" # <--- ДОБАВИЛИ ЭТАП СКЛАДА
+]
     if call.data in MAJOR_NODES:
         current_node = set_loc(current_node, call.data)
         set_game_node(user_id, current_node)
