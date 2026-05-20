@@ -128,37 +128,36 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
 
-    # 1. Анатомический паспорт
+    # 1. Анатомический паспорт (ДНК)
     dna = get_deterministic_dna(user_id)
     
-    # 2. Окружение
+    # 2. Окружение и данные пользователя (делаем один раз)
+    u_data = get_user_data(user_id)
     hour = datetime.now().hour
-    light = "soft morning sunrise light" if 6 <= hour < 11 else ("bright direct midday sunlight" if 11 <= hour < 18 else ("warm golden hour sunset" if 18 <= hour < 22 else "deep blue night atmosphere"))
     
-    u_data = get_user_data(user_id)
-    dust_visual = "an empty clean metallic desk" if u_data['spendable_dust'] < 50 else "a massive treasure chest of stardust"
+    # Световой модуль
+    if 6 <= hour < 11: light = "soft morning sunrise light through the window, cool blue and orange tones"
+    elif 11 <= hour < 18: light = "bright direct midday sunlight, high contrast, crisp shadows"
+    elif 18 <= hour < 22: light = "warm golden hour sunset glow, long soft shadows, cozy atmosphere"
+    else: light = "deep blue night atmosphere, dim interior lighting, glowing neon control panels"
     
-    evo = "tiny puppy" if dog['level'] < 5 else ("adolescent poodle" if dog['level'] < 12 else "wise adult poodle")
-    state = "happy, sparkling eyes" if dog['energy'] >= 30 else "tired, resting"
-
-    # 4. Генетическое наследие (Шанс 10% увидеть улитку)
-    import random
-    crossover = ""
-    if random.random() < 0.10:
-        crossover = "a small realistic garden snail is slowly crawling on the window glass,"
-
-   # 2. Визуализация богатства (Пыль на столе)
-    u_data = get_user_data(user_id)
+    # Визуализация богатства (Пыль)
     dust = u_data['spendable_dust']
     if dust < 50: dust_visual = "an empty clean metallic desk near the dog"
     elif dust < 200: dust_visual = "a small glowing pile of blue stardust on the desk"
     elif dust < 1000: dust_visual = "a large heap of shimmering cosmic dust on the table"
     else: dust_visual = "a massive overflowing treasure chest filled with glowing stardust on the desk"
-  
-    # 3. СЛОТИРОВАНИЕ (Разбиваем вещи, чтобы ИИ их не забывал)
-    equipped = dog.get('equipped', [])
     
-    # Словарь для распределения (можно расширять)
+    # Эволюция и состояние
+    evo = "tiny puppy" if dog['level'] < 5 else ("adolescent poodle" if dog['level'] < 12 else "wise adult poodle")
+    state = "happy, sparkling eyes" if dog['energy'] >= 30 else "tired, resting"
+
+    # Генетическое наследие
+    import random
+    crossover = "a small realistic garden snail is slowly crawling on the window glass," if random.random() < 0.10 else ""
+
+    # 3. СЛОТИРОВАНИЕ (Разбиваем вещи)
+    equipped = dog.get('equipped', [])
     head_keywords = ["head", "hat", "visor", "helmet", "crown", "monocle", "glasses", "antenna", "beanie", "cap"]
     mouth_keywords = ["mouth", "teeth", "pipe", "drill", "smile", "grillz", "bone", "relic", "stone"]
     
@@ -171,13 +170,12 @@ def get_dog_prompt(dog, user_id):
         elif any(w in prompt.lower() for w in mouth_keywords): mouth_items.append(prompt)
         else: body_items.append(prompt)
 
-    # 4. ФОРМИРОВАНИЕ ПРОМПТА
-    # Включаем приказ: НЕ ИГНОРИРОВАТЬ ПРЕДМЕТЫ
+    # 4. ФОРМИРОВАНИЕ ИТОГОВОГО ПРОМПТА
     style_prompt = f"WEARING: {', '.join(head_items + mouth_items + body_items)}" if equipped else "no clothes"
     
     full_prompt = (
         f"Macro photography of a {dna}. The dog is a {evo}, {state}. "
-        f"Environment: {light} in a spaceship cabin, {dust_visual}. "
+        f"Environment: {light} in a spaceship cabin, {dust_visual}. {crossover} "
         f"{style_prompt}. "
         f"Constraint: Include ALL items listed in WEARING. Do not drop items. Photorealistic, 8k, extremely detailed."
     )
