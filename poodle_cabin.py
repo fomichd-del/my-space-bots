@@ -122,7 +122,7 @@ def get_deterministic_dna(user_id):
     fur = fur_types[int(digest[20:24], 16) % len(fur_types)]
     color = colors[int(digest[24:28], 16) % len(colors)]
     
-    return f"{color} {gender} poodle with {build} build, {ear}, {nose}, {eye}, {fur}"
+    return f"Toy Poodle, {color} {gender} with {build} build, {ear}, {nose}, {eye}, {fur}"
 
 def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
@@ -177,7 +177,8 @@ def get_dog_prompt(dog, user_id):
         f"Macro photography of a {dna}. The dog is a {evo}, {state}. "
         f"Environment: {light} in a spaceship cabin, {dust_visual}. {crossover} "
         f"{style_prompt}. "
-        f"Constraint: Include ALL items listed in WEARING. Do not drop items. Photorealistic, 8k, extremely detailed."
+        f"Constraint: This is absolutely a Toy Poodle. Maintain compact toy poodle size, characteristic curly fur, and distinct poodle features. "
+        f"Include ALL items listed in WEARING. Do not drop items. Photorealistic, 8k, extremely detailed."
     )
     
     return full_prompt, user_id
