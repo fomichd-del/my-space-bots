@@ -98,6 +98,22 @@ DOG_SHOP = {
     "dentist_drill": {"name": "Бормашина Академии", "prompt": "the dog's jaws are firmly clenching a high-speed pneumatic dental drill handpiece horizontally in its teeth, prominent mechanical details and cables visible", "price": 70}
 }
 
+def get_item_slot(item_key):
+    # Карта слотов для проверки
+    slots = {
+        "head": ["space_helmet", "pilot_cap", "galaxy_crown", "alien_antenna", "ufo_hat", "thug_beanie", "chef_hat", "monocle_tophat", "crown_of_light", "general_hat", "welding_mask", "santa_astro_hat", "straw_hat", "crown_of_comets"],
+        "face": ["cool_glasses", "steampunk_goggles", "radar_monocle", "vr_visor_2", "meteorite_shades", "data_monocle", "laser_eye"],
+        "mouth": ["brilliant_smile", "dentist_mirror", "detective_pipe", "ancient_relic", "golden_asteroid_bone", "ruby_mars_stone", "cyber_jaw", "diamond_grillz", "dentist_drill"],
+        "neck": ["bandana", "laser_collar", "nebula_scarf", "heavy_gold_chain", "diamond_collar", "star_pendant", "void_collar", "black_hole_pendant", "alien_translator"],
+        "torso": ["star_suit", "neon_harness", "taco_suit", "exosuit_armor", "cyberpunk_jacket", "tactical_vest", "warp_robe", "mech_harness"],
+        "back": ["warp_jetpack", "dragon_wings", "holographic_wings", "cryo_gear", "sub_bass_speakers", "plasma_cloak"],
+        "paws": ["cyber_paws", "astro_boots", "cosmic_boots", "power_gloves", "rocket_boots"],
+        "tail": ["cyber_tail_ring", "comet_tail_ribbon", "mecha_tail"]
+    }
+    for slot, items in slots.items():
+        if item_key in items: return slot
+    return "torso" # дефолтный слот
+
 def get_deterministic_dna(user_id):
     """Генерирует фиксированный анатомический паспорт с жесткой привязкой к Той-Пуделю"""
     hash_obj = hashlib.md5(str(user_id).encode())
@@ -428,10 +444,22 @@ def handle_dog_callback(bot, call):
         return
 
     elif action.startswith("toggle_"):
-        item = action.replace("toggle_", "")
-        if item in dog.get('equipped', []): unequip_dog_item(user_id, item)
-        else: equip_dog_item(user_id, item)
-        bot.answer_callback_query(call.id, "Стиль обновлен!")
+        item_to_toggle = action.replace("toggle_", "")
+        equipped = dog.get('equipped', [])
+        
+        if item_to_toggle in equipped:
+            unequip_dog_item(user_id, item_to_toggle)
+            bot.answer_callback_query(call.id, "Снято!")
+        else:
+            # ПРОВЕРКА КОНФЛИКТА
+            target_slot = get_item_slot(item_to_toggle)
+            for e_item in equipped:
+                if get_item_slot(e_item) == target_slot:
+                    unequip_dog_item(user_id, e_item) # Снимаем старый предмет в этом слоте
+            
+            equip_dog_item(user_id, item_to_toggle)
+            bot.answer_callback_query(call.id, f"Надето (слот: {target_slot})!")
+        
         call.data = "dog_wardrobe"
         handle_dog_callback(bot, call)
         return
