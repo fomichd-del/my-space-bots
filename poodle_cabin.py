@@ -36,7 +36,7 @@ DOG_SHOP = {
     "vr_visor_2": {"name": "Визор VR-Орион", "prompt": "Modern white VR headset, bulky, thick head straps", "price": 50},
     "dual_aura": {"name": "Аура Контроллера", "prompt": "Intense white and neon-blue energy aura, light rays, radiating", "price": 25},
     "brilliant_smile": {"name": "Ослепительная улыбка", "prompt": "Exaggerated human-like smile, perfect white teeth, diamond spark", "price": 100},
-    "dentist_mirror": {"name": "Зеркало Космо-Врача", "prompt": "Professional stainless steel dental mirror, reflective, metallic", "price": 15},
+    "dentist_mirror": {"name": "Зеркало Космо-Врача", "prompt": "Professional stainless steel dental mirror, highly reflective chrome, detailed", "price": 15},
     "detective_pipe": {"name": "Трубка Шерлока", "prompt": "Polished wooden tobacco pipe, wisps of smoke, detailed", "price": 20},
     "dragon_wings": {"name": "Крылья Дракона", "prompt": "Black leather chest harness, two massive wide-open dragon wings", "price": 75},
     "taco_suit": {"name": "Костюм Тако", "prompt": "Plush taco shell costume, fabric lettuce and cheese, food aesthetic", "price": 35},
@@ -94,14 +94,11 @@ DOG_SHOP = {
     "floating_halo": {"name": "Нимб Ангела", "prompt": "Solid glowing golden ring halo, hovering, rigid", "price": 90},
     "sub_bass_speakers": {"name": "Космо-Сабвуферы", "prompt": "Two wooden sub-woofer speakers, leather harnesses, heavy", "price": 85},
     "rocket_boots": {"name": "Ракетные лапы", "prompt": "Metallic rocket boots, thruster flames, industrial treads", "price": 125},
-    "dentist_drill": {"name": "Бормашина Академии", "prompt": "High-speed pneumatic dental drill, mechanical handpiece, cables", "price": 70}
+    "dentist_drill": {"name": "Бормашина Академии", "prompt": "High-speed pneumatic dental drill, highly detailed mechanical handpiece, cables, photorealistic chrome", "price": 70}
 }
 
 def get_item_slot(item_key):
-    """
-    Жесткое распределение предметов по слотам.
-    Теперь каждый предмет из DOG_SHOP имеет свое место.
-    """
+    """Жесткое распределение предметов по слотам."""
     mapping = {
         # --- ГОЛОВА ---
         "space_helmet": "head", "pilot_cap": "head", "galaxy_crown": "head",
@@ -109,59 +106,49 @@ def get_item_slot(item_key):
         "chef_hat": "head", "monocle_tophat": "head", "crown_of_light": "head",
         "general_hat": "head", "santa_astro_hat": "head", "straw_hat": "head",
         "crown_of_comets": "head", "symbiote_friend": "head", "floating_halo": "head",
-        
         # --- ЛИЦО (Глаза) ---
         "cool_glasses": "face", "steampunk_goggles": "face", "radar_monocle": "face",
         "vr_visor_2": "face", "meteorite_shades": "face", "data_monocle": "face",
         "laser_eye": "face", "welding_mask": "face",
-        
         # --- РОТ (Зубы/Нос) ---
         "brilliant_smile": "mouth", "dentist_mirror": "mouth", "detective_pipe": "mouth",
         "ancient_relic": "mouth", "golden_asteroid_bone": "mouth", "ruby_mars_stone": "mouth",
         "cyber_jaw": "mouth", "diamond_grillz": "mouth", "holographic_butterfly": "mouth",
         "dentist_drill": "mouth",
-        
         # --- ШЕЯ ---
         "bandana": "neck", "laser_collar": "neck", "nebula_scarf": "neck",
         "heavy_gold_chain": "neck", "diamond_collar": "neck", "star_pendant": "neck",
         "saturn_ring": "neck", "broken_android_ear": "neck", "void_collar": "neck",
         "starlight_medal": "neck", "holographic_map": "neck", "black_hole_pendant": "neck",
         "alien_translator": "neck", "quantum_leash": "neck", "cyberspace_aura": "neck",
-        
         # --- ТЕЛО (Торс) ---
         "star_suit": "torso", "neon_harness": "torso", "comet_bowtie": "torso",
         "taco_suit": "torso", "exosuit_armor": "torso", "cyberpunk_jacket": "torso",
         "tactical_vest": "torso", "warp_robe": "torso", "mech_harness": "torso",
         "zero_g_harness": "torso", "energy_shield_orb": "torso", "dual_aura": "torso",
-        
         # --- СПИНА (Рюкзаки/Крылья) ---
         "warp_jetpack": "back", "plasma_cloak": "back", "dragon_wings": "back",
         "holographic_wings": "back", "ion_cape": "back", "drone_companion": "back",
         "cryo_gear": "back", "sub_bass_speakers": "back",
-        
         # --- ЛАПЫ ---
         "cyber_paws": "paws", "astro_boots": "paws", "cosmic_boots": "paws",
         "power_gloves": "paws", "nebula_boots": "paws", "pulsar_watch": "paws",
         "hover_board": "paws", "rocket_boots": "paws",
-        
         # --- ХВОСТ ---
         "cyber_tail_ring": "tail", "comet_tail_ribbon": "tail", "mecha_tail": "tail"
     }
-    
-    return mapping.get(item_key, "torso") # Если не найдено, ставим в торс
+    return mapping.get(item_key, "torso")
 
 def get_deterministic_dna(user_id):
     """Генерирует фиксированный анатомический паспорт с жесткой привязкой к Той-Пуделю"""
     hash_obj = hashlib.md5(str(user_id).encode())
     digest = hash_obj.hexdigest()
     
-    # Характеристики: убрали "fluffy" (это создает йорков), оставили только "curly"
     genders = ["male", "female"]
     builds = ["athletic", "compact", "dainty", "sturdy"]
     ears = ["floppy long ears covered in tight curls", "characteristic long drooping poodle ears"]
     noses = ["black button nose", "distinctive small black nose"]
     eyes = ["round expressive dark eyes", "almond-shaped dark eyes"]
-    # ТОЛЬКО КУДРИ! Никакой длинной шерсти
     fur_types = ["tightly curled hypoallergenic coat", "dense soft curly fur", "tight poodle curls", "well-groomed curly coat"]
     colors = ["snow-white", "ash-grey", "coffee-brown", "apricot", "silver-grey", "cream"]
     
@@ -175,51 +162,6 @@ def get_deterministic_dna(user_id):
     
     return f"Toy Poodle, {color} {gender} with {build} build, {ear}, {nose}, {eye}, {fur}"
 
-def get_dog_prompt(dog, user_id):
-    if dog['status'] == 'dead':
-        return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
-
-    # 1. Анатомия и порода (В самом верху — это приоритет №1)
-    dna = get_deterministic_dna(user_id)
-    growth = get_growth_stage(dog['level'])
-    
-    # 2. Окружение
-    u_data = get_user_data(user_id)
-    dust = u_data['spendable_dust']
-    hour = datetime.now().hour
-    
-    # Вид из окна
-    window = "deep space stars"
-    if 6 <= hour < 11: window = "nebula cloud"
-    elif 11 <= hour < 18: window = "vibrant planets"
-    elif 18 <= hour < 22: window = "alien sunset"
-        
-    # 3. Слоты (Жесткие теги)
-    equipped = dog.get('equipped', [])
-    slots = {k: [] for k in ["HEAD", "FACE", "MOUTH", "NECK", "TORSO", "BACK", "PAWS", "TAIL"]}
-    for k in equipped:
-        if k not in DOG_SHOP: continue
-        slots[get_item_slot(k).upper()].append(DOG_SHOP[k]["prompt"])
-
-    # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА
-    # Ставим породу, фото-параметры и жесткие ограничения в самое начало!
-    full_prompt = (
-        f"STRICT: Purebred Toy Poodle, dense signature tight curls, compact stature. "
-        f"Professional photo, 85mm lens, realistic textures, cinematic lighting. "
-        f"Subject: {dna}, {growth}, {dog['mood']}% happy. "
-        f"Scene: Futuristic cabin, porthole window with {window}, {dust} units of cosmic dust on desk. "
-    )
-    
-    # Добавляем экипировку (короткими блоками)
-    for slot, items in slots.items():
-        if items:
-            full_prompt += f" {slot}: {', '.join(items)}."
-            
-    # Запреты (они должны идти в конце, чтобы ИИ их "запомнил")
-    full_prompt += " NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch."
-    
-    return full_prompt, user_id
-
 def get_growth_stage(level):
     """Определяет физические параметры собаки в зависимости от уровня взросления"""
     if level < 5:
@@ -228,6 +170,84 @@ def get_growth_stage(level):
         return "adolescent dog, lean and lanky, slightly longer legs, energetic and curious posture, developing tight poodle curls"
     else:
         return "adult dog, elegant and dignified, well-proportioned, signature toy poodle stature, perfectly groomed dense tight curls"
+
+def get_cabin_style(level):
+    """Эволюция каюты в зависимости от уровня Марти"""
+    if level < 5:
+        return "rusty industrial spacecraft cabin, exposed pipes, basic metal walls"
+    elif level < 12:
+        return "standard sleek modern spaceship cabin, clean white panels, subtle neon trims"
+    else:
+        return "luxury captain's quarters, high-end futuristic mahogany textures, advanced glowing holographic displays"
+
+def get_dog_prompt(dog, user_id):
+    if dog['status'] == 'dead':
+        return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
+
+    # 1. Анатомия и Эволюция
+    dna = get_deterministic_dna(user_id)
+    growth = get_growth_stage(dog['level'])
+    cabin_tier = get_cabin_style(dog['level'])
+    
+    # 2. Динамика Времени (Ракурсы, Свет, Позиция)
+    u_data = get_user_data(user_id)
+    dust = u_data['spendable_dust']
+    hour = datetime.now().hour
+    
+    if 6 <= hour < 11:
+        # УТРО: Кровать
+        dog_position = "stretching lazily on the soft plush dog bed"
+        camera_shot = "medium shot, slightly low angle"
+        window = "glowing morning nebula"
+        fx = "soft morning light, pastel color grading, airy atmosphere"
+    elif 11 <= hour < 18:
+        # ДЕНЬ: Работает за столом на стуле (НЕ на столе)
+        dog_position = "sitting upright on a futuristic ergonomic chair positioned right at the metallic workspace desk"
+        camera_shot = "wide angle cinematic shot, showing the desk and chair clearly"
+        window = "vibrant solar system"
+        fx = "bright crisp daylight, high contrast, studio lighting"
+    elif 18 <= hour < 22:
+        # ВЕЧЕР: Смотрит в окно
+        dog_position = "sitting on the floor, looking thoughtfully out the large circular porthole window"
+        camera_shot = "over-the-shoulder dynamic shot"
+        window = "warm sunset over a distant alien planet"
+        fx = "warm golden hour lighting, cinematic teal and orange color grading, long dramatic shadows"
+    else:
+        # НОЧЬ: Спит
+        dog_position = "curled up and sleeping deeply on the soft plush dog bed"
+        camera_shot = "close-up top-down overhead shot"
+        window = "deep space with glittering stars"
+        fx = "moody low-key lighting, glowing neon panel accents, dark ambient sci-fi atmosphere"
+        
+    # Случайное событие (10% шанс оживить сцену, если он не спит)
+    import random
+    if random.random() < 0.10 and not (22 <= hour or hour < 6):
+        dog_position += ", curiously watching a tiny cleaning drone hovering nearby"
+        
+    # Пыль (всегда присутствует рядом с собакой)
+    dust_str = f"Right next to the dog is {dust} units of glowing cosmic dust."
+    
+    # 3. Слоты экипировки
+    equipped = dog.get('equipped', [])
+    slots = {k: [] for k in ["HEAD", "FACE", "MOUTH", "NECK", "TORSO", "BACK", "PAWS", "TAIL"]}
+    for k in equipped:
+        if k not in DOG_SHOP: continue
+        slots[get_item_slot(k).upper()].append(DOG_SHOP[k]["prompt"])
+
+    # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА (Архитектура для 100% реализма)
+    full_prompt = (
+        f"RAW photo, highly detailed, shot on 35mm lens, f/2.8, cinematic depth of field. {camera_shot}. "
+        f"STRICT SUBJECT: Purebred Toy Poodle, dense signature tight curls. A {dna}, {growth}, {dog['mood']}% happy expression. "
+        f"SCENE: {cabin_tier}. The dog is {dog_position}. The room topology includes a large porthole window showing {window}, a metallic desk, and a dog bed. {dust_str} "
+    )
+    
+    for slot, items in slots.items():
+        if items: full_prompt += f" {slot}: {', '.join(items)}."
+            
+    full_prompt += f" STYLE: {fx}. Photorealistic, 8k resolution, crisp textures. "
+    full_prompt += "NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch, dog standing on the desk."
+    
+    return full_prompt, user_id
 
 def send_dog_menu(bot, chat_id, user_id):
     dog = get_dog_data(user_id)
