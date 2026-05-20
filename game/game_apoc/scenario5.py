@@ -1,20 +1,68 @@
 import telebot
 from datetime import datetime
 from telebot import types as tele_types
-from database import get_game_status, update_game_progress, set_game_timer, add_xp
+
+# Импортируем обновленные функции из базы данных
+from database import (
+    get_game_status, set_game_node, reset_game, set_game_timer, add_xp, 
+    has_completed_chapter, mark_chapter_completed
+)
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
-    current_node, timer_end = get_game_status(user_id)
+    
+    raw_node, timer_end = get_game_status(user_id)
     
     # Защита от пустой базы
-    if current_node is None: 
-        current_node = "apoc_start"
+    if not raw_node: 
+        raw_node = "apoc_start"
+
+    # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ДЛЯ РАБОТЫ СО СТРОКОЙ СОХРАНЕНИЯ ---
+    def get_loc(node_str): return node_str.split('|')[0]
+    def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
+    def add_flag(node_str, flag): return node_str if has_flag(node_str, flag) else f"{node_str}|{flag}"
+    def set_loc(node_str, new_loc):
+        parts = node_str.split('|')
+        parts[0] = new_loc
+        return '|'.join(parts)
+
+    current_node = raw_node
+    loc = get_loc(current_node)
+
+    # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
+    if call.data == "apoc_s5_start":
+        if loc in ["apoc_ch4_completed_screen", "apoc_s5_scene_1", "start", "apoc_start"]:
+            call.data = "apoc_s5_scene_1"
+        else:
+            text = (f"🔙 *ВОЗВРАЩЕНИЕ В НОВЫЙ МИР*\n"
+                    f"──────────────────────────\n"
+                    f"Командор, вы остановились в шаге от рассвета. Марти ждет команды!\n\n"
+                    f"Что делаем?")
+            kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
+                tele_types.InlineKeyboardButton("▶️ Продолжить восстановление", callback_data="resume_game_5"),
+                tele_types.InlineKeyboardButton("🔄 Начать Главу 5 заново", callback_data="game_reset_ch5"),
+                tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
+            )
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+            return
+
+    if call.data == "resume_game_5":
+        call.data = loc
+        try: bot.answer_callback_query(call.id, "🔄 Сохранение загружено!")
+        except: pass
+
+    if call.data == "game_reset_ch5":
+        current_node = set_loc(current_node, "apoc_s5_scene_1")
+        set_game_timer(user_id, 0)
+        set_game_node(user_id, current_node)
+        timer_end = None
+        call.data = "apoc_s5_scene_1"
+        try: bot.answer_callback_query(call.id, "🔄 Глава 5 начата заново!", show_alert=True)
+        except: pass
 
     # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (БРОНЕБОЙНЫЙ) ] ---
     if timer_end:
-        # Если база вернула время текстом, превращаем его в объект datetime
         if isinstance(timer_end, str):
             try:
                 clean_time = timer_end.split('.')[0].replace('T', ' ')
@@ -23,7 +71,6 @@ def run_scenario(bot, call):
                 timer_end = None
                 
         if timer_end:
-            # 🛡 ГЛАВНЫЙ ФИКС: Уравниваем форматы времени, удаляя часовые пояса
             safe_timer_end = timer_end.replace(tzinfo=None)
             safe_now = datetime.now().replace(tzinfo=None)
             
@@ -35,8 +82,36 @@ def run_scenario(bot, call):
                     print(f"🚨 Ошибка Telegram Alert: {alert_e}")
                 return
 
+    # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
+    MAJOR_NODES = [
+        "apoc_s5_scene_1", "apoc_s5_2", "apoc_s5_3", "apoc_s5_4", "apoc_s5_5", 
+        "apoc_s5_6", "apoc_s5_7", "apoc_s5_8", "apoc_s5_9", "apoc_s5_10", 
+        "apoc_s5_11", "apoc_s5_12", "apoc_s5_13", "apoc_s5_14", "apoc_s5_15", 
+        "apoc_s5_16", "apoc_s5_17", "apoc_s5_18", "apoc_s5_19", "apoc_s5_20", 
+        "apoc_s5_21", "apoc_s5_22", "apoc_s5_23", "apoc_s5_24", "apoc_s5_25", 
+        "apoc_s5_26", "apoc_s5_27", "apoc_s5_28", "apoc_s5_29", "apoc_game_completed_screen"
+    ]
+    if call.data in MAJOR_NODES:
+        current_node = set_loc(current_node, call.data)
+        set_game_node(user_id, current_node)
+        loc = call.data
+
+    # 🏆 --- [ ЭКРАН ЗАВЕРШЕННОЙ ИГРЫ ] --- 🏆
+    if call.data == "apoc_game_completed_screen":
+        text = (f"🏆 **ИСТОРИЯ ЗАВЕРШЕНА**\n"
+                f"──────────────────────────\n"
+                f"Мариуполь стал маяком новой цивилизации. Ваше имя навсегда вписано в историю.\n\n"
+                f"Марти отдыхает на зеленой траве Городского Сада.")
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
+            tele_types.InlineKeyboardButton("🔄 Пройти Главу 5 заново", callback_data="game_reset_ch5"),
+            tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return
+
     # --- [ ЭТАП 1: ПЕРВЫЙ РАССВЕТ ] ---
-    if call.data == "apoc_s5_start":
+    if call.data == "apoc_s5_scene_1":
         text = (f"🌅 *ПОСЛЕ БУРИ*\n"
                 f"──────────────────────────\n"
                 f"Пыль от падения Небоскреба осела. Вы стоите в центре Городского Сада. Фиолетовое свечение исчезло, уступив "
@@ -72,8 +147,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 3: КОСМИЧЕСКИЙ РАДАР ] ---
     elif call.data == "apoc_s5_3":
-        update_game_progress(user_id, current_node + "_logic_apex_done")
-        add_xp(user_id, 50, username)
+        if not has_flag(current_node, "logic_apex_done"):
+            current_node = add_flag(current_node, "logic_apex_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 50, username)
+
         text = (f"📡 *СИГНАЛ В ПУСТОТУ*\n\n"
                 f"Операция прошла успешно. Старик приходит в себя и шепчет координаты. Это заброшенная станция спутниковой связи "
                 f"на окраине города. Если мы запустим её, мы сможем отследить оставшиеся дроны Академии.\n\n"
@@ -89,7 +167,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 4: ТЕНИ НА ГОРИЗОНТЕ ] ---
     elif call.data == "apoc_s5_4":
-        update_game_progress(user_id, current_node + "_satellite_link")
+        if not has_flag(current_node, "satellite_link"):
+            current_node = add_flag(current_node, "satellite_link")
+            set_game_node(user_id, current_node)
+
         text = (f"👣 *ПЕРВЫЕ ГОСТИ*\n\n"
                 f"Экран древнего монитора оживает, показывая сетку ПВО. Но вместо точек своих дронов вы видите три "
                 f"черные капсулы, входящие в атмосферу прямо над вашим лагерем. Это «Инквизиторы» — элитный спецназ Академии. "
@@ -105,7 +186,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 5: ОБОРОНА ПОСЕЛЕНИЯ ] ---
     elif call.data == "apoc_s5_5":
-        update_game_progress(user_id, current_node + "_base_fortified")
+        if not has_flag(current_node, "base_fortified"):
+            current_node = add_flag(current_node, "base_fortified")
+            set_game_node(user_id, current_node)
+
         text = (f"⚔️ *СТОЛКНОВЕНИЕ*\n\n"
                 f"Капсулы врезаются в землю с оглушительным грохотом. Из них выходят фигуры в зеркальной броне. "
                 f"Но как только они вступают на газоны, вы включаете давление. Струи воды, насыщенные частицами Белого Семени, "
@@ -122,7 +206,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 6: ГНЕВ СЕМЕНИ ] ---
     elif call.data == "apoc_s5_6":
-        add_xp(user_id, 45, username)
+        if not has_flag(current_node, "wrath_done"):
+            current_node = add_flag(current_node, "wrath_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 45, username)
+
         text = (f"⚡️ *РЕЗОНАНС ВЕРТИКАЛИ*\n"
                 f"──────────────────────────\n"
                 f"Вы даете Владу знак. Мальчик закрывает глаза, и Белое Семя в его руках вспыхивает ослепительным столбом света, "
@@ -157,8 +245,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 8: ЦИФРОВОЙ КУПОЛ ] ---
     elif call.data == "apoc_s5_8":
-        update_game_progress(user_id, current_node + "_spy_captured")
-        add_xp(user_id, 30, username)
+        if not has_flag(current_node, "spy_captured"):
+            current_node = add_flag(current_node, "spy_captured")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 30, username)
+
         text = (f"🛡 *СЕТЕВОЙ ЩИТ*\n\n"
                 f"Шпион обезврежен — в его клыке-импланте оказался передатчик. Теперь у нас есть доступ к частотам Академии. "
                 f"Чтобы защитить поселение от новых атак, нужно настроить частотный фильтр «Купол». \n\n"
@@ -175,7 +266,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 9: ЧЕРТЕЖИ ОТЦА ] ---
     elif call.data == "apoc_s5_9":
-        update_game_progress(user_id, current_node + "_shield_active")
+        if not has_flag(current_node, "shield_active"):
+            current_node = add_flag(current_node, "shield_active")
+            set_game_node(user_id, current_node)
+
         text = (f"📜 *ЗАВЕЩАНИЕ «ОРИОНА»*\n\n"
                 f"Купол активирован. Над парком вспыхивает невидимая пелена, отсекающая сигналы извне. В этот момент "
                 f"один из выживших протягивает вам старый кожаный тубус, найденный в руинах клиники. \n\n"
@@ -241,8 +335,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 13: СХВАТКА С ЦЕРБЕРОМ ] ---
     elif call.data == "apoc_s5_13":
-        update_game_progress(user_id, current_node + "_logic_roots_done")
-        add_xp(user_id, 40, username)
+        if not has_flag(current_node, "logic_roots_done"):
+            current_node = add_flag(current_node, "logic_roots_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 40, username)
+
         text = (f"🐕 *СТАЛЬНОЙ ОГЛАЛТЕЛОСТЬ*\n\n"
                 f"Рычаги поддаются, давление падает, и тяжелая дверь отходит в сторону. Но за ней вас уже ждет «Цербер» — "
                 f"четвероногий робот-убийца с лазерным наведением. Он блокирует путь к Реактору. Его корпус покрыт "
@@ -274,7 +371,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 15: СЕРДЦЕ АЗОВСТАЛИ ] ---
     elif call.data == "apoc_s5_15":
-        update_game_progress(user_id, current_node + "_terminal_attacked")
+        if not has_flag(current_node, "terminal_attacked"):
+            current_node = add_flag(current_node, "terminal_attacked")
+            set_game_node(user_id, current_node)
+
         text = (f"☢️ *ТОЧКА НЕВОЗВРАТА*\n\n"
                 f"Ваш выстрел разрушает консоль, но обратный отсчет уже запущен. Пол под ногами начинает вибрировать — "
                 f"Первичный Реактор внизу входит в критическую фазу. Линдер исчезает в облаке пара, оставляя вас "
@@ -309,10 +409,13 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 17: ОРБИТАЛЬНЫЙ ГНЕВ ] ---
     elif call.data == "apoc_s5_17":
-        update_game_progress(user_id, current_node + "_human_anchor_set")
-        add_xp(user_id, 45, username)
-        # Устанавливаем таймер на стабилизацию (например, 5 минут)
-        set_game_timer(user_id, 300) 
+        if not has_flag(current_node, "human_anchor_set"):
+            current_node = add_flag(current_node, "human_anchor_set")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 45, username)
+            # Устанавливаем таймер на стабилизацию
+            set_game_timer(user_id, 300) 
+
         text = (f"🛰 *НЕБО ПАДАЕТ*\n\n"
                 f"Число 28 сработало! Процесс стабилизировался, Влад сохраняет человеческий облик, но он всё еще внутри потока. "
                 f"В этот момент небо над заводом раскалывается. Академия Орион начала орбитальную бомбардировку. "
@@ -329,7 +432,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 18: ПОСЛЕДНИЙ РУБЕЖ ЛИНДЕРА ] ---
     elif call.data == "apoc_s5_18":
-        update_game_progress(user_id, current_node + "_orbital_strike_deflected")
+        if not has_flag(current_node, "orbital_strike_deflected"):
+            current_node = add_flag(current_node, "orbital_strike_deflected")
+            set_game_node(user_id, current_node)
+
         text = (f"🔥 *ПЕПЕЛ И ИСТИНА*\n\n"
                 f"Импульс уходит в небо, и один из спутников Академии взрывается ослепительной искрой. Гул бомбардировки затихает. "
                 f"Но из дыма у входа появляется Линдер. Он тяжело ранен, его броня оплавлена, но в руках он сжимает "
@@ -360,7 +466,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 20: ПЕРВЫЙ ВДОХ НОВОГО МИРА ] ---
     elif call.data == "apoc_s5_20":
-        update_game_progress(user_id, current_node + "_vlad_saved_human")
+        if not has_flag(current_node, "vlad_saved_human"):
+            current_node = add_flag(current_node, "vlad_saved_human")
+            set_game_node(user_id, current_node)
+
         text = (f"🌿 *ЗЕЛЕНЫЙ МАРИУПОЛЬ*\n\n"
                 f"Вы вытягиваете Влада из света. Он падает в ваши руки — живой, теплый, с обычным человеческим пульсом. "
                 f"В этот момент мощная волна свежего воздуха вырывается из завода и проносится над городом. "
@@ -393,7 +502,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 22: ПЕРВЫЙ УРОЖАЙ ] ---
     elif call.data == "apoc_s5_22":
-        update_game_progress(user_id, current_node + "_observatory_start")
+        if not has_flag(current_node, "observatory_start"):
+            current_node = add_flag(current_node, "observatory_start")
+            set_game_node(user_id, current_node)
+
         text = (f"🌾 *БИО-РЕГЕНЕРАЦИЯ*\n\n"
                 f"Пока строится обсерватория, Влад обнаруживает, что очищенный мох превратился в плодородный ил. "
                 f"Нам нужно засеять первые поля, чтобы прокормить выживших. Но в почве остались «фиолетовые споры». \n\n"
@@ -410,7 +522,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 23: ШЕПОТ ГЛУБИН ] ---
     elif call.data == "apoc_s5_23":
-        add_xp(user_id, 30, username)
+        if not has_flag(current_node, "ph_logic_done"):
+            current_node = add_flag(current_node, "ph_logic_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 30, username)
+
         text = (f"🌊 *ТАЙНА МОРСКОГО ДНА*\n\n"
                 f"Поля засеяны, но радар «Меотиды» фиксирует странный объект в Азовском море. Это старая подводная лаборатория "
                 f"вашего отца, которая начала подавать сигнал после очистки Ядра. \n\n"
@@ -427,7 +543,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 24: ВОЗВРАЩЕНИЕ ИМЕН ] ---
     elif call.data == "apoc_s5_24":
-        update_game_progress(user_id, current_node + "_memory_restored")
+        if not has_flag(current_node, "memory_restored"):
+            current_node = add_flag(current_node, "memory_restored")
+            set_game_node(user_id, current_node)
+
         text = (f"💾 *ЦИФРОВОЕ ВОСКРЕШЕНИЕ*\n\n"
                 f"Вы загружаете данные в сеть поселения. Люди замирают. К ним возвращаются воспоминания: лица родителей, "
                 f"запах моря в детстве, их настоящие имена. Город перестает быть сборищем теней и становится обществом.\n\n"
@@ -472,7 +591,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 27: ПОСЛЕДНЯЯ ЗАПИСЬ (1985) ] ---
     elif call.data == "apoc_s5_27":
-        add_xp(user_id, 70, username)
+        if not has_flag(current_node, "telescope_aligned"):
+            current_node = add_flag(current_node, "telescope_aligned")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 70, username)
+
         text = (f"📼 *ГОЛОС СКВОЗЬ ВРЕМЯ*\n\n"
                 f"Луч захватывает спутник, и вместо ответного огня система «Орион» внезапно начинает транслировать "
                 f"скрытый архив. На всех экранах появляется ваш отец. Он стоит здесь же, в этой обсерватории, "
@@ -492,7 +615,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 28: БИТВА В ВЕРХНИХ СЛОЯХ ] ---
     elif call.data == "apoc_s5_28":
-        update_game_progress(user_id, current_node + "_final_code_accepted")
+        if not has_flag(current_node, "final_code_accepted"):
+            current_node = add_flag(current_node, "final_code_accepted")
+            set_game_node(user_id, current_node)
+
         text = (f"📡 *ПАДЕНИЕ ИДОЛОВ*\n\n"
                 f"Код «8» принят. Орбитальная сеть Академии начинает распадаться. Спутники один за другим "
                 f"выходят из строя и сгорают в атмосфере, превращаясь в яркие метеоры. Контроль «Ориона» над Землей "
@@ -523,13 +649,30 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 30: ЭПИЛОГ И ТИТРЫ ] ---
+    # 🏆 --- [ ЭТАП 30: ЭПИЛОГ И ТИТРЫ ] --- 🏆
     elif call.data.startswith("apoc_s5_30"):
         # Определяем концовку на основе выбора
         ending = "Свободы" if "freedom" in call.data else "Порядка" if "order" in call.data else "Милосердия"
-        update_game_progress(user_id, current_node + f"_apoc_game_complete_{ending}")
-        add_xp(user_id, 1000, username)
         
+        is_first_time = not has_completed_chapter(user_id, "chapter_5")
+        
+        if is_first_time:
+            xp_reward = 1000
+            dust_reward = 500
+            mark_chapter_completed(user_id, "chapter_5")
+            reward_msg = f"🎁 **ГРАНД-ФИНАЛ ПРОЙДЕН:**\n✨ Опыт: +{xp_reward} XP\n💎 Пыль: +{dust_reward} ед.\n"
+        else:
+            xp_reward = 100
+            dust_reward = 100
+            reward_msg = f"🔄 **НАГРАДА ЗА ПОВТОРНОЕ ПРОХОЖДЕНИЕ:**\n✨ Опыт: +{xp_reward} XP\n💎 Пыль: +{dust_reward} ед.\n"
+
+        if not has_flag(current_node, "ch5_done"):
+            add_xp(user_id, xp_reward, username)
+            current_node = add_flag(current_node, "ch5_done")
+            current_node = add_flag(current_node, f"ending_{ending}")
+            current_node = set_loc(current_node, "apoc_game_completed_screen")
+            set_game_node(user_id, current_node)
+
         text = (f"🏆 *ФИНАЛ: ПУТЬ {ending.upper()}*\n"
                 f"──────────────────────────\n"
                 f"Командор, ваша история подошла к концу. Вы прошли путь от маленькой клиники до спасения человечества. "
@@ -539,10 +682,10 @@ def run_scenario(bot, call):
                 f"🐕 *Марти* стал легендой поселения, «собакой, победившей роботов».\n"
                 f"🪐 *Академия Орион* изгнана с Земли, но небо навсегда осталось под вашим присмотром.\n"
                 f"🦷 *Медицинское наследие* отца восстановлено и служит людям.\n\n"
+                f"{reward_msg}\n"
                 f"Вы закрываете дневник юного космонавта. Впереди — бесконечность.\n\n"
                 f"*СПАСИБО ЗА ИГРУ, ДМИТРИЙ ВЛАДИМИРОВИЧ!*")
         
-        # Заменяем send_message на edit_message_text для чистоты интерфейса
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("🏆 Вернуться в главное меню", callback_data="game_main_menu")
         )
@@ -611,36 +754,57 @@ def run_scenario(bot, call):
 
     # [ 2. Обработчики детективных улик (с начислением XP) ]
     elif call.data == "apoc_s5_clue_scan":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_scan"):
+            current_node = add_flag(current_node, "clue_scan")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🔍 СКАНИРОВАНИЕ: Влад чувствует слабые сигналы под землей. Это старые коммуникации, они нам еще пригодятся.", show_alert=True)
         return
 
     elif call.data == "apoc_s5_clue_negotiate":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_negotiate"):
+            current_node = add_flag(current_node, "clue_negotiate")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🗣 ПЕРЕГОВОРЫ: Линдер не слушает. Его шлем блокирует внешние звуки. Он пришел только уничтожать.", show_alert=True)
         return
 
     elif call.data == "apoc_s5_clue_traitor":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_traitor"):
+            current_node = add_flag(current_node, "clue_traitor")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "📷 КАМЕРЫ: Записи стерты! Кто-то профессионально заметает следы. Действовать нужно через прямой осмотр.", show_alert=True)
         return
 
     elif call.data == "apoc_s5_clue_transport":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_transport"):
+            current_node = add_flag(current_node, "clue_transport")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🚙 ТРАНСПОРТ: Старый электрокар Академии разряжен. Пешком мы доберемся быстрее и незаметнее.", show_alert=True)
         return
 
     elif call.data == "apoc_s5_clue_coolant":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_coolant"):
+            current_node = add_flag(current_node, "clue_coolant")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "❄️ ОХЛАДИТЕЛИ: Уровень фреона в норме. Проблема не здесь, идите к пульту давления!", show_alert=True)
         return
 
     elif call.data == "apoc_s5_clue_hack":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_hack"):
+            current_node = add_flag(current_node, "clue_hack")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "💻 ВЗЛОМ: Защита Линдера квантовая. Влад не может ее пробить, не рискуя своим разумом. Используйте Бор!", show_alert=True)
         return
 
     elif call.data == "apoc_s5_clue_laser":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_laser"):
+            current_node = add_flag(current_node, "clue_laser")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🔭 РЕЗОНАНС: Зеркала еще не откалиброваны для боевого луча. Придется сбивать дедовским способом!", show_alert=True)
         return
