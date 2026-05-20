@@ -2,17 +2,22 @@ import telebot
 from datetime import datetime
 from telebot import types as tele_types
 
-# Импортируем функции из обновленной базы данных
 from database import (
     get_game_status, set_game_node, reset_game, set_game_timer, add_xp, 
-    has_completed_chapter, mark_chapter_completed
+    has_completed_chapter, mark_chapter_completed, is_timer_expired
 )
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
     
-    raw_node, timer_end = get_game_status(user_id)
+    # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
+    if not is_timer_expired(user_id):
+        try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
+        except: pass
+        return
+
+    raw_node, _ = get_game_status(user_id)
     if not raw_node: 
         raw_node = "apoc_start"
 
@@ -30,7 +35,6 @@ def run_scenario(bot, call):
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
     if call.data == "apoc_s2_start":
-        # Если мы только перешли из Главы 1 или только сбросили Главу 2
         if loc in ["apoc_ch1_completed_screen", "apoc_s2_scene_1", "start", "apoc_start"]:
             call.data = "apoc_s2_scene_1"
         else:
@@ -52,30 +56,12 @@ def run_scenario(bot, call):
         except: pass
 
     if call.data == "game_reset_ch2":
-        # Сбрасываем локацию на старт Главы 2, но СОХРАНЯЕМ флаги из Главы 1 (мотор, аптечка и тд)
         current_node = set_loc(current_node, "apoc_s2_scene_1")
-        set_game_timer(user_id, 0) # Обнуляем таймер
+        set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
-        timer_end = None
         call.data = "apoc_s2_scene_1"
         try: bot.answer_callback_query(call.id, "🔄 Глава 2 начата заново!", show_alert=True)
         except: pass
-
-    # --- [ БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА ] ---
-    if timer_end:
-        if isinstance(timer_end, str):
-            try: timer_end = datetime.strptime(timer_end.split('.')[0].replace('T', ' '), "%Y-%m-%d %H:%M:%S")
-            except: timer_end = None
-                
-        if timer_end:
-            safe_timer_end = timer_end.replace(tzinfo=None)
-            safe_now = datetime.now().replace(tzinfo=None)
-            
-            if safe_now < safe_timer_end:
-                mins = int((safe_timer_end - safe_now).total_seconds() // 60) + 1
-                try: bot.answer_callback_query(call.id, f"⌛️ Ожидание... Осталось {mins} мин.", show_alert=True)
-                except: pass
-                return # Блокируем прогресс, пока тикает таймер
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
     MAJOR_NODES = [
@@ -163,7 +149,7 @@ def run_scenario(bot, call):
         text = (f"🚛 *ЗАБРОШЕННЫЙ ТРЕЙЛЕР*\n\n"
                 f"Сквозь туман проступают очертания грузовика с логотипом Академии Орион. Он перевернут, а его бока изъедены коррозией. "
                 f"Однако герметичный отсек выглядит целым. \n\n"
-                f"Марти: 'Это 'Био-Трейлер 7'. В таких машинах перевозили полевое оборудование для анализа мутаций. "
+                f"Марти: 'Это 'Био-Трейлер 7'. В таких машины перевозили полевое оборудование для анализа мутаций. "
                 f"Если нам повезет, внутри мы найдем корпус для нашего будущего гаджета. Но дверь заперта на биометрический замок. "
                 f"Док, попробуйте приложить руку. У меня предчувствие, что система вас узнает... как и тот пропуск'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
@@ -360,7 +346,7 @@ def run_scenario(bot, call):
                 f"носит вещи вашей семьи. Это либо безумный фанат, либо... нам нужно ускориться'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("🔎 Изучить записи в блокноте", callback_data="apoc_s2_clue_notes"),
-            tele_types.InlineKeyboardButton("🚶 Идти дальше по следу", callback_data="apoc_s2_15")
+            tele_types.InlineKeyboardButton("🚶 Идти дальше по след", callback_data="apoc_s2_15")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
