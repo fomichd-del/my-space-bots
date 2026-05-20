@@ -197,6 +197,7 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", 42
 
+    # 1. Данные
     gender = dog.get('gender', 'male')
     dna_data = get_deterministic_dna(user_id, gender=gender)
     dna_desc = dna_data['desc']
@@ -208,28 +209,41 @@ def get_dog_prompt(dog, user_id):
     dust = u_data['spendable_dust']
     hour = datetime.now().hour
     
-    # Пыль и Настроение (упрощаем для кэша)
+    # 2. Окружение
     dust_str = "glowing cosmic dust" if dust > 50 else "a few specks of dust"
     mood_str = "happy" if dog['mood'] >= 50 else "sad"
     
-    # Позиция
     if 6 <= hour < 11: dog_pos, cam, win, fx = "stretching on the dog bed", "medium shot", "morning nebula", "soft light"
     elif 11 <= hour < 18: dog_pos, cam, win, fx = "sitting on a chair at the desk", "wide shot", "solar system", "bright daylight"
     elif 18 <= hour < 22: dog_pos, cam, win, fx = "sitting on the floor looking at the window", "over-the-shoulder", "alien sunset", "golden hour"
     else: dog_pos, cam, win, fx = "sleeping on the dog bed", "top-down shot", "starry space", "low-key night lighting"
-    
-    # 🟢 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Жесткая привязка аксессуаров к собаке
+    if hour in [14, 19]: dog_pos += ", curiously watching a tiny cleaning drone hovering nearby"
+
+    # 🟢 ИСПРАВЛЕННЫЙ БЛОК ЭКИПИРОВКИ (Позиционная привязка)
     equipped = dog.get('equipped', [])
-    wearables = []
+    slots_data = {}
     for k in equipped:
         if k in DOG_SHOP:
-            wearables.append(DOG_SHOP[k]["prompt"])
-    wearables_str = f", wearing {', '.join(wearables)}" if wearables else ""
+            slot = get_item_slot(k) # Получаем слот (head, paws, neck и т.д.)
+            if slot not in slots_data: slots_data[slot] = []
+            slots_data[slot].append(DOG_SHOP[k]["prompt"])
+    
+    # Собираем строгие инструкции: "вещь worn on its [слот]"
+    wearables_parts = []
+    for slot, prompts in slots_data.items():
+        # Склеиваем группу предметов для одного слота
+        wearables_parts.append(f"{', '.join(prompts)} worn on its {slot}")
+        
+    wearables_str = f", with {', '.join(wearables_parts)}" if wearables_parts else ""
 
+    # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА
     full_prompt = (
-        f"RAW photo, highly detailed, {cam}. {dna_desc}, {growth}, {mood_str} expression, {dog_pos}{wearables_str}. "
-        f"SCENE: {cabin_tier}, porthole window with {win}, {dust_str} nearby. STYLE: {fx}. "
-        "NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch, dog standing on the desk, floating objects."
+        f"RAW photo, highly detailed, {cam}, 35mm lens, f/2.8. "
+        f"Subject: Purebred Toy Poodle, {dna_desc}, {growth}, showing a {trait} and {mood_str} expression{wearables_str}. "
+        f"Scene: {cabin_tier}, porthole window with {win}, {dust_str} on the floor. STYLE: {fx}. "
+        # 🟢 УСИЛЕННЫЙ НЕГАТИВ: запрещаем всё "отлетевшее"
+        "NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch, dog standing on the desk, "
+        "detached accessories, floating items, disconnected halo, items hovering in the air, accessories not worn by dog, misplaced clothing."
     )
     
     return full_prompt, hash(full_prompt) % 10000
