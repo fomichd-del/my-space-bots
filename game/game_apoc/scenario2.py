@@ -66,11 +66,12 @@ def run_scenario(bot, call):
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
     MAJOR_NODES = [
         "apoc_s2_scene_1", "apoc_s2_2", "apoc_s2_4", "apoc_s2_5", "apoc_s2_6", 
-        "apoc_s2_8", "apoc_s2_9_wait", "apoc_s2_craft_start", "apoc_s2_craft_bio", 
-        "apoc_s2_11", "apoc_s2_12", "apoc_s2_13", "apoc_s2_14", "apoc_s2_15", 
-        "apoc_s2_16", "apoc_s2_17", "apoc_s2_18", "apoc_s2_19", "apoc_s2_20", 
-        "apoc_s2_21", "apoc_s2_23", "apoc_s2_24", "apoc_s2_25", "apoc_s2_26", 
-        "apoc_s2_27", "apoc_s2_28", "apoc_s2_sync", "apoc_s2_30", "apoc_ch2_completed_screen"
+        "apoc_s2_8", "apoc_s2_9_wait", "apoc_s2_9_done", "apoc_s2_craft_start", 
+        "apoc_s2_craft_bio", "apoc_s2_11", "apoc_s2_12", "apoc_s2_13", "apoc_s2_14", 
+        "apoc_s2_15", "apoc_s2_16", "apoc_s2_17", "apoc_s2_18", "apoc_s2_19", 
+        "apoc_s2_20", "apoc_s2_21", "apoc_s2_23", "apoc_s2_24", "apoc_s2_25", 
+        "apoc_s2_26", "apoc_s2_27", "apoc_s2_28", "apoc_s2_sync", "apoc_s2_30", 
+        "apoc_ch2_completed_screen"
     ]
     if call.data in MAJOR_NODES:
         current_node = set_loc(current_node, call.data)
@@ -233,17 +234,32 @@ def run_scenario(bot, call):
     elif call.data.startswith("apoc_s2_9"):
         if "wait" in call.data:
             set_game_timer(user_id, 10)
-            wait_text = "Вы сидите в полной темноте 10 минут, слыша, как тварь дышит прямо за дверью. Наконец, шаги затихают."
-        else:
-            wait_text = "Звуковой импульс Марти сработал! Тварь с диким визгом бросилась в сторону болот, подальше от источника шума."
+            text = (f"🤫 *ИГРА В ПРЯТКИ*\n\n"
+                    f"Вы отключаете всё питание в трейлере. Снаружи слышно тяжелое, хриплое дыхание. "
+                    f"Тварь обходит трейлер кругами, периодически царапая металл когтями. Нужно переждать.\n\n"
+                    f"**Ожидание: 10 минут.**")
+            kb = tele_types.InlineKeyboardMarkup().add(
+                tele_types.InlineKeyboardButton("🔄 Проверить обстановку", callback_data="apoc_s2_9_done")
+            )
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+            return
+        elif "sound" in call.data:
+            text = (f"🔊 *ЗВУКОВОЙ УДАР*\n\n"
+                    f"Звуковой импульс Марти сработал! Тварь с диким визгом бросилась в сторону болот, подальше от источника шума.\n\n"
+                    f"Марти: 'Отлично, Док! А теперь давайте соберем эту штуку, пока не прибежали его старшие братья!'.")
+            kb = tele_types.InlineKeyboardMarkup().add(
+                tele_types.InlineKeyboardButton("⚒ Перейти к столу", callback_data="apoc_s2_9_done")
+            )
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+            return
 
+    # --- [ ЭТАП 9-Б: ЗАВЕРШЕНИЕ ОЖИДАНИЯ И ПЕРЕХОД К КРАФТУ ] ---
+    elif call.data == "apoc_s2_9_done":
         text = (f"🛠 *ПОСЛЕДНИЕ ШТРИХИ*\n\n"
-                f"{wait_text}\n\n"
-                f"Теперь у нас есть всё: корпус, мотор и стабилизированный реагент. Вы раскладываете детали на операционном столе трейлера. "
+                f"Шаги затихли. Теперь у нас есть всё: корпус, мотор и стабилизированный реагент. Вы раскладываете детали на операционном столе трейлера. "
                 f"Это кропотливая работа — соединить технологию 1985 года с ИИ-модулями 2026-го.\n\n"
                 f"Марти: 'Док, я буду подавать вам инструменты. Постарайтесь не перепутать полярность!'.")
         
-        # Проверяем мотор из Главы 1
         t = 10 if has_flag(current_node, "super_motor") else 20
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton(f"⚒ Начать сборку ({t} мин)", callback_data="apoc_s2_craft_start")
@@ -569,20 +585,20 @@ def run_scenario(bot, call):
             set_game_node(user_id, current_node)
             add_xp(user_id, 15, username)
             
+        t = 12 if has_flag(current_node, "super_motor") else 18
+        set_game_timer(user_id, t)
+        
         text = (f"💾 *ПОГРУЖЕНИЕ В БЕЗДНУ*\n\n"
                 f"При вводе числа '8' глаза андроида вспыхивают золотом. Он берет вашу руку, и Био-анализатор начинает скачивать колоссальный объем данных. \n\n"
                 f"**АНДРОИД:** 'Загрузка пошла. Вы узнаете всё: про эксперименты 1985-го, про то, как Академия Орион "
                 f"пыталась приручить фиолетовый мох, и про то, почему вы — единственный выживший клон из партии 'Д-85'. "
                 f"Но будьте осторожны: Академия уже знает, что терминал активен. Они идут за вами. \n\n"
                 f"Марти: 'Док, я вижу движение на крыше парковки! Дроны Академии Орион! Они не собираются вести переговоры. "
-                f"Нам нужно уходить, пока данные не перезагрузили ваши мозги окончательно!'.")
-        
-        # Сборка данных занимает время
-        t = 12 if has_flag(current_node, "super_motor") else 18
-        set_game_timer(user_id, t)
+                f"Нам нужно уходить, пока данные не перезагрузили ваши мозги окончательно!'.\n\n"
+                f"Ожидание: **{t} минут**.")
         
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton(f"⏳ Завершить синхронизацию ({t} мин)", callback_data="apoc_s2_sync")
+            tele_types.InlineKeyboardButton(f"🔄 Завершить синхронизацию", callback_data="apoc_s2_sync")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
