@@ -406,9 +406,16 @@ def set_game_timer(user_id, minutes):
     conn = get_connection()
     if not conn: return
     try:
+        cursor = conn.cursor()
         minutes_int = int(minutes) 
         now = datetime.now()
-        cursor = conn.cursor()
+
+        # 🟢 ПРИНУДИТЕЛЬНЫЙ СБРОС ТАЙМЕРА 
+        # Если передаем 0, стираем таймер из базы немедленно и выходим.
+        if minutes_int == 0:
+            cursor.execute('UPDATE users SET game_timer_end = NULL WHERE user_id = %s', (user_id,))
+            conn.commit()
+            return
 
         cursor.execute('SELECT game_timer_end FROM users WHERE user_id = %s', (user_id,))
         res = cursor.fetchone()
@@ -425,8 +432,9 @@ def set_game_timer(user_id, minutes):
             safe_current_end = current_end.replace(tzinfo=None)
             safe_now = now.replace(tzinfo=None)
 
+            # Если пытаемся установить новый таймер, но старый еще идет - блокируем перезапись
             if safe_current_end > safe_now:
-                return # Таймер еще активен, не сбрасываем!
+                return 
 
         finish_time = now + timedelta(minutes=minutes_int)
         cursor.execute('UPDATE users SET game_timer_end = %s WHERE user_id = %s', (finish_time, user_id))
