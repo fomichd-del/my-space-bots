@@ -127,31 +127,37 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
 
-    # 1. Анатомический паспорт (ДНК)
+    # 1. Анатомический паспорт (Постоянные признаки)
     dna = get_deterministic_dna(user_id)
     
-    # 2. Окружение
+    # 2. Модуль взросления (Динамические признаки)
+    growth = get_growth_stage(dog['level'])
+    
+    # 3. Окружение и время
     hour = datetime.now().hour
     u_data = get_user_data(user_id)
     dust = u_data['spendable_dust']
     
-    # Световой модуль
-    if 6 <= hour < 11: light = "morning sunrise lighting, soft natural tones"
-    elif 11 <= hour < 18: light = "bright natural daylight, studio softbox lighting"
-    elif 18 <= hour < 22: light = "warm golden hour lighting, soft shadows"
-    else: light = "soft ambient neon interior lighting, cinematic rim light"
+    # Освещение и вид
+    if 6 <= hour < 11:
+        light = "soft morning sunrise light"
+        window = "glowing colorful nebula"
+    elif 11 <= hour < 18:
+        light = "bright natural daylight"
+        window = "vibrant solar system with planets"
+    elif 18 <= hour < 22:
+        light = "warm golden hour sunset glow"
+        window = "sunset over a distant alien planet"
+    else:
+        light = "soft ambient neon interior lighting"
+        window = "deep space with glittering stars"
+        
+    # Стол и пыль
+    desk_status = "clean metallic desk" if dust < 50 else ("metallic desk with small blue stardust specks" if dust < 500 else "metallic desk covered in a dense layer of glowing blue cosmic dust")
     
-    window = "deep space view with stars and distant galaxies"
-    
-    # Пыль на столе
-    if dust < 50: desk = "clean metallic desk"
-    elif dust < 500: desk = "metallic desk with small shimmering dust particles"
-    else: desk = "metallic desk covered in a dense layer of glowing blue cosmic dust"
-    
-    evo = "tiny puppy" if dog['level'] < 5 else ("adolescent poodle" if dog['level'] < 12 else "wise adult poodle")
     state = "happy, sparkling eyes" if dog['energy'] >= 30 else "tired, resting comfortably"
 
-    # 3. СЛОТИРОВАНИЕ (как обсуждали)
+    # 4. СЛОТИРОВАНИЕ ОДЕЖДЫ
     equipped = dog.get('equipped', [])
     keywords = {
         "head": ["hat", "helmet", "antenna", "crown", "cap", "beanie"],
@@ -178,21 +184,29 @@ def get_dog_prompt(dog, user_id):
     style_parts = [f"{s.upper()}: {', '.join(items)}" for s, items in slots.items() if items]
     style_prompt = f"WEARING: {'; '.join(style_parts)}" if style_parts else "no clothes"
     
-    # 4. ФОТОГРАФИЧЕСКИЙ ПРОМПТ
-    # Добавили параметры оптики и жесткие запреты на "рисовку"
+    # 5. ФИНАЛЬНЫЙ СИНТЕЗ (Всё объединяем)
     full_prompt = (
-        f"Professional wildlife photography, shot on 85mm lens, f/1.8, shallow depth of field, bokeh background. "
-        f"Subject: A {dna}. The dog is a {evo}, {state}. "
-        f"Setting: Cozy futuristic spaceship cabin, large porthole window showing {window}, "
-        f"metallic workspace desk with {desk}, soft plush dog bed in the background. "
+        f"Professional wildlife photography, shot on 85mm lens, f/1.8, shallow depth of field. "
+        f"Subject: A {dna}. The dog is in the {growth} stage, looking {state}. "
+        f"Setting: Cozy spaceship cabin. Large porthole window shows {window}. "
+        f"There is a metallic workspace desk with {desk_status} and a soft plush dog bed in the background. "
         f"Lighting: {light}. "
         f"{style_prompt}. "
-        f"Technical: Intricate fur texture, wet nose details, highly realistic eyes, sharp focus on subject. "
-        f"Constraint: PUREBRED TOY POODLE ONLY. STRICT BREED: Tight signature curls. "
-        f"Negative Prompt (DO NOT DRAW): cartoon, illustration, drawing, 3d render, anime, painting, art, sketch, plastic look."
+        f"Constraint: STRICT BREED: Toy Poodle. Signature tight curls. "
+        f"Do not draw a Yorkie, do not draw long straight hair. "
+        f"Include ALL items listed in WEARING. Photorealistic, 8k, extremely detailed."
     )
     
     return full_prompt, user_id
+
+def get_growth_stage(level):
+    """Определяет физические параметры собаки в зависимости от уровня взросления"""
+    if level < 5:
+        return "tiny, very small puppy, soft rounded facial features, clumsy but adorable posture, fluffy puppy-like coat with loose curls"
+    elif level < 12:
+        return "adolescent dog, lean and lanky, slightly longer legs, energetic and curious posture, developing tight poodle curls"
+    else:
+        return "adult dog, elegant and dignified, well-proportioned, signature toy poodle stature, perfectly groomed dense tight curls"
 
 def send_dog_menu(bot, chat_id, user_id):
     dog = get_dog_data(user_id)
