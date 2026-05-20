@@ -123,7 +123,7 @@ def get_item_slot(item_key):
         "crown_of_comets": "head", "symbiote_friend": "top of the head", "floating_halo": "head",
         
         # --- ГЛАЗА (Раньше было просто лицо) ---
-        "cool_glasses": "eyes", "steampunk_goggles": "eyes", "radar_monocle": "left eye",
+        "cool_glasses": "eyes", "laser_eye": "left eye", "steampunk_goggles": "eyes", "radar_monocle": "left eye",
         "vr_visor_2": "eyes", "meteorite_shades": "eyes", "data_monocle": "right eye",
         "laser_eye": "one eye", "welding_mask": "face",
         
@@ -147,12 +147,12 @@ def get_item_slot(item_key):
         "zero_g_harness": "body", "energy_shield_orb": "chest", "dual_aura": "body",
         
         # --- СПИНА ---
-        "warp_jetpack": "back", "plasma_cloak": "back", "dragon_wings": "back",
+        "warp_jetpack": "back", "drone_companion": "back", "plasma_cloak": "back", "dragon_wings": "back",
         "holographic_wings": "back", "ion_cape": "back", "drone_companion": "back",
         "cryo_gear": "back", "sub_bass_speakers": "back",
         
         # --- ЛАПЫ (Разделяем на передние и все) ---
-        "cyber_paws": "paws", "astro_boots": "paws", "cosmic_boots": "paws",
+        "cyber_paws": "paws", "power_gloves": "front paws", "astro_boots": "paws", "cosmic_boots": "paws",
         "power_gloves": "front paws", "nebula_boots": "paws", "pulsar_watch": "front paw",
         "hover_board": "under the paws", "rocket_boots": "paws",
         
