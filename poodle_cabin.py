@@ -127,39 +127,31 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
 
-    # 1. Анатомический паспорт
+    # 1. Анатомический паспорт (ДНК)
     dna = get_deterministic_dna(user_id)
     
-    # 2. Окружение и время (ВЫЧИСЛЯЕМ 1 РАЗ!)
+    # 2. Окружение
     hour = datetime.now().hour
     u_data = get_user_data(user_id)
     dust = u_data['spendable_dust']
     
-    if 6 <= hour < 11:
-        light = "soft morning sunrise light through the window, cool blue and orange tones"
-        window = "a glowing colorful nebula"
-    elif 11 <= hour < 18:
-        light = "bright direct midday sunlight, high contrast, crisp shadows"
-        window = "a vibrant solar system with planets"
-    elif 18 <= hour < 22:
-        light = "warm golden hour sunset glow, long soft shadows, cozy atmosphere"
-        window = "a sunset over a distant alien planet"
-    else:
-        light = "deep blue night atmosphere, dim interior lighting, glowing neon control panels"
-        window = "deep space with glittering stars and distant galaxies"
+    # Световой модуль
+    if 6 <= hour < 11: light = "morning sunrise lighting, soft natural tones"
+    elif 11 <= hour < 18: light = "bright natural daylight, studio softbox lighting"
+    elif 18 <= hour < 22: light = "warm golden hour lighting, soft shadows"
+    else: light = "soft ambient neon interior lighting, cinematic rim light"
     
-    # Стол и пыль (Единая логика)
-    if dust < 50: 
-        desk = "a clean minimalist workspace desk with a closed laptop"
-    elif dust < 500: 
-        desk = "a metallic workspace desk with an open laptop, small specks of blue stardust nearby"
-    else: 
-        desk = "a messy workspace desk, an open laptop displaying scrolling code, a massive heap of shimmering cosmic dust on the surface"
+    window = "deep space view with stars and distant galaxies"
+    
+    # Пыль на столе
+    if dust < 50: desk = "clean metallic desk"
+    elif dust < 500: desk = "metallic desk with small shimmering dust particles"
+    else: desk = "metallic desk covered in a dense layer of glowing blue cosmic dust"
     
     evo = "tiny puppy" if dog['level'] < 5 else ("adolescent poodle" if dog['level'] < 12 else "wise adult poodle")
     state = "happy, sparkling eyes" if dog['energy'] >= 30 else "tired, resting comfortably"
 
-    # 3. ТОЧНОЕ СЛОТИРОВАНИЕ
+    # 3. СЛОТИРОВАНИЕ (как обсуждали)
     equipped = dog.get('equipped', [])
     keywords = {
         "head": ["hat", "helmet", "antenna", "crown", "cap", "beanie"],
@@ -183,22 +175,21 @@ def get_dog_prompt(dog, user_id):
                 assigned = True
         if not assigned: slots["torso"].append(prompt)
 
-    # Формируем описание (убираем пустые слоты)
     style_parts = [f"{s.upper()}: {', '.join(items)}" for s, items in slots.items() if items]
     style_prompt = f"WEARING: {'; '.join(style_parts)}" if style_parts else "no clothes"
     
-    # 4. ИТОГОВЫЙ "ЖЕЛЕЗНЫЙ" ПРОМПТ
+    # 4. ФОТОГРАФИЧЕСКИЙ ПРОМПТ
+    # Добавили параметры оптики и жесткие запреты на "рисовку"
     full_prompt = (
-        f"Macro photography of a {dna}. "
-        f"Scene: {evo} sitting in a cozy futuristic spaceship cabin. "
-        f"There is a metallic workspace desk with {desk}. "
-        f"A large porthole window shows {window}. "
+        f"Professional wildlife photography, shot on 85mm lens, f/1.8, shallow depth of field, bokeh background. "
+        f"Subject: A {dna}. The dog is a {evo}, {state}. "
+        f"Setting: Cozy futuristic spaceship cabin, large porthole window showing {window}, "
+        f"metallic workspace desk with {desk}, soft plush dog bed in the background. "
         f"Lighting: {light}. "
-        f"The dog is {state}. "
         f"{style_prompt}. "
-        f"STRICT CONSTRAINT: Purebred Toy Poodle morphology, signature tight curls, compact toy size. "
-        f"NEGATIVE CONSTRAINT: Do not draw Yorkie, do not draw long straight hair, do not draw large dogs. "
-        f"Include ALL equipped items. Photorealistic, 8k, extremely detailed."
+        f"Technical: Intricate fur texture, wet nose details, highly realistic eyes, sharp focus on subject. "
+        f"Constraint: PUREBRED TOY POODLE ONLY. STRICT BREED: Tight signature curls. "
+        f"Negative Prompt (DO NOT DRAW): cartoon, illustration, drawing, 3d render, anime, painting, art, sketch, plastic look."
     )
     
     return full_prompt, user_id
