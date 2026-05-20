@@ -98,46 +98,57 @@ DOG_SHOP = {
 }
 
 def get_item_slot(item_key):
-    """Жесткое распределение предметов по слотам."""
+    """
+    Сверхточное анатомическое распределение предметов. 
+    Используем термины, которые диффузионные модели понимают лучше всего.
+    """
     mapping = {
         # --- ГОЛОВА ---
         "space_helmet": "head", "pilot_cap": "head", "galaxy_crown": "head",
         "alien_antenna": "head", "ufo_hat": "head", "thug_beanie": "head",
         "chef_hat": "head", "monocle_tophat": "head", "crown_of_light": "head",
         "general_hat": "head", "santa_astro_hat": "head", "straw_hat": "head",
-        "crown_of_comets": "head", "symbiote_friend": "head", "floating_halo": "head",
-        # --- ЛИЦО (Глаза) ---
-        "cool_glasses": "face", "steampunk_goggles": "face", "radar_monocle": "face",
-        "vr_visor_2": "face", "meteorite_shades": "face", "data_monocle": "face",
-        "laser_eye": "face", "welding_mask": "face",
-        # --- РОТ (Зубы/Нос) ---
+        "crown_of_comets": "head", "symbiote_friend": "top of the head", "floating_halo": "head",
+        
+        # --- ГЛАЗА (Раньше было просто лицо) ---
+        "cool_glasses": "eyes", "steampunk_goggles": "eyes", "radar_monocle": "left eye",
+        "vr_visor_2": "eyes", "meteorite_shades": "eyes", "data_monocle": "right eye",
+        "laser_eye": "one eye", "welding_mask": "face",
+        
+        # --- ПАСТЬ, ЗУБЫ И НОС ---
         "brilliant_smile": "mouth", "dentist_mirror": "mouth", "detective_pipe": "mouth",
         "ancient_relic": "mouth", "golden_asteroid_bone": "mouth", "ruby_mars_stone": "mouth",
-        "cyber_jaw": "mouth", "diamond_grillz": "mouth", "holographic_butterfly": "mouth",
+        "cyber_jaw": "lower jaw", "diamond_grillz": "teeth", "holographic_butterfly": "nose",
         "dentist_drill": "mouth",
+        
         # --- ШЕЯ ---
         "bandana": "neck", "laser_collar": "neck", "nebula_scarf": "neck",
         "heavy_gold_chain": "neck", "diamond_collar": "neck", "star_pendant": "neck",
         "saturn_ring": "neck", "broken_android_ear": "neck", "void_collar": "neck",
         "starlight_medal": "neck", "holographic_map": "neck", "black_hole_pendant": "neck",
         "alien_translator": "neck", "quantum_leash": "neck", "cyberspace_aura": "neck",
-        # --- ТЕЛО (Торс) ---
-        "star_suit": "torso", "neon_harness": "torso", "comet_bowtie": "torso",
-        "taco_suit": "torso", "exosuit_armor": "torso", "cyberpunk_jacket": "torso",
-        "tactical_vest": "torso", "warp_robe": "torso", "mech_harness": "torso",
-        "zero_g_harness": "torso", "energy_shield_orb": "torso", "dual_aura": "torso",
-        # --- СПИНА (Рюкзаки/Крылья) ---
+        
+        # --- ТУЛОВИЩЕ (Используем 'body' и 'chest') ---
+        "star_suit": "body", "neon_harness": "body", "comet_bowtie": "chest",
+        "taco_suit": "body", "exosuit_armor": "body", "cyberpunk_jacket": "body",
+        "tactical_vest": "body", "warp_robe": "body", "mech_harness": "body",
+        "zero_g_harness": "body", "energy_shield_orb": "chest", "dual_aura": "body",
+        
+        # --- СПИНА ---
         "warp_jetpack": "back", "plasma_cloak": "back", "dragon_wings": "back",
         "holographic_wings": "back", "ion_cape": "back", "drone_companion": "back",
         "cryo_gear": "back", "sub_bass_speakers": "back",
-        # --- ЛАПЫ ---
+        
+        # --- ЛАПЫ (Разделяем на передние и все) ---
         "cyber_paws": "paws", "astro_boots": "paws", "cosmic_boots": "paws",
-        "power_gloves": "paws", "nebula_boots": "paws", "pulsar_watch": "paws",
-        "hover_board": "paws", "rocket_boots": "paws",
+        "power_gloves": "front paws", "nebula_boots": "paws", "pulsar_watch": "front paw",
+        "hover_board": "under the paws", "rocket_boots": "paws",
+        
         # --- ХВОСТ ---
         "cyber_tail_ring": "tail", "comet_tail_ribbon": "tail", "mecha_tail": "tail"
     }
-    return mapping.get(item_key, "torso")
+    # По умолчанию вешаем на тело, если забыли указать
+    return mapping.get(item_key, "body")
 
 def get_deterministic_dna(user_id, gender=None):
     """
