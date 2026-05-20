@@ -25,6 +25,21 @@ def run_scenario(bot, call):
             except: pass
             return
 
+# 🔴 --- [ ПРИНУДИТЕЛЬНЫЙ СБРОС ] --- 🔴
+    if call.data == "game_reset_all":
+        # Явный вызов функций БД
+        reset_game(user_id, "apoc_start")  # Сброс узла на старт
+        set_game_timer(user_id, 0)         # Обнуление таймера через наш новый метод
+        
+        # Очистка флагов (на всякий случай, если у вас в БД есть таблица флагов, 
+        # но если вы храните их в узле, то reset_game их уже стер)
+        
+        bot.answer_callback_query(call.id, "🔄 Система очищена. Перезапуск...", show_alert=True)
+        
+        # Сразу переводим игру в начальное состояние
+        call.data = "apoc_start"
+        return run_scenario(bot, call)
+    
     # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ДЛЯ РАБОТЫ СО СТРОКОЙ СОХРАНЕНИЯ ---
     def get_loc(node_str): return node_str.split('|')[0]
     def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
