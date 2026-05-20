@@ -698,6 +698,28 @@ def check_and_update_quiz(user_id, today_date):
             cursor.close()
             conn.close()
 
+def is_timer_expired(user_id):
+    """Возвращает True, если таймер истек или его нет."""
+    conn = get_connection()
+    if not conn: return True
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT game_timer_end FROM users WHERE user_id = %s", (user_id,))
+        res = cursor.fetchone()
+        if not res or not res[0]: return True
+        
+        timer_end = res[0]
+        # Сравниваем с текущим временем
+        if datetime.now() > timer_end:
+            # Таймер истек, сбрасываем его в NULL
+            cursor.execute("UPDATE users SET game_timer_end = NULL WHERE user_id = %s", (user_id,))
+            conn.commit()
+            return True
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
 if __name__ == "__main__":
     init_db() 
     print("✅ Все системы базы данных инициализированы!")
