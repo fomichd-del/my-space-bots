@@ -5,16 +5,20 @@ from telebot import types as tele_types
 # Импортируем все необходимые функции из базы данных
 from database import (
     get_game_status, set_game_node, reset_game, set_game_timer, add_xp, 
-    has_completed_chapter, mark_chapter_completed
+    has_completed_chapter, mark_chapter_completed, is_timer_expired
 )
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
     
-    raw_node, timer_end = get_game_status(user_id)
+    # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
+    if not is_timer_expired(user_id):
+        try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
+        except: pass
+        return
     
-    # Защита от пустой базы
+    raw_node, _ = get_game_status(user_id)
     if not raw_node: 
         raw_node = "apoc_start"
 
@@ -56,31 +60,9 @@ def run_scenario(bot, call):
         current_node = set_loc(current_node, "apoc_s4_scene_1")
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
-        timer_end = None
         call.data = "apoc_s4_scene_1"
         try: bot.answer_callback_query(call.id, "🔄 Глава 4 начата заново!", show_alert=True)
         except: pass
-
-    # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (БРОНЕБОЙНЫЙ) ] ---
-    if timer_end:
-        if isinstance(timer_end, str):
-            try:
-                clean_time = timer_end.split('.')[0].replace('T', ' ')
-                timer_end = datetime.strptime(clean_time, "%Y-%m-%d %H:%M:%S")
-            except:
-                timer_end = None
-                
-        if timer_end:
-            safe_timer_end = timer_end.replace(tzinfo=None)
-            safe_now = datetime.now().replace(tzinfo=None)
-            
-            if safe_now < safe_timer_end:
-                mins = int((safe_timer_end - safe_now).total_seconds() // 60) + 1
-                try:
-                    bot.answer_callback_query(call.id, f"⌛️ Ожидание... Осталось {mins} мин.", show_alert=True)
-                except Exception as alert_e:
-                    print(f"🚨 Ошибка Telegram Alert: {alert_e}")
-                return
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
     MAJOR_NODES = [
@@ -483,7 +465,7 @@ def run_scenario(bot, call):
                 f"Он — живой ключ. Но архив доживает последние секунды! Стены залы начинают трескаться, "
                 f"а из вентшахт сыплется фиолетовая пыль — это «Чистильщики» Академии Орион. Они не будут брать нас в плен. "
                 f"Их задача — стереть всё, что связано с Проектом Ноль. Нам нужно прорваться к техническому тоннелю, "
-                f"но дверь заблокирована кодом «Первичной Эмали»'.")
+                f"но дверь заблокирована кодом «Первичной Эмали'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Бежать к аварийному выходу", callback_data="apoc_s4_22"),
             tele_types.InlineKeyboardButton("Использовать Семя как щит", callback_data="apoc_s4_clue_aura")
@@ -494,14 +476,14 @@ def run_scenario(bot, call):
     elif call.data == "apoc_s4_22":
         text = (f"🦷 *ЗАМОК ПОСТОЯНСТВА*\n\n"
                 f"Вы оказываетесь перед стальной заслонкой. На ней нет цифр, только голографическая модель взрослой челюсти. "
-                f"Голос Куратора из умирающих динамиков хрипит: «Чтобы выйти в мир взрослых, подтвердите знание о полном наборе опор». \n\n"
-                f"Марти: 'Док, это финальная проверка на целостность! Система хочет знать общее количество постоянных зубов "
-                f"в полном наборе взрослого человека (включая зубы мудрости). Это число — ваш билет на поверхность. "
-                f"Вводите быстро, потолок уже прогибается под весом буров Академии!'.")
+                f"Голос Куратора из умирающих динамиков хрипит: «Чтобы подняться к звездам, нужно оставить позади все молочные тени. В каком возрасте "
+                f"в норме выпадает последний молочный зуб, завершая смену прикуса?» \n\n"
+                f"Марти: 'Док, это символ! Последний шаг перед тем, как человек становится взрослым. Вспоминайте "
+                f"срок выпадения второго молочного моляра или клыка. Это число — наш ключ к вершине!'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
-            tele_types.InlineKeyboardButton("28", callback_data="apoc_s4_final_fail"),
-            tele_types.InlineKeyboardButton("32", callback_data="apoc_s4_23"),
-            tele_types.InlineKeyboardButton("20", callback_data="apoc_s4_final_fail")
+            tele_types.InlineKeyboardButton("10", callback_data="apoc_s4_last_fail"),
+            tele_types.InlineKeyboardButton("12", callback_data="apoc_s4_23"),
+            tele_types.InlineKeyboardButton("14", callback_data="apoc_s4_last_fail")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
@@ -674,132 +656,42 @@ def run_scenario(bot, call):
     # --- [ БЛОК ОБРАБОТЧИКОВ ОШИБОК И ДЕТЕКТИВНЫХ УЛИК ] ---
     # =====================================================================
 
-    # [ 1. Обработчики ошибок и неверных действий ]
-    elif call.data == "apoc_s4_logic_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, это неверное число! Формула не сходится! Попробуйте еще раз!'", show_alert=True)
+    # [ 1. Обработчики ошибок ]
+    elif call.data.endswith("_fail"):
+        error_msgs = {
+            "apoc_s4_logic_fail": "❌ Марти: 'Док, это неверное число! Формула не сходится! Попробуйте еще раз!'",
+            "apoc_s4_cover_fail": "⚠️ ОШИБКА: Контейнеры прозрачны для сканеров Академии! Бегите к лифту!",
+            "apoc_s4_last_fail": "❌ Марти: 'Док, замок не срабатывает! Вспомните возраст завершения смены прикуса!'",
+            "apoc_s4_root_fail": "❌ Марти: 'Док, замок не срабатывает! Вы точно помните количество опор моляра? Попробуйте еще раз!'",
+            "apoc_s4_door_fail": "⚠️ Академия слишком сильна! Дверь не выдержит! Срочно используйте азот!",
+            "apoc_s4_trans_fail": "❌ ОТКАЗ: Система требует био-синхронизации через Семя. Обычная активация заблокирована!",
+            "apoc_s4_combat_fail": "⚠️ РИСК: У вас недостаточно патронов, чтобы сдержать всю Академию. Используйте Передатчик!",
+            "apoc_s4_riddle_fail": "❌ Марти: 'Док, это не база! Резцы — это фасад системы! Попробуйте еще раз!'",
+            "apoc_s4_nav_fight": "⚠️ ТЩЕТНО: Навигатор поглощает энергию луча. Он синхронизирован с Архивом. Нужно действовать иначе!",
+            "apoc_s4_final_fail": "❌ Марти: 'Док, замок не принимает число! Вспоминайте формулу взрослого набора!'",
+            "apoc_s4_blind_fail": "⚠️ ТЩЕТНО: Вспышка лишь разозлила их. Броня Чистильщиков защищена от света! Используйте хладагент!"
+        }
+        bot.answer_callback_query(call.id, error_msgs.get(call.data, "❌ Ошибка активации!"), show_alert=True)
         return
 
-    elif call.data == "apoc_s4_cover_fail":
-        bot.answer_callback_query(call.id, "⚠️ ОШИБКА: Контейнеры прозрачны для сканеров Академии! Бегите к лифту!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_last_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок не срабатывает! Вспомните возраст завершения смены прикуса!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_seed_choice":
-        bot.answer_callback_query(call.id, "🌀 РЕЗОНАНС: Семя требует слишком много энергии! Вы можете погибнуть! Используйте Бор на пульте!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_root_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок не срабатывает! Вы точно помните количество опор моляра? Попробуйте еще раз!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_door_fail":
-        bot.answer_callback_query(call.id, "⚠️ Академия слишком сильна! Дверь не выдержит! Срочно используйте азот!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_trans_fail":
-        bot.answer_callback_query(call.id, "❌ ОТКАЗ: Система требует био-синхронизации через Семя. Обычная активация заблокирована!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_combat_fail":
-        bot.answer_callback_query(call.id, "⚠️ РИСК: У вас недостаточно патронов, чтобы сдержать всю Академию. Используйте Передатчик!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_riddle_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, это не база! Резцы — это фасад системы! Попробуйте еще раз!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_nav_fight":
-        bot.answer_callback_query(call.id, "⚠️ ТЩЕТНО: Навигатор поглощает энергию луча. Он синхронизирован с Архивом. Нужно действовать иначе!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_final_fail":
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, замок не принимает число! Вспоминайте формулу взрослого набора!'", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_blind_fail":
-        bot.answer_callback_query(call.id, "⚠️ ТЩЕТНО: Вспышка лишь разозлила их. Броня Чистильщиков защищена от света! Используйте хладагент!", show_alert=True)
-        return
-
-    # [ 2. Обработчики детективных улик (Анти-фарм) ]
-    elif call.data == "apoc_s4_clue_vlad":
-        if not has_flag(current_node, "clue_vlad"):
-            current_node = add_flag(current_node, "clue_vlad")
+    # [ 2. Обработчики улик ]
+    elif call.data.startswith("apoc_s4_clue_"):
+        clue_key = call.data.replace("apoc_s4_", "")
+        if not has_flag(current_node, clue_key):
+            current_node = add_flag(current_node, clue_key)
             set_game_node(user_id, current_node)
             add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "📋 ДОКУМЕНТ: 'Субъект Влад — первый успешный носитель гена Семени'. Это имя вашего сына... Но документ из 1985-го!", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_names":
-        if not has_flag(current_node, "clue_names"):
-            current_node = add_flag(current_node, "clue_names")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "📝 На колбах имена ваших старых коллег и друзей. Архив хранит их личности даже после смерти.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_shadow":
-        if not has_flag(current_node, "clue_shadow"):
-            current_node = add_flag(current_node, "clue_shadow")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "👤 ТЕНЬ: На снимке за спиной отца стоит человек в такой же форме, как у вас. Это вы... но из будущего?", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_nodes":
-        if not has_flag(current_node, "clue_nodes"):
-            current_node = add_flag(current_node, "clue_nodes")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🧬 ДАННЫЕ: Узлы содержат отчеты о лечении детей в 1985-м. Все они имели одну и ту же аномалию прикуса.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_history":
-        if not has_flag(current_node, "clue_history"):
-            current_node = add_flag(current_node, "clue_history")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "📋 ИСТОРИЯ: 'Субъект 0 — биологический якорь. Без него Семя Жизни превращается в вирус'.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_aura":
-        if not has_flag(current_node, "clue_aura"):
-            current_node = add_flag(current_node, "clue_aura")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "✨ СИЯНИЕ: Семя создает поле, которое блокирует излучение Академии. Вы в безопасности, пока оно рядом.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_tracks":
-        if not has_flag(current_node, "clue_tracks"):
-            current_node = add_flag(current_node, "clue_tracks")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🛤 ПУТИ: Рельсы ведут прямо в сердце Академии. Это путь в один конец.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_depth":
-        if not has_flag(current_node, "clue_depth"):
-            current_node = add_flag(current_node, "clue_depth")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🔭 Анализ: Глубина архива скрыта за частотными фильтрами 1985 года. Прямое сканирование невозможно.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_desk":
-        if not has_flag(current_node, "clue_desk"):
-            current_node = add_flag(current_node, "clue_desk")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "📑 ЗАПИСКА: 'Дмитрий, помни — порядок зубов в формуле важнее, чем порядок букв в словах'.", show_alert=True)
-        return
-
-    elif call.data == "apoc_s4_clue_stars":
-        if not has_flag(current_node, "clue_stars"):
-            current_node = add_flag(current_node, "clue_stars")
-            set_game_node(user_id, current_node)
-            add_xp(user_id, 5, username)
-        bot.answer_callback_query(call.id, "🛰 Спутники «Орион» в 1985-м были лишь проектом на бумаге. Но кто-то уже тогда рисовал их орбиты.", show_alert=True)
-        return
+        
+        responses = {
+            "clue_vlad": "📋 ДОКУМЕНТ: 'Субъект Влад — первый успешный носитель гена Семени'. Это имя вашего сына... Но документ из 1985-го!",
+            "clue_names": "📝 На колбах имена ваших старых коллег и друзей. Архив хранит их личности даже после смерти.",
+            "clue_shadow": "👤 ТЕНЬ: На снимке за спиной отца стоит человек в такой же форме, как у вас. Это вы... но из будущего?",
+            "clue_nodes": "🧬 ДАННЫЕ: Узлы содержат отчеты о лечении детей в 1985-м. Все они имели одну и ту же аномалию прикуса.",
+            "clue_history": "📋 ИСТОРИЯ: 'Субъект 0 — биологический якорь. Без него Семя Жизни превращается в вирус'.",
+            "clue_aura": "✨ СИЯНИЕ: Семя создает поле, которое блокирует излучение Академии. Вы в безопасности, пока оно рядом.",
+            "clue_tracks": "🛤 ПУТИ: Рельсы ведут прямо в сердце Академии. Это путь в один конец.",
+            "clue_depth": "🔭 Анализ: Глубина архива скрыта за частотными фильтрами 1985 года. Прямое сканирование невозможно.",
+            "clue_desk": "📑 ЗАПИСКА: 'Дмитрий, помни — порядок зубов в формуле важнее, чем порядок букв в словах'.",
+            "clue_stars": "🛰 Спутники «Орион» в 1985-м были лишь проектом на бумаге. Но кто-то уже тогда рисовал их орбиты."
+        }
+        bot.answer_callback_query(call.id, responses.get(clue_key, "Инфо получено."), show_alert=True)
