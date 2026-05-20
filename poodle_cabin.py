@@ -99,20 +99,57 @@ DOG_SHOP = {
 }
 
 def get_item_slot(item_key):
-    # Карта слотов для проверки
-    slots = {
-        "head": ["space_helmet", "pilot_cap", "galaxy_crown", "alien_antenna", "ufo_hat", "thug_beanie", "chef_hat", "monocle_tophat", "crown_of_light", "general_hat", "welding_mask", "santa_astro_hat", "straw_hat", "crown_of_comets"],
-        "face": ["cool_glasses", "steampunk_goggles", "radar_monocle", "vr_visor_2", "meteorite_shades", "data_monocle", "laser_eye"],
-        "mouth": ["brilliant_smile", "dentist_mirror", "detective_pipe", "ancient_relic", "golden_asteroid_bone", "ruby_mars_stone", "cyber_jaw", "diamond_grillz", "dentist_drill"],
-        "neck": ["bandana", "laser_collar", "nebula_scarf", "heavy_gold_chain", "diamond_collar", "star_pendant", "void_collar", "black_hole_pendant", "alien_translator"],
-        "torso": ["star_suit", "neon_harness", "taco_suit", "exosuit_armor", "cyberpunk_jacket", "tactical_vest", "warp_robe", "mech_harness"],
-        "back": ["warp_jetpack", "dragon_wings", "holographic_wings", "cryo_gear", "sub_bass_speakers", "plasma_cloak"],
-        "paws": ["cyber_paws", "astro_boots", "cosmic_boots", "power_gloves", "rocket_boots"],
-        "tail": ["cyber_tail_ring", "comet_tail_ribbon", "mecha_tail"]
+    """
+    Жесткое распределение предметов по слотам.
+    Теперь каждый предмет из DOG_SHOP имеет свое место.
+    """
+    mapping = {
+        # --- ГОЛОВА ---
+        "space_helmet": "head", "pilot_cap": "head", "galaxy_crown": "head",
+        "alien_antenna": "head", "ufo_hat": "head", "thug_beanie": "head",
+        "chef_hat": "head", "monocle_tophat": "head", "crown_of_light": "head",
+        "general_hat": "head", "santa_astro_hat": "head", "straw_hat": "head",
+        "crown_of_comets": "head", "symbiote_friend": "head", "floating_halo": "head",
+        
+        # --- ЛИЦО (Глаза) ---
+        "cool_glasses": "face", "steampunk_goggles": "face", "radar_monocle": "face",
+        "vr_visor_2": "face", "meteorite_shades": "face", "data_monocle": "face",
+        "laser_eye": "face", "welding_mask": "face",
+        
+        # --- РОТ (Зубы/Нос) ---
+        "brilliant_smile": "mouth", "dentist_mirror": "mouth", "detective_pipe": "mouth",
+        "ancient_relic": "mouth", "golden_asteroid_bone": "mouth", "ruby_mars_stone": "mouth",
+        "cyber_jaw": "mouth", "diamond_grillz": "mouth", "holographic_butterfly": "mouth",
+        "dentist_drill": "mouth",
+        
+        # --- ШЕЯ ---
+        "bandana": "neck", "laser_collar": "neck", "nebula_scarf": "neck",
+        "heavy_gold_chain": "neck", "diamond_collar": "neck", "star_pendant": "neck",
+        "saturn_ring": "neck", "broken_android_ear": "neck", "void_collar": "neck",
+        "starlight_medal": "neck", "holographic_map": "neck", "black_hole_pendant": "neck",
+        "alien_translator": "neck", "quantum_leash": "neck", "cyberspace_aura": "neck",
+        
+        # --- ТЕЛО (Торс) ---
+        "star_suit": "torso", "neon_harness": "torso", "comet_bowtie": "torso",
+        "taco_suit": "torso", "exosuit_armor": "torso", "cyberpunk_jacket": "torso",
+        "tactical_vest": "torso", "warp_robe": "torso", "mech_harness": "torso",
+        "zero_g_harness": "torso", "energy_shield_orb": "torso", "dual_aura": "torso",
+        
+        # --- СПИНА (Рюкзаки/Крылья) ---
+        "warp_jetpack": "back", "plasma_cloak": "back", "dragon_wings": "back",
+        "holographic_wings": "back", "ion_cape": "back", "drone_companion": "back",
+        "cryo_gear": "back", "sub_bass_speakers": "back",
+        
+        # --- ЛАПЫ ---
+        "cyber_paws": "paws", "astro_boots": "paws", "cosmic_boots": "paws",
+        "power_gloves": "paws", "nebula_boots": "paws", "pulsar_watch": "paws",
+        "hover_board": "paws", "rocket_boots": "paws",
+        
+        # --- ХВОСТ ---
+        "cyber_tail_ring": "tail", "comet_tail_ribbon": "tail", "mecha_tail": "tail"
     }
-    for slot, items in slots.items():
-        if item_key in items: return slot
-    return "torso" # дефолтный слот
+    
+    return mapping.get(item_key, "torso") # Если не найдено, ставим в торс
 
 def get_deterministic_dna(user_id):
     """Генерирует фиксированный анатомический паспорт с жесткой привязкой к Той-Пуделю"""
