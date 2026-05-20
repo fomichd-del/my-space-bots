@@ -139,12 +139,15 @@ def get_item_slot(item_key):
     }
     return mapping.get(item_key, "torso")
 
-def get_deterministic_dna(user_id):
-    """Генерирует фиксированный анатомический паспорт с жесткой привязкой к Той-Пуделю"""
+def get_deterministic_dna(user_id, gender=None):
+    """
+    Генерирует ДНК: если пол передан (выбран игроком), используем его,
+    если нет — берем из хэша.
+    """
     hash_obj = hashlib.md5(str(user_id).encode())
     digest = hash_obj.hexdigest()
     
-    genders = ["male", "female"]
+    # Списки для генерации
     builds = ["athletic", "compact", "dainty", "sturdy"]
     ears = ["floppy long ears covered in tight curls", "characteristic long drooping poodle ears"]
     noses = ["black button nose", "distinctive small black nose"]
@@ -152,15 +155,28 @@ def get_deterministic_dna(user_id):
     fur_types = ["tightly curled hypoallergenic coat", "dense soft curly fur", "tight poodle curls", "well-groomed curly coat"]
     colors = ["snow-white", "ash-grey", "coffee-brown", "apricot", "silver-grey", "cream"]
     
-    gender = genders[int(digest[0:4], 16) % len(genders)]
+    # НОВЫЕ ПАРАМЕТРЫ
+    traits = ["brave", "shy", "clumsy", "energetic", "calm", "mischievous"]
+    markings = ["a small white patch on chest", "a white tip on tail", "no special markings", "one white paw"]
+    
+    # Если пол не передан, берем из хэша
+    if not gender:
+        gender = ["male", "female"][int(digest[0:4], 16) % 2]
+    
     build = builds[int(digest[4:8], 16) % len(builds)]
     ear = ears[int(digest[8:12], 16) % len(ears)]
     nose = noses[int(digest[12:16], 16) % len(noses)]
     eye = eyes[int(digest[16:20], 16) % len(eyes)]
     fur = fur_types[int(digest[20:24], 16) % len(fur_types)]
     color = colors[int(digest[24:28], 16) % len(colors)]
+    trait = traits[int(digest[28:32], 16) % len(traits)]
+    mark = markings[int(digest[32:36], 16) % len(markings)]
     
-    return f"Toy Poodle, {color} {gender} with {build} build, {ear}, {nose}, {eye}, {fur}"
+    return {
+        "desc": f"Toy Poodle, {color} {gender} with {build} build, {ear}, {nose}, {eye}, {fur}, {mark}",
+        "trait": trait,
+        "gender": gender
+    }
 
 def get_growth_stage(level):
     """Определяет физические параметры собаки в зависимости от уровня взросления"""
@@ -184,12 +200,17 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
 
-    # 1. Анатомия и Эволюция
-    dna = get_deterministic_dna(user_id)
+    # 1. Анатомия и Эволюция (Интеграция словаря ДНК, Характера и Пола)
+    gender = dog.get('gender', 'male')  # Достаем пол из базы, дефолт — male
+    dna_data = get_deterministic_dna(user_id, gender=gender)
+    
+    dna_desc = dna_data['desc']   # Полное описание внешности и отметин
+    trait = dna_data['trait']     # Черта характера (brave, shy, mischievous и т.д.)
+    
     growth = get_growth_stage(dog['level'])
     cabin_tier = get_cabin_style(dog['level'])
     
-    # 2. Округление динамических статов для КЭША (Важнейшее изменение!)
+    # 2. Округление динамических статов для КЭША
     u_data = get_user_data(user_id)
     dust = u_data['spendable_dust']
     hour = datetime.now().hour
@@ -229,7 +250,6 @@ def get_dog_prompt(dog, user_id):
         fx = "moody low-key lighting, glowing neon panel accents, dark ambient sci-fi atmosphere"
         
     # БЛОК 4: "Случайные" события привязываем к часам, чтобы не сбивать кэш!
-    # Дрон будет появляться стабильно только с 14:00 до 14:59 и с 19:00 до 19:59
     if hour in [14, 19]:
         dog_position += ", curiously watching a tiny cleaning drone hovering nearby"
         
@@ -241,9 +261,10 @@ def get_dog_prompt(dog, user_id):
         slots[get_item_slot(k).upper()].append(DOG_SHOP[k]["prompt"])
 
     # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА
+    # Внедряем {dna_desc} (внешность + отметка) и {trait} (характер) в описание субъекта
     full_prompt = (
         f"RAW photo, highly detailed, shot on 35mm lens, f/2.8, cinematic depth of field. {camera_shot}. "
-        f"STRICT SUBJECT: Purebred Toy Poodle, dense signature tight curls. A {dna}, {growth}, {mood_str} expression. "
+        f"STRICT SUBJECT: Purebred Toy Poodle, dense signature tight curls. A {dna_desc}, {growth}, showing a {trait} and {mood_str} expression. "
         f"SCENE: {cabin_tier}. The dog is {dog_position}. The room topology includes a large porthole window showing {window}, a metallic desk, and a dog bed. {dust_text} "
     )
     
@@ -544,6 +565,28 @@ def handle_dog_callback(bot, call):
             bot.answer_callback_query(call.id, "🛰 Новый щенок на борту!")
         else: bot.answer_callback_query(call.id, "❌ Нужно 100 пыли!")
 
+# В action == "resurrect" (изначально) нужно добавить выбор
+    elif action == "resurrect":
+        # Сначала предлагаем выбор пола
+        kb = tele_types.InlineKeyboardMarkup()
+        kb.row(tele_types.InlineKeyboardButton("♂ Мальчик", callback_data="dog_resurrect_male"))
+        kb.row(tele_types.InlineKeyboardButton("♀ Девочка", callback_data="dog_resurrect_female"))
+        bot.edit_message_caption("🛰 **Выбор напарника**\n\nКомандор, выберите пол вашего нового щенка:", 
+                                 call.message.chat.id, call.message.message_id, reply_markup=kb)
+        return
+
+    # Добавляем обработку выбора
+    elif action.startswith("resurrect_"):
+        gender = action.split("_")[1]
+        if spend_dust(user_id, 100):
+            # Сохраняем пол в базу (убедитесь, что ваша база принимает gender)
+            update_dog_data(user_id, {"level": 1, "hunger": 80, "energy": 80, "mood": 80, 
+                                      "items": [], "equipped": [], "xp": 0, "date": "", 
+                                      "status": "alive", "gender": gender})
+            bot.answer_callback_query(call.id, "🛰 Новый щенок на борту!")
+            send_dog_menu(bot, call.message.chat.id, user_id)
+        else: bot.answer_callback_query(call.id, "❌ Нужно 100 пыли!")
+  
     # Обновление меню
     try: bot.delete_message(call.message.chat.id, call.message.message_id)
     except: pass
