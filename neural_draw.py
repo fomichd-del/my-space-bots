@@ -23,7 +23,9 @@ def get_english_prompt(russian_text):
     user_prompt = f"Describe object: {clean}"
     
     # 🟢 Обновленный арсенал переводчиков (самые быстрые и умные из вашего скана)
-    MODELS_TO_TRY = ['gemini-3.1-flash-lite-preview', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash']
+    MODELS_TO_TRY = ['gemini-3.1-flash-lite', 'gemini-2.0-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-image-preview',
+        'gemini-3-pro-image-preview', 'gemini-3-pro-preview', 'gemini-3-flash-preview',
+        'gemini-2.5-flash-image', 'gemini-2.5-flash', 'gemini-2.0-flash']
     
     for model_name in MODELS_TO_TRY:
         for i, key in enumerate(API_KEYS):
@@ -89,10 +91,13 @@ def get_cascade_image(prompt, seed):
 
     # 🚀 2. ЭЛИТНЫЙ РЕЗЕРВ: Модели Gemini Image (Бесплатно, 3 ключа)
     GEMINI_IMAGE_MODELS = [
-        'gemini-3.1-flash-image-preview',
-        'gemini-3-pro-image-preview',
-        'gemini-2.5-flash-image'
+        'gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash', 
+        'gemini-2.0-flash-lite', 'gemini-3.1-flash-image-preview'
     ]
+
+# Перемешиваем ключи, чтобы нагрузка распределялась равномерно
+    shuffled_keys = API_KEYS.copy()
+    random.shuffle(shuffled_keys)
     
     print("🔄 Переход к матрице Gemini Image...", flush=True)
     for img_model in GEMINI_IMAGE_MODELS:
@@ -105,6 +110,7 @@ def get_cascade_image(prompt, seed):
                     config=types.GenerateImagesConfig(
                         number_of_images=1,
                         aspect_ratio="1:1",
+                        seed=int(seed) % 2147483647 # Gemini часто требуют seed < 2^31
                         # 🟢 ДОБАВЛЕН ГЕНЕТИЧЕСКИЙ КОД ДЛЯ GEMINI
                         seed=int(seed) if str(seed).isdigit() else None
                     )
@@ -113,8 +119,14 @@ def get_cascade_image(prompt, seed):
                     print(f"✅ Gemini Image ({img_model}) Ключ {i+1}: УСПЕХ!", flush=True)
                     return result.generated_images[0].image.image_bytes
             except Exception as e:
-                print(f"⚠️ Gemini Image ({img_model}) Ключ {i+1} СБОЙ: {e}", flush=True)
-                continue
+                # Если получили 429 (Rate Limit), спим 5 секунд и пробуем следующий ключ
+                if "429" in str(e):
+                    print(f"⏳ Ключ {i+1} перегрет (429), отдых 5 сек...", flush=True)
+                    time.sleep(5) 
+                    continue
+                else:
+                    print(f"⚠️ Ошибка {img_model} (Ключ {i+1}): {e}", flush=True)
+                    continue
 
     # 🥈 3. Pollinations FLUX - Бесплатный резерв №1
     print("🔄 Переход к Pollinations FLUX...", flush=True)
@@ -140,5 +152,17 @@ def get_cascade_image(prompt, seed):
     except Exception as e:
         print(f"⚠️ Pollinations TURBO ОШИБКА: {e}", flush=True)
 
+# 💠 5. НОВЫЙ РЕЗЕРВ: Hugging Face (через API Pollinations-style или прямой запрос)
+    print("🔄 Переход к Hugging Face резерву...", flush=True)
+    try:
+        # Универсальный эндпоинт для Stable Diffusion XL через бесплатный API
+        hf_url = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+        res = requests.post(hf_url, headers=headers, json={"inputs": prompt}, timeout=20)
+        if res.status_code == 200:
+            return res.content
+    except Exception as e:
+        print(f"⚠️ HF ОШИБКА: {e}", flush=True)
+    
     print("❌ ПОЛНЫЙ КРАХ ВСЕХ СИСТЕМ.", flush=True)
     return None
