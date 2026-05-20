@@ -189,44 +189,50 @@ def get_dog_prompt(dog, user_id):
     growth = get_growth_stage(dog['level'])
     cabin_tier = get_cabin_style(dog['level'])
     
-    # 2. Динамика Времени (Ракурсы, Свет, Позиция)
+    # 2. Округление динамических статов для КЭША (Важнейшее изменение!)
     u_data = get_user_data(user_id)
     dust = u_data['spendable_dust']
     hour = datetime.now().hour
     
+    # БЛОК 1: Пыль (4 визуальных состояния вместо бесконечных цифр)
+    if dust < 50: dust_str = "a few specks of glowing cosmic dust"
+    elif dust < 200: dust_str = "a small shiny pile of cosmic dust"
+    elif dust < 500: dust_str = "a large glowing heap of cosmic dust"
+    else: dust_str = "a massive, radiant mound of cosmic dust"
+    dust_text = f"Right next to the desk is {dust_str}."
+
+    # БЛОК 2: Настроение (3 состояния вместо 100)
+    if dog['mood'] >= 70: mood_str = "very happy and playful"
+    elif dog['mood'] >= 30: mood_str = "calm and content"
+    else: mood_str = "sad and sleepy"
+    
+    # БЛОК 3: Динамика Времени
     if 6 <= hour < 11:
-        # УТРО: Кровать
         dog_position = "stretching lazily on the soft plush dog bed"
         camera_shot = "medium shot, slightly low angle"
         window = "glowing morning nebula"
         fx = "soft morning light, pastel color grading, airy atmosphere"
     elif 11 <= hour < 18:
-        # ДЕНЬ: Работает за столом на стуле (НЕ на столе)
         dog_position = "sitting upright on a futuristic ergonomic chair positioned right at the metallic workspace desk"
         camera_shot = "wide angle cinematic shot, showing the desk and chair clearly"
         window = "vibrant solar system"
         fx = "bright crisp daylight, high contrast, studio lighting"
     elif 18 <= hour < 22:
-        # ВЕЧЕР: Смотрит в окно
         dog_position = "sitting on the floor, looking thoughtfully out the large circular porthole window"
         camera_shot = "over-the-shoulder dynamic shot"
         window = "warm sunset over a distant alien planet"
         fx = "warm golden hour lighting, cinematic teal and orange color grading, long dramatic shadows"
     else:
-        # НОЧЬ: Спит
         dog_position = "curled up and sleeping deeply on the soft plush dog bed"
         camera_shot = "close-up top-down overhead shot"
         window = "deep space with glittering stars"
         fx = "moody low-key lighting, glowing neon panel accents, dark ambient sci-fi atmosphere"
         
-    # Случайное событие (10% шанс оживить сцену, если он не спит)
-    import random
-    if random.random() < 0.10 and not (22 <= hour or hour < 6):
+    # БЛОК 4: "Случайные" события привязываем к часам, чтобы не сбивать кэш!
+    # Дрон будет появляться стабильно только с 14:00 до 14:59 и с 19:00 до 19:59
+    if hour in [14, 19]:
         dog_position += ", curiously watching a tiny cleaning drone hovering nearby"
         
-    # Пыль (всегда присутствует рядом с собакой)
-    dust_str = f"Right next to the dog is {dust} units of glowing cosmic dust."
-    
     # 3. Слоты экипировки
     equipped = dog.get('equipped', [])
     slots = {k: [] for k in ["HEAD", "FACE", "MOUTH", "NECK", "TORSO", "BACK", "PAWS", "TAIL"]}
@@ -234,11 +240,11 @@ def get_dog_prompt(dog, user_id):
         if k not in DOG_SHOP: continue
         slots[get_item_slot(k).upper()].append(DOG_SHOP[k]["prompt"])
 
-    # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА (Архитектура для 100% реализма)
+    # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА
     full_prompt = (
         f"RAW photo, highly detailed, shot on 35mm lens, f/2.8, cinematic depth of field. {camera_shot}. "
-        f"STRICT SUBJECT: Purebred Toy Poodle, dense signature tight curls. A {dna}, {growth}, {dog['mood']}% happy expression. "
-        f"SCENE: {cabin_tier}. The dog is {dog_position}. The room topology includes a large porthole window showing {window}, a metallic desk, and a dog bed. {dust_str} "
+        f"STRICT SUBJECT: Purebred Toy Poodle, dense signature tight curls. A {dna}, {growth}, {mood_str} expression. "
+        f"SCENE: {cabin_tier}. The dog is {dog_position}. The room topology includes a large porthole window showing {window}, a metallic desk, and a dog bed. {dust_text} "
     )
     
     for slot, items in slots.items():
