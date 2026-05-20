@@ -200,12 +200,12 @@ def get_dog_prompt(dog, user_id):
     if dog['status'] == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", user_id
 
-    # 1. Анатомия и Эволюция (Интеграция словаря ДНК, Характера и Пола)
-    gender = dog.get('gender', 'male')  # Достаем пол из базы, дефолт — male
+    # 1. Анатомия и Эволюция
+    gender = dog.get('gender', 'male')
     dna_data = get_deterministic_dna(user_id, gender=gender)
     
-    dna_desc = dna_data['desc']   # Полное описание внешности и отметин
-    trait = dna_data['trait']     # Черта характера (brave, shy, mischievous и т.д.)
+    dna_desc = dna_data['desc']
+    trait = dna_data['trait']
     
     growth = get_growth_stage(dog['level'])
     cabin_tier = get_cabin_style(dog['level'])
@@ -215,14 +215,14 @@ def get_dog_prompt(dog, user_id):
     dust = u_data['spendable_dust']
     hour = datetime.now().hour
     
-    # БЛОК 1: Пыль (4 визуальных состояния вместо бесконечных цифр)
+    # БЛОК 1: Пыль
     if dust < 50: dust_str = "a few specks of glowing cosmic dust"
     elif dust < 200: dust_str = "a small shiny pile of cosmic dust"
     elif dust < 500: dust_str = "a large glowing heap of cosmic dust"
     else: dust_str = "a massive, radiant mound of cosmic dust"
     dust_text = f"Right next to the desk is {dust_str}."
 
-    # БЛОК 2: Настроение (3 состояния вместо 100)
+    # БЛОК 2: Настроение
     if dog['mood'] >= 70: mood_str = "very happy and playful"
     elif dog['mood'] >= 30: mood_str = "calm and content"
     else: mood_str = "sad and sleepy"
@@ -249,7 +249,7 @@ def get_dog_prompt(dog, user_id):
         window = "deep space with glittering stars"
         fx = "moody low-key lighting, glowing neon panel accents, dark ambient sci-fi atmosphere"
         
-    # БЛОК 4: "Случайные" события привязываем к часам, чтобы не сбивать кэш!
+    # БЛОК 4: "Случайные" события
     if hour in [14, 19]:
         dog_position += ", curiously watching a tiny cleaning drone hovering nearby"
         
@@ -261,7 +261,6 @@ def get_dog_prompt(dog, user_id):
         slots[get_item_slot(k).upper()].append(DOG_SHOP[k]["prompt"])
 
     # 4. ФИНАЛЬНАЯ СБОРКА ПРОМПТА
-    # Внедряем {dna_desc} (внешность + отметка) и {trait} (характер) в описание субъекта
     full_prompt = (
         f"RAW photo, highly detailed, shot on 35mm lens, f/2.8, cinematic depth of field. {camera_shot}. "
         f"STRICT SUBJECT: Purebred Toy Poodle, dense signature tight curls. A {dna_desc}, {growth}, showing a {trait} and {mood_str} expression. "
@@ -274,7 +273,7 @@ def get_dog_prompt(dog, user_id):
     full_prompt += f" STYLE: {fx}. Photorealistic, 8k resolution, crisp textures. "
     full_prompt += "NEGATIVE: Yorkshire terrier, long straight hair, cartoon, drawing, illustration, 3d render, plastic, art, sketch, dog standing on the desk."
     
-    return full_prompt, user_id
+    return full_prompt, hour # Заменили user_id на hour/seed для каскада генерации
 
 def send_dog_menu(bot, chat_id, user_id):
     dog = get_dog_data(user_id)
@@ -290,17 +289,15 @@ def send_dog_menu(bot, chat_id, user_id):
         if dog['hunger'] <= 0 or dog['energy'] <= 0: dog['status'] = 'dead'
         update_dog_data(user_id, dog)
 
-    prompt, seed = get_dog_prompt(dog, user_id)
+    full_prompt, seed = get_dog_prompt(dog, user_id) # ТУТ ИСПРАВЛЕНО (было prompt, seed)
     
     if dog['status'] == 'dead':
         text = "🛰 **СИГНАЛ ПОТЕРЯН**\n\nКомандор, твой верный пес покинул корабль. Каюта пуста..."
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🛰 Вызвать нового щенка (-100 💰)", callback_data="dog_resurrect"))
     else:
-        # Список надетых вещей для текста
         equipped_names = [DOG_SHOP[k]['name'] for k in dog.get('equipped', []) if k in DOG_SHOP]
         style_info = ", ".join(equipped_names) if equipped_names else "Ничего не надето"
 
-        # 🟢 ДОСТАЕМ ПРОФЕССИЮ ИЗ БАЗЫ
         from database import get_dog_profession
         current_prof = get_dog_profession(user_id)
         
@@ -326,14 +323,14 @@ def send_dog_menu(bot, chat_id, user_id):
         if dog['level'] >= 10 and current_prof == 'Кадет':
             kb.row(tele_types.InlineKeyboardButton(text="🎓 Выбрать специализацию", callback_data="dog_choose_prof"))
   
-        # 🟢 КВАНТОВЫЙ КЭШ: ГЕНЕТИЧЕСКАЯ ПРИВЯЗКА К ПИЛОТУ
-        cache_key = f"{user_id}_{prompt}"
+        # 🟢 КВАНТОВЫЙ КЭШ
+        cache_key = f"{user_id}_{full_prompt}" # ТУТ ИСПРАВЛЕНО (было prompt)
         
         if cache_key in CABIN_IMAGE_CACHE:
             bot.send_photo(chat_id, photo=CABIN_IMAGE_CACHE[cache_key], caption=text, parse_mode="Markdown", reply_markup=kb)
         else:
             bot.send_chat_action(chat_id, 'upload_photo')
-            image_bytes = get_cascade_image(prompt, seed)
+            image_bytes = get_cascade_image(full_prompt, seed) # ТУТ ИСПРАВЛЕНО (было prompt)
             
             if image_bytes:
                 msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
@@ -370,19 +367,17 @@ def handle_dog_callback(bot, call):
         from database import get_ship_date
         today = get_ship_date()
         
-        # 🛡 ПРОВЕРКА НА ОГРАНИЧЕНИЕ ПО ВРЕМЕНИ (1 раз в день в любую экспедицию)
         if dog.get('last_exp', '') == today:
             bot.answer_callback_query(call.id, "🛰 Навигатор сообщает: Гипердвигатель на перезарядке. Доступен 1 полет в день!", show_alert=True)
             return
 
         if dog['energy'] >= 30:
             dog['energy'] -= 30
-            dog['last_exp'] = today # Фиксируем полет
+            dog['last_exp'] = today
             
             import random
             from datetime import datetime
             
-            # 🌟 Жесткая логика шансов (10% будни, 50% воскресенье)
             is_sunday = (datetime.now().weekday() == 6)
             drop_chance = 0.50 if is_sunday else 0.10
             
@@ -407,7 +402,6 @@ def handle_dog_callback(bot, call):
     elif action == "sleep":
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
-        
         energy_boost = 60 if "Медик" in prof else 40
         
         if dog['energy'] >= 100:
@@ -427,26 +421,23 @@ def handle_dog_callback(bot, call):
         from database import get_ship_date
         today = get_ship_date()
         
-        # 🛡 ПРОВЕРКА НА ОГРАНИЧЕНИЕ ПО ВРЕМЕНИ (Общий кулдаун с Заброшенной станцией)
         if dog.get('last_exp', '') == today:
             bot.answer_callback_query(call.id, "🪨 Сканеры перегружены. Доступен 1 полет в день!", show_alert=True)
             return
 
         if dog['energy'] >= 50:
             dog['energy'] -= 50
-            dog['last_exp'] = today # Фиксируем полет
+            dog['last_exp'] = today
             
             import random
             from datetime import datetime
             
-            # 🌟 Жесткая логика шансов (10% будни, 50% воскресенье)
             is_sunday = (datetime.now().weekday() == 6)
             drop_chance = 0.50 if is_sunday else 0.10
             
             if random.random() < drop_chance:
                 found_dust = random.randint(50, 150)
-                if is_sunday:
-                    found_dust = int(found_dust * 2) # Удваиваем пыль по воскресеньям
+                if is_sunday: found_dust = int(found_dust * 2)
                 
                 u_data = get_user_data(user_id)
                 u_data['spendable_dust'] += found_dust
@@ -503,11 +494,10 @@ def handle_dog_callback(bot, call):
             unequip_dog_item(user_id, item_to_toggle)
             bot.answer_callback_query(call.id, "Снято!")
         else:
-            # ПРОВЕРКА КОНФЛИКТА
             target_slot = get_item_slot(item_to_toggle)
             for e_item in equipped:
                 if get_item_slot(e_item) == target_slot:
-                    unequip_dog_item(user_id, e_item) # Снимаем старый предмет в этом слоте
+                    unequip_dog_item(user_id, e_item)
             
             equip_dog_item(user_id, item_to_toggle)
             bot.answer_callback_query(call.id, f"Надето (слот: {target_slot})!")
@@ -526,12 +516,9 @@ def handle_dog_callback(bot, call):
 
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         for k, v in DOG_SHOP.items():
-            # 🟢 ДОБАВЛЕНА ПРОВЕРКА: v['price'] > 0 (Скрываем секретный лут с витрины)
             if k not in dog['items'] and v['price'] > 0:
                 price = v['price']
-                if "Инженер" in prof:
-                    price = int(price * 0.8)
-                
+                if "Инженер" in prof: price = int(price * 0.8)
                 kb.add(tele_types.InlineKeyboardButton(f"{v['name']} ({price}💰)", callback_data=f"dog_buy_{k}"))
         
         kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
@@ -540,13 +527,11 @@ def handle_dog_callback(bot, call):
 
     elif action.startswith("buy_"):
         item = action.replace("buy_", "")
-        
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
         
         price = DOG_SHOP[item]['price']
-        if "Инженер" in prof:
-            price = int(price * 0.8) 
+        if "Инженер" in prof: price = int(price * 0.8) 
 
         if spend_dust(user_id, price):
             dog['items'].append(item)
@@ -559,15 +544,8 @@ def handle_dog_callback(bot, call):
         else: 
             bot.answer_callback_query(call.id, f"❌ Мало пыли! Нужно {price} 💰", show_alert=True)
 
+    # ИСПРАВЛЕНО: Блок вызова окна выбора пола
     elif action == "resurrect":
-        if spend_dust(user_id, 100):
-            update_dog_data(user_id, {"level": 1, "hunger": 80, "energy": 80, "mood": 80, "items": [], "equipped": [], "xp": 0, "date": "", "status": "alive"})
-            bot.answer_callback_query(call.id, "🛰 Новый щенок на борту!")
-        else: bot.answer_callback_query(call.id, "❌ Нужно 100 пыли!")
-
-# В action == "resurrect" (изначально) нужно добавить выбор
-    elif action == "resurrect":
-        # Сначала предлагаем выбор пола
         kb = tele_types.InlineKeyboardMarkup()
         kb.row(tele_types.InlineKeyboardButton("♂ Мальчик", callback_data="dog_resurrect_male"))
         kb.row(tele_types.InlineKeyboardButton("♀ Девочка", callback_data="dog_resurrect_female"))
@@ -575,19 +553,25 @@ def handle_dog_callback(bot, call):
                                  call.message.chat.id, call.message.message_id, reply_markup=kb)
         return
 
-    # Добавляем обработку выбора
+    # ИСПРАВЛЕНО: Блок обработки самого создания и списания пыли
     elif action.startswith("resurrect_"):
         gender = action.split("_")[1]
         if spend_dust(user_id, 100):
-            # Сохраняем пол в базу (убедитесь, что ваша база принимает gender)
             update_dog_data(user_id, {"level": 1, "hunger": 80, "energy": 80, "mood": 80, 
                                       "items": [], "equipped": [], "xp": 0, "date": "", 
                                       "status": "alive", "gender": gender})
             bot.answer_callback_query(call.id, "🛰 Новый щенок на борту!")
+            
+            # Сразу перерисовываем меню и завершаем выполнение, чтобы не было дублей ниже
+            try: bot.delete_message(call.message.chat.id, call.message.message_id)
+            except: pass
             send_dog_menu(bot, call.message.chat.id, user_id)
-        else: bot.answer_callback_query(call.id, "❌ Нужно 100 пыли!")
-  
-    # Обновление меню
+            return
+        else: 
+            bot.answer_cookie_query(call.id, "❌ Нужно 100 пыли!", show_alert=True)
+            return
+
+    # Общее плановое обновление меню для обычных действий (клик на еду, сон и т.д.)
     try: bot.delete_message(call.message.chat.id, call.message.message_id)
     except: pass
     send_dog_menu(bot, call.message.chat.id, user_id)
