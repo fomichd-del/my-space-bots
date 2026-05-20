@@ -97,6 +97,18 @@ DOG_SHOP = {
     "dentist_drill": {"name": "Бормашина Академии", "prompt": "High-speed pneumatic dental drill, highly detailed mechanical handpiece, cables, photorealistic chrome", "price": 70}
 }
 
+# 🟢 Группировка для красоты и удобства
+WARDROBE_CATEGORIES = {
+    "🎩 Голова": ["head", "top of the head"],
+    "👓 Лицо": ["eyes", "face", "left eye", "right eye", "one eye"],
+    "👄 Пасть": ["mouth", "lower jaw", "teeth", "nose"],
+    "🧣 Шея": ["neck"],
+    "👕 Туловище": ["body", "chest"],
+    "🪁 Спина": ["back"],
+    "🐾 Лапы": ["paws", "front paws", "front paw", "under the paws"],
+    "💫 Хвост": ["tail"]
+}
+
 def get_item_slot(item_key):
     """
     Сверхточное анатомическое распределение предметов. 
@@ -470,15 +482,63 @@ def handle_dog_callback(bot, call):
         bot.answer_callback_query(call.id, f"Выбрана профессия: {chosen_prof}!", show_alert=True)
   
     elif action == "wardrobe":
-        text = "👕 **ГАРДЕРОБ МАРТИ**\n\nЗдесь можно надеть или снять купленные вещи:"
-        kb = tele_types.InlineKeyboardMarkup(row_width=1)
-        for item_key in dog['items']:
-            name = DOG_SHOP[item_key]['name']
-            is_equipped = item_key in dog.get('equipped', [])
-            btn_text = f"❌ Снять {name}" if is_equipped else f"✅ Надеть {name}"
-            kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_toggle_{item_key}"))
+        text = "👕 **ГАРДЕРОБ МАРТИ**\nВыберите категорию экипировки:"
+        kb = tele_types.InlineKeyboardMarkup(row_width=2)
+        
+        # Кнопки категорий
+        for cat_name in WARDROBE_CATEGORIES.keys():
+            kb.add(tele_types.InlineKeyboardButton(cat_name, callback_data=f"dog_cat_{cat_name}"))
+        
         kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
         bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb)
+        return
+
+    # НОВЫЙ БЛОК: Выбор вещей внутри категории
+    elif action.startswith("cat_"):
+        cat_name = action.replace("cat_", "")
+        allowed_slots = WARDROBE_CATEGORIES[cat_name]
+        
+        text = f"👕 **{cat_name}**\nНажмите для надевания/снятия:"
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        
+        # Фильтруем вещи игрока, которые подходят под выбранную категорию
+        found_any = False
+        for item_key in dog['items']:
+            if get_item_slot(item_key) in allowed_slots:
+                found_any = True
+                name = DOG_SHOP[item_key]['name']
+                is_equipped = item_key in dog.get('equipped', [])
+                btn_text = f"❌ Снять {name}" if is_equipped else f"✅ {name}"
+                kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_toggle_{item_key}"))
+        
+        if not found_any:
+            text = f"👕 **{cat_name}**\nВ этой категории пусто."
+            
+        kb.add(tele_types.InlineKeyboardButton("🔙 К категориям", callback_data="dog_wardrobe"))
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb)
+        return
+
+    # БЛОК Toggle (Остается почти как был, но теперь он возвращает нас в ту же категорию)
+    elif action.startswith("toggle_"):
+        item_to_toggle = action.replace("toggle_", "")
+        equipped = dog.get('equipped', [])
+        
+        if item_to_toggle in equipped:
+            unequip_dog_item(user_id, item_to_toggle)
+            bot.answer_callback_query(call.id, "Снято!")
+        else:
+            target_slot = get_item_slot(item_to_toggle)
+            # Авто-снятие конфликтующих вещей в том же слоте
+            for e_item in equipped:
+                if get_item_slot(e_item) == target_slot:
+                    unequip_dog_item(user_id, e_item)
+            equip_dog_item(user_id, item_to_toggle)
+            bot.answer_callback_query(call.id, "Надето!")
+            
+        # Обновляем данные собаки и возвращаем в категорию, из которой пришли
+        # Чтобы не писать сложный возврат, просто вызываем меню каюты или гардероба
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        send_dog_menu(bot, call.message.chat.id, user_id)
         return
 
     elif action.startswith("toggle_"):
@@ -501,22 +561,47 @@ def handle_dog_callback(bot, call):
         handle_dog_callback(bot, call)
         return
 
+    # 🛒 ГЛАВНОЕ МЕНЮ МАГАЗИНА (Категории)
     elif action == "shop":
+        text = "🛒 **МАГАЗИН АКАДЕМИИ**\nВыберите категорию товаров:"
+        kb = tele_types.InlineKeyboardMarkup(row_width=2)
+        
+        # Кнопки категорий
+        for cat_name in WARDROBE_CATEGORIES.keys():
+            kb.add(tele_types.InlineKeyboardButton(cat_name, callback_data=f"dog_shopcat_{cat_name}"))
+        
+        kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return
+
+    # 🛍 СПИСОК ТОВАРОВ В КАТЕГОРИИ (С учетом скидок профессий)
+    elif action.startswith("shopcat_"):
+        cat_name = action.replace("shopcat_", "")
+        allowed_slots = WARDROBE_CATEGORIES[cat_name]
+        
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
         
-        text = "🛒 **МАГАЗИН АКАДЕМИИ**\n\nНовые вещи появятся в гардеробе!"
-        if "Инженер" in prof:
-            text += "\n🛠 *Активирована скидка Бортинженера: -20%!*"
-
-        kb = tele_types.InlineKeyboardMarkup(row_width=2)
+        text = f"🛒 **{cat_name}**\nВыберите товар для покупки:"
+        if "Инженер" in prof: text += "\n🛠 *Скидка Бортинженера -20% применена!*"
+            
+        kb = tele_types.InlineKeyboardMarkup(row_width=1)
+        found_any = False
+        
         for k, v in DOG_SHOP.items():
-            if k not in dog['items'] and v['price'] > 0:
-                price = v['price']
-                if "Инженер" in prof: price = int(price * 0.8)
+            # Фильтр: 1. Нет в инвентаре, 2. Цена > 0, 3. Подходит по слоту
+            if k not in dog['items'] and v['price'] > 0 and get_item_slot(k) in allowed_slots:
+                found_any = True
+                
+                # Расчет цены с учетом скидки (только для Инженера)
+                price = int(v['price'] * 0.8) if "Инженер" in prof else v['price']
+                
                 kb.add(tele_types.InlineKeyboardButton(f"{v['name']} ({price}💰)", callback_data=f"dog_buy_{k}"))
         
-        kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
+        if not found_any:
+            text = f"🛒 **{cat_name}**\nВ этой категории товаров нет."
+            
+        kb.add(tele_types.InlineKeyboardButton("🔙 К категориям", callback_data="dog_shop"))
         bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         return
 
