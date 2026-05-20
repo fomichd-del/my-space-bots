@@ -1,20 +1,66 @@
 import telebot
 from datetime import datetime
 from telebot import types as tele_types
-from database import get_game_status, update_game_progress, set_game_timer, add_xp
+
+# Импортируем все необходимые функции из нашей обновленной базы
+from database import (
+    get_game_status, set_game_node, reset_game, set_game_timer, add_xp, 
+    has_completed_chapter, mark_chapter_completed
+)
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
     username = call.from_user.first_name if call.from_user.first_name else "Док"
-    current_node, timer_end = get_game_status(user_id)
     
-    # Защита от пустой базы
-    if current_node is None: 
-        current_node = "apoc_start"
+    raw_node, timer_end = get_game_status(user_id)
+    if not raw_node: 
+        raw_node = "apoc_start"
+
+    # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ДЛЯ РАБОТЫ СО СТРОКОЙ СОХРАНЕНИЯ ---
+    def get_loc(node_str): return node_str.split('|')[0]
+    def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
+    def add_flag(node_str, flag): return node_str if has_flag(node_str, flag) else f"{node_str}|{flag}"
+    def set_loc(node_str, new_loc):
+        parts = node_str.split('|')
+        parts[0] = new_loc
+        return '|'.join(parts)
+
+    current_node = raw_node
+    loc = get_loc(current_node)
+
+    # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
+    if call.data == "apoc_s3_start":
+        if loc in ["apoc_ch2_completed_screen", "apoc_s3_scene_1", "start", "apoc_start"]:
+            call.data = "apoc_s3_scene_1"
+        else:
+            text = (f"🔙 *ВОЗВРАЩЕНИЕ В ГОРОД*\n"
+                    f"──────────────────────────\n"
+                    f"Командор, вы остановились в джунглях Мариуполя. Марти ждет команды!\n\n"
+                    f"Что делаем?")
+            kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
+                tele_types.InlineKeyboardButton("▶️ Продолжить экспедицию", callback_data="resume_game_3"),
+                tele_types.InlineKeyboardButton("🔄 Начать Главу 3 заново", callback_data="game_reset_ch3"),
+                tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
+            )
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+            return
+
+    if call.data == "resume_game_3":
+        call.data = loc
+        try: bot.answer_callback_query(call.id, "🔄 Сохранение загружено!")
+        except: pass
+
+    if call.data == "game_reset_ch3":
+        current_node = set_loc(current_node, "apoc_s3_scene_1")
+        set_game_timer(user_id, 0)
+        set_game_node(user_id, current_node)
+        timer_end = None
+        call.data = "apoc_s3_scene_1"
+        try: bot.answer_callback_query(call.id, "🔄 Глава 3 начата заново!", show_alert=True)
+        except: pass
 
     # --- [ 1. БЕЗОПАСНЫЙ ПАРСИНГ ТАЙМЕРА (БРОНЕБОЙНЫЙ) ] ---
     if timer_end:
-        # Если база вернула время текстом, превращаем его в объект datetime
         if isinstance(timer_end, str):
             try:
                 clean_time = timer_end.split('.')[0].replace('T', ' ')
@@ -23,7 +69,6 @@ def run_scenario(bot, call):
                 timer_end = None
                 
         if timer_end:
-            # 🛡 ГЛАВНЫЙ ФИКС: Уравниваем форматы времени, удаляя часовые пояса
             safe_timer_end = timer_end.replace(tzinfo=None)
             safe_now = datetime.now().replace(tzinfo=None)
             
@@ -35,8 +80,37 @@ def run_scenario(bot, call):
                     print(f"🚨 Ошибка Telegram Alert: {alert_e}")
                 return
 
+    # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
+    MAJOR_NODES = [
+        "apoc_s3_scene_1", "apoc_s3_2", "apoc_s3_3", "apoc_s3_4", "apoc_s3_5", 
+        "apoc_s3_6", "apoc_s3_7", "apoc_s3_8", "apoc_s3_9", "apoc_s3_10", 
+        "apoc_s3_11", "apoc_s3_12", "apoc_s3_13", "apoc_s3_14", "apoc_s3_15", 
+        "apoc_s3_16", "apoc_s3_17", "apoc_s3_18", "apoc_s3_19", "apoc_s3_20", 
+        "apoc_s3_21", "apoc_s3_22", "apoc_s3_23", "apoc_s3_24", "apoc_s3_25", 
+        "apoc_s3_26", "apoc_s3_27", "apoc_s3_28", "apoc_s3_29", "apoc_s3_30", "apoc_ch3_completed_screen"
+    ]
+    if call.data in MAJOR_NODES:
+        current_node = set_loc(current_node, call.data)
+        set_game_node(user_id, current_node)
+        loc = call.data
+
+    # 🏆 --- [ ЭКРАН ЗАВЕРШЕННОЙ ГЛАВЫ ] --- 🏆
+    if call.data == "apoc_ch3_completed_screen":
+        text = (f"🏆 **ГЛАВА 3: ПРОЙДЕНА**\n"
+                f"──────────────────────────\n"
+                f"Семя Жизни в ваших руках. Мариуполь готов к пробуждению.\n\n"
+                f"Марти ждет отправки в Глубинный Архив!")
+        
+        kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
+            tele_types.InlineKeyboardButton("🚀 Начать Главу 4", callback_data="apoc_s4_start"),
+            tele_types.InlineKeyboardButton("🔄 Пройти Главу 3 заново", callback_data="game_reset_ch3"),
+            tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return
+
     # --- [ ЭТАП 1: ГНИЛЫЕ ДЖУНГЛИ МАРИУПОЛЯ ] ---
-    if call.data == "apoc_s3_start":
+    if call.data == "apoc_s3_scene_1":
         text = (f"🏙 *ГОРОД, КОТОРЫЙ ПОМНИТ*\n"
                 f"──────────────────────────\n"
                 f"Вы стоите на разбитой эстакаде, глядя на панораму Мариуполя. Небоскребы, которые когда-то были символом прогресса 2020-х, "
@@ -54,7 +128,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 2: РАДИО ПРИЗРАКОВ ] ---
     elif call.data == "apoc_s3_2":
-        update_game_progress(user_id, current_node + "_clue_frequency")
+        if not has_flag(current_node, "clue_frequency"):
+            current_node = add_flag(current_node, "clue_frequency")
+            set_game_node(user_id, current_node)
+
         text = (f"📻 *СИГНАЛ ИЗ ПРОШЛОГО*\n\n"
                 f"Вы крутите ручку настройки на Анализаторе. Сквозь белый шум прорывается голос диктора: '...в Мариуполе сегодня +25, "
                 f"клиника на проспекте Мира приглашает на бесплатную диагностику... Проект Семя — это ваше будущее...'. \n\n"
@@ -76,7 +153,6 @@ def run_scenario(bot, call):
                 f"На ней выцарапано: 'Пароль — это число каналов в нижнем клыке взрослого человека'. \n\n"
                 f"Марти: 'Опять эти ваши стоматологические шуточки! Док, вспоминайте практику. Сколько каналов в клыке? "
                 f"Если ошибетесь — турели превратят нас в решето, и Марти-в-жилете станет Марти-в-дырочку!'.")
-        # Логика: В клыке (и верхнем, и нижнем) обычно 1 канал.
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("🔘 1", callback_data="apoc_s3_4"),
             tele_types.InlineKeyboardButton("🔘 2", callback_data="apoc_s3_logic_fail"),
@@ -86,8 +162,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 4: ТЕНИ В НЕБОСКРЕБАХ ] ---
     elif call.data == "apoc_s3_4":
-        update_game_progress(user_id, current_node + "_logic_drill_done")
-        add_xp(user_id, 10, username)
+        if not has_flag(current_node, "logic_drill_done"):
+            current_node = add_flag(current_node, "logic_drill_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 10, username)
+
         text = (f"🔓 *БЕЗОПАСНЫЙ ПРОХОД*\n\n"
                 f"Турели с тихим щелчком опускают стволы. Вы проходите мимо блокпоста. \n\n"
                 f"Марти: 'Фух, пронесло. Смотрите, Док! В окне третьего этажа того здания... Там снова этот парень в халате. "
@@ -102,7 +181,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 5: КЛЮЧ-КАРТА 'ЗЕНИТ' ] ---
     elif call.data == "apoc_s3_5":
-        update_game_progress(user_id, current_node + "_item_keycard")
+        if not has_flag(current_node, "item_keycard"):
+            current_node = add_flag(current_node, "item_keycard")
+            set_game_node(user_id, current_node)
+
         text = (f"💳 *ЗОЛОТОЙ КЛЮЧ*\n\n"
                 f"Вы поднимаете карту. Она тяжелее обычной и вибрирует в такт вашему пульсу. \n\n"
                 f"Марти: 'Это не просто пропуск. Это 'Мастер-ключ Зенит'. Он открывает любые двери в радиусе трех километров, "
@@ -111,11 +193,11 @@ def run_scenario(bot, call):
                 f"Впереди — вход в метро. Это самый быстрый путь к проспекту Мира, но там внизу... темно и пахнет сырым мясом. "
                 f"Ну что, Док, спустимся в кроличью нору?'.")
         kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton("🚇 Спуститься в метро)", callback_data="apoc_s3_6")
+            tele_types.InlineKeyboardButton("🚇 Спуститься в метро", callback_data="apoc_s3_6")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 6: СПУСК В ЗЕВ МЕТРО ] ---
+    # --- [ ЭТАП 6: СПУСК В ЗЕВ МЕТРО ] ---
     elif call.data == "apoc_s3_6":
         text = (f"🚇 *ПОДЗЕМНЫЙ ПУЛЬС*\n"
                 f"──────────────────────────\n"
@@ -155,7 +237,6 @@ def run_scenario(bot, call):
                 f"Марти: 'Док, это проверка на базовую биологию! Сколько зубов в молочном прикусе у ребенка? "
                 f"Дед всегда говорил, что это фундамент, на котором строится вся система. Вспоминайте, сколько их должно быть, "
                 f"прежде чем они начнут меняться на ваши рабочие инструменты!'.")
-        # Логика: В молочном прикусе 20 зубов.
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("🔘 10", callback_data="apoc_s3_milk_fail"),
             tele_types.InlineKeyboardButton("🔘 20", callback_data="apoc_s3_9"),
@@ -165,8 +246,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 9: ТЕМНЫЙ ТОННЕЛЬ (СТЕЛС) ] ---
     elif call.data == "apoc_s3_9":
-        update_game_progress(user_id, current_node + "_logic_milk_done")
-        add_xp(user_id, 12, username)
+        if not has_flag(current_node, "logic_milk_done"):
+            current_node = add_flag(current_node, "logic_milk_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 12, username)
+
         text = (f"👣 *ШЕПОТ В ТЕМНОТЕ*\n\n"
                 f"С гулом включается аварийное освещение. Тоннель впереди озаряется мертвенно-белым светом. "
                 f"Вы идете по шпалам, и Марти внезапно гасит свой фонарь. \n\n"
@@ -194,7 +278,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 11: ВЕРТИКАЛЬНЫЙ ПОДЪЕМ ] ---
+    # --- [ ЭТАП 11: ВЕРТИКАЛЬНЫЙ ПОДЪЕМ ] ---
     elif call.data == "apoc_s3_11":
         text = (f"🪜 *ВДОХ ПРОШЛОГО*\n"
                 f"──────────────────────────\n"
@@ -236,8 +320,6 @@ def run_scenario(bot, call):
                 f"Док, это же явный намек! Какой номер в международной классификации присваивается третьему моляру, который "
                 f"все называют зубом мудрости? Если мы повернем диск не на то число, сработает система стерилизации... "
                 f"и нас просто выжгут озоном'.")
-        # Логика: Зуб мудрости (третий моляр) имеет порядковый номер 8 в четверти (или 18, 28, 38, 48 по системе FDI). 
-        # Дадим варианты, где 8 — правильный выбор.
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("Число 6", callback_data="apoc_s3_drill_fail"),
             tele_types.InlineKeyboardButton("Число 8", callback_data="apoc_s3_14"),
@@ -247,8 +329,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 14: ПАТРУЛЬ В КОРИДОРЕ ] ---
     elif call.data == "apoc_s3_14":
-        update_game_progress(user_id, current_node + "_logic_wisdom_done")
-        add_xp(user_id, 15, username)
+        if not has_flag(current_node, "logic_wisdom_done"):
+            current_node = add_flag(current_node, "logic_wisdom_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 15, username)
+
         text = (f"👣 *ОХОТА НА СОЗДАТЕЛЯ*\n\n"
                 f"Замок щелкает, и дверь приоткрывается, но в этот момент в конце коридора вспыхивают мощные тактические фонари. "
                 f"Грубый механический голос через громкоговоритель разносится по этажу: 'Объект Фомиченко, оставайтесь на месте! "
@@ -278,7 +363,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 16: КОСТЯНОЙ МАКЕТ ГОРОДА ] ---
+    # --- [ ЭТАП 16: КОСТЯНОЙ МАКЕТ ГОРОДА ] ---
     elif call.data == "apoc_s3_16":
         text = (f"🦴 *ГЕОМЕТРИЯ ПЛОТИ*\n"
                 f"──────────────────────────\n"
@@ -291,7 +376,7 @@ def run_scenario(bot, call):
                 f"Нам нужно активировать главный терминал, но я не вижу здесь никаких кнопок. Только ваше старое оборудование'.")
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Осмотреть стоматологическое кресло", callback_data="apoc_s3_17"),
-            tele_types.InlineKeyboardButton("Попробовать считать данные с костяного зуба", callback_data="apoc_s3_clue_tooth_map")
+            tele_types.InlineKeyboardButton("Считать данные с зуба-макета", callback_data="apoc_s3_clue_tooth_map")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
@@ -313,8 +398,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 18: АВТОРИЗАЦИЯ 1985 ] ---
     elif call.data == "apoc_s3_18":
-        update_game_progress(user_id, current_node + "_logic_year_done")
-        add_xp(user_id, 20, username)
+        if not has_flag(current_node, "logic_year_done"):
+            current_node = add_flag(current_node, "logic_year_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 20, username)
+
         text = (f"📟 *ЦИФРОВОЕ ПЕРЕРОЖДЕНИЕ*\n\n"
                 f"Вы вводите «1985». Кресло издает мелодичный сигнал, и по вашей коже пробегает легкий разряд статического электричества. "
                 f"Иглы в подлокотниках замирают в миллиметре от ваших запястьев, считывая биопотенциал. Экран перед вами вспыхивает, "
@@ -347,7 +435,10 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 20: ЛАЗЕРНЫЙ БОР ] ---
     elif call.data == "apoc_s3_20":
-        update_game_progress(user_id, current_node + "_item_laser_drill")
+        if not has_flag(current_node, "item_laser_drill"):
+            current_node = add_flag(current_node, "item_laser_drill")
+            set_game_node(user_id, current_node)
+
         text = (f"🔦 *ИНСТРУМЕНТ ВЫЖИВАНИЯ*\n\n"
                 f"Из потайного отделения в столе выдвигается футляр. В нем лежит прибор, напоминающий вашу старую турбинную установку, "
                 f"но вместо бора на конце — фокусирующая линза из фиолетового кристалла. Это **Лазерный Бор «Орион-1»**.\n\n"
@@ -361,7 +452,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 21: ЗЕРКАЛЬНЫЙ НАВИГАТОР ] ---
+    # --- [ ЭТАП 21: ЗЕРКАЛЬНЫЙ НАВИГАТОР ] ---
     elif call.data == "apoc_s3_21":
         text = (f"🌑 *ТЕНЬ В ОТРАЖЕНИИ*\n"
                 f"──────────────────────────\n"
@@ -418,7 +509,6 @@ def run_scenario(bot, call):
                 f"На дисплее три варианта температурного режима. Сообщение от системы: 'Только максимальная стерильность откроет путь к Семени'.\n\n"
                 f"Марти: 'Док, это ваш профиль! При какой температуре в режиме форсированной стерилизации погибают даже самые "
                 f"устойчивые споры мха? Вспоминайте свои рабочие будни, это должно быть число, которое вы вбивали в автоклав тысячу раз!'.")
-        # Логика: Стандарт стерилизации — 134 градуса Цельсия.
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("100°C", callback_data="apoc_s3_temp_fail"),
             tele_types.InlineKeyboardButton("134°C", callback_data="apoc_s3_25"),
@@ -428,8 +518,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 25: ПУТЬ К ИНКУБАТОРУ ] ---
     elif call.data == "apoc_s3_25":
-        update_game_progress(user_id, current_node + "_logic_autoclave_done")
-        add_xp(user_id, 15, username)
+        if not has_flag(current_node, "logic_autoclave_done"):
+            current_node = add_flag(current_node, "logic_autoclave_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 15, username)
+
         text = (f"🟢 *СТЕРИЛЬНЫЙ ПРОХОД*\n\n"
                 f"Раздается мощный выброс пара. Стены отсека начинают раздвигаться, открывая проход в ярко освещенный коридор, "
                 f"стены которого покрыты не мхом, а живой белой тканью, напоминающей эмаль. Био-анализатор выдает сообщение: "
@@ -442,7 +535,7 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-  # --- [ ЭТАП 26: ЗАЛ БЕЛОГО ЛОТОСА ] ---
+    # --- [ ЭТАП 26: ЗАЛ БЕЛОГО ЛОТОСА ] ---
     elif call.data == "apoc_s3_26":
         text = (f"🌱 *СЕРДЦЕ ИНКУБАТОРА*\n"
                 f"──────────────────────────\n"
@@ -467,7 +560,6 @@ def run_scenario(bot, call):
                 f"Марти: 'Док, это же база! Первый постоянный зуб, «шестерка». В каком возрасте он обычно прорезывается у детей? "
                 f"Это и есть ключ к запуску протокола наследования. Ошибиться нельзя — если мы введем неверную цифру, "
                 f"Семя уйдет в режим саморазрушения, и мы останемся в этом подвале навсегда!'.")
-        # Логика: Первые постоянные моляры (шестерки) прорезываются в 6 лет.
         kb = tele_types.InlineKeyboardMarkup(row_width=3).add(
             tele_types.InlineKeyboardButton("Возраст 3", callback_data="apoc_s3_root_fail"),
             tele_types.InlineKeyboardButton("Возраст 6", callback_data="apoc_s3_28"),
@@ -477,8 +569,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 28: ЯВЛЕНИЕ НАВИГАТОРА ] ---
     elif call.data == "apoc_s3_28":
-        update_game_progress(user_id, current_node + "_logic_molar_done")
-        add_xp(user_id, 20, username)
+        if not has_flag(current_node, "logic_molar_done"):
+            current_node = add_flag(current_node, "logic_molar_done")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 20, username)
+
         text = (f"👤 *ОТРАЖЕНИЕ В МАСКЕ*\n\n"
                 f"Как только вы вводите число «6», Семя вспыхивает ослепительным светом. Но в этот момент тяжелые гермодвери зала "
                 f"сминаются, как бумажные. В проеме стоит Навигатор. Его зеркальная маска покрыта трещинами после вашего удара Лазером, "
@@ -508,22 +603,37 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 3 ] ---
+    # 🏆 --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 3 ] --- 🏆
     elif call.data == "apoc_s3_30":
-        update_game_progress(user_id, current_node + "_apoc_ch3_done")
-        add_xp(user_id, 200, username)
+        is_first_time = not has_completed_chapter(user_id, "chapter_3")
+        
+        if is_first_time:
+            xp_reward = 200
+            dust_reward = 200
+            mark_chapter_completed(user_id, "chapter_3")
+            reward_msg = f"🎁 **ДЖЕКПОТ ЗА ПЕРВОЕ ПРОХОЖДЕНИЕ:**\n✨ Опыт: +{xp_reward} XP\n💎 Пыль: +{dust_reward} ед.\n"
+        else:
+            xp_reward = 30
+            dust_reward = 30
+            reward_msg = f"🔄 **НАГРАДА ЗА ПОВТОРНОЕ ПРОХОЖДЕНИЕ:**\n✨ Опыт: +{xp_reward} XP\n💎 Пыль: +{dust_reward} ед.\n"
+
+        if not has_flag(current_node, "ch3_done"):
+            add_xp(user_id, xp_reward, username)
+            current_node = add_flag(current_node, "ch3_done")
+            current_node = set_loc(current_node, "apoc_ch3_completed_screen")
+            set_game_node(user_id, current_node)
+
         text = (f"🏙 *РАССВЕТ НАД РУИНАМИ*\n\n"
                 f"Лифт выбрасывает вас на крышу самого высокого здания на проспекте Мира. Вы стоите над Мариуполем, сжимая в руках "
                 f"сияющее Белое Семя. Внизу, в утреннем тумане, город кажется огромным спящим зверем. Теперь у вас есть ключ к его пробуждению.\n\n"
                 f"Марти (вытирая лапой пыль с жилета): 'Док... мы сделали это. Мы вырвали сердце города из рук Академии. "
                 f"Но посмотрите на горизонт. Они поднимают в воздух весь свой флот. Нас ждет долгий путь к Глубинному Архиву. "
                 f"Но теперь я уверен — с вашими зубоврачебными навыками и моим носом мы перекусим этот апокалипсис пополам!'.\n\n"
-                f"**ГЛАВА 3 ЗАВЕРШЕНА**\n"
-                f"💰 Вы получили 200 Пыли за героическое спасение Семени.\n"
-                f"🚀 **Глава 4: Глубинный Архив** разблокирована. Приготовьтесь спуститься еще глубже в историю вашей семьи.")
+                f"{reward_msg}\n"
+                f"🚀 **ГЛАВА 3 ЗАВЕРШЕНА. Глава 4: Глубинный Архив разблокирована.**")
         
-        # 🟢 ИСПРАВЛЕНИЕ: Добавлена кнопка возврата в меню
         kb = tele_types.InlineKeyboardMarkup().add(
+            tele_types.InlineKeyboardButton("🚀 Начать Главу 4", callback_data="apoc_s4_start"),
             tele_types.InlineKeyboardButton("🏆 Вернуться в меню симуляций", callback_data="game_main_menu")
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
@@ -553,22 +663,51 @@ def run_scenario(bot, call):
         return
 
     elif call.data == "apoc_s3_clue_dna_bank":
+        if not has_flag(current_node, "clue_dna_bank"):
+            current_node = add_flag(current_node, "clue_dna_bank")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🦷 МАРКИРОВКА: 'Образец 1985-А. Генетическая память сохранена'. Это база данных целого поколения!", show_alert=True)
     
-    # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ ] ---
+    # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ (Анти-фарм) ] ---
     elif call.data == "apoc_s3_clue_track":
+        if not has_flag(current_node, "clue_track"):
+            current_node = add_flag(current_node, "clue_track")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "👣 Следы ведут вглубь города. Это не человеческая походка, а тяжелые шаги Навигатора.", show_alert=True)
+        
     elif call.data == "apoc_s3_clue_spy":
+        if not has_flag(current_node, "clue_spy"):
+            current_node = add_flag(current_node, "clue_spy")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🔭 Навигатор калибрует частоту мха. Он настраивает город как музыкальный инструмент.", show_alert=True)
+        
     elif call.data == "apoc_s3_clue_gold":
+        if not has_flag(current_node, "clue_gold"):
+            current_node = add_flag(current_node, "clue_gold")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🏆 Золотой слепок — это зашифрованный ключ доступа. На нем дата: 1985 год.", show_alert=True)
+        
     elif call.data == "apoc_s3_clue_navigator":
+        if not has_flag(current_node, "clue_navigator"):
+            current_node = add_flag(current_node, "clue_navigator")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "👤 Навигатор — это результат проекта 'Д-85'. Он верит, что он истинный наследник.", show_alert=True)
-# Вставьте это к остальным ДЕТЕКТИВНЫМ НАХОДКАМ в конце файла:
+        
     elif call.data == "apoc_s3_clue_ticket":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_ticket"):
+            current_node = add_flag(current_node, "clue_ticket")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🎫 КАССА: Вы нашли старый жетон метро. На нем нацарапано: 'Не верь отражениям. Навигатор лжет'.", show_alert=True)
 
     elif call.data == "apoc_s3_clue_tooth_map":
-        add_xp(user_id, 5, username)
+        if not has_flag(current_node, "clue_tooth_map"):
+            current_node = add_flag(current_node, "clue_tooth_map")
+            set_game_node(user_id, current_node)
+            add_xp(user_id, 5, username)
         bot.answer_callback_query(call.id, "🦷 МАКЕТ: Зуб резонирует! Био-анализатор скачал скрытые чертежи подвалов клиники.", show_alert=True)
