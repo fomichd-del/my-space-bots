@@ -654,11 +654,15 @@ def run_scenario(bot, call):
             dust_reward = 20
             reward_msg = f"🔄 **НАГРАДА ЗА ПОВТОРНОЕ ПРОХОЖДЕНИЕ:**\n✨ Опыт: +{xp_reward} XP\n💎 Пыль: +{dust_reward} ед.\n"
 
+        # Защита от фарма опыта внутри одной сессии
         if not has_flag(current_node, "ch1_done"):
             add_xp(user_id, xp_reward, username) 
             current_node = add_flag(current_node, "ch1_done")
-            current_node = set_loc(current_node, "apoc_ch1_completed_screen")
-            set_game_node(user_id, current_node)
+            
+        # КРИТИЧЕСКИЙ ФИКС: Локация должна обновляться ВСЕГДА, даже при повторах!
+        current_node = set_loc(current_node, "apoc_ch1_completed_screen")
+        set_game_node(user_id, current_node)
+        loc = "apoc_ch1_completed_screen"
             
         if call.data == "apoc_n1_end_power":
             text = ("🦾 *ФИНАЛ: ПУТЬ СИЛЫ*\n\n"
