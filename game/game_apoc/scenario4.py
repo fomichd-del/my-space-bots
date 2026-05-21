@@ -13,7 +13,6 @@ def run_scenario(bot, call):
     username = call.from_user.first_name if call.from_user.first_name else "Док"
     
     # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
-    # Пропускаем системные кнопки входа, чтобы бот мог показать меню "Продолжить экспедицию"
     if call.data not in ["apoc_s4_start", "resume_game_4", "game_reset_ch4", "game_main_menu"]:
         if not is_timer_expired(user_id):
             try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
@@ -32,6 +31,11 @@ def run_scenario(bot, call):
         parts = node_str.split('|')
         parts[0] = new_loc
         return '|'.join(parts)
+        
+    # Помощник для безопасной отрисовки интерфейса
+    def safe_edit(text, kb):
+        try: bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        except: pass
 
     current_node = raw_node
     loc = get_loc(current_node)
@@ -50,7 +54,7 @@ def run_scenario(bot, call):
             set_game_node(user_id, current_node)
             loc = "apoc_s4_scene_1"
         elif loc == "apoc_s4_scene_1":
-            pass
+            call.data = "apoc_s4_scene_1" # ФИКС: Убран pass для корректной загрузки первой сцены
         else:
             text = (f"🔙 *ВОЗВРАЩЕНИЕ В ЭКСПЕДИЦИЮ*\n"
                     f"──────────────────────────\n"
@@ -61,7 +65,7 @@ def run_scenario(bot, call):
                 tele_types.InlineKeyboardButton("🔄 Начать Главу 4 заново", callback_data="game_reset_ch4"),
                 tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
             )
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+            safe_edit(text, kb)
             return
 
     if call.data == "resume_game_4":
@@ -117,7 +121,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🔄 Пройти Главу 4 заново", callback_data="game_reset_ch4"),
             tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
         return
 
     # --- [ ЭТАП 1: ПРЫЖОК В БЕЗДНУ ] ---
@@ -134,7 +138,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Спуститься на тросе в разлом", callback_data="apoc_s4_2"),
             tele_types.InlineKeyboardButton("Просканировать глубину Семенем", callback_data="apoc_s4_clue_depth")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 2: ЗАЛ ЗАБЫТЫХ ТЕРМИНАЛОВ ] ---
     elif call.data == "apoc_s4_2":
@@ -148,7 +152,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Вставить Анализатор в разъем ЭВМ", callback_data="apoc_s4_3"),
             tele_types.InlineKeyboardButton("Искать бумажные инструкции в столе", callback_data="apoc_s4_clue_desk")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 3: ШИФР ЗУБНОЙ ФОРМУЛЫ ] ---
     elif call.data == "apoc_s4_3":
@@ -164,7 +168,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Комбинация: 1-2-2-3", callback_data="apoc_s4_logic_fail"),
             tele_types.InlineKeyboardButton("Комбинация: 2-2-1-3", callback_data="apoc_s4_logic_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 4: ЗВЕЗДНЫЙ АТЛАС (Связь с Космосом) ] ---
     elif call.data == "apoc_s4_4":
@@ -184,7 +188,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Скорректировать фокус на альфу Малой Медведицы", callback_data="apoc_s4_5"),
             tele_types.InlineKeyboardButton("Проверить старые записи о спутниках", callback_data="apoc_s4_clue_stars")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 5: ХРАНИТЕЛЬ-БИБЛИОТЕКАРЬ ] ---
     elif call.data == "apoc_s4_5":
@@ -201,7 +205,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("Взять кассету и начать просмотр", callback_data="apoc_s4_6")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 6: ВИДЕО ИЗ БЕЗДНЫ ] ---
     elif call.data == "apoc_s4_6":
@@ -221,7 +225,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Изучить документ «Влад»", callback_data="apoc_s4_clue_vlad"),
             tele_types.InlineKeyboardButton("Спросить Куратора о Субъекте Ноль", callback_data="apoc_s4_7")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 7: ШЕПОТ БИО-ДИСКОВ ] ---
     elif call.data == "apoc_s4_7":
@@ -237,7 +241,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Подойти к постаменту Фомиченко", callback_data="apoc_s4_8"),
             tele_types.InlineKeyboardButton("Осмотреть соседние колбы", callback_data="apoc_s4_clue_names")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 8: ШИФР «ЧЕТВЕРТОГО ПОКОЛЕНИЯ» ] ---
     elif call.data == "apoc_s4_8":
@@ -252,7 +256,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Число 2", callback_data="apoc_s4_9"),
             tele_types.InlineKeyboardButton("Число 3", callback_data="apoc_s4_root_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 9: ГОЛОС МАТЕРИ ] ---
     elif call.data == "apoc_s4_9":
@@ -275,7 +279,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Активировать азотный заслон", callback_data="apoc_s4_10"),
             tele_types.InlineKeyboardButton("Попробовать забаррикадировать дверь вручную", callback_data="apoc_s4_door_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 10: ЗЕРКАЛЬНЫЙ ЛАБИРИНТ ] ---
     elif call.data == "apoc_s4_10":
@@ -290,7 +294,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("Подойти к Зеркальному Куратору", callback_data="apoc_s4_11")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 11: ДИАЛОГ С ОТРАЖЕНИЕМ ] ---
     elif call.data == "apoc_s4_11":
@@ -310,7 +314,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Приложить ладонь к зеркалу", callback_data="apoc_s4_12"),
             tele_types.InlineKeyboardButton("Рассмотреть тень через линзу Анализатора", callback_data="apoc_s4_clue_shadow")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 12: ТОЧКА РЕЗОНАНСА ] ---
     elif call.data == "apoc_s4_12":
@@ -328,7 +332,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("4", callback_data="apoc_s4_logic_fail"),
             tele_types.InlineKeyboardButton("12", callback_data="apoc_s4_logic_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 13: СЕРДЦЕ ПЕРЕДАТЧИКА ] ---
     elif call.data == "apoc_s4_13":
@@ -349,7 +353,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Прослушать последнюю запись микрофона", callback_data="apoc_s4_14"),
             tele_types.InlineKeyboardButton("Попытаться запустить общую активацию", callback_data="apoc_s4_trans_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 14: ПРИЗНАНИЕ ФАНТОМА ] ---
     elif call.data == "apoc_s4_14":
@@ -366,7 +370,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Вставить Семя в слот Передатчика", callback_data="apoc_s4_15"),
             tele_types.InlineKeyboardButton("Заблокировать слот и приготовиться к бою", callback_data="apoc_s4_combat_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 15: ПЕРВЫЙ СЕАНС ] ---
     elif call.data == "apoc_s4_15":
@@ -386,7 +390,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("Броситься к Двери Ноль", callback_data="apoc_s4_16")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 16: СПУСК К ТОЧКЕ НОЛЬ ] ---
     elif call.data == "apoc_s4_16":
@@ -403,7 +407,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Ускорить спуск по нитям", callback_data="apoc_s4_17"),
             tele_types.InlineKeyboardButton("Изучить узлы данных на стенах", callback_data="apoc_s4_clue_nodes")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 17: ПОРОГ «ДВЕРИ НОЛЬ» ] ---
     elif call.data == "apoc_s4_17":
@@ -421,7 +425,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("8", callback_data="apoc_s4_18"),
             tele_types.InlineKeyboardButton("12", callback_data="apoc_s4_riddle_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 18: ЛИЦО БЕЗ МАСКИ ] ---
     elif call.data == "apoc_s4_18":
@@ -442,7 +446,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Потребовать показать Камеру Стазиса", callback_data="apoc_s4_19"),
             tele_types.InlineKeyboardButton("Атаковать Навигатора Лазерным Бором", callback_data="apoc_s4_nav_fight")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 19: ОБЪЕКТ «ВЛАД» ] ---
     elif call.data == "apoc_s4_19":
@@ -459,7 +463,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Начать процедуру пробуждения", callback_data="apoc_s4_20"),
             tele_types.InlineKeyboardButton("Изучить историю болезни Субъекта 0", callback_data="apoc_s4_clue_history")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 20: ПЕРВЫЙ ВЗДОХ ] ---
     elif call.data == "apoc_s4_20":
@@ -478,7 +482,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("Вытащить Влада из капсулы", callback_data="apoc_s4_21")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 21: ТЕПЛО ЖИЗНИ ] ---
     elif call.data == "apoc_s4_21":
@@ -497,7 +501,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Бежать к аварийному выходу", callback_data="apoc_s4_22"),
             tele_types.InlineKeyboardButton("Использовать Семя как щит", callback_data="apoc_s4_clue_aura")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 22: КОД СОВЕРШЕННОЛЕТИЯ ] ---
     elif call.data == "apoc_s4_22":
@@ -512,7 +516,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("12", callback_data="apoc_s4_23"),
             tele_types.InlineKeyboardButton("14", callback_data="apoc_s4_last_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 23: ОТРЯД СМЕРТИ ] ---
     elif call.data == "apoc_s4_23":
@@ -533,7 +537,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Выстрелить в трубы с хладагентом", callback_data="apoc_s4_24"),
             tele_types.InlineKeyboardButton("Ослепить врагов вспышкой Семени", callback_data="apoc_s4_blind_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 24: ТАЙНА ЗЕРКАЛЬНОГО ГЕНА ] ---
     elif call.data == "apoc_s4_24":
@@ -551,7 +555,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Запрыгнуть в вагон и запустить двигатель", callback_data="apoc_s4_25"),
             tele_types.InlineKeyboardButton("Изучить терминал управления путями", callback_data="apoc_s4_clue_tracks")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 25: ПУТЬ К НЕБОСКРЕБАМ ] ---
     elif call.data == "apoc_s4_25":
@@ -566,7 +570,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("Приготовиться к прибытию на Станцию Зенит", callback_data="apoc_s4_26")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 26: ВОКЗАЛ «ЗЕНИТ» ] ---
     elif call.data == "apoc_s4_26":
@@ -584,7 +588,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Подойти к шлюзу лифта", callback_data="apoc_s4_27"),
             tele_types.InlineKeyboardButton("Искать укрытие за грузовыми контейнерами", callback_data="apoc_s4_cover_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 27: ШИФР ПОСЛЕДНЕЙ СМЕНЫ ] ---
     elif call.data == "apoc_s4_27":
@@ -599,7 +603,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("12", callback_data="apoc_s4_28"),
             tele_types.InlineKeyboardButton("14", callback_data="apoc_s4_last_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 28: ВЕРШИНА МИРА ] ---
     elif call.data == "apoc_s4_28":
@@ -622,7 +626,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Ударить Лазером по пульту управления", callback_data="apoc_s4_29"),
             tele_types.InlineKeyboardButton("Использовать резонанс Семени", callback_data="apoc_s4_seed_choice")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 29: ФИНАЛЬНЫЙ СБОЙ ] ---
     elif call.data == "apoc_s4_29":
@@ -639,7 +643,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Прыгнуть в капсулу вместе с Владом", callback_data="apoc_s4_30")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # 🏆 --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 4 ] --- 🏆
     elif call.data == "apoc_s4_30":
@@ -659,7 +663,6 @@ def run_scenario(bot, call):
             add_xp(user_id, xp_reward, username)
             current_node = add_flag(current_node, "ch4_done")
             
-        # КРИТИЧЕСКИЙ ФИКС
         current_node = set_loc(current_node, "apoc_ch4_completed_screen")
         set_game_node(user_id, current_node)
         loc = "apoc_ch4_completed_screen"
@@ -680,28 +683,33 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🚀 Начать Главу 5", callback_data="apoc_s5_start"),
             tele_types.InlineKeyboardButton("🏆 Вернуться в меню симуляций", callback_data="game_main_menu")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # =====================================================================
     # --- [ БЛОК ОБРАБОТЧИКОВ ОШИБОК И ДЕТЕКТИВНЫХ УЛИК ] ---
     # =====================================================================
 
     # [ 1. Обработчики ошибок ]
-    elif call.data.endswith("_fail"):
-        error_msgs = {
-            "apoc_s4_logic_fail": "❌ Марти: 'Док, это неверное число! Формула не сходится! Попробуйте еще раз!'",
-            "apoc_s4_cover_fail": "⚠️ ОШИБКА: Контейнеры прозрачны для сканеров Академии! Бегите к лифту!",
-            "apoc_s4_last_fail": "❌ Марти: 'Док, замок не срабатывает! Вспомните возраст завершения смены прикуса!'",
-            "apoc_s4_root_fail": "❌ Марти: 'Док, замок не срабатывает! Вы точно помните количество опор моляра? Попробуйте еще раз!'",
-            "apoc_s4_door_fail": "⚠️ Академия слишком сильна! Дверь не выдержит! Срочно используйте азот!",
-            "apoc_s4_trans_fail": "❌ ОТКАЗ: Система требует био-синхронизации через Семя. Обычная активация заблокирована!",
-            "apoc_s4_combat_fail": "⚠️ РИСК: У вас недостаточно патронов, чтобы сдержать всю Академию. Используйте Передатчик!",
-            "apoc_s4_riddle_fail": "❌ Марти: 'Док, это не база! Резцы — это фасад системы! Попробуйте еще раз!'",
-            "apoc_s4_nav_fight": "⚠️ ТЩЕТНО: Навигатор поглощает энергию луча. Он синхронизирован с Архивом. Нужно действовать иначе!",
-            "apoc_s4_final_fail": "❌ Марти: 'Док, замок не принимает число! Вспоминайте формулу взрослого набора!'",
-            "apoc_s4_blind_fail": "⚠️ ТЩЕТНО: Вспышка лишь разозлила их. Броня Чистильщиков защищена от света! Используйте хладагент!"
-        }
-        bot.answer_callback_query(call.id, error_msgs.get(call.data, "❌ Ошибка активации!"), show_alert=True)
+    error_msgs = {
+        "apoc_s4_logic_fail": "❌ Марти: 'Док, это неверное число! Формула не сходится! Попробуйте еще раз!'",
+        "apoc_s4_cover_fail": "⚠️ ОШИБКА: Контейнеры прозрачны для сканеров Академии! Бегите к лифту!",
+        "apoc_s4_last_fail": "❌ Марти: 'Док, замок не срабатывает! Вспомните возраст завершения смены прикуса!'",
+        "apoc_s4_root_fail": "❌ Марти: 'Док, замок не срабатывает! Вы точно помните количество опор моляра? Попробуйте еще раз!'",
+        "apoc_s4_door_fail": "⚠️ Академия слишком сильна! Дверь не выдержит! Срочно используйте азот!",
+        "apoc_s4_trans_fail": "❌ ОТКАЗ: Система требует био-синхронизации через Семя. Обычная активация заблокирована!",
+        "apoc_s4_combat_fail": "⚠️ РИСК: У вас недостаточно патронов, чтобы сдержать всю Академию. Используйте Передатчик!",
+        "apoc_s4_riddle_fail": "❌ Марти: 'Док, это не база! Резцы — это фасад системы! Попробуйте еще раз!'",
+        "apoc_s4_nav_fight": "⚠️ ТЩЕТНО: Навигатор поглощает энергию луча. Он синхронизирован с Архивом. Нужно действовать иначе!",
+        "apoc_s4_final_fail": "❌ Марти: 'Док, замок не принимает число! Вспоминайте формулу взрослого набора!'",
+        "apoc_s4_blind_fail": "⚠️ ТЩЕТНО: Вспышка лишь разозлила их. Броня Чистильщиков защищена от света! Используйте хладагент!",
+        "apoc_s4_seed_choice": "⚠️ РИСК: Резонанс Семени нестабилен на этой высоте! Влад может пострадать. Бьем по пульту!" # Добавлен фикс
+    }
+    
+    # ФИКС: Вместо endswith("_fail"), который пропускает уникальные кнопки, проверяем по ключам словаря
+    if call.data in error_msgs:
+        try: bot.answer_callback_query(call.id, error_msgs[call.data], show_alert=True)
+        except: pass
+        add_xp(user_id, -5, username) # ФИКС: Вычет опыта за ошибки добавленный для баланса
         return
 
     # [ 2. Обработчики улик ]
@@ -724,4 +732,7 @@ def run_scenario(bot, call):
             "clue_desk": "📑 ЗАПИСКА: 'Дмитрий, помни — порядок зубов в формуле важнее, чем порядок букв в словах'.",
             "clue_stars": "🛰 Спутники «Орион» в 1985-м были лишь проектом на бумаге. Но кто-то уже тогда рисовал их орбиты."
         }
-        bot.answer_callback_query(call.id, responses.get(clue_key, "Инфо получено."), show_alert=True)
+        # ФИКС: Обернуто в try/except для защиты от падений API
+        try: bot.answer_callback_query(call.id, responses.get(clue_key, "Инфо получено."), show_alert=True)
+        except: pass
+        return
