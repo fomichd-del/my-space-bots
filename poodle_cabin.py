@@ -507,6 +507,9 @@ def handle_dog_callback(bot, call):
         
         found_any = False
         for item_key in dog['items']:
+            if item_key not in DOG_SHOP:
+                continue
+                
             if get_item_slot(item_key) in allowed_slots:
                 found_any = True
                 name = DOG_SHOP[item_key]['name']
