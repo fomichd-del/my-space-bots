@@ -38,14 +38,19 @@ def run_scenario(bot, call):
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
     if call.data == "apoc_s4_start":
-        # Жесткая проверка прохождения ГЛАВЫ 3
+        # Проверяем прохождение ГЛАВЫ 3
         if not has_completed_chapter(user_id, "chapter_3"):
             try: bot.answer_callback_query(call.id, "🔒 Доступ заблокирован! Сначала завершите Главу 3.", show_alert=True)
             except: pass
             return
 
-        if loc in ["apoc_ch3_completed_screen", "apoc_start", "start", "apoc_s4_scene_1"]:
+        if loc in ["apoc_ch3_completed_screen", "apoc_start", "start"]:
             call.data = "apoc_s4_scene_1"
+            current_node = set_loc(current_node, "apoc_s4_scene_1")
+            set_game_node(user_id, current_node)
+            loc = "apoc_s4_scene_1"
+        elif loc == "apoc_s4_scene_1":
+            pass
         else:
             text = (f"🔙 *ВОЗВРАЩЕНИЕ В ЭКСПЕДИЦИЮ*\n"
                     f"──────────────────────────\n"
@@ -62,6 +67,14 @@ def run_scenario(bot, call):
     if call.data == "resume_game_4":
         call.data = loc
         try: bot.answer_callback_query(call.id, "🔄 Экспедиция продолжена!")
+        except: pass
+
+    if call.data == "game_reset_ch4":
+        current_node = set_loc(current_node, "apoc_s4_scene_1")
+        set_game_timer(user_id, 0)
+        set_game_node(user_id, current_node)
+        call.data = "apoc_s4_scene_1"
+        try: bot.answer_callback_query(call.id, "🔄 Глава 4 начата заново!", show_alert=True)
         except: pass
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
