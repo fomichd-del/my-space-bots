@@ -37,13 +37,19 @@ def run_scenario(bot, call):
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
     if call.data == "apoc_s3_start":
-        if loc in ["apoc_ch2_completed_screen", "apoc_s3_scene_1", "start", "apoc_start"]:
+        # Жесткая проверка прохождения ГЛАВЫ 2
+        if not has_completed_chapter(user_id, "chapter_2"):
+            try: bot.answer_callback_query(call.id, "🔒 Доступ заблокирован! Сначала завершите Главу 2.", show_alert=True)
+            except: pass
+            return
+
+        if loc in ["apoc_ch2_completed_screen", "apoc_start", "start", "apoc_s3_scene_1"]:
             call.data = "apoc_s3_scene_1"
         else:
-            text = (f"🔙 *ВОЗВРАЩЕНИЕ В ГОРОД*\n"
+            text = (f"🔙 *ВОЗВРАЩЕНИЕ В ЭКСПЕДИЦИЮ*\n"
                     f"──────────────────────────\n"
-                    f"Командор, вы остановились в джунглях Мариуполя. Марти ждет команды!\n\n"
-                    f"Что делаем?")
+                    f"Командор, вы остановились в Главе 3. Марти готов продолжать движение!\n\n"
+                    f"What's next?")
             kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
                 tele_types.InlineKeyboardButton("▶️ Продолжить экспедицию", callback_data="resume_game_3"),
                 tele_types.InlineKeyboardButton("🔄 Начать Главу 3 заново", callback_data="game_reset_ch3"),
@@ -54,7 +60,7 @@ def run_scenario(bot, call):
 
     if call.data == "resume_game_3":
         call.data = loc
-        try: bot.answer_callback_query(call.id, "🔄 Сохранение загружено!")
+        try: bot.answer_callback_query(call.id, "🔄 Экспедиция продолжена!")
         except: pass
 
     if call.data == "game_reset_ch3":
