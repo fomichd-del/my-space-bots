@@ -459,9 +459,12 @@ def mark_chapter_completed(user_id, chapter_tag):
             new_chapters = f"{current_chapters},{chapter_tag}" if current_chapters else chapter_tag
             cursor.execute("UPDATE users SET completed_chapters = %s WHERE user_id = %s", (new_chapters, user_id))
             conn.commit()
+            print(f"DEBUG [ЗАПИСЬ]: Глава '{chapter_tag}' успешно добавлена юзеру {user_id}!")
+    except Exception as e:
+        print(f"CRITICAL ERROR (mark_chapter): {e}")
     finally:
-        cursor.close()
-        conn.close()
+        if 'cursor' in locals() and cursor: cursor.close()
+        if conn: conn.close()
 
 def has_completed_chapter(user_id, chapter_tag):
     """Проверяет, прошел ли пилот эту главу раньше."""
@@ -472,10 +475,21 @@ def has_completed_chapter(user_id, chapter_tag):
         cursor.execute("SELECT completed_chapters FROM users WHERE user_id = %s", (user_id,))
         res = cursor.fetchone()
         current_chapters = res[0] if res and res[0] else ""
-        return chapter_tag in current_chapters
+        
+        # 🔴 --- [ СУПЕР-ОТЛАДКА: ВЫВОДИМ В ЛОГИ ВСЁ ] --- 🔴
+        print(f"DEBUG [ВХОД]: Юзер {user_id} пытается зайти. Бот ищет тег: '{chapter_tag}'")
+        print(f"DEBUG [ВХОД]: В базе Supabase сейчас реально лежит: '{current_chapters}'")
+        
+        is_completed = chapter_tag in current_chapters
+        print(f"DEBUG [ВХОД]: Результат проверки: пускать? -> {is_completed}")
+        
+        return is_completed
+    except Exception as e:
+        print(f"CRITICAL ERROR (has_chapter): {e}")
+        return False
     finally:
-        cursor.close()
-        conn.close()
+        if 'cursor' in locals() and cursor: cursor.close()
+        if conn: conn.close()
 
 # --- ЭКО-ОТCЕК (Без изменений, только порядок навел) ---
 def setup_eco_bay():
