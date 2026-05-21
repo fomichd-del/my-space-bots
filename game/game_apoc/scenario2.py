@@ -64,11 +64,6 @@ def run_scenario(bot, call):
         try: bot.answer_callback_query(call.id, "🔄 Экспедиция продолжена!")
         except: pass
 
-    if call.data == "resume_game_2":
-        call.data = loc
-        try: bot.answer_callback_query(call.id, "🔄 Сохранение загружено!")
-        except: pass
-
     if call.data == "game_reset_ch2":
         current_node = set_loc(current_node, "apoc_s2_scene_1")
         set_game_timer(user_id, 0)
