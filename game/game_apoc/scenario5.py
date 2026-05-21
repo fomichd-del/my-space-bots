@@ -36,15 +36,21 @@ def run_scenario(bot, call):
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
     if call.data == "apoc_s5_start":
-        if loc in ["apoc_game_completed_screen", "apoc_s5_scene_1", "start", "apoc_start"]:
+        # Жесткая проверка прохождения ГЛАВЫ 4
+        if not has_completed_chapter(user_id, "chapter_4"):
+            try: bot.answer_callback_query(call.id, "🔒 Доступ заблокирован! Сначала завершите Главу 4.", show_alert=True)
+            except: pass
+            return
+
+        if loc in ["apoc_ch4_completed_screen", "apoc_start", "start", "apoc_s5_scene_1"]:
             call.data = "apoc_s5_scene_1"
         else:
-            text = (f"🔙 *ВОЗВРАЩЕНИЕ В НОВЫЙ МИР*\n"
+            text = (f"🔙 *ФИНАЛЬНЫЙ РУБЕЖ*\n"
                     f"──────────────────────────\n"
-                    f"Командор, вы остановились в шаге от рассвета. Марти ждет команды!\n\n"
+                    f"Командор, вы остановились перед финалом истории. Марти волнуется.\n\n"
                     f"Что делаем?")
             kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
-                tele_types.InlineKeyboardButton("▶️ Продолжить восстановление", callback_data="resume_game_5"),
+                tele_types.InlineKeyboardButton("▶️ Продолжить экспедицию", callback_data="resume_game_5"),
                 tele_types.InlineKeyboardButton("🔄 Начать Главу 5 заново", callback_data="game_reset_ch5"),
                 tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
             )
@@ -53,15 +59,7 @@ def run_scenario(bot, call):
 
     if call.data == "resume_game_5":
         call.data = loc
-        try: bot.answer_callback_query(call.id, "🔄 Сохранение загружено!")
-        except: pass
-
-    if call.data == "game_reset_ch5":
-        current_node = set_loc(current_node, "apoc_s5_scene_1")
-        set_game_timer(user_id, 0)
-        set_game_node(user_id, current_node)
-        call.data = "apoc_s5_scene_1"
-        try: bot.answer_callback_query(call.id, "🔄 Глава 5 начата заново!", show_alert=True)
+        try: bot.answer_callback_query(call.id, "🔄 Экспедиция продолжена!")
         except: pass
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
