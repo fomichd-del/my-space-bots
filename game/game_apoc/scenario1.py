@@ -12,14 +12,21 @@ def run_scenario(bot, call):
     
     # 🔴 --- [ ПРИНУДИТЕЛЬНЫЙ СБРОС - ДОЛЖЕН БЫТЬ ПЕРВЫМ ] --- 🔴
     if call.data == "game_reset_all":
-        reset_game(user_id, "apoc_start")
+        reset_game(user_id, "apoc_start") # Очищаем базу
         set_game_timer(user_id, 0)
-        bot.answer_callback_query(call.id, "🔄 Система очищена. Перезапуск...", show_alert=True)
-        call.data = "apoc_start"
-        # Перезагружаем функцию с чистыми данными
-        return run_scenario(bot, call)
+        
+        # Подменяем call.data, чтобы код ниже поймал старт игры
+        call.data = "apoc_start" 
+        
+        try: 
+            bot.answer_callback_query(call.id, "🔄 Система очищена. Перезапуск...", show_alert=True)
+        except: 
+            pass
+            
+        # ❌ УДАЛЯЕМ строку: return run_scenario(bot, call)
+        # Код просто пойдет дальше вниз!
 
-    # 1. Получаем статус из базы
+    # 1. Получаем статус из базы (он подтянет свежеиспеченный apoc_start)
     raw_node, timer_end = get_game_status(user_id)
     if not raw_node: raw_node = "apoc_start"
         
