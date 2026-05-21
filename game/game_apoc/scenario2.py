@@ -73,12 +73,27 @@ def run_scenario(bot, call):
         except: pass
 
     if call.data == "game_reset_ch2":
-        # Принудительно очищаем только прогресс ВТОРОЙ главы, возвращаясь на её старт
-        current_node = set_loc(current_node, "apoc_s2_scene_1")
+        # Извлекаем все накопленные флаги
+        all_flags = current_node.split('|')[1:]
+        
+        # Оставляем ТОЛЬКО флаги из Первой главы, чтобы не сломать глобальный сюжет
+        ch1_backbone = ["wire", "boot", "pc_done", "meds", "liquid", "mask", "generator", 
+                        "truth", "radio", "secret_found", "ch1_done", "secret_entered", 
+                        "files", "super_motor", "suit_fixed"]
+        
+        filtered_flags = [f for f in all_flags if f in ch1_backbone]
+        
+        # Собираем чистую строку для Старта Главе 2
+        if filtered_flags:
+            current_node = "apoc_s2_scene_1|" + "|".join(filtered_flags)
+        else:
+            current_node = "apoc_s2_scene_1"
+            
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
         call.data = "apoc_s2_scene_1"
-        try: bot.answer_callback_query(call.id, "🔄 Глава 2 начата заново!", show_alert=True)
+        loc = "apoc_s2_scene_1"
+        try: bot.answer_callback_query(call.id, "🔄 Глава 2 очищена и начата заново!", show_alert=True)
         except: pass
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
