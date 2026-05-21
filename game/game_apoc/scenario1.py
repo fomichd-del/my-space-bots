@@ -22,11 +22,8 @@ def run_scenario(bot, call):
             bot.answer_callback_query(call.id, "🔄 Система очищена. Перезапуск...", show_alert=True)
         except: 
             pass
-            
-        # ❌ УДАЛЯЕМ строку: return run_scenario(bot, call)
-        # Код просто пойдет дальше вниз!
 
-    # 1. Получаем статус из базы (он подтянет свежеиспеченный apoc_start)
+    # 1. Получаем статус из базы
     raw_node, timer_end = get_game_status(user_id)
     if not raw_node: raw_node = "apoc_start"
         
@@ -159,7 +156,8 @@ def run_scenario(bot, call):
     # --- [ ЭТАП 5: ЛОГИЧЕСКАЯ ЗАГАДКА (Терминал) ] ---
     elif call.data == "apoc_n1_pc_check":
         if has_flag(current_node, "pc_done"):
-            bot.answer_callback_query(call.id, "🖥 Система уже взломана!")
+            try: bot.answer_callback_query(call.id, "🖥 Система уже взломана!")
+            except: pass
             call.data = "apoc_n1_base_menu"
             return run_scenario(bot, call)
 
@@ -187,7 +185,8 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_pc_fail":
-        bot.answer_callback_query(call.id, "❌ ОТКАЗАНО В ДОСТУПЕ. Неверный пароль! Марти: 'Док, ну вы чего? Это же год вашего рождения!'", show_alert=True)
+        try: bot.answer_callback_query(call.id, "❌ ОТКАЗАНО В ДОСТУПЕ. Неверный пароль! Марти: 'Док, ну вы чего? Это же год вашего рождения!'", show_alert=True)
+        except: pass
         return
     
     # --- [ ЭТАП 6: КЛАДОВАЯ (Инвентарь) ] ---
@@ -242,7 +241,8 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_calib_fail":
-        bot.answer_callback_query(call.id, "❌ СБОЙ! Марти: 'Док, кратно 3 и меньше 10! Вспоминайте таблицу умножения!'", show_alert=True)
+        try: bot.answer_callback_query(call.id, "❌ СБОЙ! Марти: 'Док, кратно 3 и меньше 10! Вспоминайте таблицу умножения!'", show_alert=True)
+        except: pass
         return
 
     elif call.data == "apoc_n1_calib_success":
@@ -289,7 +289,8 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_secret_fail":
-        bot.answer_callback_query(call.id, "🚫 НЕВЕРНЫЙ КОД. Попробуйте еще раз!", show_alert=True)
+        try: bot.answer_callback_query(call.id, "🚫 НЕВЕРНЫЙ КОД. Попробуйте еще раз!", show_alert=True)
+        except: pass
         return
 
     # --- [ ЭТАП 10-B: СЕКРЕТНЫЙ КАБИНЕТ ] ---
@@ -361,7 +362,8 @@ def run_scenario(bot, call):
     # --- [ ЭТАПЫ 11-15: СЛОЖНЫЙ ПОИСК ] ---
     elif call.data == "apoc_n1_search_1":
         if has_flag(current_node, "cloth"):
-            bot.answer_callback_query(call.id, "📦 Вы уже вскрыли этот замок и забрали брезент!", show_alert=True)
+            try: bot.answer_callback_query(call.id, "📦 Вы уже вскрыли этот замок и забрали брезент!", show_alert=True)
+            except: pass
             call.data = 'apoc_n1_base_menu'
             return run_scenario(bot, call)
 
@@ -427,7 +429,8 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_melt_fail":
-        bot.answer_callback_query(call.id, "🥶 Руки примерзают к металлу! Марти: 'Док, не глупите, так мы только кожу оставим на двери. Нужен йод!'", show_alert=True)
+        try: bot.answer_callback_query(call.id, "🥶 Руки примерзают к металлу! Марти: 'Док, не глупите, так мы только кожу оставим на двери. Нужен йод!'", show_alert=True)
+        except: pass
 
     # --- [ ЭТАП 18: ТЕНЬ В ТЕМНОТЕ ] ---
     elif call.data == "apoc_n1_melt_success":
@@ -482,7 +485,8 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_stealth_fight":
-        bot.answer_callback_query(call.id, "💥 Плохая идея! Дрон едва не отпилил вам палец. Придется использовать хитрость Марти!", show_alert=True)
+        try: bot.answer_callback_query(call.id, "💥 Плохая идея! Дрон едва не отпилил вам палец. Придется использовать хитрость Марти!", show_alert=True)
+        except: pass
         return
 
     # --- [ ЭТАП 21: ВЕРТИКАЛЬНЫЙ ПОДЪЕМ ] ---
@@ -529,7 +533,9 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
     
     elif call.data == "apoc_n1_gen_noise":
-        bot.answer_callback_query(call.id, "🔊 СКРЕЖЕТ! Дверь поддалась, но вы наделали много шума. Потеряно 5 XP.", show_alert=True)
+        try: bot.answer_callback_query(call.id, "🔊 СКРЕЖЕТ! Дверь поддалась, но вы наделали много шума. Потеряно 5 XP.", show_alert=True)
+        except: pass
+        add_xp(user_id, -5, username) # ФИКС: Физически отнимаем опыт
         call.data = "apoc_n1_generator_room"
         return run_scenario(bot, call)
 
@@ -552,7 +558,8 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_gen_fail":
-        bot.answer_callback_query(call.id, "⚡️ ЗЗЗЗЗТ! Неверная фаза! Вспоминайте таблицу Менделеева: Углерод - 6-й элемент!", show_alert=True)
+        try: bot.answer_callback_query(call.id, "⚡️ ЗЗЗЗЗТ! Неверная фаза! Вспоминайте таблицу Менделеева: Углерод - 6-й элемент!", show_alert=True)
+        except: pass
 
     elif call.data == "apoc_n1_gen_success":
         if not has_flag(current_node, "truth"):
@@ -585,9 +592,11 @@ def run_scenario(bot, call):
             current_node = add_flag(current_node, "radio")
             set_game_node(user_id, current_node)
             add_xp(user_id, 3, username)
-            bot.answer_callback_query(call.id, "📡 Частота сохранена! Марти скачал обрывок аудиодневника деда. Получено 3 XP.", show_alert=True)
+            try: bot.answer_callback_query(call.id, "📡 Частота сохранена! Марти скачал обрывок аудиодневника деда. Получено 3 XP.", show_alert=True)
+            except: pass
         else:
-            bot.answer_callback_query(call.id, "📡 Данные уже скачаны в память Марти.", show_alert=True)
+            try: bot.answer_callback_query(call.id, "📡 Данные уже скачаны в память Марти.", show_alert=True)
+            except: pass
 
     # --- [ ЭТАП 27: ПЕРЕХОД (Логика/Крафт) ] ---
     elif call.data == "apoc_n1_stairwell":
@@ -603,7 +612,9 @@ def run_scenario(bot, call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     elif call.data == "apoc_n1_marty_risk":
-        bot.answer_callback_query(call.id, "🐕 БЗЗЗТ! Марти вскрикнул, и от него пошел дымок. Лифт заработал, но вы потеряли 5 XP за жестокость!", show_alert=True)
+        try: bot.answer_callback_query(call.id, "🐕 БЗЗЗТ! Марти вскрикнул, и от него пошел дымок. Лифт заработал, но вы потеряли 5 XP за жестокость!", show_alert=True)
+        except: pass
+        add_xp(user_id, -5, username) # ФИКС: Физически отнимаем опыт
         call.data = "apoc_n1_lift_fix"
         return run_scenario(bot, call)
 
@@ -666,7 +677,6 @@ def run_scenario(bot, call):
             add_xp(user_id, xp_reward, username) 
             current_node = add_flag(current_node, "ch1_done")
             
-        # КРИТИЧЕСКИЙ ФИКС: Локация должна обновляться ВСЕГДА, даже при повторах!
         current_node = set_loc(current_node, "apoc_ch1_completed_screen")
         set_game_node(user_id, current_node)
         loc = "apoc_ch1_completed_screen"
