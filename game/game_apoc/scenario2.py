@@ -1,7 +1,5 @@
 import telebot
-from datetime import datetime
 from telebot import types as tele_types
-
 from database import (
     get_game_status, set_game_node, reset_game, set_game_timer, add_xp, 
     has_completed_chapter, mark_chapter_completed, is_timer_expired
@@ -9,16 +7,16 @@ from database import (
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
+    # Глобально определяем имя один раз для всей функции
+    username = call.from_user.first_name if call.from_user.first_name else "Док"
     
-    # 1. Сначала просто получаем статус
     raw_node, _ = get_game_status(user_id)
     if not raw_node: raw_node = "apoc_start"
     
-    # 2. Определяем, не является ли это попыткой действий во время таймера
-    # Исключаем кнопки, которые НУЖНО нажимать, даже если таймер идет
+    # Список кнопок, которые РАБОТАЮТ во время таймера
     allowed_during_timer = [
         "apoc_s2_start", "resume_game_2", "game_reset_ch2", 
-        "game_main_menu", "apoc_s2_craft_bio" # Добавили кнопку проверки крафта
+        "game_main_menu", "apoc_s2_craft_bio", "apoc_s2_9_done"
     ]
     
     if call.data not in allowed_during_timer:
@@ -26,7 +24,7 @@ def run_scenario(bot, call):
             bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
             return
 
-    # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ДЛЯ РАБОТЫ СО СТРОКОЙ СОХРАНЕНИЯ ---
+    # Локальные помощники
     def get_loc(node_str): return node_str.split('|')[0]
     def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
     def add_flag(node_str, flag): return node_str if has_flag(node_str, flag) else f"{node_str}|{flag}"
@@ -38,30 +36,20 @@ def run_scenario(bot, call):
     current_node = raw_node
     loc = get_loc(current_node)
 
-    # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
+    # --- ВХОД И ЛОГИКА ---
     if call.data == "apoc_s2_start":
-        # Жесткая проверка: если 1-я глава не пройдена, не пускаем вообще
         if not has_completed_chapter(user_id, "chapter_1"):
-            try: bot.answer_callback_query(call.id, "🔒 Доступ заблокирован! Сначала завершите Главу 1.", show_alert=True)
-            except: pass
+            bot.answer_callback_query(call.id, "🔒 Доступ заблокирован! Сначала завершите Главу 1.", show_alert=True)
             return
-
-        # Если пилот только пришел из 1-й главы, имеет чистый старт ИЛИ сбросил прогресс именно 2-й главы
         if loc in ["apoc_ch1_completed_screen", "apoc_start", "start"]:
             call.data = "apoc_s2_scene_1"
-            # Сразу сохраняем стартовую точку главы 2 в базу, чтобы loc обновился
             current_node = set_loc(current_node, "apoc_s2_scene_1")
             set_game_node(user_id, current_node)
             loc = "apoc_s2_scene_1"
         elif loc == "apoc_s2_scene_1":
-            # Если мы уже на первой сцене, просто запускаем ее без меню возврата
             pass
         else:
-            # Если loc равен любому другому узелу из ГЛАВЫ 2 (например, apoc_s2_5), показываем меню возврата
-            text = (f"🔙 *ВОЗВРАЩЕНИЕ В ПУСТОШЬ*\n"
-                    f"──────────────────────────\n"
-                    f"Командор, вы остановились на пути к ТЦ 'Зенит'. Марти уже взял след!\n\n"
-                    f"Что делаем?")
+            text = "🔙 *ВОЗВРАЩЕНИЕ В ПУСТОШЬ*\nКомандор, вы остановились на пути к ТЦ 'Зенит'. Что делаем?"
             kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
                 tele_types.InlineKeyboardButton("▶️ Продолжить экспедицию", callback_data="resume_game_2"),
                 tele_types.InlineKeyboardButton("🔄 Начать Главу 2 заново", callback_data="game_reset_ch2"),
@@ -72,47 +60,22 @@ def run_scenario(bot, call):
 
     if call.data == "resume_game_2":
         call.data = loc
-        try: bot.answer_callback_query(call.id, "🔄 Экспедиция продолжена!")
-        except: pass
+        bot.answer_callback_query(call.id, "🔄 Экспедиция продолжена!")
 
     if call.data == "game_reset_ch2":
-        # Извлекаем все накопленные флаги
         all_flags = current_node.split('|')[1:]
-        
-        # Оставляем ТОЛЬКО флаги из Первой главы, чтобы не сломать глобальный сюжет
-        ch1_backbone = ["wire", "boot", "pc_done", "meds", "liquid", "mask", "generator", 
-                        "truth", "radio", "secret_found", "ch1_done", "secret_entered", 
-                        "files", "super_motor", "suit_fixed"]
-        
+        ch1_backbone = ["wire", "boot", "pc_done", "meds", "liquid", "mask", "generator", "truth", "radio", "secret_found", "ch1_done", "secret_entered", "files", "super_motor", "suit_fixed"]
         filtered_flags = [f for f in all_flags if f in ch1_backbone]
-        
-        # Собираем чистую строку для Старта Главе 2
-        if filtered_flags:
-            current_node = "apoc_s2_scene_1|" + "|".join(filtered_flags)
-        else:
-            current_node = "apoc_s2_scene_1"
-            
+        current_node = ("apoc_s2_scene_1|" + "|".join(filtered_flags)) if filtered_flags else "apoc_s2_scene_1"
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
         call.data = "apoc_s2_scene_1"
-        loc = "apoc_s2_scene_1"
-        try: bot.answer_callback_query(call.id, "🔄 Глава 2 очищена и начата заново!", show_alert=True)
-        except: pass
 
-    # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
-    MAJOR_NODES = [
-        "apoc_s2_scene_1", "apoc_s2_2", "apoc_s2_4", "apoc_s2_5", "apoc_s2_6", 
-        "apoc_s2_8", "apoc_s2_9_wait", "apoc_s2_9_done", "apoc_s2_craft_start", 
-        "apoc_s2_craft_bio", "apoc_s2_11", "apoc_s2_12", "apoc_s2_13", "apoc_s2_14", 
-        "apoc_s2_15", "apoc_s2_16", "apoc_s2_17", "apoc_s2_18", "apoc_s2_19", 
-        "apoc_s2_20", "apoc_s2_21", "apoc_s2_23", "apoc_s2_24", "apoc_s2_25", 
-        "apoc_s2_26", "apoc_s2_27", "apoc_s2_28", "apoc_s2_sync", "apoc_s2_30", 
-        "apoc_ch2_completed_screen"
-    ]
+    # --- АВТОСОХРАНЕНИЕ ---
+    MAJOR_NODES = ["apoc_s2_scene_1", "apoc_s2_2", "apoc_s2_4", "apoc_s2_5", "apoc_s2_6", "apoc_s2_8", "apoc_s2_9_wait", "apoc_s2_9_done", "apoc_s2_craft_start", "apoc_s2_craft_bio", "apoc_s2_11", "apoc_s2_12", "apoc_s2_13", "apoc_s2_14", "apoc_s2_15", "apoc_s2_16", "apoc_s2_17", "apoc_s2_18", "apoc_s2_19", "apoc_s2_20", "apoc_s2_21", "apoc_s2_23", "apoc_s2_24", "apoc_s2_25", "apoc_s2_26", "apoc_s2_27", "apoc_s2_28", "apoc_s2_sync", "apoc_s2_30", "apoc_ch2_completed_screen"]
     if call.data in MAJOR_NODES:
         current_node = set_loc(current_node, call.data)
         set_game_node(user_id, current_node)
-        loc = call.data
 
     # 🏆 --- [ ЭКРАН ЗАВЕРШЕННОЙ ГЛАВЫ ] --- 🏆
     if call.data == "apoc_ch2_completed_screen":
