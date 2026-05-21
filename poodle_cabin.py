@@ -110,16 +110,16 @@ DOG_SHOP = {
     "matrix_coat": {"name": "Плащ Нео", "prompt": "Long floor-length glossy black leather duster coat, cybernetic matrix styling, highly reflective texture", "price": 110}
 }
 
-# 🟢 Группировка категорий
+# 🟢 БЕЗОПАСНАЯ СТРУКТУРА КАТЕГОРИЙ (Ключи - латиница, значения - [Имя, [слоты]])
 WARDROBE_CATEGORIES = {
-    "🎩 Голова": ["head", "top of the head"],
-    "👓 Лицо": ["eyes", "face", "left eye", "right eye", "one eye", "left eye"],
-    "👄 Пасть": ["mouth", "lower jaw", "teeth", "nose"],
-    "🧣 Шея": ["neck"],
-    "👕 Туловище": ["body", "chest"],
-    "🪁 Спина": ["back"],
-    "🐾 Лапы": ["paws", "front paws", "front paw", "under the paws"],
-    "💫 Хвост": ["tail"]
+    "head": ["🎩 Голова", ["head", "top of the head"]],
+    "face": ["👓 Лицо", ["eyes", "face", "left eye", "right eye", "one eye"]],
+    "mouth": ["👄 Пасть", ["mouth", "lower jaw", "teeth", "nose"]],
+    "neck": ["🧣 Шея", ["neck"]],
+    "torso": ["👕 Туловище", ["body", "chest"]],
+    "back": ["🪁 Спина", ["back"]],
+    "paws": ["🐾 Лапы", ["paws", "front paws", "front paw", "under the paws"]],
+    "tail": ["💫 Хвост", ["tail"]]
 }
 
 def get_item_slot(item_key):
@@ -479,8 +479,8 @@ def handle_dog_callback(bot, call):
         text = "👕 **ГАРДЕРОБ МАРТИ (РЕЖИМ ПРИМЕРКИ)**\n\nВыбирайте вещи. Нажмите 'СОХРАНИТЬ И ВЫЙТИ' для применения костюма."
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         
-        for cat_name in WARDROBE_CATEGORIES.keys():
-            kb.add(tele_types.InlineKeyboardButton(cat_name, callback_data=f"dog_cat_{cat_name}"))
+        for key, value in WARDROBE_CATEGORIES.items():
+            kb.add(tele_types.InlineKeyboardButton(value[0], callback_data=f"dog_cat_{key}"))
             
         kb.row(tele_types.InlineKeyboardButton("❌ СНЯТЬ ВСЁ", callback_data="dog_strip_all"))
         kb.row(tele_types.InlineKeyboardButton("🔙 СОХРАНИТЬ И ВЫЙТИ", callback_data="dog_wardrobe_save"))
@@ -495,8 +495,9 @@ def handle_dog_callback(bot, call):
         return
 
     elif action.startswith("cat_"):
-        cat_name = action.replace("cat_", "")
-        allowed_slots = WARDROBE_CATEGORIES[cat_name]
+        cat_key = action.replace("cat_", "")
+        allowed_slots = WARDROBE_CATEGORIES[cat_key][1]
+        cat_name = WARDROBE_CATEGORIES[cat_key][0]
         
         if user_id not in WARDROBE_BUFFER:
             WARDROBE_BUFFER[user_id] = list(dog.get('equipped', []))
@@ -513,7 +514,7 @@ def handle_dog_callback(bot, call):
                 is_in_buffer = item_key in WARDROBE_BUFFER[user_id]
                 btn_text = f"✅ {name}" if is_in_buffer else f"⬜️ {name}"
                 
-                kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_togbuff_{item_key}_{cat_name}"))
+                kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_togbuff_{item_key}_{cat_key}"))
                 
         if not found_any:
             text = f"👕 **{cat_name}**\nУ вас нет вещей для этого слота."
@@ -523,10 +524,9 @@ def handle_dog_callback(bot, call):
         return
 
     elif action.startswith("togbuff_"):
-        # 🟢 ИСПРАВЛЕНО: rsplit с конца строки, чтобы не ломать ключи с подчеркиваниями
         parts = action.replace("togbuff_", "").rsplit("_", 1)
         item_key = parts[0]
-        cat_name = parts[1]
+        cat_key = parts[1]
         
         if user_id not in WARDROBE_BUFFER:
             WARDROBE_BUFFER[user_id] = list(dog.get('equipped', []))
@@ -544,7 +544,7 @@ def handle_dog_callback(bot, call):
             
         WARDROBE_BUFFER[user_id] = current_buffer
         
-        call.data = f"dog_cat_{cat_name}"
+        call.data = f"dog_cat_{cat_key}"
         handle_dog_callback(bot, call)
         return
 
@@ -568,13 +568,13 @@ def handle_dog_callback(bot, call):
         prof = get_dog_profession(user_id)
         
         text = "🛒 **МАГАЗИН АКАДЕМИИ (КОРЗИНА ПОКУПОК)**\n\nВыбирайте товары по категориям. Покупка оформится при нажатии кнопки 'ОФОРМИТЬ ПОКУПКУ'."
-        if "Indженер" in prof or "Бортинженер" in prof:
+        if "Инженер" in prof:
             text += "\n\n🛠 *Активирована скидка Бортинженера: -20%!*"
 
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         
-        for cat_name in WARDROBE_CATEGORIES.keys():
-            kb.add(tele_types.InlineKeyboardButton(cat_name, callback_data=f"dog_shopcat_{cat_name}"))
+        for key, value in WARDROBE_CATEGORIES.items():
+            kb.add(tele_types.InlineKeyboardButton(value[0], callback_data=f"dog_shopcat_{key}"))
         
         total_price = 0
         for item in SHOP_CART[user_id]:
@@ -590,8 +590,9 @@ def handle_dog_callback(bot, call):
         return
 
     elif action.startswith("shopcat_"):
-        cat_name = action.replace("shopcat_", "")
-        allowed_slots = WARDROBE_CATEGORIES[cat_name]
+        cat_key = action.replace("shopcat_", "")
+        allowed_slots = WARDROBE_CATEGORIES[cat_key][1]
+        cat_name = WARDROBE_CATEGORIES[cat_key][0]
         
         if user_id not in SHOP_CART:
             SHOP_CART[user_id] = []
@@ -611,7 +612,6 @@ def handle_dog_callback(bot, call):
                 found_any = True
                 price = int(v['price'] * 0.8) if "Инженер" in prof else v['price']
                 
-                # Логика отображения галочек
                 if k in dog.get('items', []):
                     btn_text = f"🔒 {v['name']} [Уже куплено]"
                 elif k in SHOP_CART[user_id]:
@@ -619,7 +619,7 @@ def handle_dog_callback(bot, call):
                 else:
                     btn_text = f"⬜️ {v['name']} ({price}💰)"
                     
-                kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_addcart_{k}_{cat_name}"))
+                kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_addcart_{k}_{cat_key}"))
         
         if not found_any:
             text = f"🛒 **{cat_name}**\nВ этой категории товаров пока нет."
@@ -629,15 +629,13 @@ def handle_dog_callback(bot, call):
         return
 
     elif action.startswith("addcart_"):
-        # 🟢 ИСПРАВЛЕНО: rsplit с конца строки, чтобы не ломать ключи с подчеркиваниями
         raw_data = action.replace("addcart_", "").rsplit("_", 1)
         item_key = raw_data[0]
-        cat_name = raw_data[1]
+        cat_key = raw_data[1]
         
         if user_id not in SHOP_CART:
             SHOP_CART[user_id] = []
             
-        # Запрещаем добавлять в корзину то, что уже куплено
         if item_key in dog.get('items', []):
             bot.answer_callback_query(call.id, "Этот предмет уже есть у вас в гардеробе!", show_alert=True)
             return
@@ -649,7 +647,7 @@ def handle_dog_callback(bot, call):
             SHOP_CART[user_id].append(item_key)
             bot.answer_callback_query(call.id, "Добавлено в корзину")
             
-        call.data = f"dog_shopcat_{cat_name}"
+        call.data = f"dog_shopcat_{cat_key}"
         handle_dog_callback(bot, call)
         return
 
