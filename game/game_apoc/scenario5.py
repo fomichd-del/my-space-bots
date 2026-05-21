@@ -68,10 +68,24 @@ def run_scenario(bot, call):
         except: pass
 
     if call.data == "game_reset_ch5":
-        current_node = set_loc(current_node, "apoc_s5_scene_1")
+        all_flags = current_node.split('|')[1:]
+        
+        # Добавляем ch4_done в глобальный костяк
+        global_backbone = ["wire", "boot", "pc_done", "meds", "liquid", "mask", "generator", 
+                        "truth", "radio", "secret_found", "ch1_done", "secret_entered", 
+                        "files", "super_motor", "suit_fixed", "ch2_done", "ch3_done", "ch4_done"]
+        
+        filtered_flags = [f for f in all_flags if f in global_backbone]
+        
+        if filtered_flags:
+            current_node = "apoc_s5_scene_1|" + "|".join(filtered_flags)
+        else:
+            current_node = "apoc_s5_scene_1"
+            
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
         call.data = "apoc_s5_scene_1"
+        loc = "apoc_s5_scene_1"
         try: bot.answer_callback_query(call.id, "🔄 Финал начат заново!", show_alert=True)
         except: pass
 
@@ -653,8 +667,11 @@ def run_scenario(bot, call):
             add_xp(user_id, xp_reward, username)
             current_node = add_flag(current_node, "ch5_done")
             current_node = add_flag(current_node, f"ending_{ending}")
-            current_node = set_loc(current_node, "apoc_game_completed_screen")
-            set_game_node(user_id, current_node)
+            
+        # КРИТИЧЕСКИЙ ФИКС: Сохранение локации финального экрана ВСЕГДА срабатывает
+        current_node = set_loc(current_node, "apoc_game_completed_screen")
+        set_game_node(user_id, current_node)
+        loc = "apoc_game_completed_screen"
 
         text = (f"🏆 *ФИНАЛ: ПУТЬ {ending.upper()}*\n"
                 f"──────────────────────────\n"
