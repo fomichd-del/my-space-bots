@@ -650,8 +650,11 @@ def run_scenario(bot, call):
         if not has_flag(current_node, "ch2_done"):
             add_xp(user_id, xp_reward, username) 
             current_node = add_flag(current_node, "ch2_done")
-            current_node = set_loc(current_node, "apoc_ch2_completed_screen")
-            set_game_node(user_id, current_node)
+            
+        # КРИТИЧЕСКИЙ ФИКС: Выносим сохранение экрана наружу условия
+        current_node = set_loc(current_node, "apoc_ch2_completed_screen")
+        set_game_node(user_id, current_node)
+        loc = "apoc_ch2_completed_screen"
 
         text = (f"🏜 *ГРАНИЦА МАРИУПОЛЯ*\n\n"
                 f"Вы выбираетесь из кислотного тумана. Сзади догорают руины ТЦ 'Зенит'. Впереди, за пеленой смога, "
