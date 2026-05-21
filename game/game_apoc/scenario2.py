@@ -43,10 +43,18 @@ def run_scenario(bot, call):
             except: pass
             return
 
-        # Если пилот только пришел из 1-й главы ИЛИ сбросил прогресс 2-й главы
-        if loc in ["apoc_ch1_completed_screen", "apoc_start", "start", "apoc_s2_scene_1"]:
+        # Если пилот только пришел из 1-й главы, имеет чистый старт ИЛИ сбросил прогресс именно 2-й главы
+        if loc in ["apoc_ch1_completed_screen", "apoc_start", "start"]:
             call.data = "apoc_s2_scene_1"
+            # Сразу сохраняем стартовую точку главы 2 в базу, чтобы loc обновился
+            current_node = set_loc(current_node, "apoc_s2_scene_1")
+            set_game_node(user_id, current_node)
+            loc = "apoc_s2_scene_1"
+        elif loc == "apoc_s2_scene_1":
+            # Если мы уже на первой сцене, просто запускаем ее без меню возврата
+            pass
         else:
+            # Если loc равен любому другому узелу из ГЛАВЫ 2 (например, apoc_s2_5), показываем меню возврата
             text = (f"🔙 *ВОЗВРАЩЕНИЕ В ПУСТОШЬ*\n"
                     f"──────────────────────────\n"
                     f"Командор, вы остановились на пути к ТЦ 'Зенит'. Марти уже взял след!\n\n"
@@ -65,6 +73,7 @@ def run_scenario(bot, call):
         except: pass
 
     if call.data == "game_reset_ch2":
+        # Принудительно очищаем только прогресс ВТОРОЙ главы, возвращаясь на её старт
         current_node = set_loc(current_node, "apoc_s2_scene_1")
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
