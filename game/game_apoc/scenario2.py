@@ -7,8 +7,8 @@ from database import (
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
-    # Глобально определяем имя один раз для всей функции
-    username = call.from_user.first_name if call.from_user.first_name else "Док"
+    # Берем имя каждый раз, чтобы избежать NameError
+    username = call.from_user.first_name or "Док"
     
     raw_node, _ = get_game_status(user_id)
     if not raw_node: raw_node = "apoc_start"
@@ -19,12 +19,13 @@ def run_scenario(bot, call):
         "game_main_menu", "apoc_s2_craft_bio", "apoc_s2_9_done"
     ]
     
+    # ПРОВЕРКА ТАЙМЕРА
     if call.data not in allowed_during_timer:
         if not is_timer_expired(user_id):
             bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
             return
 
-    # Локальные помощники
+    # Локальные помощники (как были)
     def get_loc(node_str): return node_str.split('|')[0]
     def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
     def add_flag(node_str, flag): return node_str if has_flag(node_str, flag) else f"{node_str}|{flag}"
