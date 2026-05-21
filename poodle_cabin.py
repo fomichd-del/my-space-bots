@@ -97,7 +97,17 @@ DOG_SHOP = {
     "floating_halo": {"name": "Нимб Ангела", "prompt": "Solid glowing golden ring halo, hovering, rigid", "price": 90},
     "sub_bass_speakers": {"name": "Космо-Сабвуферы", "prompt": "Two wooden sub-woofer speakers, leather harnesses, heavy", "price": 85},
     "rocket_boots": {"name": "Ракетные лапы", "prompt": "Metallic rocket boots, thruster flames, industrial treads", "price": 125},
-    "dentist_drill": {"name": "Бормашина Академии", "prompt": "High-speed pneumatic dental drill, highly detailed mechanical handpiece, cables, photorealistic chrome", "price": 70}
+    "dentist_drill": {"name": "Бормашина Академии", "prompt": "High-speed pneumatic dental drill, highly detailed mechanical handpiece, cables, photorealistic chrome", "price": 70},
+    "leather_biker_jacket": {"name": "Байкерская косуха", "prompt": "Miniature black leather biker jacket, metal zippers, silver studs, heavy textile texture, classic punk style", "price": 85},
+    "neon_hoodie": {"name": "Худи Навигатора", "prompt": "Bright neon-orange oversized streetwear hoodie with holographic cosmic strings, soft cotton fabric texture", "price": 55},
+    "steampunk_vest": {"name": "Стимпанк-жилет", "prompt": "Vintage brown velvet vest, brass gears embroidery, tiny gold buttons, Victorian sci-fi aesthetic", "price": 75},
+    "hawaiian_shirt": {"name": "Гавайская рубашка", "prompt": "Colorful tropical Hawaiian beach shirt, print with mini palm trees and planets, lightweight fabric", "price": 40},
+    "royal_mantle": {"name": "Мантия Императора", "prompt": "Heavy royal red velvet mantle, luxury white fur edges, golden embroidery threads, majestic look", "price": 120},
+    "starfleet_uniform": {"name": "Форма Звездного Флота", "prompt": "Futuristic sleek sci-fi starfleet uniform jacket, deep blue and yellow panels, metallic comm-badge on chest", "price": 90},
+    "cosmic_sweater": {"name": "Вязаный свитер", "prompt": "Warm cozy knitted wool winter sweater, pixelated white and blue pixel-art UFO patterns, soft yarn texture", "price": 50},
+    "samurai_armor": {"name": "Доспех Самурая", "prompt": "Traditional crimson-red samurai chest plate armor, lacquered wood plates, golden silk cords binding", "price": 140},
+    "detective_trench": {"name": "Плащ Детектива", "prompt": "Classic tan-beige canvas trench coat, high popped collar, belted waist, dark noir atmosphere fabric", "price": 80},
+    "matrix_coat": {"name": "Плащ Нео", "prompt": "Long floor-length glossy black leather duster coat, cybernetic matrix styling, highly reflective texture", "price": 110}
 }
 
 # 🟢 Группировка для красоты и удобства
@@ -148,7 +158,17 @@ def get_item_slot(item_key):
         "taco_suit": "body", "exosuit_armor": "body", "cyberpunk_jacket": "body",
         "tactical_vest": "body", "warp_robe": "body", "mech_harness": "body",
         "zero_g_harness": "body", "energy_shield_orb": "chest", "dual_aura": "body",
-        
+        "leather_biker_jacket": "body",
+        "neon_hoodie": "body",
+        "steampunk_vest": "body",
+        "hawaiian_shirt": "body",
+        "royal_mantle": "body",
+        "starfleet_uniform": "body",
+        "cosmic_sweater": "body",
+        "samurai_armor": "body",
+        "detective_trench": "body",
+        "matrix_coat": "body",
+      
         # --- СПИНА ---
         "warp_jetpack": "back", "drone_companion": "back", "plasma_cloak": "back", "dragon_wings": "back",
         "holographic_wings": "back", "ion_cape": "back", "drone_companion": "back",
