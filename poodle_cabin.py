@@ -8,6 +8,9 @@ from neural_draw import get_cascade_image
 
 # 🟢 КВАНТОВЫЙ КЭШ (Сейф для бесплатных картинок)
 CABIN_IMAGE_CACHE = {}
+# 📥 ВРЕМЕННЫЕ БУФЕРЫ ДЛЯ КОРЗИНЫ И ПРИМЕРКИ (ВСТАВЛЯТЬ СЮДА!)
+SHOP_CART = {}        # {user_id: [список ключей покупаемых вещей]}
+WARDROBE_BUFFER = {}  # {user_id: [список ключей надетых вещей]}
 
 DOG_SHOP = {
     # --- БАЗОВАЯ КОСМИЧЕСКАЯ ЭКИПИРОВКА ---
@@ -482,40 +485,105 @@ def handle_dog_callback(bot, call):
         bot.answer_callback_query(call.id, f"Выбрана профессия: {chosen_prof}!", show_alert=True)
   
     elif action == "wardrobe":
-        text = "👕 **ГАРДЕРОБ МАРТИ**\nВыберите категорию экипировки:"
+        if user_id not in WARDROBE_BUFFER:
+            # Загружаем текущую экипировку из базы данных как стартовую точку
+            WARDROBE_BUFFER[user_id] = list(dog.get('equipped', []))
+            
+        text = "👕 **ГАРДЕРОБ МАРТИ (РЕЖИМ ПРИМЕРКИ)**\n\nВыбирайте вещи. Генерация запустится только при выходе!"
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         
-        # Кнопки категорий
         for cat_name in WARDROBE_CATEGORIES.keys():
             kb.add(tele_types.InlineKeyboardButton(cat_name, callback_data=f"dog_cat_{cat_name}"))
-        
-        kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
-        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb)
+            
+        kb.row(tele_types.InlineKeyboardButton("❌ СНЯТЬ ВСЁ", callback_data="dog_strip_all"))
+        kb.row(tele_types.InlineKeyboardButton("🔙 СОХРАНИТЬ И ВЫЙТИ", callback_data="dog_wardrobe_save"))
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         return
 
-    # НОВЫЙ БЛОК: Выбор вещей внутри категории
+    # 2. Кнопка "Снять всё"
+    elif action == "strip_all":
+        WARDROBE_BUFFER[user_id] = [] # Очищаем буфер сессии
+        bot.answer_callback_query(call.id, "🪐 Все вещи сняты! Не забудьте нажать Выход для сохранения.")
+        # Возвращаем в корень гардероба
+        call.data = "dog_wardrobe"
+        handle_dog_callback(bot, call)
+        return
+
+    # 3. Просмотр категории в гардеробе
     elif action.startswith("cat_"):
         cat_name = action.replace("cat_", "")
         allowed_slots = WARDROBE_CATEGORIES[cat_name]
         
-        text = f"👕 **{cat_name}**\nНажмите для надевания/снятия:"
+        # Если юзер зашел напрямую, минуя корень (редко, но бывает)
+        if user_id not in WARDROBE_BUFFER:
+            WARDROBE_BUFFER[user_id] = list(dog.get('equipped', []))
+            
+        text = f"👕 **{cat_name}**\nОтметьте галочками то, что хотите надеть:"
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         
-        # Фильтруем вещи игрока, которые подходят под выбранную категорию
         found_any = False
         for item_key in dog['items']:
             if get_item_slot(item_key) in allowed_slots:
                 found_any = True
                 name = DOG_SHOP[item_key]['name']
-                is_equipped = item_key in dog.get('equipped', [])
-                btn_text = f"❌ Снять {name}" if is_equipped else f"✅ {name}"
-                kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_toggle_{item_key}"))
-        
+                
+                # Проверяем статус НАДЕТО по нашему временному БУФЕРУ, а не по базе!
+                is_in_buffer = item_key in WARDROBE_BUFFER[user_id]
+                btn_text = f"✅ {name} (Выбрано)" if is_in_buffer else f"⬜️ {name}"
+                
+                # Передаем специальный коллбэк, который знает, из какой мы категории
+                kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_togbuff_{item_key}_{cat_name}"))
+                
         if not found_any:
-            text = f"👕 **{cat_name}**\nВ этой категории пусто."
+            text = f"👕 **{cat_name}**\nУ вас нет вещей для этого слота."
             
-        kb.add(tele_types.InlineKeyboardButton("🔙 К категориям", callback_data="dog_wardrobe"))
-        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb)
+        kb.add(tele_types.InlineKeyboardButton("🔙 Назад к категориям", callback_data="dog_wardrobe"))
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        return
+
+    # 4. Клик по вещи внутри категории (Переключатель буфера)
+    elif action.startswith("togbuff_"):
+        # Извлекаем item_key и cat_name из даты
+        parts = action.replace("togbuff_", "").split("_")
+        item_key = parts[0]
+        cat_name = parts[1]
+        
+        if user_id not in WARDROBE_BUFFER:
+            WARDROBE_BUFFER[user_id] = list(dog.get('equipped', []))
+            
+        current_buffer = WARDROBE_BUFFER[user_id]
+        
+        if item_key in current_buffer:
+            current_buffer.remove(item_key)
+            bot.answer_callback_query(call.id, "Предмет убран из примерки")
+        else:
+            # Авто-снятие вещей, которые конфликтуют по слоту внутри буфера
+            target_slot = get_item_slot(item_key)
+            current_buffer = [item for item in current_buffer if get_item_slot(item) != target_slot]
+            current_buffer.append(item_key)
+            bot.answer_callback_query(call.id, "Предмет добавлен в примерку")
+            
+        WARDROBE_BUFFER[user_id] = current_buffer
+        
+        # Мгновенно обновляем это же меню категории (без вызова send_dog_menu и генерации!)
+        call.data = f"dog_cat_{cat_name}"
+        handle_dog_callback(bot, call)
+        return
+
+    # 5. ФИНАЛЬНЫЙ ВЫХОД ИЗ ГАРДЕРОБА (Сохранение и Генерация)
+    elif action == "wardrobe_save":
+        if user_id in WARDROBE_BUFFER:
+            # Переносим всё из буфера в реальную базу данных собаки за один клик!
+            dog['equipped'] = WARDROBE_BUFFER[user_id]
+            update_dog_data(user_id, dog)
+            del WARDROBE_BUFFER[user_id] # Очищаем оперативку
+            
+        bot.answer_callback_query(call.id, "🚀 Костюм утвержден! Запуск визуализации каюты...")
+        
+        # Вот теперь полностью перерисовываем меню с генерацией картинки!
+        try: bot.delete_message(call.message.chat.id, call.message.message_id)
+        except: pass
+        send_dog_menu(bot, call.message.chat.id, user_id)
         return
 
     # БЛОК Toggle (Остается почти как был, но теперь он возвращает нас в ту же категорию)
@@ -561,70 +629,148 @@ def handle_dog_callback(bot, call):
         handle_dog_callback(bot, call)
         return
 
-    # 🛒 ГЛАВНОЕ МЕНЮ МАГАЗИНА (Категории)
     elif action == "shop":
-        text = "🛒 **МАГАЗИН АКАДЕМИИ**\nВыберите категорию товаров:"
+        if user_id not in SHOP_CART:
+            SHOP_CART[user_id] = []
+            
+        from database import get_dog_profession
+        prof = get_dog_profession(user_id)
+        
+        text = "🛒 **МАГАЗИН АКАДЕМИИ (КОРЗИНА ПОКУПОК)**\n\nВыбирайте товары по категориям, отмечая их галочками. Покупка спишется пакетом при оформлении!"
+        if "Инженер" in prof:
+            text += "\n\n🛠 *Активирована скидка Бортинженера: -20%!*"
+
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         
-        # Кнопки категорий
+        # Кнопки анатомических категорий
         for cat_name in WARDROBE_CATEGORIES.keys():
             kb.add(tele_types.InlineKeyboardButton(cat_name, callback_data=f"dog_shopcat_{cat_name}"))
         
-        kb.add(tele_types.InlineKeyboardButton("🔙 Назад", callback_data="dog_back"))
+        # Подсчет текущей стоимости корзины для главной кнопки
+        total_price = 0
+        for item in SHOP_CART[user_id]:
+            if item in DOG_SHOP:
+                p = DOG_SHOP[item]['price']
+                if "Инженер" in prof: p = int(p * 0.8)
+                total_price += p
+        
+        # Управляющие кнопки корзины
+        kb.row(tele_types.InlineKeyboardButton(f"🛍 ОФОРМИТЬ ПОКУПКУ ({total_price} 💰)", callback_data="dog_shop_checkout"))
+        kb.row(tele_types.InlineKeyboardButton("🔙 ОТМЕНА (Выйти без покупки)", callback_data="dog_shop_cancel"))
+        
         bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         return
 
-    # 🛍 СПИСОК ТОВАРОВ В КАТЕГОРИИ (С учетом скидок профессий)
+    # 🛍 СПИСОК ТОВАРОВ В КАТЕГОРИИ (Смена статуса в корзине без генерации)
     elif action.startswith("shopcat_"):
         cat_name = action.replace("shopcat_", "")
         allowed_slots = WARDROBE_CATEGORIES[cat_name]
         
+        if user_id not in SHOP_CART:
+            SHOP_CART[user_id] = []
+            
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
         
-        text = f"🛒 **{cat_name}**\nВыберите товар для покупки:"
-        if "Инженер" in prof: text += "\n🛠 *Скидка Бортинженера -20% применена!*"
+        text = f"🛒 **{cat_name}**\nДобавляйте или удаляйте товары кликом:"
+        if "Инженер" in prof: 
+            text += "\n🛠 *Скидка Бортинженера -20% применена!*"
             
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         found_any = False
         
         for k, v in DOG_SHOP.items():
-            # Фильтр: 1. Нет в инвентаре, 2. Цена > 0, 3. Подходит по слоту
+            # Фильтр: 1. Нет у собаки, 2. Платный товар, 3. Подходит этой категории
             if k not in dog['items'] and v['price'] > 0 and get_item_slot(k) in allowed_slots:
                 found_any = True
-                
-                # Расчет цены с учетом скидки (только для Инженера)
                 price = int(v['price'] * 0.8) if "Инженер" in prof else v['price']
                 
-                kb.add(tele_types.InlineKeyboardButton(f"{v['name']} ({price}💰)", callback_data=f"dog_buy_{k}"))
+                # Меняем вид кнопки в зависимости от того, в корзине ли вещь
+                is_in_cart = k in SHOP_CART[user_id]
+                btn_text = f"🛒 {v['name']} ({price}💰) [В КОРЗИНЕ]" if is_in_cart else f"⬜️ {v['name']} ({price}💰)"
+                
+                # Передаем ключ товара и имя категории, чтобы вернуться сюда же после клика
+                kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_addcart_{k}_{cat_name}"))
         
         if not found_any:
-            text = f"🛒 **{cat_name}**\nВ этой категории товаров нет."
+            text = f"🛒 **{cat_name}**\nВсе доступные товары этой категории уже у вас!"
             
         kb.add(tele_types.InlineKeyboardButton("🔙 К категориям", callback_data="dog_shop"))
         bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         return
 
-    elif action.startswith("buy_"):
-        item = action.replace("buy_", "")
+    # 📥 ДОБАВЛЕНИЕ / УДАЛЕНИЕ ИЗ КОРЗИНЫ (Моментальный триггер кнопок)
+    elif action.startswith("addcart_"):
+        # Извлекаем данные из callback_data
+        raw_data = action.replace("addcart_", "").split("_")
+        item_key = raw_data[0]
+        cat_name = raw_data[1]
+        
+        if user_id not in SHOP_CART:
+            SHOP_CART[user_id] = []
+            
+        if item_key in SHOP_CART[user_id]:
+            SHOP_CART[user_id].remove(item_key)
+            bot.answer_callback_query(call.id, "Убрано из корзины")
+        else:
+            SHOP_CART[user_id].append(item_key)
+            bot.answer_callback_query(call.id, "Добавлено в корзину")
+            
+        # Мгновенно обновляем интерфейс текущей категории, не запуская тяжелую нейросеть
+        call.data = f"dog_shopcat_{cat_name}"
+        handle_dog_callback(bot, call)
+        return
+
+    # ❌ ВЫХОД ИЗ МАГАЗИНА С СБРОСОМ КОРЗИНЫ
+    elif action == "shop_cancel":
+        if user_id in SHOP_CART:
+            del SHOP_CART[user_id]
+        bot.answer_callback_query(call.id, "Корзина очищена. Возврат в каюту")
+        
+        try: bot.delete_message(call.message.chat.id, call.message.message_id)
+        except: pass
+        send_dog_menu(bot, call.message.chat.id, user_id)
+        return
+
+    # 🚀 ЧЕКАУТ: Списание средств, выдача всех вещей и запуск генерации
+    elif action == "shop_checkout":
+        if user_id not in SHOP_CART or not SHOP_CART[user_id]:
+            bot.answer_callback_query(call.id, "❌ Ваша корзина пуста!", show_alert=True)
+            return
+            
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
         
-        price = DOG_SHOP[item]['price']
-        if "Инженер" in prof: price = int(price * 0.8) 
-
-        if spend_dust(user_id, price):
-            dog['items'].append(item)
+        # Считаем итоговую стоимость всего пакета покупок
+        total_price = 0
+        for item in SHOP_CART[user_id]:
+            if item in DOG_SHOP:
+                p = DOG_SHOP[item]['price']
+                if "Инженер" in prof: p = int(p * 0.8)
+                total_price += p
+                
+        # Производим одну общую транзакцию
+        if spend_dust(user_id, total_price):
+            # Переносим все купленные ключи в постоянную базу инвентаря питомца
+            for item in SHOP_CART[user_id]:
+                if item not in dog['items']:
+                    dog['items'].append(item)
+                    
             update_dog_data(user_id, dog)
-            bot.answer_callback_query(call.id, f"🎉 Куплено: {DOG_SHOP[item]['name']} (за {price} 💰)!")
+            del SHOP_CART[user_id] # Удаляем сессию корзины из памяти
             
-            kb = tele_types.InlineKeyboardMarkup(row_width=2)
-            kb.add(tele_types.InlineKeyboardButton("🔙 В каюту", callback_data="dog_back"))
-            bot.edit_message_caption("✅ Покупка отправлена в Гардероб!", call.message.chat.id, call.message.message_id, reply_markup=kb)
-        else: 
-            bot.answer_callback_query(call.id, f"❌ Мало пыли! Нужно {price} 💰", show_alert=True)
-
-    # Вызов окна выбора пола
+            bot.answer_callback_query(call.id, f"🎉 Покупка совершена! Списано {total_price} 💰. Все вещи добавлены в Гардероб!", show_alert=True)
+            
+            # Удаляем старое меню и вызываем свежее send_dog_menu с рендером новой каюты
+            try: bot.delete_message(call.message.chat.id, call.message.message_id)
+            except: pass
+            send_dog_menu(bot, call.message.chat.id, user_id)
+            return
+        else:
+            bot.answer_callback_query(call.id, f"❌ Недостаточно космической пыли! Общая стоимость: {total_price} 💰", show_alert=True)
+            return
+    
+  # Вызов окна выбора пола
     elif action == "resurrect":
         kb = tele_types.InlineKeyboardMarkup()
         kb.row(tele_types.InlineKeyboardButton("♂ Мальчик", callback_data="dog_resurrect_male"))
