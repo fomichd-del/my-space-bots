@@ -70,11 +70,25 @@ def run_scenario(bot, call):
         except: pass
 
     if call.data == "game_reset_ch4":
-        current_node = set_loc(current_node, "apoc_s4_scene_1")
+        all_flags = current_node.split('|')[1:]
+        
+        # Оставляем флаги предыдущих глав (добавляем ch3_done)
+        global_backbone = ["wire", "boot", "pc_done", "meds", "liquid", "mask", "generator", 
+                        "truth", "radio", "secret_found", "ch1_done", "secret_entered", 
+                        "files", "super_motor", "suit_fixed", "ch2_done", "ch3_done"]
+        
+        filtered_flags = [f for f in all_flags if f in global_backbone]
+        
+        if filtered_flags:
+            current_node = "apoc_s4_scene_1|" + "|".join(filtered_flags)
+        else:
+            current_node = "apoc_s4_scene_1"
+            
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
         call.data = "apoc_s4_scene_1"
-        try: bot.answer_callback_query(call.id, "🔄 Глава 4 начата заново!", show_alert=True)
+        loc = "apoc_s4_scene_1"
+        try: bot.answer_callback_query(call.id, "🔄 Глава 4 очищена и начата заново!", show_alert=True)
         except: pass
 
     # 💾 --- [ АВТОСОХРАНЕНИЕ КОМНАТЫ ] --- 💾
@@ -644,8 +658,11 @@ def run_scenario(bot, call):
         if not has_flag(current_node, "ch4_done"):
             add_xp(user_id, xp_reward, username)
             current_node = add_flag(current_node, "ch4_done")
-            current_node = set_loc(current_node, "apoc_ch4_completed_screen")
-            set_game_node(user_id, current_node)
+            
+        # КРИТИЧЕСКИЙ ФИКС
+        current_node = set_loc(current_node, "apoc_ch4_completed_screen")
+        set_game_node(user_id, current_node)
+        loc = "apoc_ch4_completed_screen"
 
         text = (f"🌅 *ЭХО ТИШИНЫ*\n\n"
                 f"Капсула мягко приземляется в парке у подножия Небоскреба. Вы выходите на траву, которая больше не "
