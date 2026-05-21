@@ -12,7 +12,6 @@ def run_scenario(bot, call):
     username = call.from_user.first_name if call.from_user.first_name else "Док"
 
     # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
-    # Пропускаем системные кнопки входа, чтобы бот мог показать меню "Продолжить экспедицию"
     if call.data not in ["apoc_s3_start", "resume_game_3", "game_reset_ch3", "game_main_menu"]:
         if not is_timer_expired(user_id):
             try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
@@ -31,13 +30,16 @@ def run_scenario(bot, call):
         parts = node_str.split('|')
         parts[0] = new_loc
         return '|'.join(parts)
+        
+    def safe_edit(text, kb):
+        try: bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        except: pass
 
     current_node = raw_node
     loc = get_loc(current_node)
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
     if call.data == "apoc_s3_start":
-        # Проверяем прохождение ГЛАВЫ 2
         if not has_completed_chapter(user_id, "chapter_2"):
             try: bot.answer_callback_query(call.id, "🔒 Доступ заблокирован! Сначала завершите Главу 2.", show_alert=True)
             except: pass
@@ -49,7 +51,7 @@ def run_scenario(bot, call):
             set_game_node(user_id, current_node)
             loc = "apoc_s3_scene_1"
         elif loc == "apoc_s3_scene_1":
-            pass
+            call.data = "apoc_s3_scene_1" # ФИКС: Раньше здесь был pass, ломающий логику
         else:
             text = (f"🔙 *ВОЗВРАЩЕНИЕ В ЭКСПЕДИЦИЮ*\n"
                     f"──────────────────────────\n"
@@ -60,7 +62,7 @@ def run_scenario(bot, call):
                 tele_types.InlineKeyboardButton("🔄 Начать Главу 3 заново", callback_data="game_reset_ch3"),
                 tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
             )
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+            safe_edit(text, kb)
             return
 
     if call.data == "resume_game_3":
@@ -69,17 +71,13 @@ def run_scenario(bot, call):
         except: pass
 
     if call.data == "game_reset_ch3":
-        # Извлекаем все накопленные флаги
         all_flags = current_node.split('|')[1:]
-        
-        # Оставляем флаги Первой и Второй глав
         global_backbone = ["wire", "boot", "pc_done", "meds", "liquid", "mask", "generator", 
                         "truth", "radio", "secret_found", "ch1_done", "secret_entered", 
                         "files", "super_motor", "suit_fixed", "ch2_done"]
         
         filtered_flags = [f for f in all_flags if f in global_backbone]
         
-        # Собираем чистую строку для Старта Главы 3
         if filtered_flags:
             current_node = "apoc_s3_scene_1|" + "|".join(filtered_flags)
         else:
@@ -118,7 +116,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🔄 Пройти Главу 3 заново", callback_data="game_reset_ch3"),
             tele_types.InlineKeyboardButton("🔙 В меню Хаба", callback_data="game_main_menu")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
         return
 
     # --- [ ЭТАП 1: ГНИЛЫЕ ДЖУНГЛИ МАРИУПОЛЯ ] ---
@@ -136,7 +134,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("📡 Настроить Анализатор на эхо-частоту", callback_data="apoc_s3_2"),
             tele_types.InlineKeyboardButton("🔎 Осмотреть взломанный асфальт", callback_data="apoc_s3_clue_track")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 2: РАДИО ПРИЗРАКОВ ] ---
     elif call.data == "apoc_s3_2":
@@ -156,7 +154,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🛠 Взломать сервисный люк", callback_data="apoc_s3_3"),
             tele_types.InlineKeyboardButton("🏃 Проскочить рывком", callback_data="apoc_s3_sprint_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 3: СЕРВИСНЫЙ УЗЕЛ (Загадка) ] ---
     elif call.data == "apoc_s3_3":
@@ -170,7 +168,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🔘 2", callback_data="apoc_s3_logic_fail"),
             tele_types.InlineKeyboardButton("🔘 3", callback_data="apoc_s3_logic_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 4: ТЕНИ В НЕБОСКРЕБАХ ] ---
     elif call.data == "apoc_s3_4":
@@ -189,7 +187,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("💳 Подобрать карту", callback_data="apoc_s3_5"),
             tele_types.InlineKeyboardButton("🔭 Проследить за паломником через Анализатор", callback_data="apoc_s3_clue_spy")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 5: КЛЮЧ-КАРТА 'ЗЕНИТ' ] ---
     elif call.data == "apoc_s3_5":
@@ -207,7 +205,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("🚇 Спуститься в метро", callback_data="apoc_s3_6")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 6: СПУСК В ЗЕВ МЕТРО ] ---
     elif call.data == "apoc_s3_6":
@@ -224,7 +222,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🔦 Обыскать кассу", callback_data="apoc_s3_clue_ticket"),
             tele_types.InlineKeyboardButton("🚶 Пройти к путям", callback_data="apoc_s3_7")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 7: ПЕРРОН ПРИЗРАКОВ ] ---
     elif call.data == "apoc_s3_7":
@@ -239,7 +237,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("📟 Ввести код доступа", callback_data="apoc_s3_8"),
             tele_types.InlineKeyboardButton("👊 Попробовать выбить дверь", callback_data="apoc_s3_kick_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 8: ЗАГАДКА МОЛОЧНЫХ ЗУБОВ ] ---
     elif call.data == "apoc_s3_8":
@@ -254,7 +252,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🔘 20", callback_data="apoc_s3_9"),
             tele_types.InlineKeyboardButton("🔘 32", callback_data="apoc_s3_milk_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 9: ТЕМНЫЙ ТОННЕЛЬ (СТЕЛС) ] ---
     elif call.data == "apoc_s3_9":
@@ -273,7 +271,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🤫 Идти в ритм", callback_data="apoc_s3_10"),
             tele_types.InlineKeyboardButton("🏃 Пробежать быстро", callback_data="apoc_s3_run_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 10: СТАНЦИЯ 'ПРОСПЕКТ МИРА' ] ---
     elif call.data == "apoc_s3_10":
@@ -288,7 +286,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("🧗 Выбраться через вентшахту", callback_data="apoc_s3_11")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 11: ВЕРТИКАЛЬНЫЙ ПОДЪЕМ ] ---
     elif call.data == "apoc_s3_11":
@@ -305,7 +303,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Перерезать красную жилу питания", callback_data="apoc_s3_12"),
             tele_types.InlineKeyboardButton("Подключить Био-анализатор к порту", callback_data="apoc_s3_analyze_port")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 12: ХОЛЛ КЛИНИКИ (РЕГИСТРАТУРА) ] ---
     elif call.data == "apoc_s3_12":
@@ -321,7 +319,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Изучить золотой слепок", callback_data="apoc_s3_clue_gold"),
             tele_types.InlineKeyboardButton("Пройти в сторону лечебных кабинетов", callback_data="apoc_s3_13")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 13: ЗАГАДКА 'ВОСЬМЕРКИ' ] ---
     elif call.data == "apoc_s3_13":
@@ -337,7 +335,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Число 8", callback_data="apoc_s3_14"),
             tele_types.InlineKeyboardButton("Число 32", callback_data="apoc_s3_drill_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 14: ПАТРУЛЬ В КОРИДОРЕ ] ---
     elif call.data == "apoc_s3_14":
@@ -358,7 +356,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Активировать ультразвуковую мойку", callback_data="apoc_s3_15"),
             tele_types.InlineKeyboardButton("Бросить в дрон тяжелый автоклав", callback_data="apoc_s3_patrol_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 15: КАБИНЕТ №1 (ПОРОГ ТАЙНЫ) ] ---
     elif call.data == "apoc_s3_15":
@@ -373,7 +371,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("Изучить костяной макет города", callback_data="apoc_s3_16")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 16: КОСТЯНОЙ МАКЕТ ГОРОДА ] ---
     elif call.data == "apoc_s3_16":
@@ -390,7 +388,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Осмотреть стоматологическое кресло", callback_data="apoc_s3_17"),
             tele_types.InlineKeyboardButton("Считать данные с зуба-макета", callback_data="apoc_s3_clue_tooth_map")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 17: КРЕСЛО УПРАВЛЕНИЯ ] ---
     elif call.data == "apoc_s3_17":
@@ -406,7 +404,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Ввести год рождения на панели", callback_data="apoc_s3_18"),
             tele_types.InlineKeyboardButton("Поискать скрытый рычаг под сиденьем", callback_data="apoc_s3_chair_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 18: АВТОРИЗАЦИЯ 1985 ] ---
     elif call.data == "apoc_s3_18":
@@ -427,7 +425,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Выбрать стоматологический экскаватор", callback_data="apoc_s3_19"),
             tele_types.InlineKeyboardButton("Выбрать щипцы для удаления", callback_data="apoc_s3_tool_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 19: ГОЛОС ИЗ БЕЗДНЫ ] ---
     elif call.data == "apoc_s3_19":
@@ -443,7 +441,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Запросить координаты инкубатора", callback_data="apoc_s3_20"),
             tele_types.InlineKeyboardButton("Спросить про Навигатора", callback_data="apoc_s3_clue_navigator")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 20: ЛАЗЕРНЫЙ БОР ] ---
     elif call.data == "apoc_s3_20":
@@ -462,7 +460,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Использовать Лазерный Бор на двери", callback_data="apoc_s3_21"),
             tele_types.InlineKeyboardButton("Броситься к шахте лифта", callback_data="apoc_s3_elevator_start")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 21: ЗЕРКАЛЬНЫЙ НАВИГАТОР ] ---
     elif call.data == "apoc_s3_21":
@@ -481,7 +479,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Направить луч Бора в маску Навигатора", callback_data="apoc_s3_22"),
             tele_types.InlineKeyboardButton("Попытаться заговорить зубы", callback_data="apoc_s3_nav_talk")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 22: ДУЭЛЬ НА ЛАЗЕРАХ ] ---
     elif call.data == "apoc_s3_22":
@@ -496,7 +494,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Прыгнуть в открывшийся люк под креслом", callback_data="apoc_s3_23")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 23: ЗОНА СТЕРИЛИЗАЦИИ ] ---
     elif call.data == "apoc_s3_23":
@@ -512,7 +510,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Активировать терминал автоклава", callback_data="apoc_s3_24"),
             tele_types.InlineKeyboardButton("Изучить маркировку на баках", callback_data="apoc_s3_clue_dna_bank")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 24: ЗАГАДКА АВТОКЛАВА ] ---
     elif call.data == "apoc_s3_24":
@@ -526,7 +524,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("134°C", callback_data="apoc_s3_25"),
             tele_types.InlineKeyboardButton("180°C", callback_data="apoc_s3_temp_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 25: ПУТЬ К ИНКУБАТОРУ ] ---
     elif call.data == "apoc_s3_25":
@@ -545,7 +543,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup().add(
             tele_types.InlineKeyboardButton("Войти в зал Инкубатора", callback_data="apoc_s3_26")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 26: ЗАЛ БЕЛОГО ЛОТОСА ] ---
     elif call.data == "apoc_s3_26":
@@ -562,7 +560,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Подойди к консоли «Семени»", callback_data="apoc_s3_27")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 27: ЗАГАДКА ШЕСТОГО ГОДА ] ---
     elif call.data == "apoc_s3_27":
@@ -577,7 +575,7 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("Возраст 6", callback_data="apoc_s3_28"),
             tele_types.InlineKeyboardButton("Возраст 12", callback_data="apoc_s3_root_fail")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 28: ЯВЛЕНИЕ НАВИГАТОРА ] ---
     elif call.data == "apoc_s3_28":
@@ -599,7 +597,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Ударить Лазерным Бором по трубкам охлаждения", callback_data="apoc_s3_29")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ЭТАП 29: ИЗВЛЕЧЕНИЕ СЕМЕНИ ] ---
     elif call.data == "apoc_s3_29":
@@ -613,7 +611,7 @@ def run_scenario(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
             tele_types.InlineKeyboardButton("Запрыгнуть в аварийный лифт", callback_data="apoc_s3_30")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # 🏆 --- [ ЭТАП 30: ФИНАЛ ГЛАВЫ 3 ] --- 🏆
     elif call.data == "apoc_s3_30":
@@ -633,7 +631,6 @@ def run_scenario(bot, call):
             add_xp(user_id, xp_reward, username)
             current_node = add_flag(current_node, "ch3_done")
             
-        # КРИТИЧЕСКИЙ ФИКС: Выносим сохранение экрана наружу
         current_node = set_loc(current_node, "apoc_ch3_completed_screen")
         set_game_node(user_id, current_node)
         loc = "apoc_ch3_completed_screen"
@@ -651,23 +648,33 @@ def run_scenario(bot, call):
             tele_types.InlineKeyboardButton("🚀 Начать Главу 4", callback_data="apoc_s4_start"),
             tele_types.InlineKeyboardButton("🏆 Вернуться в меню симуляций", callback_data="game_main_menu")
         )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+        safe_edit(text, kb)
 
     # --- [ ОБРАБОТЧИКИ ОШИБОК ] ---
     elif call.data in ["apoc_s3_logic_fail", "apoc_s3_milk_fail", "apoc_s3_drill_fail", "apoc_s3_temp_fail", "apoc_s3_root_fail"]:
-        bot.answer_callback_query(call.id, "❌ Марти: 'Док, это неправильное число! Система блокируется! Перепроверьте свои медицинские справочники!'", show_alert=True)
+        try: bot.answer_callback_query(call.id, "❌ Марти: 'Док, это неправильное число! Система блокируется! Перепроверьте свои медицинские справочники!'", show_alert=True)
+        except: pass
         return
+        
     elif call.data in ["apoc_s3_sprint_fail", "apoc_s3_kick_fail", "apoc_s3_run_fail", "apoc_s3_patrol_fail", "apoc_s3_chair_fail", "apoc_s3_tool_fail"]:
-        bot.answer_callback_query(call.id, "⚠️ ОПАСНО: Прямое столкновение приведет к гибели! Марти: 'Ищите обходной путь, Док, не лезьте на рожон!'", show_alert=True)
+        try: bot.answer_callback_query(call.id, "⚠️ ОПАСНО: Прямое столкновение приведет к гибели! Марти: 'Ищите обходной путь, Док, не лезьте на рожон!'", show_alert=True)
+        except: pass
+        add_xp(user_id, -5, username) # ФИКС: Вычет опыта за смертельные глупости
         return
+        
     elif call.data == "apoc_s3_analyze_port":
-        bot.answer_callback_query(call.id, "🔌 Порт защищен шифром деда. Марти: 'Док, тут нужен прямой контакт, резать провода было быстрее!'", show_alert=True)
+        try: bot.answer_callback_query(call.id, "🔌 Порт защищен шифром деда. Марти: 'Док, тут нужен прямой контакт, резать провода было быстрее!'", show_alert=True)
+        except: pass
         return
+        
     elif call.data == "apoc_s3_elevator_start":
-        bot.answer_callback_query(call.id, "🚫 ЛИФТ ЗАБЛОКИРОВАН. Навигатор перерезал питание сверху! Марти: 'Только Бор, Док! Жгите замок!'", show_alert=True)
+        try: bot.answer_callback_query(call.id, "🚫 ЛИФТ ЗАБЛОКИРОВАН. Навигатор перерезал питание сверху! Марти: 'Только Бор, Док! Жгите замок!'", show_alert=True)
+        except: pass
         return
+        
     elif call.data == "apoc_s3_nav_talk":
-        bot.answer_callback_query(call.id, "🎭 Навигатор смеется: 'Слова — это шум. Ваша ДНК говорит громче'. Он поднимает оружие!", show_alert=True)
+        try: bot.answer_callback_query(call.id, "🎭 Навигатор смеется: 'Слова — это шум. Ваша ДНК говорит громче'. Он поднимает оружие!", show_alert=True)
+        except: pass
         return
 
     # --- [ ДЕТЕКТИВНЫЕ НАХОДКИ ] ---
@@ -687,4 +694,6 @@ def run_scenario(bot, call):
             "clue_ticket": "🎫 КАССА: Вы нашли старый жетон метро. На нем нацарапано: 'Не верь отражениям. Навигатор лжет'.",
             "clue_tooth_map": "🦷 МАКЕТ: Зуб резонирует! Био-анализатор скачал скрытые чертежи подвалов клиники."
         }
-        bot.answer_callback_query(call.id, responses.get(clue_key, "Инфо получено."), show_alert=True)
+        try: bot.answer_callback_query(call.id, responses.get(clue_key, "Инфо получено."), show_alert=True)
+        except: pass
+        return
