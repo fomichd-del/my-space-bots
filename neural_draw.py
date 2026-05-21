@@ -24,7 +24,7 @@ def get_english_prompt(russian_text):
     user_prompt = f"Describe object: {clean}"
     
     # 🟢 Обновленный арсенал переводчиков (самые быстрые и умные из вашего скана)
-    MODELS_TO_TRY = ['gemini-3.1-flash-lite', 'gemini-2.0-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-image-preview',
+    MODELS_TO_TRY = ['gemini-3.1-flash-lite', 'gemini-2.0-flash-lite', 'gemini-3.5-flash', 'gemini-3.1-flash-image-preview',
         'gemini-3-pro-image-preview', 'gemini-3-pro-preview', 'gemini-3-flash-preview',
         'gemini-2.5-flash-image', 'gemini-2.5-flash', 'gemini-2.0-flash']
     
