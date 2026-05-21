@@ -37,7 +37,14 @@ def run_scenario(bot, call):
 
     # 🟢 --- [ ВХОД В ИГРУ И УМНОЕ МЕНЮ ВОЗВРАТА ] --- 🟢
     if call.data == "apoc_s2_start":
-        if loc in ["apoc_ch1_completed_screen", "apoc_s2_scene_1", "start", "apoc_start"]:
+        # Жесткая проверка: если 1-я глава не пройдена, не пускаем вообще
+        if not has_completed_chapter(user_id, "chapter_1"):
+            try: bot.answer_callback_query(call.id, "🔒 Доступ заблокирован! Сначала завершите Главу 1.", show_alert=True)
+            except: pass
+            return
+
+        # Если пилот только пришел из 1-й главы ИЛИ сбросил прогресс 2-й главы
+        if loc in ["apoc_ch1_completed_screen", "apoc_start", "start", "apoc_s2_scene_1"]:
             call.data = "apoc_s2_scene_1"
         else:
             text = (f"🔙 *ВОЗВРАЩЕНИЕ В ПУСТОШЬ*\n"
@@ -51,6 +58,11 @@ def run_scenario(bot, call):
             )
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
             return
+
+    if call.data == "resume_game_2":
+        call.data = loc
+        try: bot.answer_callback_query(call.id, "🔄 Экспедиция продолжена!")
+        except: pass
 
     if call.data == "resume_game_2":
         call.data = loc
