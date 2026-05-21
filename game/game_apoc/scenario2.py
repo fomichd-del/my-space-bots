@@ -261,19 +261,6 @@ def run_scenario(bot, call):
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
             return
 
-    # --- [ ЭТАП 9-Б: ЗАВЕРШЕНИЕ ОЖИДАНИЯ И ПЕРЕХОД К КРАФТУ ] ---
-    elif call.data == "apoc_s2_9_done":
-        text = (f"🛠 *ПОСЛЕДНИЕ ШТРИХИ*\n\n"
-                f"Шаги затихли. Теперь у нас есть всё: корпус, мотор и стабилизированный реагент. Вы раскладываете детали на операционном столе трейлера. "
-                f"Это кропотливая работа — соединить технологию 1985 года с ИИ-модулями 2026-го.\n\n"
-                f"Марти: 'Док, я буду подавать вам инструменты. Постарайтесь не перепутать полярность!'.")
-        
-        t = 10 if has_flag(current_node, "super_motor") else 20
-        kb = tele_types.InlineKeyboardMarkup().add(
-            tele_types.InlineKeyboardButton(f"⚒ Начать сборку ({t} мин)", callback_data="apoc_s2_craft_start")
-        )
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-
     # --- [ СТАРТ СБОРКИ ] ---
     elif call.data == "apoc_s2_craft_start":
         t = 10 if has_flag(current_node, "super_motor") else 20
