@@ -1,5 +1,5 @@
 from . import menu, scenario1, scenario2, scenario3, scenario4, scenario5
-from .game_apoc import router as apoc_router # 🟢 ДОБАВЛЕНО: Импорт роутера второй игры
+from .game_apoc import router as apoc_router # 🟢 Импорт роутера второй игры
 from database import get_game_status
 
 def route_game(bot, call):
@@ -7,8 +7,17 @@ def route_game(bot, call):
     data = call.data
     
     # 🟢 --- 1. ОБРАБОТКА ВТОРОЙ ИГРЫ (ЧИСТОЕ НЕБО) ---
-    # Перехватываем все сигналы, начинающиеся на apoc_
-    if data.startswith("apoc_"):
+    # Список ВСЕХ кнопок возврата и сброса для ВСЕХ глав Апокалипсиса
+    apoc_system_buttons = [
+        "resume_game", "game_reset_all",
+        "resume_game_2", "game_reset_ch2",
+        "resume_game_3", "game_reset_ch3",
+        "resume_game_4", "game_reset_ch4",
+        "resume_game_5", "game_reset_ch5"
+    ]
+    
+    # Перехватываем сигналы, если они начинаются на apoc_ ИЛИ находятся в списке системных кнопок
+    if data.startswith("apoc_") or data in apoc_system_buttons:
         if data == "apoc_menu":
             # Открываем меню глав второй игры
             report, kb = menu.get_apoc_chapters_menu()
