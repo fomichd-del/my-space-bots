@@ -9,19 +9,22 @@ from database import (
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
-    username = call.from_user.first_name if call.from_user.first_name else "Док"
     
-    # --- [ 1. АБСОЛЮТНАЯ ЗАЩИТА ТАЙМЕРА ] ---
-    # Пропускаем системные кнопки входа, чтобы бот мог показать меню "Продолжить экспедицию"
-    if call.data not in ["apoc_s2_start", "resume_game_2", "game_reset_ch2", "game_main_menu"]:
-        if not is_timer_expired(user_id):
-            try: bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
-            except: pass
-            return
-
+    # 1. Сначала просто получаем статус
     raw_node, _ = get_game_status(user_id)
-    if not raw_node: 
-        raw_node = "apoc_start"
+    if not raw_node: raw_node = "apoc_start"
+    
+    # 2. Определяем, не является ли это попыткой действий во время таймера
+    # Исключаем кнопки, которые НУЖНО нажимать, даже если таймер идет
+    allowed_during_timer = [
+        "apoc_s2_start", "resume_game_2", "game_reset_ch2", 
+        "game_main_menu", "apoc_s2_craft_bio" # Добавили кнопку проверки крафта
+    ]
+    
+    if call.data not in allowed_during_timer:
+        if not is_timer_expired(user_id):
+            bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
+            return
 
     # --- ЛОКАЛЬНЫЕ ПОМОЩНИКИ ДЛЯ РАБОТЫ СО СТРОКОЙ СОХРАНЕНИЯ ---
     def get_loc(node_str): return node_str.split('|')[0]
