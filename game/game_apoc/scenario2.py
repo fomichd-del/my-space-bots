@@ -7,25 +7,21 @@ from database import (
 
 def run_scenario(bot, call):
     user_id = call.from_user.id
-    # Берем имя каждый раз, чтобы избежать NameError
     username = call.from_user.first_name or "Док"
     
     raw_node, _ = get_game_status(user_id)
     if not raw_node: raw_node = "apoc_start"
     
-    # Список кнопок, которые РАБОТАЮТ во время таймера
     allowed_during_timer = [
         "apoc_s2_start", "resume_game_2", "game_reset_ch2", 
         "game_main_menu", "apoc_s2_craft_bio", "apoc_s2_9_done"
     ]
     
-    # ПРОВЕРКА ТАЙМЕРА
     if call.data not in allowed_during_timer:
         if not is_timer_expired(user_id):
             bot.answer_callback_query(call.id, "⌛️ Объект заблокирован. Ожидайте завершения процесса!", show_alert=True)
             return
 
-    # Локальные помощники (как были)
     def get_loc(node_str): return node_str.split('|')[0]
     def has_flag(node_str, flag): return f"|{flag}" in node_str or flag in node_str.split('|')[1:]
     def add_flag(node_str, flag): return node_str if has_flag(node_str, flag) else f"{node_str}|{flag}"
@@ -48,7 +44,7 @@ def run_scenario(bot, call):
             set_game_node(user_id, current_node)
             loc = "apoc_s2_scene_1"
         elif loc == "apoc_s2_scene_1":
-            pass
+            call.data = "apoc_s2_scene_1" # ФИКС: Устранение мертвой зоны
         else:
             text = "🔙 *ВОЗВРАЩЕНИЕ В ПУСТОШЬ*\nКомандор, вы остановились на пути к ТЦ 'Зенит'. Что делаем?"
             kb = tele_types.InlineKeyboardMarkup(row_width=1).add(
@@ -71,9 +67,9 @@ def run_scenario(bot, call):
         set_game_timer(user_id, 0)
         set_game_node(user_id, current_node)
         call.data = "apoc_s2_scene_1"
+        loc = "apoc_s2_scene_1"
 
-    # --- АВТОСОХРАНЕНИЕ ---
-    MAJOR_NODES = ["apoc_s2_scene_1", "apoc_s2_2", "apoc_s2_4", "apoc_s2_5", "apoc_s2_6", "apoc_s2_8", "apoc_s2_9_wait", "apoc_s2_9_done", "apoc_s2_craft_start", "apoc_s2_craft_bio", "apoc_s2_11", "apoc_s2_12", "apoc_s2_13", "apoc_s2_14", "apoc_s2_15", "apoc_s2_16", "apoc_s2_17", "apoc_s2_18", "apoc_s2_19", "apoc_s2_20", "apoc_s2_21", "apoc_s2_23", "apoc_s2_24", "apoc_s2_25", "apoc_s2_26", "apoc_s2_27", "apoc_s2_28", "apoc_s2_sync", "apoc_s2_30", "apoc_ch2_completed_screen"]
+    MAJOR_NODES = ["apoc_s2_scene_1", "apoc_s2_2", "apoc_s2_4", "apoc_s2_5", "apoc_s2_6", "apoc_s2_8", "apoc_s2_9_wait", "apoc_s2_9_sound", "apoc_s2_9_done", "apoc_s2_craft_start", "apoc_s2_craft_bio", "apoc_s2_11", "apoc_s2_12", "apoc_s2_13", "apoc_s2_14", "apoc_s2_15", "apoc_s2_16", "apoc_s2_17", "apoc_s2_18", "apoc_s2_19", "apoc_s2_20", "apoc_s2_21", "apoc_s2_23", "apoc_s2_24", "apoc_s2_25", "apoc_s2_26", "apoc_s2_27", "apoc_s2_28", "apoc_s2_sync", "apoc_s2_30", "apoc_ch2_completed_screen"]
     if call.data in MAJOR_NODES:
         current_node = set_loc(current_node, call.data)
         set_game_node(user_id, current_node)
@@ -230,36 +226,46 @@ def run_scenario(bot, call):
         )
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
-    # --- [ ЭТАП 9: ПРЕДДВЕРИЕ СБОРКИ АНАЛИЗАТОРА ] ---
-    elif call.data.startswith("apoc_s2_9"):
-        if "wait" in call.data:
-            set_game_timer(user_id, 10)
-            text = (f"🤫 *ИГРА В ПРЯТКИ*\n\n"
-                    f"Вы отключаете всё питание в трейлере. Снаружи слышно тяжелое, хриплое дыхание. "
-                    f"Тварь обходит трейлер кругами, периодически царапая металл когтями. Нужно переждать.\n\n"
-                    f"**Ожидание: 10 минут.**")
-            kb = tele_types.InlineKeyboardMarkup().add(
-                tele_types.InlineKeyboardButton("🔄 Проверить обстановку", callback_data="apoc_s2_9_done")
-            )
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+    # ФИКС: РАЗБИЛИ ЭТАП 9 НА ЯВНЫЕ КНОПКИ БЕЗ STARTSWITH
+    # --- [ ЭТАП 9-А: ОЖИДАНИЕ ] ---
+    elif call.data == "apoc_s2_9_wait":
+        set_game_timer(user_id, 10)
+        text = (f"🤫 *ИГРА В ПРЯТКИ*\n\n"
+                f"Вы отключаете всё питание в трейлере. Снаружи слышно тяжелое, хриплое дыхание. "
+                f"Тварь обходит трейлер кругами, периодически царапая металл когтями. Нужно переждать.\n\n"
+                f"**Ожидание: 10 минут.**")
+        kb = tele_types.InlineKeyboardMarkup().add(
+            tele_types.InlineKeyboardButton("🔄 Проверить обстановку", callback_data="apoc_s2_9_done")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- [ ЭТАП 9-Б: ЗВУКОВОЙ УДАР ] ---
+    elif call.data == "apoc_s2_9_sound":
+        text = (f"🔊 *ЗВУКОВОЙ УДАР*\n\n"
+                f"Звуковой импульс Марти сработал! Тварь с диким визгом бросилась в сторону болот, подальше от источника шума.\n\n"
+                f"Марти: 'Отлично, Док! А теперь давайте соберем эту штуку, пока не прибежали его старшие братья!'.")
+        kb = tele_types.InlineKeyboardMarkup().add(
+            tele_types.InlineKeyboardButton("⚒ Перейти к столу", callback_data="apoc_s2_9_done")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
+
+    # --- [ ЭТАП 9-В: ПЕРЕХОД К СБОРКЕ ] ---
+    elif call.data == "apoc_s2_9_done":
+        # ФИКС: Защита от прокликивания таймера
+        if not is_timer_expired(user_id):
+            bot.answer_callback_query(call.id, "🤫 Тсс! Тварь еще бродит рядом. Ждем!", show_alert=True)
             return
+
+        text = (f"🛠 *ПОСЛЕДНИЕ ШТРИХИ*\n\n"
+                f"Шаги затихли. Теперь у нас есть всё: корпус, мотор и стабилизированный реагент. Вы раскладываете детали на операционном столе трейлера. "
+                f"Это кропотливая работа — соединить технологию 1985 года с ИИ-модулями 2026-го.\n\n"
+                f"Марти: 'Док, я буду подавать вам инструменты. Постарайтесь не перепутать полярность!'.")
         
-        elif "sound" in call.data or "done" in call.data:
-            # Принудительно переводим узел на apoc_s2_9_done, если это не сделали ранее
-            current_node = set_loc(current_node, "apoc_s2_9_done")
-            set_game_node(user_id, current_node)
-            
-            text = (f"🛠 *ПОСЛЕДНИЕ ШТРИХИ*\n\n"
-                    f"Шаги затихли. Теперь у нас есть всё: корпус, мотор и стабилизированный реагент. Вы раскладываете детали на операционном столе трейлера. "
-                    f"Это кропотливая работа — соединить технологию 1985 года с ИИ-модулями 2026-го.\n\n"
-                    f"Марти: 'Док, я буду подавать вам инструменты. Постарайтесь не перепутать полярность!'.")
-            
-            t = 10 if has_flag(current_node, "super_motor") else 20
-            kb = tele_types.InlineKeyboardMarkup().add(
-                tele_types.InlineKeyboardButton(f"⚒ Начать сборку ({t} мин)", callback_data="apoc_s2_craft_start")
-            )
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
-            return
+        t = 10 if has_flag(current_node, "super_motor") else 20
+        kb = tele_types.InlineKeyboardMarkup().add(
+            tele_types.InlineKeyboardButton(f"⚒ Начать сборку ({t} мин)", callback_data="apoc_s2_craft_start")
+        )
+        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
 
     # --- [ СТАРТ СБОРКИ ] ---
     elif call.data == "apoc_s2_craft_start":
@@ -274,6 +280,11 @@ def run_scenario(bot, call):
 
     # --- [ ЭТАП 10: ПЕРВЫЙ СИГНАЛ ] ---
     elif call.data == "apoc_s2_craft_bio":
+        # ФИКС: Защита от прокликивания сборки
+        if not is_timer_expired(user_id):
+            bot.answer_callback_query(call.id, "⏳ Сборка еще идет! Не торопитесь.", show_alert=True)
+            return
+
         if not has_flag(current_node, "scanner_upgraded"):
             current_node = add_flag(current_node, "scanner_upgraded")
             set_game_node(user_id, current_node)
@@ -628,7 +639,6 @@ def run_scenario(bot, call):
             add_xp(user_id, xp_reward, username) 
             current_node = add_flag(current_node, "ch2_done")
             
-        # КРИТИЧЕСКИЙ ФИКС: Выносим сохранение экрана наружу условия
         current_node = set_loc(current_node, "apoc_ch2_completed_screen")
         set_game_node(user_id, current_node)
         loc = "apoc_ch2_completed_screen"
