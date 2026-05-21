@@ -110,6 +110,10 @@ def generate_star_map(lat, lon, user_name, user_id):
                      "label": {"font_size": 18, "font_color": "#FFCC00", "offset_y": 25, "font_weight": 700}
                  })
         
+        # ЛУНА: Добавляем принудительный расчет через .submonitor
+        moon_e.compute(e_obs) 
+        moon_j = ephem.Equatorial(moon_e, epoch='2000')
+
         p.marker(ra=math.degrees(moon_j.ra), dec=math.degrees(moon_j.dec), label="ЛУНА",
                  style={
                      "marker": {"size": 52, "symbol": "circle", "color": "#FFFEE0"},
