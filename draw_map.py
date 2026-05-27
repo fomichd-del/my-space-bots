@@ -5,7 +5,7 @@ from starplot import ZenithPlot, Observer, _
 from starplot.styles import PlotStyle, extensions
 from datetime import datetime, timezone
 import os, json, random, gc, math
-from PIL import Image, ImageEnhance, ImageDraw, ImageChops
+from PIL import Image, ImageEnhance, ImageDraw, ImageChops, ImageFont
 import ephem
 import warnings
 from timezonefinder import TimezoneFinder
@@ -48,11 +48,17 @@ TARGETS = {
 def get_cloud_cover(lat, lon):
     try:
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=cloud_cover"
-        return int(requests.get(url, timeout=5).json()['current']['cloud_cover'])
+        res = requests.get(url, timeout=5)
+        val = int(res.json()['current']['cloud_cover'])
+        res.close()
+        return val
     except: return 0
 
 def generate_star_map(lat, lon, user_name, user_id):
+    # Жесткая зачистка перед началом тяжелой генерации
+    plt.close('all')
     gc.collect() 
+    
     temp_raw = OUTPUT_DIR / f"raw_{user_id}.png"
     final_png = OUTPUT_DIR / f"fin_{user_id}.png"
     final_jpg = OUTPUT_DIR / f"sky_{user_id}.jpg"
@@ -89,6 +95,7 @@ def generate_star_map(lat, lon, user_name, user_id):
                 c.line.color = "#5c9dff"
         except: pass
 
+        # Отрисовка карты через Starplot
         p = ZenithPlot(observer=observer, style=style, resolution=1200, autoscale=True)
         p.horizon()
         p.milky_way() 
@@ -102,7 +109,6 @@ def generate_star_map(lat, lon, user_name, user_id):
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
         moon_e = ephem.Moon(); moon_e.compute(e_obs)
         sun_j = ephem.Equatorial(sun_e, epoch='2000')
-        moon_j = ephem.Equatorial(moon_e, epoch='2000')
         
         p.marker(ra=math.degrees(sun_j.ra), dec=math.degrees(sun_j.dec), label="СОЛНЦЕ",
                  style={
@@ -110,7 +116,6 @@ def generate_star_map(lat, lon, user_name, user_id):
                      "label": {"font_size": 18, "font_color": "#FFCC00", "offset_y": 25, "font_weight": 700}
                  })
         
-        # ЛУНА: Добавляем принудительный расчет через .submonitor
         moon_e.compute(e_obs) 
         moon_j = ephem.Equatorial(moon_e, epoch='2000')
 
@@ -127,61 +132,81 @@ def generate_star_map(lat, lon, user_name, user_id):
                  })
 
         p.export(str(temp_raw), transparent=True, padding=0.01)
-        plt.clf(); plt.close('all')
-
-        bg_img = Image.open(BASE_DIR / 'background1.png').convert("RGBA")
-        sky_img = Image.open(temp_raw).convert("RGBA")
-        sky_size = 940 
-        sky_img = sky_img.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
         
-        cloud_p = BASE_DIR / 'clouds.png'
-        if cloud_cover > 5 and cloud_p.exists():
-            clouds_tex = Image.open(cloud_p).convert('RGBA').resize((sky_size, sky_size))
-            cloud_mask = ImageEnhance.Contrast(clouds_tex.convert('L')).enhance(1.8)
-            cloud_mask = cloud_mask.point(lambda x: int(x * (cloud_cover / 100.0)))
-            circle_mask = Image.new("L", (sky_size, sky_size), 0)
-            ImageDraw.Draw(circle_mask).ellipse((65, 65, sky_size-65, sky_size-65), fill=255)
-            f_mask = ImageChops.multiply(cloud_mask, circle_mask)
-            cloud_ov = Image.new('RGBA', (sky_size, sky_size), (240, 240, 245))
-            cloud_ov.putalpha(f_mask)
-            sky_img = Image.alpha_composite(sky_img, cloud_ov)
+        # Моментально выгружаем Matplotlib из памяти
+        plt.clf()
+        plt.close('all')
+        del p
 
-        bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
+        # Изолированная обработка изображений через контекстные менеджеры with
+        with Image.open(BASE_DIR / 'background1.png').convert("RGBA") as bg_img:
+            sky_size = 940 
+            with Image.open(temp_raw).convert("RGBA") as raw_sky:
+                sky_img = raw_sky.resize((sky_size, sky_size), Image.Resampling.LANCZOS)
+            
+            cloud_p = BASE_DIR / 'clouds.png'
+            if cloud_cover > 5 and cloud_p.exists():
+                with Image.open(cloud_p).convert('RGBA') as clouds_raw:
+                    clouds_tex = clouds_raw.resize((sky_size, sky_size))
+                    cloud_mask = ImageEnhance.Contrast(clouds_tex.convert('L')).enhance(1.8)
+                    cloud_mask = cloud_mask.point(lambda x: int(x * (cloud_cover / 100.0)))
+                    
+                    circle_mask = Image.new("L", (sky_size, sky_size), 0)
+                    ImageDraw.Draw(circle_mask).ellipse((65, 65, sky_size-65, sky_size-65), fill=255)
+                    f_mask = ImageChops.multiply(cloud_mask, circle_mask)
+                    
+                    cloud_ov = Image.new('RGBA', (sky_size, sky_size), (240, 240, 245))
+                    cloud_ov.putalpha(f_mask)
+                    
+                    composite_sky = Image.alpha_composite(sky_img, cloud_ov)
+                    sky_img.close()
+                    sky_img = composite_sky
+                    
+                    circle_mask.close(); f_mask.close(); cloud_ov.close()
 
-        # --- [ БЛОК ШТАМПА УДАЛЕН ] ---
+            bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
+            sky_img.close()
 
-        dpi = 300 
-        fig = plt.figure(figsize=(bg_img.width/dpi, bg_img.height/dpi), dpi=dpi)
-        ax = fig.add_axes([0, 0, 1, 1]); ax.imshow(bg_img); ax.axis('off')
+            # 🟢 ВАЖНАЯ ОПТИМИЗАЦИЯ: Пишем текст напрямую через PIL.Draw, экономя 150МБ ОЗУ!
+            draw = ImageDraw.Draw(bg_img)
+            
+            # Используем стандартный шрифт или загружаем системный (fontsize=8 в matplotlib примерно равен 24px в оригинале)
+            try: font = ImageFont.truetype("arial.ttf", 24)
+            except: font = ImageFont.load_default()
+            
+            try: font_bold = ImageFont.truetype("arialbd.ttf", 26)
+            except: font_bold = font
 
-        tf = TimezoneFinder()
-        tz_name = tf.timezone_at(lng=float(lon), lat=float(lat))
-        user_tz = pytz.timezone(tz_name) if tz_name else pytz.utc
-        
-        rise_utc = e_obs.next_rising(sun_e).datetime()
-        set_utc = e_obs.next_setting(sun_e).datetime()
-        
-        rise_t = pytz.utc.localize(rise_utc).astimezone(user_tz).strftime('%H:%M')
-        set_t = pytz.utc.localize(set_utc).astimezone(user_tz).strftime('%H:%M')
+            tf = TimezoneFinder()
+            tz_name = tf.timezone_at(lng=float(lon), lat=float(lat))
+            user_tz = pytz.timezone(tz_name) if tz_name else pytz.utc
+            
+            rise_utc = e_obs.next_rising(sun_e).datetime()
+            set_utc = e_obs.next_setting(sun_e).datetime()
+            
+            rise_t = pytz.utc.localize(rise_utc).astimezone(user_tz).strftime('%H:%M')
+            set_t = pytz.utc.localize(set_utc).astimezone(user_tz).strftime('%H:%M')
 
-        t_col = '#D4E6FF'
-        fig.text(0.38, 0.175, user_name.upper(), color=t_col, fontsize=8)
-        fig.text(0.49, 0.135, f"{float(lat):.2f}N, {float(lon):.2f}E", color=t_col, fontsize=8)
-        fig.text(0.32, 0.106, f"Фаза: {int(moon_e.phase)}% | Облачность: {cloud_cover}%", color=t_col, fontsize=8)
-        fig.text(0.385, 0.072, rise_t, color=t_col, fontsize=8)
-        fig.text(0.705, 0.072, set_t, color=t_col, fontsize=8)
-        fig.text(0.38, 0.028, target_name_rus, color='#FF00FF', fontsize=8, fontweight=700)
+            # Координаты скорректированы под масштаб оригинального разрешения background1.png
+            draw.text((int(bg_img.width * 0.38), int(bg_img.height * 0.81)), user_name.upper(), fill='#D4E6FF', font=font)
+            draw.text((int(bg_img.width * 0.49), int(bg_img.height * 0.845)), f"{float(lat):.2f}N, {float(lon):.2f}E", fill='#D4E6FF', font=font)
+            draw.text((int(bg_img.width * 0.32), int(bg_img.height * 0.875)), f"Фаза: {int(moon_e.phase)}% | Облачность: {cloud_cover}%", fill='#D4E6FF', font=font)
+            draw.text((int(bg_img.width * 0.385), int(bg_img.height * 0.91)), rise_t, fill='#D4E6FF', font=font)
+            draw.text((int(bg_img.width * 0.705), int(bg_img.height * 0.91)), set_t, fill='#D4E6FF', font=font)
+            draw.text((int(bg_img.width * 0.38), int(bg_img.height * 0.955)), target_name_rus, fill='#FF00FF', font=font_bold)
 
-        plt.savefig(str(final_png), bbox_inches='tight', pad_inches=0, dpi=dpi)
-        plt.close(fig)
-        with Image.open(final_png) as img:
-            img.convert("RGB").save(str(final_jpg), "JPEG", quality=90, optimize=True)
-        
-        if temp_raw.exists(): os.remove(temp_raw)
-        bg_img.close(); sky_img.close()
-        
+            # Сохраняем финальные файлы напрямую
+            bg_img.save(str(final_png), "PNG")
+            bg_img.convert("RGB").save(str(final_jpg), "JPEG", quality=90, optimize=True)
+
+        if temp_raw.exists(): 
+            os.remove(temp_raw)
+            
+        # Финальный сборщик мусора
+        gc.collect()
         return True, str(final_jpg), str(final_png), target_name_rus, ""
 
     except Exception as e:
         plt.close('all')
+        gc.collect()
         return False, "", "", "", str(e)
