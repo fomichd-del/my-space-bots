@@ -167,15 +167,18 @@ def generate_star_map(lat, lon, user_name, user_id):
             bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
             sky_img.close()
 
-            # 🟢 ВАЖНАЯ ОПТИМИЗАЦИЯ: Пишем текст напрямую через PIL.Draw, экономя 150МБ ОЗУ!
+                        # 🟢 ВАЖНАЯ ОПТИМИЗАЦИЯ: Пишем текст напрямую через PIL.Draw
             draw = ImageDraw.Draw(bg_img)
             
-            # Используем стандартный шрифт или загружаем системный (fontsize=8 в matplotlib примерно равен 24px в оригинале)
-            try: font = ImageFont.truetype("arial.ttf", 24)
-            except: font = ImageFont.load_default()
-            
-            try: font_bold = ImageFont.truetype("arialbd.ttf", 26)
-            except: font_bold = font
+            # Загружаем ВАШ шрифт Roboto-Bold из корня проекта
+            font_path = str(BASE_DIR / "Roboto-Bold.ttf")
+            try: 
+                font = ImageFont.truetype(font_path, 24)
+                font_bold = ImageFont.truetype(font_path, 26)
+            except Exception as e:
+                print(f"⚠️ Ошибка загрузки Roboto-Bold: {e}")
+                font = ImageFont.load_default()
+                font_bold = font
 
             tf = TimezoneFinder()
             tz_name = tf.timezone_at(lng=float(lon), lat=float(lat))
