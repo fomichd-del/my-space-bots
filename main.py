@@ -1,20 +1,18 @@
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from telebot import apihelper
-import os, time, concurrent.futures, random, io
+import os, time, concurrent.futures, random, io, threading
 from pathlib import Path
-from flask import Flask, request, jsonify  # 🟢 Добавили request и jsonify для шлюза
+from flask import Flask, request, jsonify
 from threading import Thread, Timer 
 import requests
 from PIL import Image
-from datetime import datetime  # 🟢 Добавили для фиксации времени новостей
+from datetime import datetime
 
 # --- [ ИМПОРТ МОДУЛЕЙ КОРАБЛЯ ] ---
 from draw_map import generate_star_map
-# 🟢 Добавили add_news в импорт из базы
 from database import init_db, add_xp, get_user_stats, get_rank_name, add_news 
 from base_fact_star import CONSTELLATIONS
-# 🟢 ДОБАВЛЕНО: Пробуждаем Марти-Ученого из его файла
 from marty_chat import start_marty_autonomous 
 from game import menu, router
 
@@ -29,6 +27,9 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 bot = telebot.TeleBot(TOKEN, threaded=True)
 apihelper.CONNECT_TIMEOUT = 60
 apihelper.READ_TIMEOUT = 90
+
+# Флаг-предохранитель для защиты ОЗУ от размножения потоков автономного Марти
+AUTONOMOUS_RUNNING = False
 
 # --- [ ФУНКЦИЯ СОЗДАНИЯ ГЛАВНОГО МЕНЮ ] ---
 def get_main_menu():
@@ -74,6 +75,12 @@ def get_instruction_text():
 
 @bot.message_handler(func=lambda m: True, content_types=['text'])
 def unified_text_handler(message):
+    # Предохранитель ответа в группах, чтобы кнопка локации отправлялась только в ЛС
+    if message.chat.type != "private":
+        if message.text == "/start" or "Навигатор" in message.text:
+            bot.send_message(message.chat.id, "🛰️ Системы Навигации активны. Для полноценного использования и отправки координат перейдите в личные сообщения со мной.")
+        return
+
     menu_kb = get_main_menu() 
     
     if message.text == "❓❓ ИНСТРУКЦИЯ ПИЛОТА":
@@ -96,6 +103,9 @@ def unified_text_handler(message):
 
 @bot.message_handler(content_types=['location'])
 def handle_location(message):
+    if message.chat.type != "private":
+        return
+
     user_id, user_name = message.from_user.id, message.from_user.first_name
     status_msg = bot.send_message(message.chat.id, "🚀 <b>Прогреваю варп-двигатель...</b>", parse_mode='HTML')
     
@@ -169,12 +179,11 @@ def callback_wiki(call):
                 base_img = Image.open(io.BytesIO(valid_photo_data)).convert("RGBA")
                 if os.path.exists("watermark.png"):
                     stamp = Image.open("watermark.png").convert("RGBA")
-                    pix = stamp.load()
-                    for y in range(stamp.height):
-                        for x in range(stamp.width):
-                            r, g, b, a = pix[x, y]
-                            if r > 210 and g > 210 and b > 210: pix[x, y] = (255, 255, 255, 0)
-                            elif a > 0: pix[x, y] = (255, 255, 255, a)
+                    
+                    # ОПТИМИЗАЦИЯ ОЗУ: Заменили попиксельный тяжелый цикл на быструю матричную маску PIL
+                    r, g, b, a = stamp.split()
+                    white_mask = stamp.point(lambda p: 255 if p > 210 else p)
+                    
                     sw = int(base_img.width * 0.12)
                     sh = int(stamp.height * (sw / stamp.width))
                     stamp = stamp.resize((sw, sh), Image.Resampling.LANCZOS)
@@ -185,9 +194,14 @@ def callback_wiki(call):
                     buf = io.BytesIO()
                     base_img.convert("RGB").save(buf, format='JPEG', quality=95)
                     valid_photo_data = buf.getvalue()
+                    buf.close()
 
                 bot.send_photo(call.message.chat.id, valid_photo_data, caption=text, parse_mode='HTML')
-            except:
+                
+                # Принудительная очистка тяжелых объектов из ОЗУ
+                del base_img
+                if os.path.exists("watermark.png"): del stamp
+            except Exception as e:
                 bot.send_message(call.message.chat.id, text, parse_mode='HTML')
         else:
             bot.send_message(call.message.chat.id, text, parse_mode='HTML')
@@ -207,7 +221,7 @@ def game_engine(call):
         report, kb = menu.get_main_games_menu()
         bot.edit_message_text(report, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
     else:
-        main_router.handle_game_selection(bot, call)
+        router.handle_game_selection(bot, call)
 
 # --- [ FLASK СЕРВЕР И API-ШЛЮЗ ] ---
 app = Flask(__name__)
@@ -216,7 +230,6 @@ app = Flask(__name__)
 def home(): 
     return "<h1>Navigator Marty: Online</h1>"
 
-# 🟢 НОВЫЙ ШЛЮЗ: Принимает новости от сторонних скриптов
 @app.route('/orion_uplink', methods=['POST'])
 def orion_uplink():
     try:
@@ -224,24 +237,27 @@ def orion_uplink():
         if data and 'text' in data:
             text = data['text']
             today = datetime.now().strftime("%Y-%m-%d")
-            add_news(today, text) # Сохраняем новость в базу для вечернего дайджеста
-            send_log(f"📡 API-Шлюз: Получена новость: {text[:30]}...")
+            add_news(today, text) 
             return jsonify({"status": "success"}), 200
         return jsonify({"status": "error", "message": "No text provided"}), 400
     except Exception as e:
-        send_log(f"🚨 Ошибка API-шлюза: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     init_db()
     
-    # Запуск Flask сервера (Render использует порт 10000)
+    # 1. Запуск веб-сервера шлюза
     Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     
-    # 🟢 ЗАПУСК МАРТИ-УЧЕНОГО
-    Thread(target=start_marty_autonomous, daemon=True).start()
+    # 2. 🛡 БЕЗОПАСНЫЙ ОДНОКРАТНЫЙ ЗАПУСК МАРТИ-УЧЕНОГО (Защита от утечки 512МБ)
+    if not AUTONOMOUS_RUNNING:
+        AUTONOMOUS_RUNNING = True
+        Thread(target=start_marty_autonomous, daemon=True).start()
+        print("🚀 [СИСТЕМА]: Автономный поток Марти успешно запущен.")
+    else:
+        print("⚠️ [ПРЕДОХРАНИТЕЛЬ]: Автономный поток Марти уже активен, дублирование заблокировано.")
     
-    print("🚀 Корабль Навигатор на орбите. Перезагрузка систем связи...")
+    print("🚀 Корабль Навигатор на орбите. Системы связи стабильны.")
     bot.remove_webhook()
     time.sleep(1) 
     
