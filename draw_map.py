@@ -55,12 +55,11 @@ def get_cloud_cover(lat, lon):
     except: return 0
 
 def generate_star_map(lat, lon, user_name, user_id):
-    # Жесткая зачистка перед началом тяжелой генерации
     plt.close('all')
     gc.collect() 
     
     temp_raw = OUTPUT_DIR / f"raw_{user_id}.png"
-    final_png = OUTPUT_DIR / f"fin_{user_id}.png"
+    final_png = OUTPUT_DIR / f"fin_{user_id}.png" # Этот путь оставим для совместимости с main.py, но сохраним туда легкий JPG!
     final_jpg = OUTPUT_DIR / f"sky_{user_id}.jpg"
     
     try:
@@ -95,7 +94,6 @@ def generate_star_map(lat, lon, user_name, user_id):
                 c.line.color = "#5c9dff"
         except: pass
 
-        # Отрисовка карты через Starplot
         p = ZenithPlot(observer=observer, style=style, resolution=1200, autoscale=True)
         p.horizon()
         p.milky_way() 
@@ -133,12 +131,11 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         p.export(str(temp_raw), transparent=True, padding=0.01)
         
-        # Моментально выгружаем Matplotlib из памяти
         plt.clf()
         plt.close('all')
         del p
+        gc.collect() # Освобождаем память после тяжелого Starplot
 
-        # Изолированная обработка изображений через контекстные менеджеры with
         with Image.open(BASE_DIR / 'background1.png').convert("RGBA") as bg_img:
             sky_size = 940 
             with Image.open(temp_raw).convert("RGBA") as raw_sky:
@@ -167,10 +164,8 @@ def generate_star_map(lat, lon, user_name, user_id):
             bg_img.paste(sky_img, ((bg_img.width - sky_size)//2, 360 - ((sky_size - 880)//2)), sky_img)
             sky_img.close()
 
-                        # 🟢 ВАЖНАЯ ОПТИМИЗАЦИЯ: Пишем текст напрямую через PIL.Draw
             draw = ImageDraw.Draw(bg_img)
             
-            # Загружаем ВАШ шрифт Roboto-Bold из корня проекта
             font_path = str(BASE_DIR / "Roboto-Bold.ttf")
             try: 
                 font = ImageFont.truetype(font_path, 24)
@@ -190,7 +185,6 @@ def generate_star_map(lat, lon, user_name, user_id):
             rise_t = pytz.utc.localize(rise_utc).astimezone(user_tz).strftime('%H:%M')
             set_t = pytz.utc.localize(set_utc).astimezone(user_tz).strftime('%H:%M')
 
-            # Координаты скорректированы под масштаб оригинального разрешения background1.png
             draw.text((int(bg_img.width * 0.38), int(bg_img.height * 0.81)), user_name.upper(), fill='#D4E6FF', font=font)
             draw.text((int(bg_img.width * 0.49), int(bg_img.height * 0.845)), f"{float(lat):.2f}N, {float(lon):.2f}E", fill='#D4E6FF', font=font)
             draw.text((int(bg_img.width * 0.32), int(bg_img.height * 0.875)), f"Фаза: {int(moon_e.phase)}% | Облачность: {cloud_cover}%", fill='#D4E6FF', font=font)
@@ -198,18 +192,23 @@ def generate_star_map(lat, lon, user_name, user_id):
             draw.text((int(bg_img.width * 0.705), int(bg_img.height * 0.91)), set_t, fill='#D4E6FF', font=font)
             draw.text((int(bg_img.width * 0.38), int(bg_img.height * 0.955)), target_name_rus, fill='#FF00FF', font=font_bold)
 
-            # Сохраняем финальные файлы напрямую
-            bg_img.save(str(final_png), "PNG")
-            bg_img.convert("RGB").save(str(final_jpg), "JPEG", quality=90, optimize=True)
+            # 🟢 КЛЮЧЕВОЙ МОМЕНТ ХИТРОСТИ: Мы не сохраняем тяжелый PNG!
+            # Вместо final_png мы пишем туда высококачественный JPEG (96% качества).
+            # В файловой системе расширение останется .png (чтобы main.py не ругался на отсутствие файла),
+            # но внутри это будет легкий, оптимизированный JPEG, который Render отправит за милисекунду!
+            bg_img.convert("RGB").save(str(final_png), "JPEG", quality=96, optimize=True)
+            
+            # Для превью в чате сохраняем обычный сжатый JPG
+            bg_img.convert("RGB").save(str(final_jpg), "JPEG", quality=85, optimize=True)
 
         if temp_raw.exists(): 
             os.remove(temp_raw)
             
-        # Финальный сборщик мусора
         gc.collect()
         return True, str(final_jpg), str(final_png), target_name_rus, ""
 
     except Exception as e:
+        if temp_raw.exists(): os.remove(temp_raw)
         plt.close('all')
         gc.collect()
         return False, "", "", "", str(e)
