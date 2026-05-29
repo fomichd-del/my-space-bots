@@ -75,11 +75,14 @@ def get_dynamic_prompt(pet, user_id):
         if pet['clean'] < 30: state_modifier = "murky green dirty water, messy environment"
         else: state_modifier = "crystal clear water, vibrant active snails, floating bubbles"
 
-    # 🛡 ЗАЩИТА НЕЙРОСЕТИ И ОЗУ: Берем максимум 3 случайных предмета из купленных, чтобы не перегружать промпт деталями
+    # 🛡 ИСПРАВЛЕНИЕ: Увеличен лимит до 7 и добавлена ЖЕСТКАЯ ФИКСАЦИЯ выбора
     valid_items = [k for k in pet['items'] if k in SHOP_ITEMS]
-    if len(valid_items) > 3:
+    if len(valid_items) > 7:
         import random as rnd
-        valid_items = tuple(rnd.sample(valid_items, 3))
+        # Мы создаем локальный генератор. Сидом служит ID юзера + количество купленных вещей.
+        # Теперь набор из 7 вещей сменится ТОЛЬКО если пилот купит новую декорацию!
+        seeded_random = rnd.Random(user_id + len(valid_items))
+        valid_items = seeded_random.sample(valid_items, 7)
         
     decor = [SHOP_ITEMS[k]["prompt"] for k in valid_items]
     decor_prompt = "decorated with " + " and ".join(decor) if decor else "minimalist glass setup with only a few river pebbles on the bottom"
@@ -147,6 +150,8 @@ def send_eco_menu(bot, chat_id, user_id):
         
         if image_bytes:
             msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
+            if len(ECO_IMAGE_CACHE) > 500:
+            ECO_IMAGE_CACHE.clear()
             ECO_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
         else:
             bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации! Все резервные нейросети перегружены._", parse_mode="Markdown", reply_markup=kb)
