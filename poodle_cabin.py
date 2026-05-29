@@ -346,6 +346,8 @@ def send_dog_menu(bot, chat_id, user_id):
             image_bytes = get_cascade_image(full_prompt, seed)
             if image_bytes:
                 msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
+                if len(CABIN_IMAGE_CACHE) > 500:
+                    CABIN_IMAGE_CACHE.clear()
                 CABIN_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
             else:
                 bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации!_", parse_mode="Markdown", reply_markup=kb)
