@@ -151,7 +151,7 @@ def send_eco_menu(bot, chat_id, user_id):
         if image_bytes:
             msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
             if len(ECO_IMAGE_CACHE) > 500:
-            ECO_IMAGE_CACHE.clear()
+                ECO_IMAGE_CACHE.clear()
             ECO_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
         else:
             bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации! Все резервные нейросети перегружены._", parse_mode="Markdown", reply_markup=kb)
