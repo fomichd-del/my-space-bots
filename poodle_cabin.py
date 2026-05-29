@@ -8,9 +8,24 @@ from neural_draw import get_cascade_image
 
 # 🟢 КВАНТОВЫЙ КЭШ (Сейф для бесплатных картинок)
 CABIN_IMAGE_CACHE = {}
-# 📥 ВРЕМЕННЫЕ БУФЕРЫ ДЛЯ КОРЗИНЫ И ПРИМЕРКИ
-SHOP_CART = {}        # {user_id: [список ключей покупаемых вещей]}
-WARDROBE_BUFFER = {}  # {user_id: [список ключей надетых вещей]}
+
+# 📥 ВРЕМЕННЫЕ БУФЕРЫ С ЗАЩИТОЙ ОТ УТЕЧКИ ПАМЯТИ
+# Структура: {user_id: {"items": [...], "last_time": timestamp}}
+SHOP_CART = {}        
+WARDROBE_BUFFER = {}  
+
+def clean_dead_sessions():
+    """Автоматически вычищает из ОЗУ брошенные корзины и гардеробы старше 15 минут"""
+    now = time.time()
+    cutoff = 15 * 60
+    
+    dead_shop = [uid for uid, sess in SHOP_CART.items() if now - sess.get("last_time", 0) > cutoff]
+    for uid in dead_shop:
+        del SHOP_CART[uid]
+        
+    dead_wardrobe = [uid for uid, sess in WARDROBE_BUFFER.items() if now - sess.get("last_time", 0) > cutoff]
+    for uid in dead_wardrobe:
+        del WARDROBE_BUFFER[uid]
 
 DOG_SHOP = {
     # --- БАЗОВАЯ КОСМИЧЕСКАЯ ЭКИПИРОВКА ---
@@ -110,7 +125,6 @@ DOG_SHOP = {
     "matrix_coat": {"name": "Плащ Нео", "prompt": "Long floor-length glossy black leather duster coat, cybernetic matrix styling, highly reflective texture", "price": 110}
 }
 
-# 🟢 БЕЗОПАСНАЯ СТРУКТУРА КАТЕГОРИЙ (Ключи - латиница, значения - [Имя, [слоты]])
 WARDROBE_CATEGORIES = {
     "head": ["🎩 Голова", ["head", "top of the head"]],
     "face": ["👓 Лицо", ["eyes", "face", "left eye", "right eye", "one eye"]],
@@ -124,32 +138,27 @@ WARDROBE_CATEGORIES = {
 
 def get_item_slot(item_key):
     mapping = {
-        # --- ГОЛОВА ---
         "space_helmet": "head", "pilot_cap": "head", "galaxy_crown": "head",
         "alien_antenna": "head", "ufo_hat": "head", "thug_beanie": "head",
         "chef_hat": "head", "monocle_tophat": "head", "crown_of_light": "head",
         "general_hat": "head", "santa_astro_hat": "head", "straw_hat": "head",
         "crown_of_comets": "head", "symbiote_friend": "top of the head", "floating_halo": "head",
         
-        # --- ГЛАЗА ---
         "cool_glasses": "eyes", "steampunk_goggles": "eyes", "radar_monocle": "left eye",
         "vr_visor_2": "eyes", "meteorite_shades": "eyes", "data_monocle": "right eye",
         "laser_eye": "one eye", "welding_mask": "face",
         
-        # --- ПАСТЬ, ЗУБЫ И НОС ---
         "brilliant_smile": "mouth", "dentist_mirror": "mouth", "detective_pipe": "mouth",
         "ancient_relic": "mouth", "golden_asteroid_bone": "mouth", "ruby_mars_stone": "mouth",
         "cyber_jaw": "lower jaw", "diamond_grillz": "teeth", "holographic_butterfly": "nose",
         "dentist_drill": "mouth",
         
-        # --- ШЕЯ ---
         "bandana": "neck", "laser_collar": "neck", "nebula_scarf": "neck",
         "heavy_gold_chain": "neck", "diamond_collar": "neck", "star_pendant": "neck",
         "saturn_ring": "neck", "broken_android_ear": "neck", "void_collar": "neck",
         "starlight_medal": "neck", "holographic_map": "neck", "black_hole_pendant": "neck",
         "alien_translator": "neck", "quantum_leash": "neck", "cyberspace_aura": "neck",
         
-        # --- ТУЛОВИЩЕ ---
         "star_suit": "body", "neon_harness": "body", "comet_bowtie": "chest",
         "taco_suit": "body", "exosuit_armor": "body", "cyberpunk_jacket": "body",
         "tactical_vest": "body", "warp_robe": "body", "mech_harness": "body",
@@ -159,16 +168,13 @@ def get_item_slot(item_key):
         "cosmic_sweater": "body", "samurai_armor": "body", "detective_trench": "body",
         "matrix_coat": "body",
       
-        # --- СПИНА ---
         "warp_jetpack": "back", "plasma_cloak": "back", "dragon_wings": "back",
         "holographic_wings": "back", "ion_cape": "back", "drone_companion": "back",
         "cryo_gear": "back", "sub_bass_speakers": "back",
         
-        # --- ЛАПЫ ---
         "cyber_paws": "paws", "power_gloves": "front paws", "astro_boots": "paws", "cosmic_boots": "paws",
         "nebula_boots": "paws", "pulsar_watch": "front paw", "hover_board": "under the paws", "rocket_boots": "paws",
         
-        # --- ХВОСТ ---
         "cyber_tail_ring": "tail", "comet_tail_ribbon": "tail", "mecha_tail": "tail"
     }
     return mapping.get(item_key, "body")
@@ -249,6 +255,12 @@ def get_dog_prompt(dog, user_id):
         bg_desc = "dark room, moody night lighting, starry space outside"
 
     equipped = dog.get('equipped', [])
+    
+    # 🛡 ОБНОВЛЕННЫЙ ПРЕДОХРАНИТЕЛЬ: Лимит увеличен до 7 предметов!
+    if len(equipped) > 7:
+        import random as rnd
+        equipped = rnd.sample(equipped, 7)
+
     slots_data = {}
     for k in equipped:
         if k in DOG_SHOP:
@@ -258,17 +270,19 @@ def get_dog_prompt(dog, user_id):
     
     wearables_parts = []
     for slot, prompts in slots_data.items():
-        wearables_parts.append(f"{', '.join(prompts)} worn strictly on its {slot}")
+        # Более жесткая привязка одежды к конкретной части тела
+        wearables_parts.append(f"wearing {', '.join(prompts)} directly on its {slot}")
         
-    wearables_str = f" OUTFIT: {'; '.join(wearables_parts)}." if wearables_parts else ""
+    wearables_str = f" ATTIRE: The dog is {', and '.join(wearables_parts)}." if wearables_parts else ""
 
     full_prompt = (
         f"RAW photo, highly detailed, 35mm lens. "
         f"SUBJECT: Purebred Toy Poodle, {dna_desc}. "
-        f"{wearables_str} "
         f"ACTION: The dog is {dog_pos}. "
+        f"{wearables_str} "
         f"SCENE: {cabin_tier}, {bg_desc}, {dust_str} on the surface. "
-        "NEGATIVE: Yorkshire terrier, cartoon, 3d render, floating items, detached accessories, missing clothes."
+        # 🟢 ДОБАВЛЕНО В NEGATIVE: Запрет на одежду, валяющуюся рядом или висящую в воздухе
+        "NEGATIVE: Yorkshire terrier, cartoon, 3d render, floating items, detached accessories, missing clothes, clothes on the floor, items in background."
     )
     
     seed_string = f"{user_id}_{cabin_tier}_{time_state}"
@@ -317,7 +331,7 @@ def send_dog_menu(bot, chat_id, user_id):
             tele_types.InlineKeyboardButton("🎾 Играть (-5 💰)", callback_data="dog_play"),
             tele_types.InlineKeyboardButton("🗺 Экспедиция", callback_data="dog_map"),
             tele_types.InlineKeyboardButton("👕 Гардероб", callback_data="dog_wardrobe"), 
-            tele_types.InlineKeyboardButton("🛒 Магазин", callback_data="dog_shop") 
+            tele_types.InlineKeyboardButton("🛒 Maгазин", callback_data="dog_shop") 
         )
 
         if dog['level'] >= 10 and current_prof == 'Кадет':
@@ -458,7 +472,7 @@ def handle_dog_callback(bot, call):
         kb.row(tele_types.InlineKeyboardButton(text="🔭 Астронавигатор", callback_data="dog_setprof_navigator"))
         bot.edit_message_caption("🎓 **АКАДЕМИЯ: ВЫБОР ПУТИ**\n\nВыберите специализацию для Марти:\n\n"
                               "👨‍⚕️ **Космо-Медик** - эффективнее спит.\n"
-                              "🔧 **Бортинженер** - скидка 20% в магазине.\n"
+                              "🔧 **Бортинженер** - скидка 20% in магазине.\n"
                               "🔭 **Астронавигатор** - приносит x2 Пыли за ум.", 
                               call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         return 
@@ -472,9 +486,15 @@ def handle_dog_callback(bot, call):
         set_dog_profession(user_id, chosen_prof)
         bot.answer_callback_query(call.id, f"Выбрана профессия: {chosen_prof}!", show_alert=True)
   
+    # === ГАРДЕРОБ ПУДЕЛЯ ===
     elif action == "wardrobe":
-        if user_id not in WARDROBE_BUFFER:
-            WARDROBE_BUFFER[user_id] = list(dog.get('equipped', []))
+        clean_dead_sessions() # Скидываем старый балласт
+        
+        # Переводим на структуру с отслеживанием времени активности
+        WARDROBE_BUFFER[user_id] = {
+            "items": list(dog.get('equipped', [])),
+            "last_time": time.time()
+        }
             
         text = "👕 **ГАРДЕРОБ МАРТИ (РЕЖИМ ПРИМЕРКИ)**\n\nВыбирайте вещи. Нажмите 'СОХРАНИТЬ И ВЫЙТИ' для применения костюма."
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
@@ -488,7 +508,9 @@ def handle_dog_callback(bot, call):
         return
 
     elif action == "strip_all":
-        WARDROBE_BUFFER[user_id] = []
+        if user_id in WARDROBE_BUFFER:
+            WARDROBE_BUFFER[user_id]["items"] = []
+            WARDROBE_BUFFER[user_id]["last_time"] = time.time()
         bot.answer_callback_query(call.id, "🪐 Все вещи сняты! Нажмите Выход для сохранения.")
         call.data = "dog_wardrobe"
         handle_dog_callback(bot, call)
@@ -500,7 +522,9 @@ def handle_dog_callback(bot, call):
         cat_name = WARDROBE_CATEGORIES[cat_key][0]
         
         if user_id not in WARDROBE_BUFFER:
-            WARDROBE_BUFFER[user_id] = list(dog.get('equipped', []))
+            WARDROBE_BUFFER[user_id] = {"items": list(dog.get('equipped', [])), "last_time": time.time()}
+        else:
+            WARDROBE_BUFFER[user_id]["last_time"] = time.time()
             
         text = f"👕 **{cat_name}**\nОтметьте галочками то, что хотите надеть:"
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
@@ -514,7 +538,7 @@ def handle_dog_callback(bot, call):
                 found_any = True
                 name = DOG_SHOP[item_key]['name']
                 
-                is_in_buffer = item_key in WARDROBE_BUFFER[user_id]
+                is_in_buffer = item_key in WARDROBE_BUFFER[user_id]["items"]
                 btn_text = f"✅ {name}" if is_in_buffer else f"⬜️ {name}"
                 
                 kb.add(tele_types.InlineKeyboardButton(btn_text, callback_data=f"dog_togbuff_{item_key}_{cat_key}"))
@@ -532,20 +556,21 @@ def handle_dog_callback(bot, call):
         cat_key = parts[1]
         
         if user_id not in WARDROBE_BUFFER:
-            WARDROBE_BUFFER[user_id] = list(dog.get('equipped', []))
+            WARDROBE_BUFFER[user_id] = {"items": list(dog.get('equipped', [])), "last_time": time.time()}
             
-        current_buffer = WARDROBE_BUFFER[user_id]
+        WARDROBE_BUFFER[user_id]["last_time"] = time.time()
+        current_items = WARDROBE_BUFFER[user_id]["items"]
         
-        if item_key in current_buffer:
-            current_buffer.remove(item_key)
+        if item_key in current_items:
+            current_items.remove(item_key)
             bot.answer_callback_query(call.id, "Предмет снят")
         else:
             target_slot = get_item_slot(item_key)
-            current_buffer = [item for item in current_buffer if get_item_slot(item) != target_slot]
-            current_buffer.append(item_key)
+            current_items = [item for item in current_items if get_item_slot(item) != target_slot]
+            current_items.append(item_key)
             bot.answer_callback_query(call.id, "Предмет надет")
             
-        WARDROBE_BUFFER[user_id] = current_buffer
+        WARDROBE_BUFFER[user_id]["items"] = current_items
         
         call.data = f"dog_cat_{cat_key}"
         handle_dog_callback(bot, call)
@@ -553,9 +578,9 @@ def handle_dog_callback(bot, call):
 
     elif action == "wardrobe_save":
         if user_id in WARDROBE_BUFFER:
-            dog['equipped'] = WARDROBE_BUFFER[user_id]
+            dog['equipped'] = WARDROBE_BUFFER[user_id]["items"]
             update_dog_data(user_id, dog)
-            del WARDROBE_BUFFER[user_id]
+            del WARDROBE_BUFFER[user_id] # Выгружаем сессию из ОЗУ сразу после коммита
             
         bot.answer_callback_query(call.id, "🚀 Гардероб сохранен!")
         try: bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -563,9 +588,14 @@ def handle_dog_callback(bot, call):
         send_dog_menu(bot, call.message.chat.id, user_id)
         return
 
+    # === МАГАЗИН ПУДЕЛЯ ===
     elif action == "shop":
+        clean_dead_sessions()
+        
         if user_id not in SHOP_CART:
-            SHOP_CART[user_id] = []
+            SHOP_CART[user_id] = {"items": [], "last_time": time.time()}
+        else:
+            SHOP_CART[user_id]["last_time"] = time.time()
             
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
@@ -580,7 +610,7 @@ def handle_dog_callback(bot, call):
             kb.add(tele_types.InlineKeyboardButton(value[0], callback_data=f"dog_shopcat_{key}"))
         
         total_price = 0
-        for item in SHOP_CART[user_id]:
+        for item in SHOP_CART[user_id]["items"]:
             if item in DOG_SHOP:
                 p = DOG_SHOP[item]['price']
                 if "Инженер" in prof: p = int(p * 0.8)
@@ -598,7 +628,9 @@ def handle_dog_callback(bot, call):
         cat_name = WARDROBE_CATEGORIES[cat_key][0]
         
         if user_id not in SHOP_CART:
-            SHOP_CART[user_id] = []
+            SHOP_CART[user_id] = {"items": [], "last_time": time.time()}
+        else:
+            SHOP_CART[user_id]["last_time"] = time.time()
             
         from database import get_dog_profession
         prof = get_dog_profession(user_id)
@@ -617,7 +649,7 @@ def handle_dog_callback(bot, call):
                 
                 if k in dog.get('items', []):
                     btn_text = f"🔒 {v['name']} [Уже куплено]"
-                elif k in SHOP_CART[user_id]:
+                elif k in SHOP_CART[user_id]["items"]:
                     btn_text = f"✅ {v['name']} ({price}💰) [В КОРЗИНЕ]"
                 else:
                     btn_text = f"⬜️ {v['name']} ({price}💰)"
@@ -637,26 +669,31 @@ def handle_dog_callback(bot, call):
         cat_key = raw_data[1]
         
         if user_id not in SHOP_CART:
-            SHOP_CART[user_id] = []
+            SHOP_CART[user_id] = {"items": [], "last_time": time.time()}
             
+        SHOP_CART[user_id]["last_time"] = time.time()
+        current_cart = SHOP_CART[user_id]["items"]
+        
         if item_key in dog.get('items', []):
             bot.answer_callback_query(call.id, "Этот предмет уже есть у вас в гардеробе!", show_alert=True)
             return
 
-        if item_key in SHOP_CART[user_id]:
-            SHOP_CART[user_id].remove(item_key)
+        if item_key in current_cart:
+            current_cart.remove(item_key)
             bot.answer_callback_query(call.id, "Убрано из корзины")
         else:
-            SHOP_CART[user_id].append(item_key)
+            current_cart.append(item_key)
             bot.answer_callback_query(call.id, "Добавлено в корзину")
             
+        SHOP_CART[user_id]["items"] = current_cart
+        
         call.data = f"dog_shopcat_{cat_key}"
         handle_dog_callback(bot, call)
         return
 
     elif action == "shop_cancel":
         if user_id in SHOP_CART:
-            del SHOP_CART[user_id]
+            del SHOP_CART[user_id] # Полная очистка при выходе
         bot.answer_callback_query(call.id, "Корзина очищена")
         try: bot.delete_message(call.message.chat.id, call.message.message_id)
         except: pass
@@ -664,7 +701,7 @@ def handle_dog_callback(bot, call):
         return
 
     elif action == "shop_checkout":
-        if user_id not in SHOP_CART or not SHOP_CART[user_id]:
+        if user_id not in SHOP_CART or not SHOP_CART[user_id]["items"]:
             bot.answer_callback_query(call.id, "❌ Ваша корзина пуста!", show_alert=True)
             return
             
@@ -672,19 +709,19 @@ def handle_dog_callback(bot, call):
         prof = get_dog_profession(user_id)
         
         total_price = 0
-        for item in SHOP_CART[user_id]:
+        for item in SHOP_CART[user_id]["items"]:
             if item in DOG_SHOP:
                 p = DOG_SHOP[item]['price']
-                if "Инженер" in prof: p = int(p * 0.8)
+                if "Inter" in prof: p = int(p * 0.8)
                 total_price += p
                 
         if spend_dust(user_id, total_price):
-            for item in SHOP_CART[user_id]:
+            for item in SHOP_CART[user_id]["items"]:
                 if item not in dog['items']:
                     dog['items'].append(item)
                     
             update_dog_data(user_id, dog)
-            del SHOP_CART[user_id]
+            del SHOP_CART[user_id] # Чистим ОЗУ
             
             bot.answer_callback_query(call.id, f"🎉 Куплено! Списано {total_price} 💰. Вещи в гардеробе!", show_alert=True)
             try: bot.delete_message(call.message.chat.id, call.message.message_id)
