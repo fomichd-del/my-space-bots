@@ -510,12 +510,24 @@ def handle_dog_callback(bot, call):
         return
 
     elif action == "strip_all":
-        if user_id in WARDROBE_BUFFER:
+        if user_id not in WARDROBE_BUFFER:
+            WARDROBE_BUFFER[user_id] = {"items": [], "last_time": time.time()}
+        else:
             WARDROBE_BUFFER[user_id]["items"] = []
             WARDROBE_BUFFER[user_id]["last_time"] = time.time()
+            
         bot.answer_callback_query(call.id, "🪐 Все вещи сняты! Нажмите Выход для сохранения.")
-        call.data = "dog_wardrobe"
-        handle_dog_callback(bot, call)
+        
+        # Отрисовываем меню вручную, чтобы не вызывать сброс буфера из основного блока wardrobe
+        text = "👕 **ГАРДЕРОБ МАРТИ (РЕЖИМ ПРИМЕРКИ)**\n\nВыбирайте вещи. Нажмите 'СОХРАНИТЬ И ВЫЙТИ' для применения костюма."
+        kb = tele_types.InlineKeyboardMarkup(row_width=2)
+        
+        for key, value in WARDROBE_CATEGORIES.items():
+            kb.add(tele_types.InlineKeyboardButton(value[0], callback_data=f"dog_cat_{key}"))
+            
+        kb.row(tele_types.InlineKeyboardButton("❌ СНЯТЬ ВСЁ", callback_data="dog_strip_all"))
+        kb.row(tele_types.InlineKeyboardButton("🔙 СОХРАНИТЬ И ВЫЙТИ", callback_data="dog_wardrobe_save"))
+        bot.edit_message_caption(text, call.message.chat.id, call.message.message_id, reply_markup=kb, parse_mode="Markdown")
         return
 
     elif action.startswith("cat_"):
@@ -716,7 +728,8 @@ def handle_dog_callback(bot, call):
         for item in SHOP_CART[user_id]["items"]:
             if item in DOG_SHOP:
                 p = DOG_SHOP[item]['price']
-                if "Inter" in prof: p = int(p * 0.8)
+                # 🛠 ИСПРАВЛЕНО: было "Inter", стало "Инженер"
+                if "Инженер" in prof: p = int(p * 0.8)
                 total_price += p
                 
         if spend_dust(user_id, total_price):
