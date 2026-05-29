@@ -488,15 +488,19 @@ def handle_dog_callback(bot, call):
         set_dog_profession(user_id, chosen_prof)
         bot.answer_callback_query(call.id, f"Выбрана профессия: {chosen_prof}!", show_alert=True)
   
-    # === ГАРДЕРОБ ПУДЕЛЯ ===
+        # === ГАРДЕРОБ ПУДЕЛЯ ===
     elif action == "wardrobe":
         clean_dead_sessions() # Скидываем старый балласт
         
-        # Переводим на структуру с отслеживанием времени активности
-        WARDROBE_BUFFER[user_id] = {
-            "items": list(dog.get('equipped', [])),
-            "last_time": time.time()
-        }
+        # 🟢 ИСПРАВЛЕНИЕ: Загружаем старые вещи ТОЛЬКО если юзер зашел первый раз. 
+        # Если он вернулся по кнопке "Назад" из категории — сохраняем его примерку!
+        if user_id not in WARDROBE_BUFFER:
+            WARDROBE_BUFFER[user_id] = {
+                "items": list(dog.get('equipped', [])),
+                "last_time": time.time()
+            }
+        else:
+            WARDROBE_BUFFER[user_id]["last_time"] = time.time()
             
         text = "👕 **ГАРДЕРОБ МАРТИ (РЕЖИМ ПРИМЕРКИ)**\n\nВыбирайте вещи. Нажмите 'СОХРАНИТЬ И ВЫЙТИ' для применения костюма."
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
