@@ -1,4 +1,5 @@
 import time
+import gc
 from datetime import datetime
 from threading import Thread
 from telebot import types as tele_types
@@ -8,6 +9,9 @@ from neural_draw import get_cascade_image
 # 🟢 КВАНТОВЫЙ КЭШ ДЛЯ ЭКО-ОТСЕКА
 ECO_IMAGE_CACHE = {}
 
+# Флаг-предохранитель для предотвращения размножения потоков в ОЗУ
+REMINDER_LOOP_RUNNING = False
+
 # 🛒 ГИПЕР-РАСШИРЕННЫЙ МАГАЗИН ЭКО-ОТСЕКА (ТЕПЕРЬ 19 ПРЕДМЕТОВ!)
 SHOP_ITEMS = {
     "natural_pebbles": {"name": "Речные камешки", "prompt": "small smooth river pebbles on the bottom", "price": 10},
@@ -15,8 +19,6 @@ SHOP_ITEMS = {
     "dark_driftwood": {"name": "Темная коряга", "prompt": "natural looking piece of dark driftwood", "price": 15},
     "live_plants": {"name": "Живые растения", "prompt": "vibrant natural freshwater aquatic plants (Java moss, Anubias)", "price": 20},
 
-    # --- 🆕🔥 НОВЫЕ ПОСТУПЛЕНИЯ (15 ПРЕДМЕТОВ) 🔥🆕 ---
-    
     # --- ТЕХНОГЕННЫЙ КОСМОС ---
     "crash_pod": {"name": "Разбитая капсула", "prompt": "a miniature, crashed sci-fi escape pod decoration with broken glass, rust, and glowing blue plasma leaks, half-buried in the sand", "price": 35},
     "alien_egg": {"name": "Яйцо Чужого", "prompt": "a cluster of several realistic, dark, leathery alien egg decorations with physical textures, nestled among the plants", "price": 40},
@@ -46,7 +48,6 @@ def get_dynamic_prompt(pet, user_id):
         prompt = "macro photography of an empty dirty glass terrarium, broken glass, dried grey moss, murky water, gloomy dim lighting, depressing realistic look, no life, photorealistic"
         return prompt, user_id
 
-    # 🧬 ГЕНЕТИЧЕСКАЯ МОДИФИКАЦИЯ: Убрали фиксированный коричневый цвет
     base = "macro photography of a realistic freshwater aquarium tank, 4k, natural realistic living photographic style, cinematic lighting"
     shells_style = "natural unique complex random-colored shell with highly detailed organic texture and patterns"
     
@@ -57,7 +58,6 @@ def get_dynamic_prompt(pet, user_id):
         elif pet['level'] < 14: evo_details = "mature old size, massive heavy shell"
         else: evo_details = "colossal ancient matriarch size, incredibly complex shell"
         
-        # 🧬 Добавлено 'living' для реализма
         snails_prompt = f"exactly one realistic living garden snail (Cornu aspersum), {evo_details}, {shells_style}"
         
         if pet['clean'] < 30: state_modifier = "murky green dirty water, messy environment"
@@ -75,7 +75,13 @@ def get_dynamic_prompt(pet, user_id):
         if pet['clean'] < 30: state_modifier = "murky green dirty water, messy environment"
         else: state_modifier = "crystal clear water, vibrant active snails, floating bubbles"
 
-    decor = [SHOP_ITEMS[k]["prompt"] for k in pet['items'] if k in SHOP_ITEMS]
+    # 🛡 ЗАЩИТА НЕЙРОСЕТИ И ОЗУ: Берем максимум 3 случайных предмета из купленных, чтобы не перегружать промпт деталями
+    valid_items = [k for k in pet['items'] if k in SHOP_ITEMS]
+    if len(valid_items) > 3:
+        import random as rnd
+        valid_items = tuple(rnd.sample(valid_items, 3))
+        
+    decor = [SHOP_ITEMS[k]["prompt"] for k in valid_items]
     decor_prompt = "decorated with " + " and ".join(decor) if decor else "minimalist glass setup with only a few river pebbles on the bottom"
         
     full_prompt = f"{base}, {snails_prompt}, {state_modifier}, {decor_prompt}, photorealistic"
@@ -131,7 +137,6 @@ def send_eco_menu(bot, chat_id, user_id):
             if pet['count'] == 1: kb.add(tele_types.InlineKeyboardButton("➕ Найти пару (-200 💰)", callback_data="eco_addpet"))
             elif pet['count'] == 2: kb.add(tele_types.InlineKeyboardButton("🥚 Создать семью (-300 💰)", callback_data="eco_addpet"))
 
-    # 🟢 КВАНТОВЫЙ КЭШ: ГЕНЕТИЧЕСКАЯ ПРИВЯЗКА К ПИЛОТУ
     cache_key = f"{user_id}_{prompt}"
     
     if cache_key in ECO_IMAGE_CACHE:
@@ -209,18 +214,39 @@ def handle_eco_callback(bot, call):
     send_eco_menu(bot, call.message.chat.id, user_id)
 
 def run_reminder_loop(bot):
+    global REMINDER_LOOP_RUNNING
+    
+    # 🛡 ПРЕДОХРАНИТЕЛЬ: Запускаем бесконечный поток напоминаний СТРОГО один раз
+    if REMINDER_LOOP_RUNNING:
+        print("⚠️ [ЭКО-ПРЕДОХРАНИТЕЛЬ]: Поток напоминаний улитки уже работает, дублирование заблокировано.")
+        return
+        
+    REMINDER_LOOP_RUNNING = True
+    
     def loop():
         while True:
             try:
                 users = get_all_users_with_pets()
-                today = datetime.now().strftime("%Y-%m-%d")
-                for user_id, pet_date, hunger, clean in users:
-                    if sent_reminders.get(user_id) == today: continue
-                    if pet_date != today or hunger <= 40 or clean <= 40:
-                        try:
-                            bot.send_message(user_id, "🐾 **БОРТОВОЕ НАПОМИНАНИЕ**\n\nПрием! В твоем Эко-отсеке падают показатели. Срочно наводи порядок!", parse_mode="Markdown")
-                            sent_reminders[user_id] = today
-                        except: pass 
-            except: pass
+                if users:
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    for user_id, pet_date, hunger, clean in users:
+                        if sent_reminders.get(user_id) == today: 
+                            continue
+                        if pet_date != today or hunger <= 40 or clean <= 40:
+                            try:
+                                bot.send_message(user_id, "🐾 **БОРТОВОЕ НАПОМИНАНИЕ**\n\nПрием! В твоем Эко-отсеке падают показатели. Срочно наводи порядок!", parse_mode="Markdown")
+                                sent_reminders[user_id] = today
+                            except: 
+                                pass 
+                    # Очищаем тяжелый массив из памяти сразу после перебора
+                    del users
+                
+            except Exception as e: 
+                print(f"Ошибка в цикле улитки: {e}")
+                
+            # Принудительно зовем мусорщика и засыпаем на 4 часа
+            gc.collect()
             time.sleep(14400)
+            
     Thread(target=loop, daemon=True).start()
+    print("🚀 [ЭКО-СИСТЕМА]: Безопасный поток напоминаний улитки успешно запущен.")
