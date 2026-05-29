@@ -557,6 +557,7 @@ def handle_dog_callback(bot, call):
         item_key = parts[0]
         cat_key = parts[1]
         
+        # Правильная инициализация словаря
         if user_id not in WARDROBE_BUFFER:
             WARDROBE_BUFFER[user_id] = {"items": list(dog.get('equipped', [])), "last_time": time.time()}
             
@@ -670,6 +671,7 @@ def handle_dog_callback(bot, call):
         item_key = raw_data[0]
         cat_key = raw_data[1]
         
+        # Правильная инициализация словаря корзины
         if user_id not in SHOP_CART:
             SHOP_CART[user_id] = {"items": [], "last_time": time.time()}
             
