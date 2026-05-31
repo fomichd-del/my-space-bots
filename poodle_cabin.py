@@ -15,17 +15,33 @@ SHOP_CART = {}
 WARDROBE_BUFFER = {}  
 
 def clean_dead_sessions():
-    """Автоматически вычищает из ОЗУ брошенные корзины и гардеробы старше 15 минут"""
+    """Автоматически вычищает из ОЗУ брошенные корзины и гардеробы старше 15 минут с защитой от конфликта типов"""
     now = time.time()
     cutoff = 15 * 60
     
-    dead_shop = [uid for uid, sess in SHOP_CART.items() if now - sess.get("last_time", 0) > cutoff]
+    dead_shop = []
+    for uid, sess in SHOP_CART.items():
+        if isinstance(sess, dict):
+            if now - sess.get("last_time", 0) > cutoff:
+                dead_shop.append(uid)
+        else:
+            dead_shop.append(uid) # Безопасно вычищаем устаревшие списки
+            
     for uid in dead_shop:
-        del SHOP_CART[uid]
+        if uid in SHOP_CART:
+            del SHOP_CART[uid]
         
-    dead_wardrobe = [uid for uid, sess in WARDROBE_BUFFER.items() if now - sess.get("last_time", 0) > cutoff]
+    dead_wardrobe = []
+    for uid, sess in WARDROBE_BUFFER.items():
+        if isinstance(sess, dict):
+            if now - sess.get("last_time", 0) > cutoff:
+                dead_wardrobe.append(uid)
+        else:
+            dead_wardrobe.append(uid) # Безопасно вычищаем устаревшие списки
+            
     for uid in dead_wardrobe:
-        del WARDROBE_BUFFER[uid]
+        if uid in WARDROBE_BUFFER:
+            del WARDROBE_BUFFER[uid]
 
 DOG_SHOP = {
     # --- БАЗОВАЯ КОСМИЧЕСКАЯ ЭКИПИРОВКА ---
@@ -254,12 +270,13 @@ def get_dog_prompt(dog, user_id):
         dog_pos = "sleeping curled up on the dog bed"
         bg_desc = "dark room, moody night lighting, starry space outside"
 
-    equipped = dog.get('equipped', [])
+    equipped = list(dog.get('equipped') or [])
     
-    # 🛡 ОБНОВЛЕННЫЙ ПРЕДОХРАНИТЕЛЬ: Лимит увеличен до 7 предметов!
+    # 🛡 ДЕТЕРМИНИРОВАННЫЙ ПРЕДОХРАНИТЕЛЬ: Лимит увеличен до 7 предметов с фиксацией сида
     if len(equipped) > 7:
         import random as rnd
-        equipped = rnd.sample(equipped, 7)
+        seeded_random = rnd.Random(user_id + len(equipped))
+        equipped = seeded_random.sample(equipped, 7)
 
     slots_data = {}
     for k in equipped:
@@ -270,7 +287,6 @@ def get_dog_prompt(dog, user_id):
     
     wearables_parts = []
     for slot, prompts in slots_data.items():
-        # Более жесткая привязка одежды к конкретной части тела
         wearables_parts.append(f"wearing {', '.join(prompts)} directly on its {slot}")
         
     wearables_str = f" ATTIRE: The dog is {', and '.join(wearables_parts)}." if wearables_parts else ""
@@ -281,7 +297,6 @@ def get_dog_prompt(dog, user_id):
         f"ACTION: The dog is {dog_pos}. "
         f"{wearables_str} "
         f"SCENE: {cabin_tier}, {bg_desc}, {dust_str} on the surface. "
-        # 🟢 ДОБАВЛЕНО В NEGATIVE: Запрет на одежду, валяющуюся рядом или висящую в воздухе
         "NEGATIVE: Yorkshire terrier, cartoon, 3d render, floating items, detached accessories, missing clothes, clothes on the floor, items in background."
     )
     
@@ -488,15 +503,13 @@ def handle_dog_callback(bot, call):
         set_dog_profession(user_id, chosen_prof)
         bot.answer_callback_query(call.id, f"Выбрана профессия: {chosen_prof}!", show_alert=True)
   
-        # === ГАРДЕРОБ ПУДЕЛЯ ===
+    # === ГАРДЕРОБ ПУДЕЛЯ ===
     elif action == "wardrobe":
-        clean_dead_sessions() # Скидываем старый балласт
+        clean_dead_sessions()
         
-        # 🟢 ИСПРАВЛЕНИЕ: Загружаем старые вещи ТОЛЬКО если юзер зашел первый раз. 
-        # Если он вернулся по кнопке "Назад" из категории — сохраняем его примерку!
-        if user_id not in WARDROBE_BUFFER:
+        if user_id not in WARDROBE_BUFFER or not isinstance(WARDROBE_BUFFER[user_id], dict):
             WARDROBE_BUFFER[user_id] = {
-                "items": list(dog.get('equipped', [])),
+                "items": list(dog.get('equipped') or []),
                 "last_time": time.time()
             }
         else:
@@ -514,15 +527,13 @@ def handle_dog_callback(bot, call):
         return
 
     elif action == "strip_all":
-        if user_id not in WARDROBE_BUFFER:
-            WARDROBE_BUFFER[user_id] = {"items": [], "last_time": time.time()}
-        else:
-            WARDROBE_BUFFER[user_id]["items"] = []
-            WARDROBE_BUFFER[user_id]["last_time"] = time.time()
+        WARDROBE_BUFFER[user_id] = {
+            "items": [],
+            "last_time": time.time()
+        }
             
         bot.answer_callback_query(call.id, "🪐 Все вещи сняты! Нажмите Выход для сохранения.")
         
-        # Отрисовываем меню вручную, чтобы не вызывать сброс буфера из основного блока wardrobe
         text = "👕 **ГАРДЕРОБ МАРТИ (РЕЖИМ ПРИМЕРКИ)**\n\nВыбирайте вещи. Нажмите 'СОХРАНИТЬ И ВЫЙТИ' для применения костюма."
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
         
@@ -539,8 +550,8 @@ def handle_dog_callback(bot, call):
         allowed_slots = WARDROBE_CATEGORIES[cat_key][1]
         cat_name = WARDROBE_CATEGORIES[cat_key][0]
         
-        if user_id not in WARDROBE_BUFFER:
-            WARDROBE_BUFFER[user_id] = {"items": list(dog.get('equipped', [])), "last_time": time.time()}
+        if user_id not in WARDROBE_BUFFER or not isinstance(WARDROBE_BUFFER[user_id], dict):
+            WARDROBE_BUFFER[user_id] = {"items": list(dog.get('equipped') or []), "last_time": time.time()}
         else:
             WARDROBE_BUFFER[user_id]["last_time"] = time.time()
             
@@ -573,9 +584,8 @@ def handle_dog_callback(bot, call):
         item_key = parts[0]
         cat_key = parts[1]
         
-        # Правильная инициализация словаря
-        if user_id not in WARDROBE_BUFFER:
-            WARDROBE_BUFFER[user_id] = {"items": list(dog.get('equipped', [])), "last_time": time.time()}
+        if user_id not in WARDROBE_BUFFER or not isinstance(WARDROBE_BUFFER[user_id], dict):
+            WARDROBE_BUFFER[user_id] = {"items": list(dog.get('equipped') or []), "last_time": time.time()}
             
         WARDROBE_BUFFER[user_id]["last_time"] = time.time()
         current_items = WARDROBE_BUFFER[user_id]["items"]
@@ -596,10 +606,10 @@ def handle_dog_callback(bot, call):
         return
 
     elif action == "wardrobe_save":
-        if user_id in WARDROBE_BUFFER:
+        if user_id in WARDROBE_BUFFER and isinstance(WARDROBE_BUFFER[user_id], dict):
             dog['equipped'] = WARDROBE_BUFFER[user_id]["items"]
             update_dog_data(user_id, dog)
-            del WARDROBE_BUFFER[user_id] # Выгружаем сессию из ОЗУ сразу после коммита
+            del WARDROBE_BUFFER[user_id]
             
         bot.answer_callback_query(call.id, "🚀 Гардероб сохранен!")
         try: bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -611,7 +621,7 @@ def handle_dog_callback(bot, call):
     elif action == "shop":
         clean_dead_sessions()
         
-        if user_id not in SHOP_CART:
+        if user_id not in SHOP_CART or not isinstance(SHOP_CART[user_id], dict):
             SHOP_CART[user_id] = {"items": [], "last_time": time.time()}
         else:
             SHOP_CART[user_id]["last_time"] = time.time()
@@ -646,7 +656,7 @@ def handle_dog_callback(bot, call):
         allowed_slots = WARDROBE_CATEGORIES[cat_key][1]
         cat_name = WARDROBE_CATEGORIES[cat_key][0]
         
-        if user_id not in SHOP_CART:
+        if user_id not in SHOP_CART or not isinstance(SHOP_CART[user_id], dict):
             SHOP_CART[user_id] = {"items": [], "last_time": time.time()}
         else:
             SHOP_CART[user_id]["last_time"] = time.time()
@@ -687,8 +697,7 @@ def handle_dog_callback(bot, call):
         item_key = raw_data[0]
         cat_key = raw_data[1]
         
-        # Правильная инициализация словаря корзины
-        if user_id not in SHOP_CART:
+        if user_id not in SHOP_CART or not isinstance(SHOP_CART[user_id], dict):
             SHOP_CART[user_id] = {"items": [], "last_time": time.time()}
             
         SHOP_CART[user_id]["last_time"] = time.time()
@@ -713,7 +722,7 @@ def handle_dog_callback(bot, call):
 
     elif action == "shop_cancel":
         if user_id in SHOP_CART:
-            del SHOP_CART[user_id] # Полная очистка при выходе
+            del SHOP_CART[user_id]
         bot.answer_callback_query(call.id, "Корзина очищена")
         try: bot.delete_message(call.message.chat.id, call.message.message_id)
         except: pass
@@ -721,7 +730,7 @@ def handle_dog_callback(bot, call):
         return
 
     elif action == "shop_checkout":
-        if user_id not in SHOP_CART or not SHOP_CART[user_id]["items"]:
+        if user_id not in SHOP_CART or not isinstance(SHOP_CART[user_id], dict) or not SHOP_CART[user_id]["items"]:
             bot.answer_callback_query(call.id, "❌ Ваша корзина пуста!", show_alert=True)
             return
             
@@ -732,7 +741,6 @@ def handle_dog_callback(bot, call):
         for item in SHOP_CART[user_id]["items"]:
             if item in DOG_SHOP:
                 p = DOG_SHOP[item]['price']
-                # 🛠 ИСПРАВЛЕНО: было "Inter", стало "Инженер"
                 if "Инженер" in prof: p = int(p * 0.8)
                 total_price += p
                 
@@ -742,7 +750,7 @@ def handle_dog_callback(bot, call):
                     dog['items'].append(item)
                     
             update_dog_data(user_id, dog)
-            del SHOP_CART[user_id] # Чистим ОЗУ
+            del SHOP_CART[user_id]
             
             bot.answer_callback_query(call.id, f"🎉 Куплено! Списано {total_price} 💰. Вещи в гардеробе!", show_alert=True)
             try: bot.delete_message(call.message.chat.id, call.message.message_id)
