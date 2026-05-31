@@ -6,38 +6,36 @@ from database import (get_dog_data, update_dog_data, spend_dust, get_user_data,
                       equip_dog_item, unequip_dog_item, process_dog_walk, update_user_data)
 from neural_draw import get_cascade_image 
 
-# 🟢 КВАНТОВЫЙ КЭШ (Сейф для бесплатных картинок)
+# 🟢 КВАНТОВЫЙ КЭШ
 CABIN_IMAGE_CACHE = {}
 
-# 📥 ВРЕМЕННЫЕ БУФЕРЫ С ЗАЩИТОЙ ОТ УТЕЧКИ ПАМЯТИ
-# Структура: {user_id: {"items": [...], "last_time": timestamp}}
+# 📥 ВРЕМЕННЫЕ БУФЕРЫ
 SHOP_CART = {}        
 WARDROBE_BUFFER = {}  
 
 def clean_dead_sessions():
-    """Автоматически вычищает из ОЗУ брошенные корзины и гардеробы старше 15 минут с защитой от конфликта типов"""
     now = time.time()
     cutoff = 15 * 60
     
     dead_shop = []
-    for uid, sess in SHOP_CART.items():
+    for uid, sess in list(SHOP_CART.items()):
         if isinstance(sess, dict):
             if now - sess.get("last_time", 0) > cutoff:
                 dead_shop.append(uid)
         else:
-            dead_shop.append(uid) # Безопасно вычищаем устаревшие списки
+            dead_shop.append(uid)
             
     for uid in dead_shop:
         if uid in SHOP_CART:
             del SHOP_CART[uid]
         
     dead_wardrobe = []
-    for uid, sess in WARDROBE_BUFFER.items():
+    for uid, sess in list(WARDROBE_BUFFER.items()):
         if isinstance(sess, dict):
             if now - sess.get("last_time", 0) > cutoff:
                 dead_wardrobe.append(uid)
         else:
-            dead_wardrobe.append(uid) # Безопасно вычищаем устаревшие списки
+            dead_wardrobe.append(uid)
             
     for uid in dead_wardrobe:
         if uid in WARDROBE_BUFFER:
@@ -226,14 +224,6 @@ def get_deterministic_dna(user_id, gender=None):
         "gender": gender
     }
 
-def get_growth_stage(level):
-    if level < 5:
-        return "tiny, very small puppy, soft rounded facial features, clumsy but adorable posture, fluffy puppy-like coat with loose curls"
-    elif level < 12:
-        return "adolescent dog, lean and lanky, slightly longer legs, energetic and curious posture, developing tight poodle curls"
-    else:
-        return "adult dog, elegant and dignified, well-proportioned, signature toy poodle stature, perfectly groomed dense tight curls"
-
 def get_cabin_style(level):
     if level < 5:
         return "rusty industrial spacecraft cabin, exposed pipes, basic metal walls"
@@ -243,16 +233,19 @@ def get_cabin_style(level):
         return "luxury captain's quarters, high-end futuristic mahogany textures, advanced glowing holographic displays"
 
 def get_dog_prompt(dog, user_id):
-    if dog['status'] == 'dead':
+    if dog.get('status') == 'dead':
         return "empty dog bed, abandoned futuristic spaceship cabin, lonely atmosphere, realistic photographic style", 42
 
     gender = dog.get('gender', 'male')
     dna_data = get_deterministic_dna(user_id, gender=gender)
     dna_desc = dna_data['desc']
     
-    cabin_tier = get_cabin_style(dog['level'])
-    u_data = get_user_data(user_id)
-    dust = u_data['spendable_dust']
+    # Защита от отсутствия ключей в БД
+    dog_level = dog.get('level', 1)
+    cabin_tier = get_cabin_style(dog_level)
+    
+    u_data = get_user_data(user_id) or {}
+    dust = u_data.get('spendable_dust', 0)
     hour = datetime.now().hour
     
     dust_str = "glowing cosmic dust" if dust > 50 else "a few specks of dust"
@@ -272,10 +265,11 @@ def get_dog_prompt(dog, user_id):
 
     equipped = list(dog.get('equipped') or [])
     
-    # 🛡 ДЕТЕРМИНИРОВАННЫЙ ПРЕДОХРАНИТЕЛЬ: Лимит увеличен до 7 предметов с фиксацией сида
+    # 🛡 АБСОЛЮТНАЯ ЗАЩИТА СИДА (Строгая конвертация в текст)
     if len(equipped) > 7:
         import random as rnd
-        seeded_random = rnd.Random(user_id + len(equipped))
+        safe_seed = f"{str(user_id)}_{len(equipped)}"
+        seeded_random = rnd.Random(safe_seed)
         equipped = seeded_random.sample(equipped, 7)
 
     slots_data = {}
@@ -306,37 +300,49 @@ def get_dog_prompt(dog, user_id):
     return full_prompt, static_seed
 
 def send_dog_menu(bot, chat_id, user_id):
-    dog = get_dog_data(user_id)
-    u_data = get_user_data(user_id)
+    dog = get_dog_data(user_id) or {}
+    u_data = get_user_data(user_id) or {}
     
     from database import get_ship_date
     today = get_ship_date() 
     
-    if dog['date'] != today:
-        dog['hunger'] -= 20; dog['energy'] -= 25; dog['mood'] -= 15
+    # Безопасная проверка даты
+    if dog.get('date') != today:
+        dog['hunger'] = max(0, dog.get('hunger', 100) - 20)
+        dog['energy'] = max(0, dog.get('energy', 100) - 25)
+        dog['mood'] = max(0, dog.get('mood', 100) - 15)
         dog['date'] = today
-        if dog['hunger'] <= 0 or dog['energy'] <= 0: dog['status'] = 'dead'
+        if dog['hunger'] <= 0 or dog['energy'] <= 0: 
+            dog['status'] = 'dead'
         update_dog_data(user_id, dog)
 
     full_prompt, seed = get_dog_prompt(dog, user_id)
     
-    if dog['status'] == 'dead':
+    if dog.get('status') == 'dead':
         text = "🛰 **СИГНАЛ ПОТЕРЯН**\n\nКомандор, твой верный пес покинул корабль. Каюта пуста..."
         kb = tele_types.InlineKeyboardMarkup().add(tele_types.InlineKeyboardButton("🛰 Вызвать нового щенка (-100 💰)", callback_data="dog_resurrect"))
     else:
-        equipped_names = [DOG_SHOP[k]['name'] for k in dog.get('equipped', []) if k in DOG_SHOP]
+        equipped_items = list(dog.get('equipped') or [])
+        equipped_names = [DOG_SHOP[k]['name'] for k in equipped_items if k in DOG_SHOP]
         style_info = ", ".join(equipped_names) if equipped_names else "Ничего не надето"
 
         from database import get_dog_profession
         current_prof = get_dog_profession(user_id)
         
+        dog_level = dog.get('level', 1)
+        dog_xp = dog.get('xp', 0)
+        dog_hunger = dog.get('hunger', 100)
+        dog_energy = dog.get('energy', 100)
+        dog_mood = dog.get('mood', 100)
+        user_dust = u_data.get('spendable_dust', 0)
+        
         text = (
             f"🐕 **КАЮТА ПИТОМЦА ({current_prof})**\n\n"
-            f"Уровень: {dog['level']} | Опыт: {dog['xp']}/15\n"
-            f"🍖 Сытость: {dog['hunger']}% | 🔋 Энергия: {dog['energy']}%\n"
-            f"🎾 Настроение: {dog['mood']}%\n"
+            f"Уровень: {dog_level} | Опыт: {dog_xp}/15\n"
+            f"🍖 Сытость: {dog_hunger}% | 🔋 Энергия: {dog_energy}%\n"
+            f"🎾 Настроение: {dog_mood}%\n"
             f"👕 Надето: {style_info}\n\n"
-            f"💰 Пыль: {u_data['spendable_dust']} ед."
+            f"💰 Пыль: {user_dust} ед."
         )
         
         kb = tele_types.InlineKeyboardMarkup(row_width=2)
@@ -349,7 +355,7 @@ def send_dog_menu(bot, chat_id, user_id):
             tele_types.InlineKeyboardButton("🛒 Maгазин", callback_data="dog_shop") 
         )
 
-        if dog['level'] >= 10 and current_prof == 'Кадет':
+        if dog_level >= 10 and current_prof == 'Кадет':
             kb.row(tele_types.InlineKeyboardButton(text="🎓 Выбрать специализацию", callback_data="dog_choose_prof"))
   
         cache_key = f"{user_id}_{full_prompt}"
@@ -358,24 +364,30 @@ def send_dog_menu(bot, chat_id, user_id):
             bot.send_photo(chat_id, photo=CABIN_IMAGE_CACHE[cache_key], caption=text, parse_mode="Markdown", reply_markup=kb)
         else:
             bot.send_chat_action(chat_id, 'upload_photo')
-            image_bytes = get_cascade_image(full_prompt, seed)
-            if image_bytes:
-                msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
-                if len(CABIN_IMAGE_CACHE) > 500:
-                    CABIN_IMAGE_CACHE.clear()
-                CABIN_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
-            else:
-                bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации!_", parse_mode="Markdown", reply_markup=kb)
+            try:
+                image_bytes = get_cascade_image(full_prompt, seed)
+                if image_bytes:
+                    msg = bot.send_photo(chat_id, photo=image_bytes, caption=text, parse_mode="Markdown", reply_markup=kb)
+                    if len(CABIN_IMAGE_CACHE) > 500:
+                        CABIN_IMAGE_CACHE.clear()
+                    CABIN_IMAGE_CACHE[cache_key] = msg.photo[-1].file_id
+                else:
+                    bot.send_message(chat_id, text + "\n\n⚠️ _Сбой визуализации! Нейросети недоступны._", parse_mode="Markdown", reply_markup=kb)
+            except Exception as e:
+                bot.send_message(chat_id, text + "\n\n⚠️ _Техническая ошибка связи с сервером._", parse_mode="Markdown", reply_markup=kb)
 
 def handle_dog_callback(bot, call):
     user_id = call.from_user.id
     action = call.data.replace("dog_", "")
-    dog = get_dog_data(user_id)
+    dog = get_dog_data(user_id) or {}
 
     if action == "feed":
         if spend_dust(user_id, 5):
-            dog['hunger'] = min(100, dog['hunger'] + 30); dog['xp'] += 1
-            if dog['xp'] >= 15: dog['level'] += 1; dog['xp'] = 0
+            dog['hunger'] = min(100, dog.get('hunger', 100) + 30)
+            dog['xp'] = dog.get('xp', 0) + 1
+            if dog['xp'] >= 15: 
+                dog['level'] = dog.get('level', 1) + 1
+                dog['xp'] = 0
             update_dog_data(user_id, dog)
             bot.answer_callback_query(call.id, "🍖 Вкусно! Сытость +30, Опыт +1")
         else: bot.answer_callback_query(call.id, "❌ Нужно 5 пыли!")
@@ -396,16 +408,15 @@ def handle_dog_callback(bot, call):
         from database import get_ship_date
         today = get_ship_date()
         
-        if dog.get('last_exp', '') == today:
+        if dog.get('last_exp') == today:
             bot.answer_callback_query(call.id, "🛰 Навигатор сообщает: Гипердвигатель на перезарядке. Доступен 1 полет в день!", show_alert=True)
             return
 
-        if dog['energy'] >= 30:
+        if dog.get('energy', 0) >= 30:
             dog['energy'] -= 30
             dog['last_exp'] = today
             
             import random
-            from datetime import datetime
             
             is_sunday = (datetime.now().weekday() == 6)
             drop_chance = 0.50 if is_sunday else 0.10
@@ -414,8 +425,10 @@ def handle_dog_callback(bot, call):
                 secret_items = [k for k, v in DOG_SHOP.items() if v['price'] == 0]
                 found_item = random.choice(secret_items)
                 
-                if found_item not in dog['items']:
-                    dog['items'].append(found_item)
+                dog_items = list(dog.get('items') or [])
+                if found_item not in dog_items:
+                    dog_items.append(found_item)
+                    dog['items'] = dog_items
                     msg = f"🛰 **УСПЕХ!** Марти обыскал заброшенные палубы и нашел: *{DOG_SHOP[found_item]['name']}*! Проверьте гардероб."
                     if is_sunday: msg = "✨ **ВОСКРЕСНЫЙ БУСТ!** " + msg
                 else:
@@ -433,16 +446,18 @@ def handle_dog_callback(bot, call):
         prof = get_dog_profession(user_id)
         energy_boost = 60 if "Медик" in prof else 40
         
-        if dog['energy'] >= 100:
+        if dog.get('energy', 0) >= 100:
             bot.answer_callback_query(call.id, "Марти уже полон сил! ⚡", show_alert=True)
         else:
-            dog['energy'] = min(100, dog['energy'] + energy_boost) 
+            dog['energy'] = min(100, dog.get('energy', 0) + energy_boost) 
             update_dog_data(user_id, dog) 
             bot.answer_callback_query(call.id, f"Марти поспал в крио-капсуле (+{energy_boost} Энергии)! 💤")
 
     elif action == "play":
         if spend_dust(user_id, 5):
-            dog['mood'] = min(100, dog['mood'] + 30); dog['energy'] -= 20; update_dog_data(user_id, dog)
+            dog['mood'] = min(100, dog.get('mood', 100) + 30)
+            dog['energy'] = max(0, dog.get('energy', 100) - 20)
+            update_dog_data(user_id, dog)
             bot.answer_callback_query(call.id, "🎾 Грави-мяч — это весело!")
         else: bot.answer_callback_query(call.id, "❌ Нужно 5 пыли!")
 
@@ -450,16 +465,15 @@ def handle_dog_callback(bot, call):
         from database import get_ship_date
         today = get_ship_date()
         
-        if dog.get('last_exp', '') == today:
+        if dog.get('last_exp') == today:
             bot.answer_callback_query(call.id, "🪨 Сканеры перегружены. Доступен 1 полет в день!", show_alert=True)
             return
 
-        if dog['energy'] >= 50:
+        if dog.get('energy', 0) >= 50:
             dog['energy'] -= 50
             dog['last_exp'] = today
             
             import random
-            from datetime import datetime
             
             is_sunday = (datetime.now().weekday() == 6)
             drop_chance = 0.50 if is_sunday else 0.10
@@ -468,8 +482,8 @@ def handle_dog_callback(bot, call):
                 found_dust = random.randint(50, 150)
                 if is_sunday: found_dust = int(found_dust * 2)
                 
-                u_data = get_user_data(user_id)
-                u_data['spendable_dust'] += found_dust
+                u_data = get_user_data(user_id) or {}
+                u_data['spendable_dust'] = u_data.get('spendable_dust', 0) + found_dust
                 update_user_data(user_id, u_data) 
                 
                 msg = f"🪨 УСПЕХ! Марти пробурил астероид: +{found_dust} 💰 Пыли!"
@@ -559,7 +573,8 @@ def handle_dog_callback(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         
         found_any = False
-        for item_key in dog['items']:
+        dog_items = list(dog.get('items') or [])
+        for item_key in dog_items:
             if item_key not in DOG_SHOP:
                 continue
                 
@@ -671,12 +686,13 @@ def handle_dog_callback(bot, call):
         kb = tele_types.InlineKeyboardMarkup(row_width=1)
         found_any = False
         
+        dog_items = list(dog.get('items') or [])
         for k, v in DOG_SHOP.items():
             if get_item_slot(k) in allowed_slots and v['price'] > 0:
                 found_any = True
                 price = int(v['price'] * 0.8) if "Инженер" in prof else v['price']
                 
-                if k in dog.get('items', []):
+                if k in dog_items:
                     btn_text = f"🔒 {v['name']} [Уже куплено]"
                 elif k in SHOP_CART[user_id]["items"]:
                     btn_text = f"✅ {v['name']} ({price}💰) [В КОРЗИНЕ]"
@@ -703,7 +719,8 @@ def handle_dog_callback(bot, call):
         SHOP_CART[user_id]["last_time"] = time.time()
         current_cart = SHOP_CART[user_id]["items"]
         
-        if item_key in dog.get('items', []):
+        dog_items = list(dog.get('items') or [])
+        if item_key in dog_items:
             bot.answer_callback_query(call.id, "Этот предмет уже есть у вас в гардеробе!", show_alert=True)
             return
 
@@ -745,10 +762,12 @@ def handle_dog_callback(bot, call):
                 total_price += p
                 
         if spend_dust(user_id, total_price):
+            dog_items = list(dog.get('items') or [])
             for item in SHOP_CART[user_id]["items"]:
-                if item not in dog['items']:
-                    dog['items'].append(item)
-                    
+                if item not in dog_items:
+                    dog_items.append(item)
+            
+            dog['items'] = dog_items
             update_dog_data(user_id, dog)
             del SHOP_CART[user_id]
             
