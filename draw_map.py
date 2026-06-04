@@ -59,7 +59,7 @@ def generate_star_map(lat, lon, user_name, user_id):
     gc.collect() 
     
     temp_raw = OUTPUT_DIR / f"raw_{user_id}.png"
-    final_png = OUTPUT_DIR / f"fin_{user_id}.png" # Этот путь оставим для совместимости с main.py, но сохраним туда легкий JPG!
+    final_png = OUTPUT_DIR / f"fin_{user_id}.png" 
     final_jpg = OUTPUT_DIR / f"sky_{user_id}.jpg"
     
     try:
@@ -96,12 +96,25 @@ def generate_star_map(lat, lon, user_name, user_id):
 
         p = ZenithPlot(observer=observer, style=style, resolution=1200, autoscale=True)
         p.horizon()
-        p.milky_way() 
+        
+        # --- [ ИНТЕЛЛЕКТУАЛЬНЫЙ РЕНДЕР ] ---
+        # Снижаем нагрузку на оперативную память, убирая невидимые из-за облаков звезды
+        if cloud_cover <= 15:
+            star_limit = 4.8  # Ясное небо (баланс: видно много, но память не забивается)
+            label_limit = 2.5
+            p.milky_way()     # Млечный путь рисуем только в чистом небе
+        elif cloud_cover <= 50:
+            star_limit = 3.5  # Переменная облачность
+            label_limit = 2.0
+        else:
+            star_limit = 2.5  # Сильная облачность (видно только самые яркие)
+            label_limit = 1.0
+
         p.constellations()
         p.ecliptic(style={"line": {"color": "#FF4444", "width": 2.0, "alpha": 0.85}})
         p.celestial_equator(style={"line": {"color": "#4477FF", "width": 2.0, "alpha": 0.85}})
         p.constellation_labels() 
-        p.stars(where=[_.magnitude < 6.2], where_labels=[_.magnitude < 3.5]) 
+        p.stars(where=[_.magnitude < star_limit], where_labels=[_.magnitude < label_limit]) 
         p.planets() 
 
         sun_e = ephem.Sun(); sun_e.compute(e_obs)
@@ -134,7 +147,7 @@ def generate_star_map(lat, lon, user_name, user_id):
         plt.clf()
         plt.close('all')
         del p
-        gc.collect() # Освобождаем память после тяжелого Starplot
+        gc.collect()
 
         with Image.open(BASE_DIR / 'background1.png').convert("RGBA") as bg_img:
             sky_size = 940 
@@ -192,13 +205,7 @@ def generate_star_map(lat, lon, user_name, user_id):
             draw.text((int(bg_img.width * 0.705), int(bg_img.height * 0.91)), set_t, fill='#D4E6FF', font=font)
             draw.text((int(bg_img.width * 0.38), int(bg_img.height * 0.955)), target_name_rus, fill='#FF00FF', font=font_bold)
 
-            # 🟢 КЛЮЧЕВОЙ МОМЕНТ ХИТРОСТИ: Мы не сохраняем тяжелый PNG!
-            # Вместо final_png мы пишем туда высококачественный JPEG (96% качества).
-            # В файловой системе расширение останется .png (чтобы main.py не ругался на отсутствие файла),
-            # но внутри это будет легкий, оптимизированный JPEG, который Render отправит за милисекунду!
             bg_img.convert("RGB").save(str(final_png), "JPEG", quality=96, optimize=True)
-            
-            # Для превью в чате сохраняем обычный сжатый JPG
             bg_img.convert("RGB").save(str(final_jpg), "JPEG", quality=85, optimize=True)
 
         if temp_raw.exists(): 
