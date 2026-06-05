@@ -94,7 +94,7 @@ def generate_star_map(lat, lon, user_name, user_id):
                 c.line.color = "#5c9dff"
         except: pass
 
-        p = ZenithPlot(observer=observer, style=style, resolution=1200, autoscale=True)
+        p = ZenithPlot(observer=observer, style=style, resolution=1000, autoscale=True)
         p.horizon()
         
         # --- [ ИНТЕЛЛЕКТУАЛЬНЫЙ РЕНДЕР ] ---
