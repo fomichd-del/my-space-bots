@@ -109,7 +109,7 @@ def handle_location(message):
     user_id, user_name = message.from_user.id, message.from_user.first_name
     status_msg = bot.send_message(message.chat.id, "🚀 <b>Прогреваю варп-двигатель...</b>", parse_mode='HTML')
     
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(generate_star_map, message.location.latitude, message.location.longitude, user_name, user_id)
         while not future.done():
             time.sleep(10)
